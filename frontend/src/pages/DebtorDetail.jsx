@@ -148,7 +148,15 @@ export default function DebtorDetail() {
             </Section>
 
             <Section title="Dados Financeiros">
-              <DataRow label="Valor da Dívida" value={fmtBRL(d.valor_divida)} />
+              <DataRow label="Valor da Dívida (face)" value={fmtBRL(d.valor_divida)} />
+              <DataRow
+                label="Valor Esperado de Recuperação"
+                value={
+                  <span className="text-emerald-600 font-semibold">
+                    {fmtBRL(d.valor_esperado_recuperacao)}
+                  </span>
+                }
+              />
               <DataRow label="Renda Estimada" value={fmtBRL(d.renda_estimada)} />
               <DataRow label="Dias em Atraso" value={fmtNum(d.dias_em_atraso)} />
               {d.comprometimento_renda != null && (

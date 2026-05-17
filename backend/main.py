@@ -97,6 +97,10 @@ async def analisar(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro na análise: {e}")
 
+    resultado["valor_esperado_recuperacao"] = (
+        resultado["score_recuperabilidade"] / 100 * resultado["valor_divida"]
+    ).round(2)
+
     resultado_sorted = resultado.sort_values("score_recuperabilidade", ascending=False)
 
     # Lista de devedores ranqueados
@@ -106,6 +110,7 @@ async def analisar(file: UploadFile = File(...)):
             "rank": rank,
             "score_recuperabilidade": float(row["score_recuperabilidade"]),
             "perfil_cluster": row["perfil_cluster"],
+            "valor_esperado_recuperacao": float(row["valor_esperado_recuperacao"]),
         }
         for col in df.columns:
             val = row[col]
@@ -114,6 +119,7 @@ async def analisar(file: UploadFile = File(...)):
 
     # Resumo geral
     total_em_risco = float(resultado["valor_divida"].sum())
+    ver_total = float(resultado["valor_esperado_recuperacao"].sum())
     media_score = float(resultado["score_recuperabilidade"].mean().round(1))
 
     # Distribuição por aging
@@ -151,6 +157,8 @@ async def analisar(file: UploadFile = File(...)):
             "total_devedores": len(resultado),
             "total_em_risco": round(total_em_risco, 2),
             "score_medio": media_score,
+            "valor_esperado_recuperacao_total": round(ver_total, 2),
+            "taxa_recuperacao_esperada": round(ver_total / total_em_risco * 100, 1) if total_em_risco else 0,
         },
         "distribuicao_aging": aging_dist,
         "distribuicao_cluster": cluster_dist,
