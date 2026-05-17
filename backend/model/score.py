@@ -17,9 +17,19 @@ def _carregar_modelos() -> tuple:
     if _cache:
         return _cache["clf"], _cache["kmeans"], _cache["meta"]
 
-    clf = joblib.load(MODEL_DIR / "mizan_model.pkl")
-    kmeans = joblib.load(MODEL_DIR / "kmeans.pkl")
-    meta = joblib.load(MODEL_DIR / "scaler.pkl")
+    arquivos = {
+        "mizan_model.pkl": MODEL_DIR / "mizan_model.pkl",
+        "kmeans.pkl":      MODEL_DIR / "kmeans.pkl",
+        "scaler.pkl":      MODEL_DIR / "scaler.pkl",
+    }
+    ausentes = [nome for nome, path in arquivos.items() if not path.exists()]
+    if ausentes:
+        faltando = ausentes[0]
+        raise FileNotFoundError(2, "No such file or directory", str(MODEL_DIR / faltando))
+
+    clf = joblib.load(arquivos["mizan_model.pkl"])
+    kmeans = joblib.load(arquivos["kmeans.pkl"])
+    meta = joblib.load(arquivos["scaler.pkl"])
 
     _cache["clf"] = clf
     _cache["kmeans"] = kmeans

@@ -11,6 +11,11 @@ from model.score import score_carteira
 
 load_dotenv()
 
+COLUNAS_OBRIGATORIAS = [
+    "cpf", "nome", "produto", "status", "uf",
+    "valor_divida", "renda_estimada", "dias_em_atraso",
+]
+
 app = FastAPI(
     title="Mizan API",
     description="Plataforma de análise de carteira de crédito com IA",
@@ -72,12 +77,22 @@ async def analisar(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"Erro ao ler CSV: {e}")
 
+    faltantes = [c for c in COLUNAS_OBRIGATORIAS if c not in df.columns]
+    if faltantes:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"CSV inválido. Colunas obrigatórias ausentes: {faltantes}. "
+                f"Colunas encontradas: {df.columns.tolist()}"
+            ),
+        )
+
     try:
         resultado = score_carteira(df)
-    except FileNotFoundError:
+    except FileNotFoundError as e:
         raise HTTPException(
             status_code=503,
-            detail="Modelos não encontrados. Execute model/train.py primeiro.",
+            detail=f"Modelos não encontrados ({e.filename}). Execute model/train.py primeiro.",
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro na análise: {e}")
