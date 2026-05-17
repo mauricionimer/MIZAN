@@ -2,6 +2,7 @@ import io
 import os
 
 import pandas as pd
+import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
@@ -141,3 +142,7 @@ async def analisar(file: UploadFile = File(...)):
         "top10_prioritarios": top10,
         "ranking_completo": devedores,
     }
+
+
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
