@@ -1,0 +1,7 @@
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+pandas==3.0.3
+scikit-learn==1.8.0
+python-multipart==0.0.12
+supabase==2.10.0
+python-dotenv==1.0.1
