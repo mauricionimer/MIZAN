@@ -6,14 +6,6 @@ import pandas as pd
 
 MODEL_DIR = Path(__file__).parent
 
-CLUSTER_LABELS = {
-    0: "Alto Risco",
-    1: "Risco Moderado",
-    2: "Potencial de Recuperação",
-    3: "Baixo Risco",
-    4: "Consignado Prioritário",
-}
-
 FEATURES_NUMERICAS = [
     "valor_divida", "renda_estimada", "dias_em_atraso", "comprometimento_renda"
 ]
@@ -70,6 +62,7 @@ def score_carteira(df: pd.DataFrame) -> pd.DataFrame:
     resultado = df.copy()
     resultado["score_recuperabilidade"] = score
     resultado["cluster_id"] = clusters
-    resultado["perfil_cluster"] = [CLUSTER_LABELS.get(c, "Indefinido") for c in clusters]
+    cluster_labels = meta.get("cluster_labels", {})
+    resultado["perfil_cluster"] = [cluster_labels.get(int(c), f"Cluster {c}") for c in clusters]
 
     return resultado
