@@ -84,6 +84,20 @@ export default function Dashboard() {
   const [custoCobranca, setCustoCobranca] = useState(25)   // %
   const [retornoAlvo, setRetornoAlvo]     = useState(30)   // %
 
+  // useMemo deve ficar ANTES de qualquer return condicional (regra dos hooks)
+  const pricing = useMemo(() => {
+    if (!result) return null
+    const ver      = result.resumo.valor_esperado_recuperacao_total
+    const face     = result.resumo.total_em_risco
+    const cc       = custoCobranca / 100
+    const ra       = retornoAlvo   / 100
+    const liquido  = ver * (1 - cc)
+    const preco    = liquido / (1 + ra)
+    const retorno  = ((liquido - preco) / preco) * 100
+    const desconto = ((face - preco) / face) * 100
+    return { ver, face, liquido, preco, retorno, desconto }
+  }, [result, custoCobranca, retornoAlvo])
+
   if (!result) { navigate('/'); return null }
 
   const { resumo, distribuicao_aging, distribuicao_cluster, ranking_completo } = result
@@ -99,19 +113,6 @@ export default function Dashboard() {
         d.cpf?.includes(search)
       )
     : ranking_completo
-
-  // Precificação — recalculada ao mover sliders
-  const pricing = useMemo(() => {
-    const ver       = resumo.valor_esperado_recuperacao_total
-    const face      = resumo.total_em_risco
-    const cc        = custoCobranca / 100
-    const ra        = retornoAlvo   / 100
-    const liquido   = ver * (1 - cc)
-    const preco     = liquido / (1 + ra)
-    const retorno   = ((liquido - preco) / preco) * 100
-    const desconto  = ((face - preco) / face) * 100
-    return { ver, face, liquido, preco, retorno, desconto }
-  }, [resumo, custoCobranca, retornoAlvo])
 
   const exportPDF = async () => {
     setExporting(true)
