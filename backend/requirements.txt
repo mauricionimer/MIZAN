@@ -5,3 +5,4 @@ scikit-learn==1.8.0
 python-multipart==0.0.12
 supabase==2.10.0
 python-dotenv==1.0.1
+joblib==1.5.3
