@@ -87,14 +87,14 @@ export default function Dashboard() {
   // useMemo deve ficar ANTES de qualquer return condicional (regra dos hooks)
   const pricing = useMemo(() => {
     if (!result) return null
-    const ver      = result.resumo.valor_esperado_recuperacao_total
-    const face     = result.resumo.total_em_risco
+    const ver      = result.resumo.valor_esperado_recuperacao_total ?? 0
+    const face     = result.resumo.total_em_risco ?? 0
     const cc       = custoCobranca / 100
     const ra       = retornoAlvo   / 100
     const liquido  = ver * (1 - cc)
     const preco    = liquido / (1 + ra)
-    const retorno  = ((liquido - preco) / preco) * 100
-    const desconto = ((face - preco) / face) * 100
+    const retorno  = preco > 0 ? ((liquido - preco) / preco) * 100 : 0
+    const desconto = face  > 0 ? ((face - preco) / face) * 100 : 0
     return { ver, face, liquido, preco, retorno, desconto }
   }, [result, custoCobranca, retornoAlvo])
 
@@ -215,7 +215,7 @@ export default function Dashboard() {
               <PricingCard
                 label="Valor Esperado de Recuperação"
                 value={fmtBRL(pricing.ver)}
-                sub={`${fmtPct(resumo.taxa_recuperacao_esperada)} do valor de face`}
+                sub={resumo.taxa_recuperacao_esperada != null ? `${fmtPct(resumo.taxa_recuperacao_esperada)} do valor de face` : 'do valor de face'}
                 icon={ArrowUpRight}
               />
               <PricingCard
@@ -374,8 +374,8 @@ export default function Dashboard() {
                     <td className="px-4 py-3 capitalize text-slate-600">{d.produto}</td>
                     <td className="px-4 py-3 text-right text-slate-700 font-mono text-xs whitespace-nowrap">{fmtBRL(d.valor_divida)}</td>
                     <td className="px-4 py-3 text-right font-mono text-xs whitespace-nowrap">
-                      <span className={d.valor_esperado_recuperacao > 0 ? 'text-emerald-600 font-semibold' : 'text-slate-400'}>
-                        {fmtBRL(d.valor_esperado_recuperacao)}
+                      <span className={(d.valor_esperado_recuperacao ?? 0) > 0 ? 'text-emerald-600 font-semibold' : 'text-slate-400'}>
+                        {d.valor_esperado_recuperacao != null ? fmtBRL(d.valor_esperado_recuperacao) : '—'}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right text-slate-600 font-mono text-xs">{fmtNum(d.dias_em_atraso)}</td>
