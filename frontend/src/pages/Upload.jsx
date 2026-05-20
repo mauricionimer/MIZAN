@@ -357,10 +357,6 @@ function FormDB({ onResult }) {
   }
 
   async function conectar() {
-    if (!conexaoSalvaId && !form.nome_fonte.trim()) {
-      setErro('Informe um nome para a conexão antes de continuar.')
-      return
-    }
     setLoadingConexao(true); setErro(null)
     if (isSheets) {
       if (!form.sheets_id) { setErro('Informe o ID da planilha.'); setLoadingConexao(false); return }
@@ -426,8 +422,9 @@ function FormDB({ onResult }) {
     setLoadingAnalise(true); setEtapa('analisando'); setErro(null)
     try {
       const data = await analisarDB({ ...paramsConexao(), mapeamento: mapa })
-      const nomeEfetivo = form.nome_fonte.trim() || nomeParaSalvar.trim()
-      if (!conexaoSalvaId && nomeEfetivo) {
+      const autoNome = `${form.tipo.toUpperCase()} · ${(form.host || '').split('.')[0] || form.banco || 'banco'}`
+      const nomeEfetivo = form.nome_fonte.trim() || nomeParaSalvar.trim() || autoNome
+      if (!conexaoSalvaId) {
         // Auto-salva a conexão com mapeamento e vincula a carteira criada
         try {
           const res = await salvarConexao({
