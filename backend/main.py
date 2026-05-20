@@ -925,7 +925,9 @@ def _construir_url_db(conn: ConexaoDB) -> str:
 
     if conn.tipo in ("postgres", "postgresql"):
         porta = conn.porta or 5432
-        return f"postgresql+psycopg://{user}:{senha}@{host}:{porta}/{banco}"
+        local = host in ("localhost", "127.0.0.1", "::1")
+        ssl = "" if local else "?sslmode=require"
+        return f"postgresql+psycopg://{user}:{senha}@{host}:{porta}/{banco}{ssl}"
 
     if conn.tipo in ("mysql", "mariadb"):
         porta = conn.porta or 3306
