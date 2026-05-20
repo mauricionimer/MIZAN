@@ -714,7 +714,12 @@ def salvar_conexao(body: ConexaoSalvarIn, credentials: HTTPAuthorizationCredenti
     row["usuario_id"] = payload["sub"]
     row["empresa_id"] = payload.get("empresa_id") or None
     row["senha"] = _encrypt(body.senha)  # cifra antes de armazenar
-    res = db.table("conexoes_db").insert(row).execute()
+    try:
+        res = db.table("conexoes_db").insert(row).execute()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao salvar conexão no banco: {e}")
+    if not res.data:
+        raise HTTPException(status_code=500, detail="Falha ao inserir conexão — verifique o schema da tabela conexoes_db no Supabase.")
     saved = res.data[0]
     saved["senha"] = ""  # não retorna a senha cifrada
     return {"ok": True, "conexao": saved}

@@ -239,11 +239,17 @@ function FormDB({ onResult }) {
   const [sincronizandoId, setSincronizandoId] = useState(null)
   const [syncMsg,         setSyncMsg]         = useState(null) // {tipo, texto}
   const [modo,            setModo]            = useState('lista') // 'lista' | 'nova'
+  const [carregandoConexoes, setCarregandoConexoes] = useState(true)
 
   useEffect(() => {
+    setCarregandoConexoes(true)
     listarConexoes()
-      .then(data => { setConexoes(data); if (data.length === 0) setModo('nova') })
+      .then(data => {
+        setConexoes(data)
+        setModo(data.length === 0 ? 'nova' : 'lista')
+      })
       .catch(() => { setModo('nova') })
+      .finally(() => setCarregandoConexoes(false))
   }, [])
 
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setErro(null) }
@@ -436,10 +442,15 @@ function FormDB({ onResult }) {
             mapeamento: mapa,
           })
           setConexoes(prev => [res.conexao, ...prev])
+          setConexaoSalvaId(res.conexao.id)
+          setModo('lista')
           if (data.resumo?.carteira_id) {
             atualizarConexao(res.conexao.id, { carteira_id: data.resumo.carteira_id }).catch(() => {})
           }
-        } catch (saveErr) { console.error('Falha ao salvar conexão:', saveErr) }
+        } catch (saveErr) {
+          console.error('Falha ao salvar conexão:', saveErr)
+          // Não bloqueia o dashboard, mas avisa no console de rede
+        }
       } else if (conexaoSalvaId) {
         atualizarConexao(conexaoSalvaId, { mapeamento: mapa, query: form.query, carteira_id: data.resumo?.carteira_id || undefined }).catch(() => {})
       }
@@ -458,6 +469,12 @@ function FormDB({ onResult }) {
       <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
         Bancos de dados conectados
       </p>
+
+      {carregandoConexoes && (
+        <div className="flex items-center gap-2 text-sm text-slate-400 py-4 justify-center">
+          <Loader2 className="h-4 w-4 animate-spin" /> Carregando conexões...
+        </div>
+      )}
 
       {conexoes.map(c => (
         <div key={c.id} className="rounded-xl border border-slate-200 bg-white overflow-hidden">
