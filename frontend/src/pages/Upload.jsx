@@ -357,6 +357,10 @@ function FormDB({ onResult }) {
   }
 
   async function conectar() {
+    if (!conexaoSalvaId && !form.nome_fonte.trim()) {
+      setErro('Informe um nome para a conexão antes de continuar.')
+      return
+    }
     setLoadingConexao(true); setErro(null)
     if (isSheets) {
       if (!form.sheets_id) { setErro('Informe o ID da planilha.'); setLoadingConexao(false); return }
