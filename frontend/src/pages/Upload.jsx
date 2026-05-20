@@ -717,6 +717,7 @@ export default function Upload() {
   const [error, setError]       = useState(null)
   const [historico, setHistorico] = useState([])
   const [histLoading, setHistLoading] = useState(true)
+  const [histLimit, setHistLimit] = useState(10)
   const [abrindo, setAbrindo]   = useState(null)
   const inputRef = useRef()
   const navigate = useNavigate()
@@ -925,7 +926,7 @@ export default function Upload() {
 
         {!histLoading && historico.length > 0 && (
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-100 overflow-hidden">
-            {historico.map((c) => (
+            {historico.slice(0, histLimit).map((c) => (
               <div key={c.id} className="flex items-center gap-4 px-4 py-3 hover:bg-slate-50 transition-colors">
                 <FileText className="h-4 w-4 text-slate-300 shrink-0" />
                 <div className="flex-1 min-w-0">
@@ -950,6 +951,14 @@ export default function Upload() {
                 </button>
               </div>
             ))}
+            {historico.length > histLimit && (
+              <button
+                onClick={() => setHistLimit(l => l + 10)}
+                className="w-full py-3 text-xs text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                Ver mais ({historico.length - histLimit} restantes)
+              </button>
+            )}
           </div>
         )}
       </div>

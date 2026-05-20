@@ -2,6 +2,7 @@ import asyncio
 import io
 import json
 import os
+import time as _time
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from datetime import date, datetime
@@ -29,6 +30,28 @@ from auth import (
 load_dotenv()
 
 _scheduler: BackgroundScheduler | None = None
+
+# ---------------------------------------------------------------------------
+# Rate limiting de login (in-memory, 5 tentativas / 15 min por IP+email)
+# ---------------------------------------------------------------------------
+_tentativas_login: dict[str, list[float]] = defaultdict(list)
+_RATE_JANELA = 15 * 60
+_RATE_MAX    = 5
+
+
+def _checar_rate_limit(chave: str) -> None:
+    agora = _time.time()
+    _tentativas_login[chave] = [t for t in _tentativas_login[chave] if agora - t < _RATE_JANELA]
+    if len(_tentativas_login[chave]) >= _RATE_MAX:
+        raise HTTPException(status_code=429, detail="Muitas tentativas de login. Aguarde 15 minutos.")
+
+
+def _registrar_tentativa(chave: str) -> None:
+    _tentativas_login[chave].append(_time.time())
+
+
+def _limpar_tentativas(chave: str) -> None:
+    _tentativas_login.pop(chave, None)
 
 # ---------------------------------------------------------------------------
 # Criptografia de senhas salvas
@@ -314,12 +337,15 @@ class AlterarSenhaIn(BaseModel):
 # ── Endpoints de autenticação ─────────────────────────────────
 
 @app.post("/auth/login")
-def auth_login(body: LoginIn):
+def auth_login(body: LoginIn, request: Request):
+    chave = f"{request.client.host}:{body.email}"
+    _checar_rate_limit(chave)
     usuario = buscar_usuario(body.email)
-    if not usuario or not usuario.get("ativo"):
-        raise HTTPException(status_code=401, detail="E-mail não encontrado.")
-    if not verificar_senha(body.senha, usuario["senha_hash"]):
-        raise HTTPException(status_code=401, detail="Senha incorreta.")
+    senha_ok = bool(usuario and usuario.get("ativo") and verificar_senha(body.senha, usuario.get("senha_hash", "")))
+    if not senha_ok:
+        _registrar_tentativa(chave)
+        raise HTTPException(status_code=401, detail="E-mail ou senha incorretos.")
+    _limpar_tentativas(chave)
     token = criar_token({"sub": usuario["id"], "email": usuario["email"],
                          "nome": usuario["nome"], "role": usuario["role"]})
     return {"token": token, "usuario": {k: v for k, v in usuario.items() if k != "senha_hash"}}
