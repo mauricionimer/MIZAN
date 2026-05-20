@@ -273,6 +273,128 @@ def _resolver_credenciais(conn: ConexaoDB) -> None:
 
 
 
+def _exigir_comando(credentials: HTTPAuthorizationCredentials) -> dict:
+    try:
+        payload = validar_token(credentials.credentials)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+    if payload.get("role") != "comando":
+        raise HTTPException(status_code=403, detail="Acesso restrito ao painel COMANDO.")
+    return payload
+
+
+@app.get("/comando/visao-geral")
+def comando_visao_geral(credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    _exigir_comando(credentials)
+    db = get_db()
+
+    cart_res = db.table("carteiras").select(
+        "id, empresa_id, usuario_email, total_devedores, valor_face, valor_esperado, score_medio, created_at"
+    ).execute()
+
+    if not cart_res.data:
+        return {"empresas": [], "totais": {"total_empresas": 0, "total_devedores": 0, "valor_face_total": 0, "valor_recuperado_real": 0, "n_suspeitas": 0}}
+
+    empresas: dict = {}
+    cart_id_to_empresa: dict = {}
+
+    for c in cart_res.data:
+        eid = c.get("empresa_id") or c.get("usuario_email") or "sem_empresa"
+        cart_id_to_empresa[c["id"]] = eid
+        if eid not in empresas:
+            empresas[eid] = {
+                "empresa_id": eid,
+                "usuario_email": c.get("usuario_email") or "",
+                "total_carteiras": 0, "total_devedores": 0,
+                "valor_face_total": 0.0, "valor_esperado_total": 0.0,
+                "_scores": [], "n_feedbacks": 0, "n_pagamentos": 0,
+                "valor_recuperado_real": 0.0, "ultima_atividade": None,
+            }
+        e = empresas[eid]
+        e["total_carteiras"]      += 1
+        e["total_devedores"]      += int(c.get("total_devedores") or 0)
+        e["valor_face_total"]     += float(c.get("valor_face") or 0)
+        e["valor_esperado_total"] += float(c.get("valor_esperado") or 0)
+        if c.get("score_medio"):
+            e["_scores"].append(float(c["score_medio"]))
+        ca = c.get("created_at")
+        if ca and (e["ultima_atividade"] is None or ca > e["ultima_atividade"]):
+            e["ultima_atividade"] = ca
+
+    fb_res = db.table("feedbacks").select("predicao_id, pagou, valor_recuperado").execute()
+    fb_data = fb_res.data or []
+    pred_ids = [f["predicao_id"] for f in fb_data if f.get("predicao_id")]
+
+    if pred_ids:
+        pred_to_cart: dict = {}
+        for i in range(0, len(pred_ids), 100):
+            pr = db.table("predicoes").select("id, carteira_id").in_("id", pred_ids[i:i+100]).execute()
+            for p in (pr.data or []):
+                pred_to_cart[p["id"]] = p.get("carteira_id")
+        for f in fb_data:
+            pid = f.get("predicao_id")
+            if not pid or pid not in pred_to_cart:
+                continue
+            eid = cart_id_to_empresa.get(pred_to_cart[pid])
+            if not eid or eid not in empresas:
+                continue
+            e = empresas[eid]
+            e["n_feedbacks"] += 1
+            if f.get("pagou"):
+                e["n_pagamentos"] += 1
+                e["valor_recuperado_real"] += float(f.get("valor_recuperado") or 0)
+
+    result = []
+    for e in empresas.values():
+        vf = e["valor_face_total"]
+        vr = e["valor_recuperado_real"]
+        td = e["total_devedores"]
+        taxa_fb = round(e["n_feedbacks"] / td * 100, 1) if td > 0 else 0
+        result.append({
+            "empresa_id":            e["empresa_id"],
+            "usuario_email":         e["usuario_email"],
+            "total_carteiras":       e["total_carteiras"],
+            "total_devedores":       td,
+            "valor_face_total":      round(vf, 2),
+            "valor_esperado_total":  round(e["valor_esperado_total"], 2),
+            "score_medio":           round(sum(e["_scores"]) / len(e["_scores"]), 1) if e["_scores"] else None,
+            "n_feedbacks":           e["n_feedbacks"],
+            "n_pagamentos":          e["n_pagamentos"],
+            "valor_recuperado_real": round(vr, 2),
+            "taxa_recuperacao_real": round(vr / vf * 100, 2) if vf > 0 else 0,
+            "taxa_feedback":         taxa_fb,
+            "flag_suspeita":         td >= 50 and taxa_fb < 5,
+            "ultima_atividade":      e["ultima_atividade"],
+        })
+
+    result.sort(key=lambda x: x["valor_face_total"], reverse=True)
+
+    totais = {
+        "total_empresas":        len(result),
+        "total_devedores":       sum(r["total_devedores"] for r in result),
+        "valor_face_total":      round(sum(r["valor_face_total"] for r in result), 2),
+        "valor_recuperado_real": round(sum(r["valor_recuperado_real"] for r in result), 2),
+        "n_suspeitas":           sum(1 for r in result if r["flag_suspeita"]),
+    }
+    return {"empresas": result, "totais": totais}
+
+
+@app.get("/comando/carteiras")
+def comando_carteiras(
+    empresa_id: Optional[str] = None,
+    credentials: HTTPAuthorizationCredentials = Security(bearer),
+):
+    _exigir_comando(credentials)
+    db = get_db()
+    q = db.table("carteiras").select(
+        "id, empresa_id, usuario_email, nome_arquivo, total_devedores, valor_face, valor_esperado, score_medio, created_at, modelo_versao"
+    )
+    if empresa_id:
+        q = q.eq("empresa_id", empresa_id)
+    res = q.order("created_at", desc=True).limit(200).execute()
+    return res.data or []
+
+
 def _calcular_oferta(score: float, valor_divida: float) -> dict:
     score = float(score or 0)
     valor = float(valor_divida or 0)

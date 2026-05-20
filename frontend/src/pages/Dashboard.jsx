@@ -160,7 +160,7 @@ function PricingCard({ label, value, sub, highlight = false, icon: Icon }) {
 
 export default function Dashboard() {
   const { result } = useAnalysis()
-  const { usuario, logout, isAdmin } = useAuth()
+  const { usuario, logout, isAdmin, isComando } = useAuth()
   const navigate    = useNavigate()
   const [search, setSearch]               = useState('')
   const [exporting, setExporting]         = useState(false)
@@ -254,6 +254,14 @@ export default function Dashboard() {
           <span className="text-slate-500 text-sm">Dashboard</span>
         </div>
         <div className="flex items-center gap-3">
+          {isComando && (
+            <button
+              onClick={() => navigate('/comando')}
+              className="flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-800 transition-colors px-3 py-1.5 rounded-lg hover:bg-indigo-50 font-semibold"
+            >
+              <ShieldCheck className="h-3.5 w-3.5" /> COMANDO
+            </button>
+          )}
           {isAdmin && (
             <button
               onClick={() => navigate('/admin/usuarios')}

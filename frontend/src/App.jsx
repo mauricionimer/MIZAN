@@ -30,6 +30,7 @@ import Dashboard from './pages/Dashboard'
 import DebtorDetail from './pages/DebtorDetail'
 import Feedback from './pages/Feedback'
 import BanditDashboard from './pages/BanditDashboard'
+import ComandoDashboard from './pages/ComandoDashboard'
 import AdminUsuarios from './pages/AdminUsuarios'
 import AlterarSenha from './pages/AlterarSenha'
 import EsqueciSenha from './pages/EsqueciSenha'
@@ -59,6 +60,7 @@ export default function App() {
             <Route path="/devedor/:rank" element={<RotaProtegida><DebtorDetail /></RotaProtegida>} />
             <Route path="/feedback" element={<RotaProtegida><Feedback /></RotaProtegida>} />
             <Route path="/bandit" element={<RotaProtegida><BanditDashboard /></RotaProtegida>} />
+            <Route path="/comando" element={<RotaProtegida><ComandoDashboard /></RotaProtegida>} />
             <Route path="/admin/usuarios" element={<RotaProtegida><AdminUsuarios /></RotaProtegida>} />
             <Route path="/alterar-senha" element={<RotaProtegida><AlterarSenha /></RotaProtegida>} />
             <Route path="/privacidade" element={<Privacidade />} />
