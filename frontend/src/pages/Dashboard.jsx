@@ -262,12 +262,14 @@ export default function Dashboard() {
               <ShieldCheck className="h-3.5 w-3.5" /> Usuários
             </button>
           )}
-          <button
-            onClick={() => navigate('/bandit')}
-            className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-100"
-          >
-            <Zap className="h-3.5 w-3.5" /> Performance IA
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => navigate('/bandit')}
+              className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-100"
+            >
+              <Zap className="h-3.5 w-3.5" /> Performance IA
+            </button>
+          )}
           <button
             onClick={() => navigate('/feedback')}
             className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-100"
