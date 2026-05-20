@@ -35,6 +35,7 @@ import AlterarSenha from './pages/AlterarSenha'
 import EsqueciSenha from './pages/EsqueciSenha'
 import RedefinirSenha from './pages/RedefinirSenha'
 import Login from './pages/Login'
+import Privacidade from './pages/Privacidade'
 
 function RotaProtegida({ children }) {
   const { autenticado } = useAuth()
@@ -60,6 +61,7 @@ export default function App() {
             <Route path="/bandit" element={<RotaProtegida><BanditDashboard /></RotaProtegida>} />
             <Route path="/admin/usuarios" element={<RotaProtegida><AdminUsuarios /></RotaProtegida>} />
             <Route path="/alterar-senha" element={<RotaProtegida><AlterarSenha /></RotaProtegida>} />
+            <Route path="/privacidade" element={<Privacidade />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>

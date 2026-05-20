@@ -95,6 +95,10 @@ export default function Login() {
         </p>
       </div>
 
+      <p className="mt-6 text-center text-xs text-slate-400">
+        <a href="/privacidade" className="underline hover:text-slate-600">Política de Privacidade</a>
+        {' · '}LGPD
+      </p>
     </div>
   )
 }

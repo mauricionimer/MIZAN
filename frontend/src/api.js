@@ -186,6 +186,18 @@ export async function deletarConexao(id) {
   return res.json()
 }
 
+export async function deletarConta() {
+  const token = _getToken()
+  const res = await fetch(`${BASE}/auth/me`, {
+    method: 'DELETE', headers: _authHeader(token),
+  })
+  if (!res.ok) {
+    const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
+    throw new Error(detail)
+  }
+  return res.json()
+}
+
 export async function registrarContato(dados) {
   const token = _getToken()
   const res = await fetch(`${BASE}/contatos`, {

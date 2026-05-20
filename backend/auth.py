@@ -79,23 +79,29 @@ def _db():
 def _sem_hash(u: dict) -> dict:
     return {k: v for k, v in u.items() if k != "senha_hash"}
 
+def _empresa_do_email(email: str) -> str:
+    return email.split('@')[1] if '@' in email else 'mizan_default'
+
+
 def garantir_admin():
     """Cria o admin padrão se a tabela estiver vazia. Chamado no startup."""
     try:
         db = _db()
         res = db.table("usuarios").select("id").limit(1).execute()
         if not res.data:
+            email = os.getenv("ADMIN_EMAIL", "admin@mizan.com")
             admin = {
                 "id":         secrets.token_hex(8),
-                "email":      "admin@mizan.com",
+                "email":      email,
                 "nome":       "Administrador",
                 "senha_hash": hash_senha("mizan123"),
                 "role":       "admin",
                 "ativo":      True,
+                "empresa_id": _empresa_do_email(email),
             }
             db.table("usuarios").insert(admin).execute()
             print("\n[Auth] *** Primeiro acesso — usuário padrão criado ***")
-            print("[Auth]     E-mail: admin@mizan.com")
+            print(f"[Auth]     E-mail: {email}")
             print("[Auth]     Senha:  mizan123")
             print("[Auth]     Troque a senha após o primeiro login.\n")
     except Exception as e:
@@ -105,7 +111,7 @@ def buscar_usuario(email: str) -> dict | None:
     res = _db().table("usuarios").select("*").eq("email", email).limit(1).execute()
     return res.data[0] if res.data else None
 
-def criar_usuario(email: str, nome: str, senha: str, role: str = "operador") -> dict:
+def criar_usuario(email: str, nome: str, senha: str, role: str = "operador", empresa_id: str = "") -> dict:
     db = _db()
     if db.table("usuarios").select("id").eq("email", email).execute().data:
         raise ValueError("E-mail já cadastrado.")
@@ -116,6 +122,7 @@ def criar_usuario(email: str, nome: str, senha: str, role: str = "operador") -> 
         "senha_hash": hash_senha(senha),
         "role":       role,
         "ativo":      True,
+        "empresa_id": empresa_id or _empresa_do_email(email),
     }
     db.table("usuarios").insert(novo).execute()
     return _sem_hash(novo)

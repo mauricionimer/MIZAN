@@ -224,14 +224,14 @@ bearer_opcional = HTTPBearer(auto_error=False)
 
 
 def _usuario_do_token(credentials) -> tuple:
-    """Extrai (usuario_id, usuario_email) do JWT, ou (None, None) se sem token."""
+    """Extrai (usuario_id, usuario_email, empresa_id) do JWT, ou (None, None, None) se sem token."""
     if not credentials:
-        return None, None
+        return None, None, None
     try:
         payload = validar_token(credentials.credentials)
-        return payload.get("sub"), payload.get("email")
+        return payload.get("sub"), payload.get("email"), payload.get("empresa_id", "")
     except ValueError:
-        return None, None
+        return None, None, None
 
 
 class FeedbackIn(BaseModel):
@@ -347,7 +347,8 @@ def auth_login(body: LoginIn, request: Request):
         raise HTTPException(status_code=401, detail="E-mail ou senha incorretos.")
     _limpar_tentativas(chave)
     token = criar_token({"sub": usuario["id"], "email": usuario["email"],
-                         "nome": usuario["nome"], "role": usuario["role"]})
+                         "nome": usuario["nome"], "role": usuario["role"],
+                         "empresa_id": usuario.get("empresa_id", "")})
     return {"token": token, "usuario": {k: v for k, v in usuario.items() if k != "senha_hash"}}
 
 @app.get("/auth/me")
@@ -367,7 +368,9 @@ def auth_listar(credentials: HTTPAuthorizationCredentials = Security(bearer)):
 def auth_registrar(body: RegistrarIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     _exigir_admin(credentials)
     try:
-        novo = criar_usuario(body.email, body.nome, body.senha, body.role)
+        payload = validar_token(credentials.credentials)
+        empresa_id = payload.get("empresa_id", "")
+        novo = criar_usuario(body.email, body.nome, body.senha, body.role, empresa_id)
         return {"ok": True, "usuario": novo}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -501,6 +504,7 @@ def registrar_contato(body: ContatoIn, credentials: HTTPAuthorizationCredentials
     row = body.model_dump()
     row["usuario_id"]   = payload["sub"]
     row["usuario_nome"] = payload.get("nome", "")
+    row["empresa_id"]   = payload.get("empresa_id", "")
     res = db.table("contatos").insert(row).execute()
     return {"ok": True, "contato": res.data[0]}
 
@@ -508,19 +512,31 @@ def registrar_contato(body: ContatoIn, credentials: HTTPAuthorizationCredentials
 @app.get("/contatos/{cpf}")
 def listar_contatos_cpf(cpf: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     try:
-        validar_token(credentials.credentials)
+        payload = validar_token(credentials.credentials)
     except ValueError as e:
         raise HTTPException(status_code=401, detail=str(e))
     db = get_db()
-    res = (
-        db.table("contatos")
-        .select("*")
-        .eq("cpf", cpf)
-        .order("created_at", desc=True)
-        .limit(50)
-        .execute()
-    )
+    q = db.table("contatos").select("*").eq("cpf", cpf)
+    empresa_id = payload.get("empresa_id", "")
+    if empresa_id:
+        q = q.eq("empresa_id", empresa_id)
+    res = q.order("created_at", desc=True).limit(50).execute()
     return res.data
+
+
+@app.delete("/auth/me")
+def deletar_conta(credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """LGPD — usuário solicita exclusão da própria conta e dados."""
+    try:
+        payload = validar_token(credentials.credentials)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+    usuario_id = payload["sub"]
+    db = get_db()
+    db.table("contatos").delete().eq("usuario_id", usuario_id).execute()
+    db.table("conexoes_db").delete().eq("usuario_id", usuario_id).execute()
+    db.table("usuarios").delete().eq("id", usuario_id).execute()
+    return {"ok": True, "mensagem": "Conta e dados pessoais removidos."}
 
 
 @app.delete("/conexoes/{conexao_id}")
@@ -549,11 +565,13 @@ def health():
 
 @app.get("/carteiras")
 def listar_carteiras(credentials=Security(bearer_opcional)):
-    usuario_id, _ = _usuario_do_token(credentials)
+    usuario_id, _, empresa_id = _usuario_do_token(credentials)
     try:
         db = get_db()
         q = db.table("carteiras").select("id, nome_arquivo, created_at, total_devedores, valor_face, valor_esperado, score_medio")
-        if usuario_id:
+        if empresa_id:
+            q = q.eq("empresa_id", empresa_id)
+        elif usuario_id:
             q = q.eq("usuario_id", usuario_id)
         res = q.order("created_at", desc=True).limit(50).execute()
         return res.data
@@ -679,8 +697,8 @@ async def analisar(
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"Erro ao ler arquivo: {e}")
 
-    uid, uemail = _usuario_do_token(credentials)
-    return _analisar_df(df, file.filename, _usuario_id=uid, _usuario_email=uemail)
+    uid, uemail, eid = _usuario_do_token(credentials)
+    return _analisar_df(df, file.filename, _usuario_id=uid, _usuario_email=uemail, _empresa_id=eid)
 
 
 def _construir_url_db(conn: ConexaoDB) -> str:
@@ -742,7 +760,7 @@ def _ler_google_sheets(conn: ConexaoDB) -> pd.DataFrame:
     return pd.DataFrame(dados)
 
 
-def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _usuario_email: str = None) -> dict:
+def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _usuario_email: str = None, _empresa_id: str = None) -> dict:
     """Executa o pipeline de scoring em um DataFrame já carregado e persiste no Supabase."""
     faltantes = [c for c in COLUNAS_OBRIGATORIAS if c not in df.columns]
     if faltantes:
@@ -813,6 +831,8 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
         if _usuario_id:
             cart_row["usuario_id"]    = _usuario_id
             cart_row["usuario_email"] = _usuario_email
+        if _empresa_id:
+            cart_row["empresa_id"] = _empresa_id
         cart_res = db.table("carteiras").insert(cart_row).execute()
         carteira_id = cart_res.data[0]["id"]
 
@@ -1001,9 +1021,9 @@ async def analisar_db(conn: ConexaoDB, credentials=Security(bearer_opcional)):
         rename = {col_banco: campo for campo, col_banco in conn.mapeamento.items() if col_banco in df.columns}
         df = df.rename(columns=rename)
 
-    uid, uemail = _usuario_do_token(credentials)
+    uid, uemail, eid = _usuario_do_token(credentials)
     nome = conn.nome_fonte or "consulta_db"
-    return _analisar_df(df, nome, _usuario_id=uid, _usuario_email=uemail)
+    return _analisar_df(df, nome, _usuario_id=uid, _usuario_email=uemail, _empresa_id=eid)
 
 
 @app.post("/feedback")
