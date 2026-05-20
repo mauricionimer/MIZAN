@@ -439,7 +439,7 @@ function FormDB({ onResult }) {
           if (data.resumo?.carteira_id) {
             atualizarConexao(res.conexao.id, { carteira_id: data.resumo.carteira_id }).catch(() => {})
           }
-        } catch {}
+        } catch (saveErr) { console.error('Falha ao salvar conexão:', saveErr) }
       } else if (conexaoSalvaId) {
         atualizarConexao(conexaoSalvaId, { mapeamento: mapa, query: form.query, carteira_id: data.resumo?.carteira_id || undefined }).catch(() => {})
       }

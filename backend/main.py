@@ -709,10 +709,11 @@ def salvar_conexao(body: ConexaoSalvarIn, credentials: HTTPAuthorizationCredenti
     except ValueError as e:
         raise HTTPException(status_code=401, detail=str(e))
     db = get_db()
-    row = body.model_dump()
+    # Filtra nulos para não enviar colunas que podem não existir na tabela
+    row = {k: v for k, v in body.model_dump().items() if v is not None}
     row["usuario_id"] = payload["sub"]
     row["empresa_id"] = payload.get("empresa_id") or None
-    row["senha"] = _encrypt(row.get("senha"))  # cifra antes de armazenar
+    row["senha"] = _encrypt(body.senha)  # cifra antes de armazenar
     res = db.table("conexoes_db").insert(row).execute()
     saved = res.data[0]
     saved["senha"] = ""  # não retorna a senha cifrada
