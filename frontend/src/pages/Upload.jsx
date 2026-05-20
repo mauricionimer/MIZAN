@@ -420,40 +420,49 @@ function FormDB({ onResult }) {
       return
     }
     setLoadingAnalise(true); setEtapa('analisando'); setErro(null)
-    try {
-      const data = await analisarDB({ ...paramsConexao(), mapeamento: mapa })
+
+    // 1. Salva a conexão PRIMEIRO (antes da análise) para garantir que fica no banco
+    let savedId = conexaoSalvaId
+    if (!savedId) {
       const autoNome = `${form.tipo.toUpperCase()} · ${(form.host || '').split('.')[0] || form.banco || 'banco'}`
       const nomeEfetivo = form.nome_fonte.trim() || nomeParaSalvar.trim() || autoNome
-      if (!conexaoSalvaId) {
-        // Auto-salva a conexão com mapeamento e vincula a carteira criada
-        try {
-          const res = await salvarConexao({
-            nome: nomeEfetivo,
-            tipo: form.tipo,
-            host: form.host || null,
-            porta: form.porta ? Number(form.porta) : null,
-            banco: form.banco || null,
-            usuario: form.usuario || null,
-            senha: form.senha || null,
-            instance_name: form.instance_name || null,
-            service_name: form.service_name || null,
-            sheets_id: form.sheets_id || null,
-            sheets_aba: form.sheets_aba || null,
-            query: isSheets ? null : (form.query || null),
-            mapeamento: mapa,
-          })
-          setConexoes(prev => [res.conexao, ...prev])
-          setConexaoSalvaId(res.conexao.id)
-          setModo('lista')
-          if (data.resumo?.carteira_id) {
-            atualizarConexao(res.conexao.id, { carteira_id: data.resumo.carteira_id }).catch(() => {})
-          }
-        } catch (saveErr) {
-          console.error('Falha ao salvar conexão:', saveErr)
-          // Não bloqueia o dashboard, mas avisa no console de rede
-        }
-      } else if (conexaoSalvaId) {
-        atualizarConexao(conexaoSalvaId, { mapeamento: mapa, query: form.query, carteira_id: data.resumo?.carteira_id || undefined }).catch(() => {})
+      try {
+        const res = await salvarConexao({
+          nome: nomeEfetivo,
+          tipo: form.tipo,
+          host: form.host || null,
+          porta: form.porta ? Number(form.porta) : null,
+          banco: form.banco || null,
+          usuario: form.usuario || null,
+          senha: form.senha || null,
+          instance_name: form.instance_name || null,
+          service_name: form.service_name || null,
+          sheets_id: form.sheets_id || null,
+          sheets_aba: form.sheets_aba || null,
+          query: isSheets ? null : (form.query || null),
+          mapeamento: mapa,
+        })
+        savedId = res.conexao.id
+        setConexoes(prev => [res.conexao, ...prev])
+        setConexaoSalvaId(savedId)
+        setModo('lista')
+      } catch (saveErr) {
+        setErro(`Erro ao salvar conexão: ${saveErr.message}`)
+        setEtapa('mapeamento')
+        setLoadingAnalise(false)
+        return
+      }
+    }
+
+    // 2. Analisa com o banco
+    try {
+      const data = await analisarDB({ ...paramsConexao(), mapeamento: mapa, conexao_id: savedId })
+      if (savedId) {
+        atualizarConexao(savedId, {
+          mapeamento: mapa,
+          query: form.query,
+          carteira_id: data.resumo?.carteira_id || undefined,
+        }).catch(() => {})
       }
       onResult(data)
     } catch (e) {
