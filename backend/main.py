@@ -12,7 +12,7 @@ import uvicorn
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, UploadFile, File, Security
+from fastapi import FastAPI, HTTPException, UploadFile, File, Security, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
@@ -325,7 +325,7 @@ def auth_alterar_role(usuario_id: str, body: RoleIn, credentials: HTTPAuthorizat
 
 
 @app.post("/auth/esqueci-senha")
-def auth_esqueci_senha(body: EsqueciSenhaIn):
+def auth_esqueci_senha(body: EsqueciSenhaIn, background_tasks: BackgroundTasks):
     from email_utils import email_redefinir_senha
     FRONTEND_URL = os.getenv("FRONTEND_URL", "https://mizan-sand.vercel.app")
     token = criar_reset_token(body.email)
@@ -333,7 +333,7 @@ def auth_esqueci_senha(body: EsqueciSenhaIn):
         usuario = buscar_usuario(body.email)
         nome = usuario.get("nome", "usuário") if usuario else "usuário"
         link = f"{FRONTEND_URL}/redefinir-senha?token={token}"
-        email_redefinir_senha(body.email, nome, link)
+        background_tasks.add_task(email_redefinir_senha, body.email, nome, link)
     return {"ok": True, "mensagem": "Se o e-mail estiver cadastrado, você receberá as instruções em breve."}
 
 @app.post("/auth/redefinir-senha")

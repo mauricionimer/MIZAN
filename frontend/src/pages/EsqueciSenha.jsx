@@ -16,14 +16,19 @@ export default function EsqueciSenha() {
     setErro('')
     setCarregando(true)
     try {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 15000)
       await fetch(`${BASE}/auth/esqueci-senha`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
+        signal: controller.signal,
       })
+      clearTimeout(timer)
       setEnviado(true)
-    } catch {
-      setErro('Erro ao conectar. Tente novamente.')
+    } catch (e) {
+      if (e.name === 'AbortError') setErro('O servidor demorou muito. Tente novamente em instantes.')
+      else setErro('Erro ao conectar. Tente novamente.')
     } finally {
       setCarregando(false)
     }
