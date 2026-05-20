@@ -63,6 +63,19 @@ async def lifespan(app: FastAPI):
 
     garantir_admin()
 
+    # Garante que o modelo existe e é compatível; gera com dados sintéticos se necessário
+    try:
+        from model.score import _carregar_modelos
+        _carregar_modelos()
+        print("[Model] Modelos carregados com sucesso")
+    except FileNotFoundError:
+        print("[Model] Modelos não encontrados — gerando modelo inicial com dados sintéticos...")
+        from model.score import _cache as _score_cache
+        _score_cache.clear()
+        from model.train import treinar_sintetico
+        treinar_sintetico()
+        print("[Model] Modelo inicial gerado.")
+
     job = _scheduler.get_job("auto_retrain")
     if job and job.next_run_time:
         sched_estado["proxima_verificacao"] = job.next_run_time.isoformat()
@@ -1274,6 +1287,35 @@ async def bandit_stats(
         "alpha": bandit.alpha,
         "fase": "exploração_inicial" if total == 0 else "aprendendo" if total < 50 else "calibrado",
         "acoes": bandit.stats(),
+    }
+
+
+@app.get("/admin/feature-importance")
+async def feature_importance(
+    credentials: HTTPAuthorizationCredentials = Security(bearer),
+):
+    """Retorna a importância de cada feature no modelo ativo — mostra o que drive o score."""
+    _validar_api_key(credentials)
+    from model.score import _carregar_modelos
+    try:
+        clf, _, meta = _carregar_modelos()
+    except FileNotFoundError:
+        raise HTTPException(status_code=503, detail="Modelo não encontrado.")
+
+    feature_names = meta.get("feature_names", [])
+    if not hasattr(clf, "feature_importances_"):
+        raise HTTPException(status_code=400, detail="Modelo não suporta feature importance.")
+
+    importances = clf.feature_importances_
+    pares = sorted(zip(feature_names, importances.tolist()), key=lambda x: -x[1])
+
+    return {
+        "model_version":  meta.get("model_version", 1),
+        "total_features": len(feature_names),
+        "features": [
+            {"nome": n, "importancia": round(v, 4), "percentual": round(v * 100, 1)}
+            for n, v in pares
+        ],
     }
 
 
