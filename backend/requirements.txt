@@ -12,6 +12,6 @@ sqlalchemy==2.0.41
 psycopg[binary]==3.3.4
 pymysql==1.1.1
 python-tds==1.16.1
-python-oracledb==2.5.0
+oracledb==2.5.0
 gspread==6.1.4
 google-auth==2.38.0
