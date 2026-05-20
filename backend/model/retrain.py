@@ -43,12 +43,6 @@ MODEL_VERSION          = 2
 MIN_FEEDBACKS_DEFAULT  = 30
 _BATCH                 = 1000
 
-FEATURES_CATEGORICAS = ["produto", "status", "uf"]
-FEATURES_NUMERICAS   = [
-    "valor_divida", "renda_estimada", "dias_em_atraso",
-    "comprometimento_renda", "log_valor_divida", "log_renda", "valor_por_dia",
-]
-
 _SCORE_PRODUTO = {"consignado": 100, "veiculo": 70, "pessoal": 40, "cartao": 20}
 
 
@@ -109,19 +103,31 @@ def _montar_dataset(feedbacks: list[dict], pred_map: dict[str, dict]) -> pd.Data
 # Pré-processamento
 # ---------------------------------------------------------------------------
 
-def _preprocessar(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
-    df = df.copy()
-    df["comprometimento_renda"] = (
-        df["valor_divida"] / df["renda_estimada"].replace(0, np.nan)
-    ).fillna(1.0).clip(0, 10)
-    df["log_valor_divida"] = np.log1p(df["valor_divida"].clip(0))
-    df["log_renda"]        = np.log1p(df["renda_estimada"].clip(0))
-    df["valor_por_dia"]    = df["valor_divida"] / (df["dias_em_atraso"] + 1)
+def _preprocessar(df: pd.DataFrame):
+    """Reutiliza a lógica de train.py: auto-detect + derivadas + imputation."""
+    from model.train import _normalizar_colunas, _adicionar_derivadas, _detectar_features
+    df = _normalizar_colunas(df)
+    df = _adicionar_derivadas(df)
 
-    df_enc   = pd.get_dummies(df[FEATURES_CATEGORICAS], drop_first=False)
+    numericas, categoricas = _detectar_features(df)
+
+    medians: dict[str, float] = {}
+    for col in numericas:
+        med = float(df[col].median()) if not df[col].isna().all() else 0.0
+        df[col] = df[col].fillna(med)
+        medians[col] = med
+
+    modes: dict[str, str] = {}
+    for col in categoricas:
+        mv = df[col].mode()
+        mode = str(mv[0]) if len(mv) > 0 else 'outro'
+        df[col] = df[col].fillna(mode).astype(str)
+        modes[col] = mode
+
+    df_enc = pd.get_dummies(df[categoricas], drop_first=False) if categoricas else pd.DataFrame(index=df.index)
     cat_cols = df_enc.columns.tolist()
-    X        = pd.concat([df[FEATURES_NUMERICAS], df_enc], axis=1)
-    return X, cat_cols
+    X = pd.concat([df[numericas], df_enc], axis=1)
+    return X, numericas, cat_cols, medians, modes
 
 
 # ---------------------------------------------------------------------------
@@ -152,24 +158,42 @@ def _gerar_labels_clusters(df_cl: pd.DataFrame, n_clusters: int) -> dict[int, st
         return 30
 
     df_cl = df_cl.copy()
-    df_cl["_sp"] = df_cl["produto"].map(_score_prod)
-    resumo = df_cl.groupby("cluster").agg(
-        dias_medio=("dias_em_atraso",       "mean"),
-        comp_medio=("comprometimento_renda", "mean"),
-        sp_medio  =("_sp",                   "mean"),
-    )
+    has_produto = "produto" in df_cl.columns
+    has_comp    = "comprometimento_renda" in df_cl.columns
+    has_dias    = "dias_em_atraso" in df_cl.columns
+
+    if has_produto:
+        df_cl["_sp"] = df_cl["produto"].map(_score_prod)
+
+    agg_dict: dict = {}
+    if has_dias:    agg_dict["dias_medio"] = ("dias_em_atraso",       "mean")
+    if has_comp:    agg_dict["comp_medio"] = ("comprometimento_renda", "mean")
+    if has_produto: agg_dict["sp_medio"]   = ("_sp",                   "mean")
+
+    if not agg_dict:
+        return {i: f"Cluster {i}" for i in range(n_clusters)}
+
+    resumo = df_cl.groupby("cluster").agg(**agg_dict)
     labels: dict[int, str] = {}
     for cid, row in resumo.iterrows():
-        partes = [
-            "Recente"       if row["dias_medio"] < 60  else
-            "Intermediário" if row["dias_medio"] < 180 else "Crônico",
-            "Baixo Comprometimento"    if row["comp_medio"] < 0.3 else
-            "Comprometimento Moderado" if row["comp_medio"] < 0.7 else "Alto Comprometimento",
-            "Consignado" if row["sp_medio"] >= 80 else
-            "Veículo"    if row["sp_medio"] >= 60 else
-            "Pessoal"    if row["sp_medio"] >= 35 else "Cartão",
-        ]
-        labels[int(cid)] = " · ".join(partes)
+        partes = []
+        if has_dias:
+            partes.append(
+                "Recente" if row["dias_medio"] < 60 else
+                "Intermediário" if row["dias_medio"] < 180 else "Crônico"
+            )
+        if has_comp:
+            partes.append(
+                "Baixo Comprometimento" if row["comp_medio"] < 0.3 else
+                "Comprometimento Moderado" if row["comp_medio"] < 0.7 else "Alto Comprometimento"
+            )
+        if has_produto:
+            partes.append(
+                "Consignado" if row["sp_medio"] >= 80 else
+                "Veículo"    if row["sp_medio"] >= 60 else
+                "Pessoal"    if row["sp_medio"] >= 35 else "Cartão"
+            )
+        labels[int(cid)] = " · ".join(partes) if partes else f"Cluster {cid}"
     return labels
 
 
@@ -304,9 +328,11 @@ def retreinar(
         print(f"\n[ENCERRADO] {msg}")
         return {"ok": False, "motivo": msg, "n_feedbacks": n_feedbacks}
 
-    print("\n[3/6] Pré-processando features (v2)...")
-    X, cat_cols = _preprocessar(df)
-    df["comprometimento_renda"] = X["comprometimento_renda"]
+    print("\n[3/6] Pré-processando features (auto-detect)...")
+    X, features_numericas, cat_cols, medians, modes = _preprocessar(df)
+    if "comprometimento_renda" in X.columns:
+        df["comprometimento_renda"] = X["comprometimento_renda"]
+    print(f"      {len(features_numericas)} numéricas + {len(cat_cols)} categóricas (encoded)")
     scaler   = RobustScaler()
     X_scaled = scaler.fit_transform(X)
 
@@ -346,13 +372,17 @@ def retreinar(
 
     feature_names = list(X.columns) + ["cluster"]
     meta = {
-        "scaler":         scaler,
-        "cat_cols":       cat_cols,
-        "feature_names":  feature_names,
-        "cluster_labels": cluster_labels,
-        "k":              k_ideal,
-        "model_version":  MODEL_VERSION,
-        "versao":         versao,
+        "scaler":               scaler,
+        "cat_cols":             cat_cols,
+        "features_numericas":   features_numericas,
+        "features_categoricas": list(modes.keys()),
+        "medians":              medians,
+        "modes":                modes,
+        "feature_names":        feature_names,
+        "cluster_labels":       cluster_labels,
+        "k":                    k_ideal,
+        "model_version":        MODEL_VERSION,
+        "versao":               versao,
     }
     _salvar_artefatos(versao, clf, kmeans, meta)
 

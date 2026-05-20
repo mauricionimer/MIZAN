@@ -24,13 +24,42 @@ from sklearn.preprocessing import RobustScaler
 MODEL_DIR     = Path(__file__).parent
 MODEL_VERSION = 2
 
-COLUNAS_ESPERADAS   = ["cpf", "nome", "produto", "status", "uf",
-                        "valor_divida", "renda_estimada", "dias_em_atraso"]
-FEATURES_CATEGORICAS = ["produto", "status", "uf"]
-FEATURES_NUMERICAS   = [
-    "valor_divida", "renda_estimada", "dias_em_atraso",
-    "comprometimento_renda", "log_valor_divida", "log_renda", "valor_por_dia",
-]
+# Colunas obrigatórias mínimas
+COLUNAS_MINIMAS = ["cpf", "valor_divida", "dias_em_atraso"]
+
+# Aliases: nomes variantes → nome padrão (Serasa, bancos, ERPs, etc.)
+ALIASES: dict[str, str] = {
+    'dias_atraso':        'dias_em_atraso',
+    'dias_inadimplente':  'dias_em_atraso',
+    'dias_vencido':       'dias_em_atraso',
+    'diasematraso':       'dias_em_atraso',
+    'renda':              'renda_estimada',
+    'renda_mensal':       'renda_estimada',
+    'salario':            'renda_estimada',
+    'renda_bruta':        'renda_estimada',
+    'rendaestimada':      'renda_estimada',
+    'valor':              'valor_divida',
+    'saldo_devedor':      'valor_divida',
+    'saldo':              'valor_divida',
+    'divida':             'valor_divida',
+    'valordivida':        'valor_divida',
+    'estado':             'uf',
+    'uf_devedor':         'uf',
+    'estado_devedor':     'uf',
+    'produto_financeiro': 'produto',
+    'tipo_produto':       'produto',
+    'tipo_divida':        'produto',
+}
+
+# Colunas que nunca devem ser features do modelo
+_COLS_EXCLUIR = {
+    'cpf', 'nome', 'pagou', 'rank', 'score_recuperabilidade',
+    'cluster_id', 'perfil_cluster', 'recomendacao', 'abordagem',
+    'motivo_prioridade', 'carteira_id', 'created_at', 'id',
+}
+
+# Limite de valores únicos para tratar coluna como categórica
+_CAT_MAX_UNIQUE = 30
 
 SCORE_PRODUTO = {"consignado": 100, "veiculo": 70, "pessoal": 40, "cartao": 20}
 
@@ -45,33 +74,84 @@ def _score_produto_s(serie: pd.Series) -> pd.Series:
     return serie.map(_lookup)
 
 
-def _preprocessar(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
-    df = df.copy()
-    df["comprometimento_renda"] = (
-        df["valor_divida"] / df["renda_estimada"].replace(0, np.nan)
-    ).fillna(0).clip(0, 10)
-    df["log_valor_divida"] = np.log1p(df["valor_divida"].clip(0))
-    df["log_renda"]        = np.log1p(df["renda_estimada"].clip(0))
-    df["valor_por_dia"]    = df["valor_divida"] / (df["dias_em_atraso"] + 1)
+def _normalizar_colunas(df: pd.DataFrame) -> pd.DataFrame:
+    """Renomeia colunas usando ALIASES (case-insensitive)."""
+    rename = {col: ALIASES[col.lower().strip()] for col in df.columns if col.lower().strip() in ALIASES}
+    return df.rename(columns=rename) if rename else df
 
-    df_enc   = pd.get_dummies(df[FEATURES_CATEGORICAS], drop_first=False)
+
+def _adicionar_derivadas(df: pd.DataFrame) -> pd.DataFrame:
+    """Adiciona features derivadas quando as colunas base existem."""
+    df = df.copy()
+    if 'valor_divida' in df.columns and 'renda_estimada' in df.columns:
+        df['comprometimento_renda'] = (
+            df['valor_divida'] / df['renda_estimada'].replace(0, np.nan)
+        ).fillna(0).clip(0, 10)
+    if 'valor_divida' in df.columns:
+        df['log_valor_divida'] = np.log1p(df['valor_divida'].clip(0))
+    if 'renda_estimada' in df.columns:
+        df['log_renda'] = np.log1p(df['renda_estimada'].clip(0))
+    if 'valor_divida' in df.columns and 'dias_em_atraso' in df.columns:
+        df['valor_por_dia'] = df['valor_divida'] / (df['dias_em_atraso'] + 1)
+    return df
+
+
+def _detectar_features(df: pd.DataFrame) -> tuple[list[str], list[str]]:
+    """Auto-detecta colunas numéricas e categóricas como features."""
+    numericas, categoricas = [], []
+    for col in df.columns:
+        if col in _COLS_EXCLUIR:
+            continue
+        if pd.api.types.is_numeric_dtype(df[col]):
+            numericas.append(col)
+        elif df[col].nunique() <= _CAT_MAX_UNIQUE:
+            categoricas.append(col)
+    return numericas, categoricas
+
+
+def _preprocessar(df: pd.DataFrame):
+    """Retorna (X, features_numericas, cat_cols, medians, modes)."""
+    df = _normalizar_colunas(df)
+    df = _adicionar_derivadas(df)
+
+    numericas, categoricas = _detectar_features(df)
+
+    medians: dict[str, float] = {}
+    for col in numericas:
+        med = float(df[col].median()) if not df[col].isna().all() else 0.0
+        df[col] = df[col].fillna(med)
+        medians[col] = med
+
+    modes: dict[str, str] = {}
+    for col in categoricas:
+        mv = df[col].mode()
+        mode = str(mv[0]) if len(mv) > 0 else 'outro'
+        df[col] = df[col].fillna(mode).astype(str)
+        modes[col] = mode
+
+    df_enc = pd.get_dummies(df[categoricas], drop_first=False) if categoricas else pd.DataFrame(index=df.index)
     cat_cols = df_enc.columns.tolist()
-    X        = pd.concat([df[FEATURES_NUMERICAS], df_enc], axis=1)
-    return X, cat_cols
+    X = pd.concat([df[numericas], df_enc], axis=1)
+    return X, numericas, cat_cols, medians, modes
 
 
 def _criar_alvo_simulado(df: pd.DataFrame) -> np.ndarray:
-    """
-    Score ponderado de recuperabilidade (0-100):
-      40% dias_em_atraso  — menos dias = melhor
-      25% comprometimento — menor comprometimento = melhor
-      20% produto         — consignado > veiculo > pessoal > cartao
-      15% tentativas      — zero = ainda não contactado (oportunidade)
-    Reduz 30 pts se promessa_quebrada. Threshold 50 → binário.
-    """
-    s_dias = (100 - (df["dias_em_atraso"].clip(0, 360) / 360) * 100).clip(0, 100) * 0.40
-    s_comp = (100 - (df["comprometimento_renda"].clip(0, 2) / 2) * 100).clip(0, 100) * 0.25
-    s_prod = _score_produto_s(df["produto"]) * 0.20
+    """Score ponderado de recuperabilidade (0-100) → binário. Usa colunas disponíveis."""
+    s_dias = (
+        (100 - (df["dias_em_atraso"].clip(0, 360) / 360) * 100).clip(0, 100) * 0.40
+        if "dias_em_atraso" in df.columns
+        else pd.Series(50.0 * 0.40, index=df.index)
+    )
+    s_comp = (
+        (100 - (df["comprometimento_renda"].clip(0, 2) / 2) * 100).clip(0, 100) * 0.25
+        if "comprometimento_renda" in df.columns
+        else pd.Series(50.0 * 0.25, index=df.index)
+    )
+    s_prod = (
+        _score_produto_s(df["produto"]) * 0.20
+        if "produto" in df.columns
+        else pd.Series(30.0 * 0.20, index=df.index)
+    )
 
     if "tentativas_contato" in df.columns:
         tent = df["tentativas_contato"]
@@ -82,7 +162,14 @@ def _criar_alvo_simulado(df: pd.DataFrame) -> np.ndarray:
     else:
         s_tent = pd.Series(50.0 * 0.15, index=df.index)
 
-    score = (s_dias + s_comp + s_prod + s_tent).clip(0, 100)
+    # Bônus: score_serasa/bureau melhora a estimativa de alvo sintético
+    s_bureau = pd.Series(0.0, index=df.index)
+    for bureau_col in ('score_serasa', 'score_bureau', 'score_credito', 'credit_score'):
+        if bureau_col in df.columns:
+            s_bureau = ((df[bureau_col].clip(0, 1000) / 1000) * 100 - 50).clip(-20, 20)
+            break
+
+    score = (s_dias + s_comp + s_prod + s_tent + s_bureau).clip(0, 100)
 
     if "promessa_quebrada" in df.columns:
         quebrou = df["promessa_quebrada"].astype(str).str.lower().isin(
@@ -109,24 +196,42 @@ def _escolher_k(X_scaled: np.ndarray, k_min: int = 2, k_max: int = 10) -> int:
 
 def _gerar_labels_clusters(df_cl: pd.DataFrame, n_clusters: int) -> dict[int, str]:
     df_cl = df_cl.copy()
-    df_cl["_sp"] = _score_produto_s(df_cl["produto"])
-    resumo = df_cl.groupby("cluster").agg(
-        dias_medio    =("dias_em_atraso",       "mean"),
-        comp_medio    =("comprometimento_renda", "mean"),
-        sp_medio      =("_sp",                   "mean"),
-    )
+    has_produto = "produto" in df_cl.columns
+    has_comp    = "comprometimento_renda" in df_cl.columns
+    has_dias    = "dias_em_atraso" in df_cl.columns
+
+    if has_produto:
+        df_cl["_sp"] = _score_produto_s(df_cl["produto"])
+
+    agg_dict: dict = {}
+    if has_dias:    agg_dict["dias_medio"] = ("dias_em_atraso",       "mean")
+    if has_comp:    agg_dict["comp_medio"] = ("comprometimento_renda", "mean")
+    if has_produto: agg_dict["sp_medio"]   = ("_sp",                   "mean")
+
+    if not agg_dict:
+        return {i: f"Cluster {i}" for i in range(n_clusters)}
+
+    resumo = df_cl.groupby("cluster").agg(**agg_dict)
     labels: dict[int, str] = {}
     for cid, row in resumo.iterrows():
-        partes = [
-            "Recente"       if row["dias_medio"] < 60  else
-            "Intermediário" if row["dias_medio"] < 180 else "Crônico",
-            "Baixo Comprometimento"     if row["comp_medio"] < 0.3 else
-            "Comprometimento Moderado"  if row["comp_medio"] < 0.7 else "Alto Comprometimento",
-            "Consignado" if row["sp_medio"] >= 80 else
-            "Veículo"    if row["sp_medio"] >= 60 else
-            "Pessoal"    if row["sp_medio"] >= 35 else "Cartão",
-        ]
-        labels[int(cid)] = " · ".join(partes)
+        partes = []
+        if has_dias:
+            partes.append(
+                "Recente" if row["dias_medio"] < 60 else
+                "Intermediário" if row["dias_medio"] < 180 else "Crônico"
+            )
+        if has_comp:
+            partes.append(
+                "Baixo Comprometimento" if row["comp_medio"] < 0.3 else
+                "Comprometimento Moderado" if row["comp_medio"] < 0.7 else "Alto Comprometimento"
+            )
+        if has_produto:
+            partes.append(
+                "Consignado" if row["sp_medio"] >= 80 else
+                "Veículo"    if row["sp_medio"] >= 60 else
+                "Pessoal"    if row["sp_medio"] >= 35 else "Cartão"
+            )
+        labels[int(cid)] = " · ".join(partes) if partes else f"Cluster {cid}"
     return labels
 
 
@@ -179,10 +284,12 @@ def _gerar_dados_sinteticos(n: int = 3000, seed: int = 42) -> pd.DataFrame:
 def _treinar_com_df(df: pd.DataFrame) -> None:
     print(f"      {len(df)} registros, {len(df.columns)} colunas")
 
-    print("[2/6] Pré-processando features (RobustScaler + log-transforms + valor/dia)")
-    X, cat_cols = _preprocessar(df)
+    print("[2/6] Pré-processando features (auto-detect + RobustScaler)")
+    X, features_numericas, cat_cols, medians, modes = _preprocessar(df)
     df_aug = df.copy()
-    df_aug["comprometimento_renda"] = X["comprometimento_renda"]
+    if "comprometimento_renda" in X.columns:
+        df_aug["comprometimento_renda"] = X["comprometimento_renda"]
+    print(f"      {len(features_numericas)} numéricas + {len(cat_cols)} categóricas (encoded)")
 
     scaler   = RobustScaler()
     X_scaled = scaler.fit_transform(X)
@@ -226,22 +333,30 @@ def _treinar_com_df(df: pd.DataFrame) -> None:
     joblib.dump(clf,    MODEL_DIR / "mizan_model.pkl")
     joblib.dump(kmeans, MODEL_DIR / "kmeans.pkl")
     joblib.dump({
-        "scaler":         scaler,
-        "cat_cols":       cat_cols,
-        "feature_names":  feature_names,
-        "cluster_labels": cluster_labels,
-        "k":              k_ideal,
-        "model_version":  MODEL_VERSION,
+        "scaler":               scaler,
+        "cat_cols":             cat_cols,
+        "features_numericas":   features_numericas,
+        "features_categoricas": list(modes.keys()),
+        "medians":              medians,
+        "modes":                modes,
+        "feature_names":        feature_names,
+        "cluster_labels":       cluster_labels,
+        "k":                    k_ideal,
+        "model_version":        MODEL_VERSION,
     }, MODEL_DIR / "scaler.pkl")
     print(f"\nConcluído. Arquivos salvos em: {MODEL_DIR}")
 
 
-def treinar(caminho_csv: str) -> None:
-    print(f"[1/6] Carregando dados: {caminho_csv}")
-    df = pd.read_csv(caminho_csv)
-    faltantes = [c for c in COLUNAS_ESPERADAS if c not in df.columns]
+def treinar(caminho: str) -> None:
+    print(f"[1/6] Carregando dados: {caminho}")
+    if caminho.lower().endswith(('.xlsx', '.xls')):
+        df = pd.read_excel(caminho)
+    else:
+        df = pd.read_csv(caminho)
+    df = _normalizar_colunas(df)
+    faltantes = [c for c in COLUNAS_MINIMAS if c not in df.columns]
     if faltantes:
-        raise ValueError(f"Colunas ausentes: {faltantes}")
+        raise ValueError(f"Colunas obrigatórias ausentes: {faltantes}")
     _treinar_com_df(df)
 
 

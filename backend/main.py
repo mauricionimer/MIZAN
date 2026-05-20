@@ -762,6 +762,8 @@ def _ler_google_sheets(conn: ConexaoDB) -> pd.DataFrame:
 
 def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _usuario_email: str = None, _empresa_id: str = None) -> dict:
     """Executa o pipeline de scoring em um DataFrame já carregado e persiste no Supabase."""
+    from model.train import _normalizar_colunas
+    df = _normalizar_colunas(df)
     faltantes = [c for c in COLUNAS_OBRIGATORIAS if c not in df.columns]
     if faltantes:
         raise HTTPException(
