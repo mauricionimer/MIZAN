@@ -12,7 +12,7 @@ import secrets
 import time
 
 SECRET_KEY   = os.getenv("JWT_SECRET", "mizan_jwt_secret_mude_em_producao_2026")
-TOKEN_EXPIRE = 8 * 3600  # 8 horas
+TOKEN_EXPIRE = 30 * 24 * 3600  # 30 dias
 
 
 # ── JWT ─────────────────────────────────────────────────────────────────

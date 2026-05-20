@@ -4,6 +4,14 @@ function _getToken() {
   return localStorage.getItem('mizan_token') || ''
 }
 
+function _handle401(res) {
+  if (res.status === 401) {
+    localStorage.removeItem('mizan_token')
+    localStorage.removeItem('mizan_user')
+    window.location.href = '/login?expired=1'
+  }
+}
+
 export async function analisarCarteira(file) {
   const fd = new FormData()
   fd.append('file', file)
@@ -161,6 +169,7 @@ export async function listarConexoes() {
   const token = _getToken()
   if (!token) return []
   const res = await fetch(`${BASE}/conexoes`, { headers: _authHeader(token) })
+  _handle401(res)
   if (!res.ok) throw new Error(`Erro HTTP ${res.status}`)
   return res.json()
 }
@@ -170,6 +179,7 @@ export async function salvarConexao(dados) {
   const res = await fetch(`${BASE}/conexoes`, {
     method: 'POST', headers: _authHeader(token), body: JSON.stringify(dados),
   })
+  _handle401(res)
   if (!res.ok) {
     const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
     throw new Error(detail)

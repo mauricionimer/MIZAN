@@ -1,10 +1,12 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Loader2, Eye, EyeOff, Scale } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
 export default function Login() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const sessionExpirada = searchParams.get('expired') === '1'
   const { login, loading, erro } = useAuth()
   const [email, setEmail]       = useState('')
   const [senha, setSenha]       = useState('')
@@ -70,6 +72,12 @@ export default function Login() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
+            {sessionExpirada && (
+              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-sm text-center">
+                Sua sessão expirou. Faça login novamente.
+              </div>
+            )}
+
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5">E-mail</label>
               <input
