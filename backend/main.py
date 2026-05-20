@@ -172,13 +172,18 @@ class FeedbackIn(BaseModel):
 
 
 class ConexaoDB(BaseModel):
-    tipo: str                          # postgres | mysql | sqlserver | sqlite
+    tipo: str   # postgres | mysql | mariadb | sqlserver | oracle | sqlite | sheets
     host: Optional[str] = None
     porta: Optional[int] = None
     banco: Optional[str] = None
     usuario: Optional[str] = None
     senha: Optional[str] = None
-    query: str
+    instance_name: Optional[str] = None   # SQL Server named instance
+    service_name: Optional[str] = None    # Oracle service name
+    sheets_id: Optional[str] = None       # Google Sheets spreadsheet ID
+    sheets_aba: Optional[str] = None      # Nome da aba (default: primeira)
+    sheets_credenciais: Optional[dict] = None  # service account JSON
+    query: Optional[str] = None
     nome_fonte: Optional[str] = "consulta_db"
     mapeamento: Optional[dict] = None  # {campo_mizan: coluna_banco}
 
@@ -488,23 +493,50 @@ async def analisar(
 
 def _construir_url_db(conn: ConexaoDB) -> str:
     """Monta a connection string do SQLAlchemy a partir dos parâmetros."""
+    from urllib.parse import quote_plus
     host  = conn.host or "localhost"
     banco = conn.banco or ""
-    user  = conn.usuario or ""
-    senha = conn.senha or ""
-    if conn.tipo == "postgres":
+    user  = quote_plus(conn.usuario or "")
+    senha = quote_plus(conn.senha or "")
+
+    if conn.tipo in ("postgres", "postgresql"):
         porta = conn.porta or 5432
         return f"postgresql+psycopg://{user}:{senha}@{host}:{porta}/{banco}"
-    if conn.tipo == "mysql":
+
+    if conn.tipo in ("mysql", "mariadb"):
         porta = conn.porta or 3306
         return f"mysql+pymysql://{user}:{senha}@{host}:{porta}/{banco}"
+
     if conn.tipo == "sqlserver":
         porta = conn.porta or 1433
-        driver = "ODBC+Driver+17+for+SQL+Server"
-        return f"mssql+pyodbc://{user}:{senha}@{host}:{porta}/{banco}?driver={driver}"
+        if conn.instance_name:
+            # Named instance — ignora porta
+            return f"mssql+pymssql://{user}:{senha}@{host}\\{conn.instance_name}/{banco}"
+        return f"mssql+pymssql://{user}:{senha}@{host}:{porta}/{banco}"
+
+    if conn.tipo == "oracle":
+        porta = conn.porta or 1521
+        dsn = conn.service_name or banco
+        return f"oracle+oracledb://{user}:{senha}@{host}:{porta}/?service_name={dsn}"
+
     if conn.tipo == "sqlite":
         return f"sqlite:///{conn.banco}"
+
     raise ValueError(f"Tipo de banco não suportado: {conn.tipo}")
+
+
+def _ler_google_sheets(conn: ConexaoDB) -> pd.DataFrame:
+    """Lê uma planilha Google Sheets e retorna DataFrame."""
+    import gspread
+    from google.oauth2.service_account import Credentials
+
+    scopes = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
+    creds = Credentials.from_service_account_info(conn.sheets_credenciais, scopes=scopes)
+    gc = gspread.authorize(creds)
+    sh = gc.open_by_key(conn.sheets_id)
+    ws = sh.worksheet(conn.sheets_aba) if conn.sheets_aba else sh.sheet1
+    dados = ws.get_all_records()
+    return pd.DataFrame(dados)
 
 
 def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _usuario_email: str = None) -> dict:
@@ -639,24 +671,33 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
 @app.post("/testar-db")
 async def testar_db(conn: ConexaoDB):
     """Testa conexão, executa query limitada e retorna colunas + preview + mapeamento sugerido."""
-    q = conn.query.strip()
-    if not q.lower().startswith("select"):
-        raise HTTPException(status_code=400, detail="Apenas consultas SELECT são permitidas.")
-
     try:
-        from sqlalchemy import create_engine, text
-        url = _construir_url_db(conn)
-        engine = create_engine(url, connect_args={"connect_timeout": 10} if conn.tipo in ("postgres", "mysql") else {})
-        with engine.connect() as connection:
-            if conn.tipo == "sqlserver":
-                preview_q = f"SELECT TOP 5 * FROM ({q}) AS _mizan_preview"
-            else:
-                preview_q = f"SELECT * FROM ({q}) AS _mizan_preview LIMIT 5"
-            try:
-                df_preview = pd.read_sql(text(preview_q), connection)
-            except Exception:
-                df_preview = pd.read_sql(text(q), connection).head(5)
-        engine.dispose()
+        if conn.tipo == "sheets":
+            if not conn.sheets_id or not conn.sheets_credenciais:
+                raise HTTPException(status_code=400, detail="sheets_id e sheets_credenciais são obrigatórios.")
+            df_preview = _ler_google_sheets(conn).head(5)
+        else:
+            q = (conn.query or "").strip()
+            if not q.lower().startswith("select"):
+                raise HTTPException(status_code=400, detail="Apenas consultas SELECT são permitidas.")
+            from sqlalchemy import create_engine, text
+            url = _construir_url_db(conn)
+            timeout_args = {"connect_timeout": 10} if conn.tipo in ("postgres", "postgresql", "mysql", "mariadb") else {}
+            engine = create_engine(url, connect_args=timeout_args)
+            with engine.connect() as connection:
+                if conn.tipo == "sqlserver":
+                    preview_q = f"SELECT TOP 5 * FROM ({q}) AS _mizan_preview"
+                elif conn.tipo == "oracle":
+                    preview_q = f"SELECT * FROM ({q}) WHERE ROWNUM <= 5"
+                else:
+                    preview_q = f"SELECT * FROM ({q}) AS _mizan_preview LIMIT 5"
+                try:
+                    df_preview = pd.read_sql(text(preview_q), connection)
+                except Exception:
+                    df_preview = pd.read_sql(text(q), connection).head(5)
+            engine.dispose()
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -680,17 +721,24 @@ async def testar_db(conn: ConexaoDB):
 @app.post("/analisar/db")
 async def analisar_db(conn: ConexaoDB, credentials=Security(bearer_opcional)):
     """Analisa uma carteira carregada diretamente de um banco de dados externo."""
-    q = conn.query.strip()
-    if not q.lower().startswith("select"):
-        raise HTTPException(status_code=400, detail="Apenas consultas SELECT são permitidas.")
-
     try:
-        from sqlalchemy import create_engine, text
-        url = _construir_url_db(conn)
-        engine = create_engine(url, connect_args={"connect_timeout": 10} if conn.tipo in ("postgres", "mysql") else {})
-        with engine.connect() as connection:
-            df = pd.read_sql(text(q), connection)
-        engine.dispose()
+        if conn.tipo == "sheets":
+            if not conn.sheets_id or not conn.sheets_credenciais:
+                raise HTTPException(status_code=400, detail="sheets_id e sheets_credenciais são obrigatórios.")
+            df = _ler_google_sheets(conn)
+        else:
+            q = (conn.query or "").strip()
+            if not q.lower().startswith("select"):
+                raise HTTPException(status_code=400, detail="Apenas consultas SELECT são permitidas.")
+            from sqlalchemy import create_engine, text
+            url = _construir_url_db(conn)
+            timeout_args = {"connect_timeout": 10} if conn.tipo in ("postgres", "postgresql", "mysql", "mariadb") else {}
+            engine = create_engine(url, connect_args=timeout_args)
+            with engine.connect() as connection:
+                df = pd.read_sql(text(q), connection)
+            engine.dispose()
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:

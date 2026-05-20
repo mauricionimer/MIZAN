@@ -18,6 +18,9 @@ const fmtDate = (iso) => {
 const SYNC_TIPOS = [
   { value: 'postgres',  label: 'PostgreSQL', portaPadrao: 5432 },
   { value: 'mysql',     label: 'MySQL',      portaPadrao: 3306 },
+  { value: 'mariadb',   label: 'MariaDB',    portaPadrao: 3306 },
+  { value: 'sqlserver', label: 'SQL Server', portaPadrao: 1433 },
+  { value: 'oracle',    label: 'Oracle',     portaPadrao: 1521 },
   { value: 'sqlite',    label: 'SQLite',     portaPadrao: null },
 ]
 
@@ -192,9 +195,12 @@ function PainelSyncAuto() {
 
 const DB_TIPOS = [
   { value: 'postgres',  label: 'PostgreSQL',            portaPadrao: 5432 },
-  { value: 'mysql',     label: 'MySQL / MariaDB',        portaPadrao: 3306 },
+  { value: 'mysql',     label: 'MySQL',                  portaPadrao: 3306 },
+  { value: 'mariadb',   label: 'MariaDB',                portaPadrao: 3306 },
   { value: 'sqlserver', label: 'SQL Server',             portaPadrao: 1433 },
+  { value: 'oracle',    label: 'Oracle',                 portaPadrao: 1521 },
   { value: 'sqlite',    label: 'SQLite (arquivo local)', portaPadrao: null  },
+  { value: 'sheets',    label: 'Google Sheets',          portaPadrao: null  },
 ]
 
 const CAMPOS_MIZAN = [
@@ -226,23 +232,41 @@ function FormDB({ onResult }) {
 
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setErro(null) }
   const isSQLite  = form.tipo === 'sqlite'
+  const isSheets  = form.tipo === 'sheets'
+  const isSQLServer = form.tipo === 'sqlserver'
+  const isOracle  = form.tipo === 'oracle'
   const tipoInfo  = DB_TIPOS.find(t => t.value === form.tipo)
 
   function paramsConexao() {
+    if (isSheets) {
+      let creds = null
+      try { creds = form.sheets_credenciais ? JSON.parse(form.sheets_credenciais) : null } catch {}
+      return {
+        tipo: 'sheets',
+        sheets_id: form.sheets_id || null,
+        sheets_aba: form.sheets_aba || null,
+        sheets_credenciais: creds,
+        nome_fonte: form.nome_fonte || 'google_sheets',
+        query: null,
+      }
+    }
     return {
-      tipo:       form.tipo,
-      host:       isSQLite ? null : (form.host || null),
-      porta:      isSQLite ? null : (form.porta ? Number(form.porta) : tipoInfo?.portaPadrao),
-      banco:      form.banco || null,
-      usuario:    isSQLite ? null : (form.usuario || null),
-      senha:      isSQLite ? null : (form.senha || null),
-      query:      form.query,
-      nome_fonte: form.nome_fonte || `db_${form.tipo}`,
+      tipo:          form.tipo,
+      host:          isSQLite ? null : (form.host || null),
+      porta:         isSQLite ? null : (form.porta ? Number(form.porta) : tipoInfo?.portaPadrao),
+      banco:         form.banco || null,
+      usuario:       isSQLite ? null : (form.usuario || null),
+      senha:         isSQLite ? null : (form.senha || null),
+      instance_name: isSQLServer ? (form.instance_name || null) : null,
+      service_name:  isOracle ? (form.service_name || null) : null,
+      query:         form.query,
+      nome_fonte:    form.nome_fonte || `db_${form.tipo}`,
     }
   }
 
   async function testar() {
-    if (!form.query.trim()) { setErro('Informe uma consulta SQL.'); return }
+    if (!isSheets && !form.query.trim()) { setErro('Informe uma consulta SQL.'); return }
+    if (isSheets && !form.sheets_id) { setErro('Informe o ID da planilha.'); return }
     setLoadingTeste(true); setErro(null)
     try {
       const res = await testarDB(paramsConexao())
@@ -284,7 +308,31 @@ function FormDB({ onResult }) {
         </select>
       </div>
 
-      {!isSQLite && (
+      {/* Google Sheets */}
+      {isSheets && (
+        <>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">ID da planilha</label>
+            <input value={form.sheets_id || ''} onChange={e => set('sheets_id', e.target.value)}
+              placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms" className={inp()} />
+            <p className="text-xs text-slate-400 mt-1">Encontre o ID na URL da planilha: docs.google.com/spreadsheets/d/<strong>ID</strong>/edit</p>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Nome da aba (opcional)</label>
+            <input value={form.sheets_aba || ''} onChange={e => set('sheets_aba', e.target.value)}
+              placeholder="Planilha1" className={inp()} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Credenciais da Service Account (JSON)</label>
+            <textarea value={form.sheets_credenciais || ''} onChange={e => set('sheets_credenciais', e.target.value)}
+              rows={4} placeholder='{"type":"service_account","project_id":"..."}' className={inp('font-mono text-xs resize-none')} />
+            <p className="text-xs text-slate-400 mt-1">Cole o JSON da Service Account do Google Cloud com acesso à planilha.</p>
+          </div>
+        </>
+      )}
+
+      {/* SQL comum */}
+      {!isSQLite && !isSheets && (
         <div className="grid grid-cols-3 gap-3">
           <div className="col-span-2">
             <label className="block text-xs font-medium text-slate-500 mb-1">Host</label>
@@ -299,15 +347,25 @@ function FormDB({ onResult }) {
         </div>
       )}
 
-      <div>
-        <label className="block text-xs font-medium text-slate-500 mb-1">
-          {isSQLite ? 'Caminho do arquivo (.db)' : 'Nome do banco'}
-        </label>
-        <input value={form.banco} onChange={e => set('banco', e.target.value)}
-          placeholder={isSQLite ? '/caminho/banco.db' : 'nome_do_banco'} className={inp()} />
-      </div>
+      {isSQLServer && (
+        <div>
+          <label className="block text-xs font-medium text-slate-500 mb-1">Instance Name (opcional)</label>
+          <input value={form.instance_name || ''} onChange={e => set('instance_name', e.target.value)}
+            placeholder="SQLEXPRESS" className={inp()} />
+        </div>
+      )}
 
-      {!isSQLite && (
+      {!isSheets && (
+        <div>
+          <label className="block text-xs font-medium text-slate-500 mb-1">
+            {isSQLite ? 'Caminho do arquivo (.db)' : isOracle ? 'Service Name / SID' : 'Nome do banco'}
+          </label>
+          <input value={form.banco} onChange={e => set('banco', e.target.value)}
+            placeholder={isSQLite ? '/caminho/banco.db' : isOracle ? 'ORCL' : 'nome_do_banco'} className={inp()} />
+        </div>
+      )}
+
+      {!isSQLite && !isSheets && (
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1">Usuário</label>
@@ -320,12 +378,14 @@ function FormDB({ onResult }) {
         </div>
       )}
 
-      <div>
-        <label className="block text-xs font-medium text-slate-500 mb-1">Consulta SQL</label>
-        <textarea value={form.query} onChange={e => set('query', e.target.value)} rows={3}
-          className={inp('font-mono resize-none')} />
-        <p className="text-xs text-slate-400 mt-1">Apenas SELECT. O sistema detecta as colunas automaticamente.</p>
-      </div>
+      {!isSheets && (
+        <div>
+          <label className="block text-xs font-medium text-slate-500 mb-1">Consulta SQL</label>
+          <textarea value={form.query} onChange={e => set('query', e.target.value)} rows={3}
+            className={inp('font-mono resize-none')} />
+          <p className="text-xs text-slate-400 mt-1">Apenas SELECT. O sistema detecta as colunas automaticamente.</p>
+        </div>
+      )}
 
       <div>
         <label className="block text-xs font-medium text-slate-500 mb-1">Nome da fonte (opcional)</label>
