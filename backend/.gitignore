@@ -1,7 +1,7 @@
 __pycache__/
 *.py[cod]
-*.pkl
 *.env
 .env
 usuarios.json
 db_sync_config.json
+model/bandit.pkl
