@@ -1,0 +1,15 @@
+name: Keep Alive
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping backend
+        run: |
+          curl -sf https://mizan-backend-4zg8.onrender.com/health \
+            && echo "Backend respondeu OK" \
+            || echo "Backend não respondeu (normal se estava dormindo)"
