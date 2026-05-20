@@ -156,6 +156,8 @@ export default function Dashboard() {
   const [exporting, setExporting]         = useState(false)
   const [custoCobranca, setCustoCobranca] = useState(25)
   const [retornoAlvo, setRetornoAlvo]     = useState(30)
+  const [filtroPrio, setFiltroPrio]       = useState('todos')
+  const [page, setPage]                   = useState(1)
 
   // useMemo deve ficar ANTES de qualquer return condicional (regra dos hooks)
   const pricing = useMemo(() => {
@@ -175,6 +177,21 @@ export default function Dashboard() {
     if (!result) navigate('/')
   }, [result, navigate])
 
+  const filtered = useMemo(() => {
+    const lista = result?.ranking_completo ?? []
+    let list = search
+      ? lista.filter(d =>
+          d.nome?.toLowerCase().includes(search.toLowerCase()) ||
+          d.cpf?.includes(search)
+        )
+      : lista
+    if (filtroPrio !== 'todos')
+      list = list.filter(d => prioLabel(d.score_recuperabilidade ?? 0) === filtroPrio)
+    return list
+  }, [result, search, filtroPrio])
+
+  useEffect(() => { setPage(1) }, [search, filtroPrio])
+
   if (!result) return null
 
   const { resumo, distribuicao_aging, distribuicao_cluster, ranking_completo } = result
@@ -184,12 +201,9 @@ export default function Dashboard() {
   )
   const prioritarios = ranking_completo.filter(d => d.score_recuperabilidade >= 70).length
 
-  const filtered = search
-    ? ranking_completo.filter(d =>
-        d.nome?.toLowerCase().includes(search.toLowerCase()) ||
-        d.cpf?.includes(search)
-      )
-    : ranking_completo
+  const PAGE_SIZE  = 50
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   function exportPDF() {
     setExporting(true)
@@ -430,28 +444,46 @@ export default function Dashboard() {
 
         {/* ── Tabela ── */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-4">
+          <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-4 flex-wrap">
             <div>
               <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
                 Ranking de Recuperabilidade
               </h3>
               <p className="text-xs text-slate-400 mt-0.5">
-                {fmtNum(filtered.length)} devedores{search ? ' encontrados' : ''}
+                {fmtNum(filtered.length)} devedores{search || filtroPrio !== 'todos' ? ' filtrados' : ''}
+                {totalPages > 1 && ` · página ${page} de ${totalPages}`}
               </p>
             </div>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Buscar por nome ou CPF..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="text-sm border border-slate-200 rounded-lg pl-9 pr-3 py-2 w-60 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex gap-1.5">
+                {[
+                  { k: 'todos', label: 'Todos',  cls: 'bg-blue-100 text-blue-700'    },
+                  { k: 'Alta',  label: 'Alta',   cls: 'bg-emerald-100 text-emerald-700' },
+                  { k: 'Média', label: 'Média',  cls: 'bg-amber-100 text-amber-700'  },
+                  { k: 'Baixa', label: 'Baixa',  cls: 'bg-slate-200 text-slate-600'  },
+                ].map(({ k, label, cls }) => (
+                  <button key={k} onClick={() => setFiltroPrio(k)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                      filtroPrio === k ? cls : 'bg-slate-50 text-slate-400 hover:bg-slate-100 border border-slate-200'
+                    }`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Buscar por nome ou CPF..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="text-sm border border-slate-200 rounded-lg pl-9 pr-3 py-2 w-56 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
             </div>
           </div>
 
-          <div className="overflow-auto max-h-[480px]">
+          <div className="overflow-auto max-h-[520px]">
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200">
                 <tr>
@@ -473,7 +505,7 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {filtered.map((d) => (
+                {paginated.map((d) => (
                   <tr
                     key={d.rank}
                     onClick={() => navigate(`/devedor/${d.rank}`)}
@@ -506,6 +538,24 @@ export default function Dashboard() {
               </tbody>
             </table>
           </div>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-6 py-3 border-t border-slate-100 bg-slate-50">
+              <span className="text-xs text-slate-400">
+                {fmtNum((page - 1) * PAGE_SIZE + 1)}–{fmtNum(Math.min(page * PAGE_SIZE, filtered.length))} de {fmtNum(filtered.length)}
+              </span>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setPage(p => p - 1)} disabled={page === 1}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 text-slate-600 hover:bg-white disabled:opacity-40 transition-colors">
+                  ← Anterior
+                </button>
+                <span className="text-xs text-slate-500 font-medium px-1">{page} / {totalPages}</span>
+                <button onClick={() => setPage(p => p + 1)} disabled={page === totalPages}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 text-slate-600 hover:bg-white disabled:opacity-40 transition-colors">
+                  Próxima →
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </main>
     </div>

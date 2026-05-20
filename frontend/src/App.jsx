@@ -1,6 +1,30 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Loader2 } from 'lucide-react'
 import { AnalysisProvider } from './context/AnalysisContext'
 import { AuthProvider, useAuth } from './context/AuthContext'
+
+const BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
+
+function ServerWarmupBanner() {
+  const [show, setShow] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    const timer = setTimeout(() => { if (!cancelled) setShow(true) }, 4000)
+    fetch(`${BASE}/health`, { signal: AbortSignal.timeout(90000) })
+      .finally(() => { clearTimeout(timer); if (!cancelled) setShow(false) })
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [])
+
+  if (!show) return null
+  return (
+    <div className="fixed top-0 inset-x-0 z-50 bg-amber-50 border-b border-amber-200 px-4 py-2.5 flex items-center justify-center gap-3 text-sm text-amber-800 shadow-sm">
+      <Loader2 className="h-4 w-4 animate-spin text-amber-500 shrink-0" />
+      <span>O servidor está acordando — a primeira requisição pode levar até 30s (plano gratuito).</span>
+    </div>
+  )
+}
 import Upload from './pages/Upload'
 import Dashboard from './pages/Dashboard'
 import DebtorDetail from './pages/DebtorDetail'
@@ -23,6 +47,7 @@ export default function App() {
   return (
     <AuthProvider>
       <AnalysisProvider>
+        <ServerWarmupBanner />
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
