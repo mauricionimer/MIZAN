@@ -514,13 +514,6 @@ def _construir_url_db(conn: ConexaoDB) -> str:
         porta = conn.porta or 3306
         return f"mysql+pymysql://{user}:{senha}@{host}:{porta}/{banco}"
 
-    if conn.tipo == "sqlserver":
-        porta = conn.porta or 1433
-        if conn.instance_name:
-            # Named instance — ignora porta
-            return f"mssql+pymssql://{user}:{senha}@{host}\\{conn.instance_name}/{banco}"
-        return f"mssql+pymssql://{user}:{senha}@{host}:{porta}/{banco}"
-
     if conn.tipo == "oracle":
         porta = conn.porta or 1521
         dsn = conn.service_name or banco
@@ -530,6 +523,24 @@ def _construir_url_db(conn: ConexaoDB) -> str:
         return f"sqlite:///{conn.banco}"
 
     raise ValueError(f"Tipo de banco não suportado: {conn.tipo}")
+
+
+def _sqlserver_connect(conn: ConexaoDB):
+    """Retorna conexão pytds para SQL Server (sem SQLAlchemy)."""
+    import pytds
+    kwargs = dict(
+        server=conn.host or "localhost",
+        database=conn.banco or "",
+        user=conn.usuario or "",
+        password=conn.senha or "",
+        timeout=10,
+        login_timeout=10,
+    )
+    if conn.instance_name:
+        kwargs["instance"] = conn.instance_name
+    else:
+        kwargs["port"] = conn.porta or 1433
+    return pytds.connect(**kwargs)
 
 
 def _ler_google_sheets(conn: ConexaoDB) -> pd.DataFrame:
@@ -681,26 +692,30 @@ async def listar_tabelas(conn: ConexaoDB):
     if conn.tipo == "sheets":
         raise HTTPException(status_code=400, detail="Google Sheets não tem tabelas SQL.")
     try:
-        from sqlalchemy import create_engine, text
-        url = _construir_url_db(conn)
-        timeout_args = {"connect_timeout": 10} if conn.tipo in ("postgres", "postgresql", "mysql", "mariadb") else {}
-        engine = create_engine(url, connect_args=timeout_args)
-        with engine.connect() as connection:
-            if conn.tipo in ("postgres", "postgresql"):
-                q = "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name"
-            elif conn.tipo in ("mysql", "mariadb"):
-                q = "SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() ORDER BY table_name"
-            elif conn.tipo == "sqlserver":
-                q = "SELECT table_name FROM information_schema.tables WHERE table_type = 'BASE TABLE' ORDER BY table_name"
-            elif conn.tipo == "oracle":
-                q = "SELECT table_name FROM user_tables ORDER BY table_name"
-            elif conn.tipo == "sqlite":
-                q = "SELECT name AS table_name FROM sqlite_master WHERE type='table' ORDER BY name"
-            else:
-                raise ValueError(f"Tipo não suportado: {conn.tipo}")
-            result = connection.execute(text(q))
-            tabelas = [row[0] for row in result]
-        engine.dispose()
+        if conn.tipo == "sqlserver":
+            q = "SELECT table_name FROM information_schema.tables WHERE table_type = 'BASE TABLE' ORDER BY table_name"
+            with _sqlserver_connect(conn) as tds_conn:
+                df = pd.read_sql(q, tds_conn)
+            tabelas = df["table_name"].tolist()
+        else:
+            from sqlalchemy import create_engine, text
+            url = _construir_url_db(conn)
+            timeout_args = {"connect_timeout": 10} if conn.tipo in ("postgres", "postgresql", "mysql", "mariadb") else {}
+            engine = create_engine(url, connect_args=timeout_args)
+            with engine.connect() as connection:
+                if conn.tipo in ("postgres", "postgresql"):
+                    q = "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name"
+                elif conn.tipo in ("mysql", "mariadb"):
+                    q = "SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() ORDER BY table_name"
+                elif conn.tipo == "oracle":
+                    q = "SELECT table_name FROM user_tables ORDER BY table_name"
+                elif conn.tipo == "sqlite":
+                    q = "SELECT name AS table_name FROM sqlite_master WHERE type='table' ORDER BY name"
+                else:
+                    raise ValueError(f"Tipo não suportado: {conn.tipo}")
+                result = connection.execute(text(q))
+                tabelas = [row[0] for row in result]
+            engine.dispose()
         return {"ok": True, "tabelas": tabelas}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -720,22 +735,28 @@ async def testar_db(conn: ConexaoDB):
             q = (conn.query or "").strip()
             if not q.lower().startswith("select"):
                 raise HTTPException(status_code=400, detail="Apenas consultas SELECT são permitidas.")
-            from sqlalchemy import create_engine, text
-            url = _construir_url_db(conn)
-            timeout_args = {"connect_timeout": 10} if conn.tipo in ("postgres", "postgresql", "mysql", "mariadb") else {}
-            engine = create_engine(url, connect_args=timeout_args)
-            with engine.connect() as connection:
-                if conn.tipo == "sqlserver":
-                    preview_q = f"SELECT TOP 5 * FROM ({q}) AS _mizan_preview"
-                elif conn.tipo == "oracle":
-                    preview_q = f"SELECT * FROM ({q}) WHERE ROWNUM <= 5"
-                else:
-                    preview_q = f"SELECT * FROM ({q}) AS _mizan_preview LIMIT 5"
-                try:
-                    df_preview = pd.read_sql(text(preview_q), connection)
-                except Exception:
-                    df_preview = pd.read_sql(text(q), connection).head(5)
-            engine.dispose()
+            if conn.tipo == "sqlserver":
+                preview_q = f"SELECT TOP 5 * FROM ({q}) AS _mizan_preview"
+                with _sqlserver_connect(conn) as tds_conn:
+                    try:
+                        df_preview = pd.read_sql(preview_q, tds_conn)
+                    except Exception:
+                        df_preview = pd.read_sql(q, tds_conn).head(5)
+            else:
+                from sqlalchemy import create_engine, text
+                url = _construir_url_db(conn)
+                timeout_args = {"connect_timeout": 10} if conn.tipo in ("postgres", "postgresql", "mysql", "mariadb") else {}
+                engine = create_engine(url, connect_args=timeout_args)
+                with engine.connect() as connection:
+                    if conn.tipo == "oracle":
+                        preview_q = f"SELECT * FROM ({q}) WHERE ROWNUM <= 5"
+                    else:
+                        preview_q = f"SELECT * FROM ({q}) AS _mizan_preview LIMIT 5"
+                    try:
+                        df_preview = pd.read_sql(text(preview_q), connection)
+                    except Exception:
+                        df_preview = pd.read_sql(text(q), connection).head(5)
+                engine.dispose()
     except HTTPException:
         raise
     except ValueError as e:
@@ -770,13 +791,17 @@ async def analisar_db(conn: ConexaoDB, credentials=Security(bearer_opcional)):
             q = (conn.query or "").strip()
             if not q.lower().startswith("select"):
                 raise HTTPException(status_code=400, detail="Apenas consultas SELECT são permitidas.")
-            from sqlalchemy import create_engine, text
-            url = _construir_url_db(conn)
-            timeout_args = {"connect_timeout": 10} if conn.tipo in ("postgres", "postgresql", "mysql", "mariadb") else {}
-            engine = create_engine(url, connect_args=timeout_args)
-            with engine.connect() as connection:
-                df = pd.read_sql(text(q), connection)
-            engine.dispose()
+            if conn.tipo == "sqlserver":
+                with _sqlserver_connect(conn) as tds_conn:
+                    df = pd.read_sql(q, tds_conn)
+            else:
+                from sqlalchemy import create_engine, text
+                url = _construir_url_db(conn)
+                timeout_args = {"connect_timeout": 10} if conn.tipo in ("postgres", "postgresql", "mysql", "mariadb") else {}
+                engine = create_engine(url, connect_args=timeout_args)
+                with engine.connect() as connection:
+                    df = pd.read_sql(text(q), connection)
+                engine.dispose()
     except HTTPException:
         raise
     except ValueError as e:
