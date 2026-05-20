@@ -686,13 +686,21 @@ def listar_conexoes(credentials: HTTPAuthorizationCredentials = Security(bearer)
     db = get_db()
     eid = payload.get("empresa_id", "")
     uid = payload["sub"]
-    # Mostra conexões da empresa (novas) OU criadas por este usuário (antigas sem empresa_id)
-    flt = f"empresa_id.eq.{eid},usuario_id.eq.{uid}" if eid else f"usuario_id.eq.{uid}"
-    res = db.table("conexoes_db").select("*").or_(flt).order("created_at", desc=True).execute()
-    # Nunca expõe a senha cifrada ao frontend
-    for row in res.data:
+    # Duas queries separadas para evitar problemas com caracteres especiais no or_()
+    seen: set = set()
+    rows: list = []
+    if eid:
+        r1 = db.table("conexoes_db").select("*").eq("empresa_id", eid).order("created_at", desc=True).execute()
+        for r in (r1.data or []):
+            seen.add(r["id"]); rows.append(r)
+    r2 = db.table("conexoes_db").select("*").eq("usuario_id", uid).order("created_at", desc=True).execute()
+    for r in (r2.data or []):
+        if r["id"] not in seen:
+            rows.append(r)
+    rows.sort(key=lambda r: r.get("created_at", ""), reverse=True)
+    for row in rows:
         row["senha"] = ""
-    return res.data
+    return rows
 
 @app.post("/conexoes")
 def salvar_conexao(body: ConexaoSalvarIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
@@ -808,8 +816,13 @@ def atualizar_conexao(conexao_id: str, body: ConexaoUpdateIn, credentials: HTTPA
         return {"ok": True}
     eid = payload.get("empresa_id", "")
     uid = payload["sub"]
-    flt = f"empresa_id.eq.{eid},usuario_id.eq.{uid}" if eid else f"usuario_id.eq.{uid}"
-    db.table("conexoes_db").update(updates).eq("id", conexao_id).or_(flt).execute()
+    chk = db.table("conexoes_db").select("id, empresa_id, usuario_id").eq("id", conexao_id).execute()
+    if not chk.data:
+        return {"ok": True}
+    r = chk.data[0]
+    if not ((eid and r.get("empresa_id") == eid) or r.get("usuario_id") == uid):
+        raise HTTPException(status_code=403, detail="Acesso negado.")
+    db.table("conexoes_db").update(updates).eq("id", conexao_id).execute()
     return {"ok": True}
 
 
@@ -822,8 +835,13 @@ def deletar_conexao(conexao_id: str, credentials: HTTPAuthorizationCredentials =
     db = get_db()
     eid = payload.get("empresa_id", "")
     uid = payload["sub"]
-    flt = f"empresa_id.eq.{eid},usuario_id.eq.{uid}" if eid else f"usuario_id.eq.{uid}"
-    db.table("conexoes_db").delete().eq("id", conexao_id).or_(flt).execute()
+    chk = db.table("conexoes_db").select("id, empresa_id, usuario_id").eq("id", conexao_id).execute()
+    if not chk.data:
+        return {"ok": True}
+    r = chk.data[0]
+    if not ((eid and r.get("empresa_id") == eid) or r.get("usuario_id") == uid):
+        raise HTTPException(status_code=403, detail="Acesso negado.")
+    db.table("conexoes_db").delete().eq("id", conexao_id).execute()
     return {"ok": True}
 
 
@@ -838,10 +856,12 @@ async def sincronizar_conexao(conexao_id: str, credentials: HTTPAuthorizationCre
     db = get_db()
     eid = payload.get("empresa_id", "")
     uid = payload["sub"]
-    flt = f"empresa_id.eq.{eid},usuario_id.eq.{uid}" if eid else f"usuario_id.eq.{uid}"
-    res = db.table("conexoes_db").select("*").eq("id", conexao_id).or_(flt).execute()
+    res = db.table("conexoes_db").select("*").eq("id", conexao_id).execute()
     if not res.data:
         raise HTTPException(status_code=404, detail="Conexão não encontrada.")
+    r = res.data[0]
+    if not ((eid and r.get("empresa_id") == eid) or r.get("usuario_id") == uid):
+        raise HTTPException(status_code=403, detail="Acesso negado.")
 
     row = res.data[0]
     senha_decriptada = _decrypt(row.get("senha"))
