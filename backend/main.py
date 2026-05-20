@@ -935,6 +935,18 @@ def _ler_google_sheets(conn: ConexaoDB) -> pd.DataFrame:
 
 def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _usuario_email: str = None, _empresa_id: str = None) -> dict:
     """Executa o pipeline de scoring em um DataFrame já carregado e persiste no Supabase."""
+    # Aplica CAMPO_ALIASES para mapear colunas de qualquer fonte (CSV, Excel, DB)
+    _cols_norm = {c.lower().strip().replace(" ", "_"): c for c in df.columns}
+    _rename: dict = {}
+    for campo, aliases in CAMPO_ALIASES.items():
+        if campo not in df.columns:
+            for alias in aliases:
+                if alias in _cols_norm:
+                    _rename[_cols_norm[alias]] = campo
+                    break
+    if _rename:
+        df = df.rename(columns=_rename)
+
     from model.train import _normalizar_colunas
     df = _normalizar_colunas(df)
 
