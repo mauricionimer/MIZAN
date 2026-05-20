@@ -32,17 +32,22 @@ function prioLabel(score) {
 }
 
 function exportCSV(ranking) {
-  const headers = ['Rank','Nome','CPF','Produto','Valor Face (R$)','Valor Esperado (R$)','Dias em Atraso','Score','Prioridade']
+  const headers = ['Rank','Nome','CPF','Produto','UF','Valor Face (R$)','Valor Esperado (R$)','Dias em Atraso','Score','Prioridade','Desconto Sugerido (%)','Valor Proposta (R$)','Parcelas Máx.','Estratégia de Oferta']
   const rows = ranking.map(d => [
     d.rank,
     d.nome ?? '',
     d.cpf  ?? '',
     d.produto ?? '',
+    d.uf ?? '',
     (d.valor_divida ?? 0).toFixed(2).replace('.', ','),
     (d.valor_esperado_recuperacao ?? 0).toFixed(2).replace('.', ','),
     d.dias_em_atraso ?? 0,
     d.score_recuperabilidade ?? 0,
     prioLabel(d.score_recuperabilidade ?? 0),
+    d.desconto_sugerido_pct ?? 0,
+    (d.valor_proposta ?? 0).toFixed(2).replace('.', ','),
+    d.parcelas_max ?? '',
+    d.estrategia_oferta ?? '',
   ])
 
   const escape = (v) => {
@@ -62,21 +67,26 @@ function exportCSV(ranking) {
 
 function exportExcel(ranking, resumo) {
   const dados = ranking.map(d => ({
-    'Rank':                  d.rank,
-    'Nome':                  d.nome ?? '',
-    'CPF':                   d.cpf ?? '',
-    'Produto':               d.produto ?? '',
-    'Valor Face (R$)':       d.valor_divida ?? 0,
-    'Valor Esperado (R$)':   d.valor_esperado_recuperacao ?? 0,
-    'Dias em Atraso':        d.dias_em_atraso ?? 0,
-    'Score':                 d.score_recuperabilidade ?? 0,
-    'Prioridade':            prioLabel(d.score_recuperabilidade ?? 0),
-    'Aging':                 d.aging ?? '',
-    'Cluster':               d.perfil_cluster ?? '',
+    'Rank':                    d.rank,
+    'Nome':                    d.nome ?? '',
+    'CPF':                     d.cpf ?? '',
+    'Produto':                 d.produto ?? '',
+    'UF':                      d.uf ?? '',
+    'Valor Face (R$)':         d.valor_divida ?? 0,
+    'Valor Esperado (R$)':     d.valor_esperado_recuperacao ?? 0,
+    'Dias em Atraso':          d.dias_em_atraso ?? 0,
+    'Score':                   d.score_recuperabilidade ?? 0,
+    'Prioridade':              prioLabel(d.score_recuperabilidade ?? 0),
+    'Desconto Sugerido (%)':   d.desconto_sugerido_pct ?? 0,
+    'Valor Proposta (R$)':     d.valor_proposta ?? 0,
+    'Parcelas Máx.':           d.parcelas_max ?? '',
+    'Estratégia de Oferta':    d.estrategia_oferta ?? '',
+    'Aging':                   d.aging ?? '',
+    'Cluster':                 d.perfil_cluster ?? '',
   }))
 
   const wsRanking = XLSX.utils.json_to_sheet(dados)
-  const colWidths = [6, 30, 16, 16, 18, 20, 14, 8, 12, 14, 20]
+  const colWidths = [6, 30, 16, 12, 6, 18, 20, 14, 8, 12, 20, 20, 14, 36, 14, 28]
   wsRanking['!cols'] = colWidths.map(w => ({ wch: w }))
 
   const resumoSheet = [

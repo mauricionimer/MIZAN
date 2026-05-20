@@ -464,6 +464,39 @@ export default function DebtorDetail() {
             {/* AI Approach Recommendation */}
             <ApproachRecommendation devedor={d} />
 
+            {/* Oferta sugerida */}
+            {d.desconto_sugerido_pct != null && (
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-5 py-4 border-b border-slate-100">
+                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Oferta Sugerida</h3>
+                </div>
+                <div className="p-5 space-y-4">
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="rounded-lg bg-slate-50 border border-slate-100 p-3 text-center">
+                      <p className="text-xs text-slate-400 mb-1">Desconto</p>
+                      <p className="text-xl font-bold text-slate-800">{d.desconto_sugerido_pct}%</p>
+                    </div>
+                    <div className="rounded-lg bg-emerald-50 border border-emerald-100 p-3 text-center">
+                      <p className="text-xs text-emerald-600 mb-1">Valor Proposta</p>
+                      <p className="text-lg font-bold text-emerald-700">{fmtBRL(d.valor_proposta)}</p>
+                    </div>
+                    <div className="rounded-lg bg-slate-50 border border-slate-100 p-3 text-center">
+                      <p className="text-xs text-slate-400 mb-1">Até</p>
+                      <p className="text-xl font-bold text-slate-800">{d.parcelas_max}x</p>
+                    </div>
+                  </div>
+                  <p className="text-sm text-slate-600 bg-blue-50 border border-blue-100 rounded-lg px-4 py-3">
+                    {d.estrategia_oferta}
+                  </p>
+                  {d.desconto_sugerido_pct > 0 && (
+                    <p className="text-xs text-slate-400">
+                      Economia de {fmtBRL((d.valor_divida ?? 0) - (d.valor_proposta ?? 0))} em relação ao valor original.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Histórico de contatos */}
             {d.cpf && <HistoricoContatos cpf={d.cpf} />}
           </div>

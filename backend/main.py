@@ -273,6 +273,25 @@ def _resolver_credenciais(conn: ConexaoDB) -> None:
 
 
 
+def _calcular_oferta(score: float, valor_divida: float) -> dict:
+    score = float(score or 0)
+    valor = float(valor_divida or 0)
+    if score >= 75:
+        desc, parcelas, estrategia = 0,  3,  "Cobrança padrão — sem desconto necessário"
+    elif score >= 50:
+        desc, parcelas, estrategia = 15, 6,  "Desconto de 15% + parcelamento em até 6x"
+    elif score >= 30:
+        desc, parcelas, estrategia = 35, 12, "Desconto de 35% + parcelamento em até 12x"
+    else:
+        desc, parcelas, estrategia = 55, 24, "Proposta de quitação com 55% de desconto"
+    return {
+        "desconto_sugerido_pct": desc,
+        "valor_proposta":        round(valor * (1 - desc / 100), 2),
+        "parcelas_max":          parcelas,
+        "estrategia_oferta":     estrategia,
+    }
+
+
 def _aging_label(dias: int) -> str:
     if dias < 30:
         return "0-29 dias"
@@ -816,10 +835,12 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
 
     devedores = []
     for rank, (_, row) in enumerate(resultado_sorted.iterrows(), start=1):
+        score_val = float(row["score_recuperabilidade"])
         devedor = {"rank": rank,
-                   "score_recuperabilidade": float(row["score_recuperabilidade"]),
+                   "score_recuperabilidade": score_val,
                    "perfil_cluster": row["perfil_cluster"],
-                   "valor_esperado_recuperacao": float(row["valor_esperado_recuperacao"])}
+                   "valor_esperado_recuperacao": float(row["valor_esperado_recuperacao"]),
+                   **_calcular_oferta(score_val, row.get("valor_divida", 0))}
         for col in df.columns:
             val = row[col]
             devedor[col] = None if pd.isna(val) else val
@@ -863,6 +884,7 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
             cart_row["empresa_id"] = _empresa_id
         cart_res = db.table("carteiras").insert(cart_row).execute()
         carteira_id = cart_res.data[0]["id"]
+        resumo["carteira_id"] = carteira_id
 
         def _py(val):
             if val is None: return None
