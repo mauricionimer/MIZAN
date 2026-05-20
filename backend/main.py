@@ -288,12 +288,23 @@ def comando_visao_geral(credentials: HTTPAuthorizationCredentials = Security(bea
     _exigir_comando(credentials)
     db = get_db()
 
-    cart_res = db.table("carteiras").select(
-        "id, empresa_id, usuario_email, total_devedores, valor_face, valor_esperado, score_medio, created_at"
-    ).execute()
+    _VAZIO = {"empresas": [], "totais": {"total_empresas": 0, "total_devedores": 0, "valor_face_total": 0, "valor_recuperado_real": 0, "n_suspeitas": 0}}
+
+    try:
+        cart_res = db.table("carteiras").select(
+            "id, empresa_id, usuario_email, total_devedores, valor_face, valor_esperado, score_medio, created_at"
+        ).execute()
+    except Exception:
+        # colunas empresa_id/usuario_email ainda não existem — fallback sem agrupamento por empresa
+        try:
+            cart_res = db.table("carteiras").select(
+                "id, total_devedores, valor_face, valor_esperado, score_medio, created_at"
+            ).execute()
+        except Exception:
+            return _VAZIO
 
     if not cart_res.data:
-        return {"empresas": [], "totais": {"total_empresas": 0, "total_devedores": 0, "valor_face_total": 0, "valor_recuperado_real": 0, "n_suspeitas": 0}}
+        return _VAZIO
 
     empresas: dict = {}
     cart_id_to_empresa: dict = {}
@@ -321,16 +332,27 @@ def comando_visao_geral(credentials: HTTPAuthorizationCredentials = Security(bea
         if ca and (e["ultima_atividade"] is None or ca > e["ultima_atividade"]):
             e["ultima_atividade"] = ca
 
-    fb_res = db.table("feedbacks").select("predicao_id, pagou, valor_recuperado").execute()
-    fb_data = fb_res.data or []
+    try:
+        fb_res = db.table("feedbacks").select("predicao_id, pagou, valor_recuperado").execute()
+        fb_data = fb_res.data or []
+    except Exception:
+        try:
+            fb_res = db.table("feedbacks").select("predicao_id, pagou").execute()
+            fb_data = fb_res.data or []
+        except Exception:
+            fb_data = []
+
     pred_ids = [f["predicao_id"] for f in fb_data if f.get("predicao_id")]
 
     if pred_ids:
         pred_to_cart: dict = {}
-        for i in range(0, len(pred_ids), 100):
-            pr = db.table("predicoes").select("id, carteira_id").in_("id", pred_ids[i:i+100]).execute()
-            for p in (pr.data or []):
-                pred_to_cart[p["id"]] = p.get("carteira_id")
+        try:
+            for i in range(0, len(pred_ids), 100):
+                pr = db.table("predicoes").select("id, carteira_id").in_("id", pred_ids[i:i+100]).execute()
+                for p in (pr.data or []):
+                    pred_to_cart[p["id"]] = p.get("carteira_id")
+        except Exception:
+            pred_to_cart = {}
         for f in fb_data:
             pid = f.get("predicao_id")
             if not pid or pid not in pred_to_cart:
@@ -386,13 +408,20 @@ def comando_carteiras(
 ):
     _exigir_comando(credentials)
     db = get_db()
-    q = db.table("carteiras").select(
-        "id, empresa_id, usuario_email, nome_arquivo, total_devedores, valor_face, valor_esperado, score_medio, created_at, modelo_versao"
-    )
-    if empresa_id:
-        q = q.eq("empresa_id", empresa_id)
-    res = q.order("created_at", desc=True).limit(200).execute()
-    return res.data or []
+    try:
+        q = db.table("carteiras").select(
+            "id, empresa_id, usuario_email, nome_arquivo, total_devedores, valor_face, valor_esperado, score_medio, created_at, modelo_versao"
+        )
+        if empresa_id:
+            q = q.eq("empresa_id", empresa_id)
+        res = q.order("created_at", desc=True).limit(200).execute()
+        return res.data or []
+    except Exception:
+        q = db.table("carteiras").select(
+            "id, nome_arquivo, total_devedores, valor_face, valor_esperado, score_medio, created_at, modelo_versao"
+        )
+        res = q.order("created_at", desc=True).limit(200).execute()
+        return res.data or []
 
 
 def _calcular_oferta(score: float, valor_divida: float) -> dict:
