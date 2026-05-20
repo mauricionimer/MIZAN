@@ -511,6 +511,18 @@ class ContatoIn(BaseModel):
     resultado: str    # contactado | sem_resposta | prometeu_pagar | pagou | nao_quis
     data_contato: Optional[str] = None
     observacao: Optional[str] = None
+    valor_recuperado: Optional[float] = None
+    desconto_oferecido_pct: Optional[float] = None
+    acao_bandit_id: Optional[int] = None
+
+
+_CONTATO_RECOMPENSA: dict = {
+    "pagou":          None,  # calculado de valor_recuperado / valor_divida
+    "prometeu_pagar": 0.2,
+    "contactado":     0.05,
+    "sem_resposta":   0.0,
+    "nao_quis":       0.0,
+}
 
 
 @app.post("/contatos")
@@ -525,6 +537,26 @@ def registrar_contato(body: ContatoIn, credentials: HTTPAuthorizationCredentials
     row["usuario_nome"] = payload.get("nome", "")
     row["empresa_id"]   = payload.get("empresa_id", "")
     res = db.table("contatos").insert(row).execute()
+
+    # Fecha o loop do bandit: aprende com o resultado real do contato
+    if body.resultado in _CONTATO_RECOMPENSA:
+        try:
+            rec_res = (db.table("recomendacoes").select("acao_id, contexto")
+                       .eq("cpf", body.cpf).order("created_at", desc=True).limit(1).execute())
+            if rec_res.data:
+                acao_id  = body.acao_bandit_id if body.acao_bandit_id is not None else rec_res.data[0]["acao_id"]
+                contexto = rec_res.data[0]["contexto"]
+                recomp   = _CONTATO_RECOMPENSA[body.resultado]
+                if recomp is None:
+                    pred_r = (db.table("predicoes").select("valor_divida").eq("cpf", body.cpf)
+                              .order("created_at", desc=True).limit(1).execute())
+                    vd = float(pred_r.data[0].get("valor_divida") or 0) if pred_r.data else 0
+                    recomp = min(1.0, float(body.valor_recuperado or 0) / vd) if vd > 0 and body.valor_recuperado else 0.5
+                from model.bandit import registrar_resultado
+                registrar_resultado(acao_id=acao_id, contexto=contexto, recompensa=recomp)
+        except Exception as _be:
+            print(f"[Bandit/Contato] {_be}")
+
     return {"ok": True, "contato": res.data[0]}
 
 

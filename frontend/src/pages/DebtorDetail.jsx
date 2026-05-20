@@ -38,7 +38,7 @@ const RESULTADO_CFG  = {
   nao_quis:       { label: 'Não quis negociar',  color: 'text-red-500',     bg: 'bg-red-50'     },
 }
 
-function HistoricoContatos({ cpf }) {
+function HistoricoContatos({ cpf, rec }) {
   const [contatos, setContatos]     = useState([])
   const [loading, setLoading]       = useState(true)
   const [formAberto, setFormAberto] = useState(false)
@@ -47,6 +47,7 @@ function HistoricoContatos({ cpf }) {
   const [form, setForm] = useState({
     canal: 'whatsapp', resultado: 'contactado',
     data_contato: new Date().toISOString().slice(0, 10), observacao: '',
+    valor_recuperado: '', desconto_oferecido_pct: '',
   })
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
@@ -60,10 +61,14 @@ function HistoricoContatos({ cpf }) {
   async function salvar() {
     setSalvando(true); setErro(null)
     try {
-      const res = await registrarContato({ cpf, ...form })
+      const payload = { cpf, canal: form.canal, resultado: form.resultado, data_contato: form.data_contato, observacao: form.observacao }
+      if (rec?.acao_id != null) payload.acao_bandit_id = rec.acao_id
+      if (form.valor_recuperado) payload.valor_recuperado = parseFloat(form.valor_recuperado)
+      if (form.desconto_oferecido_pct) payload.desconto_oferecido_pct = parseFloat(form.desconto_oferecido_pct)
+      const res = await registrarContato(payload)
       setContatos(prev => [res.contato, ...prev])
       setFormAberto(false)
-      setForm({ canal: 'whatsapp', resultado: 'contactado', data_contato: new Date().toISOString().slice(0, 10), observacao: '' })
+      setForm({ canal: 'whatsapp', resultado: 'contactado', data_contato: new Date().toISOString().slice(0, 10), observacao: '', valor_recuperado: '', desconto_oferecido_pct: '' })
     } catch (e) { setErro(e.message) }
     finally { setSalvando(false) }
   }
@@ -114,6 +119,27 @@ function HistoricoContatos({ cpf }) {
               <option value="nao_quis">Não quis negociar</option>
             </select>
           </div>
+          {(form.resultado === 'pagou' || form.resultado === 'prometeu_pagar') && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Valor Recuperado (R$)</label>
+                <input type="number" min="0" step="0.01" value={form.valor_recuperado}
+                  onChange={e => set('valor_recuperado', e.target.value)}
+                  placeholder="0,00"
+                  className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-300" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">
+                  Desconto Oferecido (%)
+                  {rec?.oferta_label && <span className="text-blue-400 ml-1 font-normal">· IA: {rec.oferta_label}</span>}
+                </label>
+                <input type="number" min="0" max="100" step="1" value={form.desconto_oferecido_pct}
+                  onChange={e => set('desconto_oferecido_pct', e.target.value)}
+                  placeholder="Ex: 30"
+                  className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-300" />
+              </div>
+            </div>
+          )}
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1">Observação (opcional)</label>
             <textarea value={form.observacao} onChange={e => set('observacao', e.target.value)}
@@ -162,6 +188,9 @@ function HistoricoContatos({ cpf }) {
                 {c.observacao && (
                   <p className="text-xs text-slate-500 mt-1">{c.observacao}</p>
                 )}
+                {c.valor_recuperado > 0 && (
+                  <p className="text-xs text-emerald-600 font-medium mt-0.5">{fmtBRL(c.valor_recuperado)} recuperados</p>
+                )}
               </div>
             </div>
           )
@@ -183,22 +212,10 @@ const MODO_CONFIG = {
   calibrado:          { label: 'Calibrado',   color: 'text-emerald-600',bg: 'bg-emerald-50',ring: 'ring-emerald-200'},
 }
 
-function ApproachRecommendation({ devedor }) {
+function ApproachRecommendation({ devedor, rec, loading, erro }) {
   const score = devedor.score_recuperabilidade ?? 0
   const urgencia = score >= 70 ? 'Alta' : score >= 40 ? 'Média' : 'Baixa'
   const urgCfg = URGENCIA_CONFIG[urgencia]
-
-  const [rec, setRec] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [erro, setErro] = useState(null)
-
-  useEffect(() => {
-    if (!devedor.cpf) return
-    buscarRecomendacao(devedor.cpf)
-      .then(setRec)
-      .catch(e => setErro(e.message))
-      .finally(() => setLoading(false))
-  }, [devedor.cpf])
 
   const modoCfg = rec ? (MODO_CONFIG[rec.modo] ?? MODO_CONFIG.aprendendo) : null
 
@@ -281,10 +298,23 @@ export default function DebtorDetail() {
 
   const d = result?.ranking_completo.find(x => x.rank === Number(rank)) ?? null
 
+  const [rec, setRec]               = useState(null)
+  const [recLoading, setRecLoading] = useState(true)
+  const [recErro, setRecErro]       = useState(null)
+
   useEffect(() => {
     if (!result) { navigate('/'); return }
     if (!d) navigate('/dashboard')
   }, [result, d, navigate])
+
+  useEffect(() => {
+    if (!d?.cpf) return
+    setRecLoading(true)
+    buscarRecomendacao(d.cpf)
+      .then(setRec)
+      .catch(e => setRecErro(e.message))
+      .finally(() => setRecLoading(false))
+  }, [d?.cpf])
 
   if (!result || !d) return null
 
@@ -462,7 +492,7 @@ export default function DebtorDetail() {
             </div>
 
             {/* AI Approach Recommendation */}
-            <ApproachRecommendation devedor={d} />
+            <ApproachRecommendation devedor={d} rec={rec} loading={recLoading} erro={recErro} />
 
             {/* Oferta sugerida */}
             {d.desconto_sugerido_pct != null && (
@@ -498,7 +528,7 @@ export default function DebtorDetail() {
             )}
 
             {/* Histórico de contatos */}
-            {d.cpf && <HistoricoContatos cpf={d.cpf} />}
+            {d.cpf && <HistoricoContatos cpf={d.cpf} rec={rec} />}
           </div>
         </div>
       </main>
