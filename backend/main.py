@@ -684,13 +684,11 @@ def listar_conexoes(credentials: HTTPAuthorizationCredentials = Security(bearer)
     except ValueError as e:
         raise HTTPException(status_code=401, detail=str(e))
     db = get_db()
-    res = (
-        db.table("conexoes_db")
-        .select("*")
-        .eq("usuario_id", payload["sub"])
-        .order("created_at", desc=True)
-        .execute()
-    )
+    eid = payload.get("empresa_id", "")
+    if eid:
+        res = db.table("conexoes_db").select("*").eq("empresa_id", eid).order("created_at", desc=True).execute()
+    else:
+        res = db.table("conexoes_db").select("*").eq("usuario_id", payload["sub"]).order("created_at", desc=True).execute()
     # Nunca expõe a senha cifrada ao frontend
     for row in res.data:
         row["senha"] = ""
@@ -705,6 +703,7 @@ def salvar_conexao(body: ConexaoSalvarIn, credentials: HTTPAuthorizationCredenti
     db = get_db()
     row = body.model_dump()
     row["usuario_id"] = payload["sub"]
+    row["empresa_id"] = payload.get("empresa_id") or None
     row["senha"] = _encrypt(row.get("senha"))  # cifra antes de armazenar
     res = db.table("conexoes_db").insert(row).execute()
     saved = res.data[0]
@@ -807,7 +806,10 @@ def atualizar_conexao(conexao_id: str, body: ConexaoUpdateIn, credentials: HTTPA
     updates = {k: v for k, v in body.model_dump().items() if v is not None}
     if not updates:
         return {"ok": True}
-    db.table("conexoes_db").update(updates).eq("id", conexao_id).eq("usuario_id", payload["sub"]).execute()
+    eid = payload.get("empresa_id", "")
+    q = db.table("conexoes_db").update(updates).eq("id", conexao_id)
+    q = q.eq("empresa_id", eid) if eid else q.eq("usuario_id", payload["sub"])
+    q.execute()
     return {"ok": True}
 
 
@@ -818,7 +820,10 @@ def deletar_conexao(conexao_id: str, credentials: HTTPAuthorizationCredentials =
     except ValueError as e:
         raise HTTPException(status_code=401, detail=str(e))
     db = get_db()
-    db.table("conexoes_db").delete().eq("id", conexao_id).eq("usuario_id", payload["sub"]).execute()
+    eid = payload.get("empresa_id", "")
+    q = db.table("conexoes_db").delete().eq("id", conexao_id)
+    q = q.eq("empresa_id", eid) if eid else q.eq("usuario_id", payload["sub"])
+    q.execute()
     return {"ok": True}
 
 
@@ -831,13 +836,10 @@ async def sincronizar_conexao(conexao_id: str, credentials: HTTPAuthorizationCre
         raise HTTPException(status_code=401, detail=str(e))
 
     db = get_db()
-    res = (
-        db.table("conexoes_db")
-        .select("*")
-        .eq("id", conexao_id)
-        .eq("usuario_id", payload["sub"])
-        .execute()
-    )
+    eid = payload.get("empresa_id", "")
+    q = db.table("conexoes_db").select("*").eq("id", conexao_id)
+    q = q.eq("empresa_id", eid) if eid else q.eq("usuario_id", payload["sub"])
+    res = q.execute()
     if not res.data:
         raise HTTPException(status_code=404, detail="Conexão não encontrada.")
 
