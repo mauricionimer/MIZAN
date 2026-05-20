@@ -584,6 +584,12 @@ class ConexaoSalvarIn(BaseModel):
     sheets_aba: Optional[str] = None
     query: Optional[str] = None
 
+
+class ConexaoUpdateIn(BaseModel):
+    nome: Optional[str] = None
+    query: Optional[str] = None
+    mapeamento: Optional[dict] = None
+
 class WebhookPagamentoIn(BaseModel):
     cpf: str
     pagou: bool
@@ -749,6 +755,21 @@ def deletar_conta(credentials: HTTPAuthorizationCredentials = Security(bearer)):
     return {"ok": True, "mensagem": "Conta e dados pessoais removidos."}
 
 
+@app.patch("/conexoes/{conexao_id}")
+def atualizar_conexao(conexao_id: str, body: ConexaoUpdateIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Atualiza campos de uma conexão salva (mapeamento, query, etc.)."""
+    try:
+        payload = validar_token(credentials.credentials)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+    db = get_db()
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not updates:
+        return {"ok": True}
+    db.table("conexoes_db").update(updates).eq("id", conexao_id).eq("usuario_id", payload["sub"]).execute()
+    return {"ok": True}
+
+
 @app.delete("/conexoes/{conexao_id}")
 def deletar_conexao(conexao_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     try:
@@ -758,6 +779,95 @@ def deletar_conexao(conexao_id: str, credentials: HTTPAuthorizationCredentials =
     db = get_db()
     db.table("conexoes_db").delete().eq("id", conexao_id).eq("usuario_id", payload["sub"]).execute()
     return {"ok": True}
+
+
+@app.post("/conexoes/{conexao_id}/sincronizar")
+async def sincronizar_conexao(conexao_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Re-lê o banco externo salvo e cria uma nova carteira com todos os devedores atuais."""
+    try:
+        payload = validar_token(credentials.credentials)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+
+    db = get_db()
+    res = (
+        db.table("conexoes_db")
+        .select("*")
+        .eq("id", conexao_id)
+        .eq("usuario_id", payload["sub"])
+        .execute()
+    )
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Conexão não encontrada.")
+
+    row = res.data[0]
+    senha_decriptada = _decrypt(row.get("senha"))
+
+    conn = ConexaoDB(
+        tipo=row["tipo"],
+        host=row.get("host"),
+        porta=row.get("porta"),
+        banco=row.get("banco"),
+        usuario=row.get("usuario"),
+        senha=senha_decriptada,
+        instance_name=row.get("instance_name"),
+        service_name=row.get("service_name"),
+        sheets_id=row.get("sheets_id"),
+        sheets_aba=row.get("sheets_aba"),
+        query=row.get("query") or "SELECT * FROM devedores",
+        nome_fonte=row.get("nome") or row.get("nome_fonte") or "sync",
+        mapeamento=row.get("mapeamento"),
+    )
+
+    try:
+        if conn.tipo == "sheets":
+            if not conn.sheets_id:
+                raise HTTPException(status_code=400, detail="Conexão do tipo Sheets sem sheets_id.")
+            sheets_creds = row.get("sheets_credenciais")
+            if sheets_creds and isinstance(sheets_creds, str):
+                import json as _json
+                conn.sheets_credenciais = _json.loads(sheets_creds)
+            else:
+                conn.sheets_credenciais = sheets_creds
+            df = _ler_google_sheets(conn)
+        else:
+            q = (conn.query or "").strip()
+            if not q.lower().startswith("select"):
+                raise HTTPException(status_code=400, detail="A query salva não é um SELECT válido.")
+            if conn.tipo == "sqlserver":
+                with _sqlserver_connect(conn) as tds_conn:
+                    df = pd.read_sql(q, tds_conn)
+            else:
+                from sqlalchemy import create_engine, text
+                url = _construir_url_db(conn)
+                timeout_args = {"connect_timeout": 10} if conn.tipo in ("postgres", "postgresql", "mysql", "mariadb") else {}
+                engine = create_engine(url, connect_args=timeout_args)
+                with engine.connect() as connection:
+                    df = pd.read_sql(text(q), connection)
+                engine.dispose()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Erro ao conectar no banco: {e}")
+
+    if conn.mapeamento:
+        rename = {col_banco: campo for campo, col_banco in conn.mapeamento.items() if col_banco in df.columns}
+        df = df.rename(columns=rename)
+
+    uid      = payload["sub"]
+    uemail   = payload.get("email", "")
+    eid      = payload.get("empresa_id", "")
+    nome     = conn.nome_fonte or f"sync_{conexao_id[:8]}"
+
+    resultado = _analisar_df(df, nome, _usuario_id=uid, _usuario_email=uemail, _empresa_id=eid)
+
+    # Atualiza timestamp de último sync
+    try:
+        db.table("conexoes_db").update({"ultimo_sync": datetime.utcnow().isoformat()}).eq("id", conexao_id).execute()
+    except Exception:
+        pass
+
+    return {"ok": True, "n_devedores": resultado.get("total_devedores", len(df)), "carteira": resultado}
 
 @app.post("/auth/redefinir-senha")
 def auth_redefinir_senha(body: RedefinirSenhaIn):

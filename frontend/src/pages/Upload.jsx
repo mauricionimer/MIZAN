@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { UploadCloud, FileText, AlertCircle, Loader2, History, FolderOpen, Database, RefreshCw, CheckCircle2, XCircle, ChevronRight, Plug } from 'lucide-react'
 import { useAnalysis } from '../context/AnalysisContext'
-import { analisarCarteira, analisarDB, testarDB, listarTabelas, listarCarteiras, carregarCarteira, getDBSyncConfig, saveDBSyncConfig, executarDBSync, listarConexoes, salvarConexao, deletarConexao } from '../api'
+import { analisarCarteira, analisarDB, testarDB, listarTabelas, listarCarteiras, carregarCarteira, getDBSyncConfig, saveDBSyncConfig, executarDBSync, listarConexoes, salvarConexao, deletarConexao, sincronizarConexao, atualizarConexao } from '../api'
 
 const API_TOKEN = import.meta.env.VITE_API_TOKEN ?? ''
 
@@ -236,6 +236,8 @@ function FormDB({ onResult }) {
   const [nomeParaSalvar,  setNomeParaSalvar]  = useState('')
   const [salvandoConexao, setSalvandoConexao] = useState(false)
   const [conexaoSalvaId,  setConexaoSalvaId]  = useState(null)
+  const [sincronizandoId, setSincronizandoId] = useState(null)
+  const [syncMsg,         setSyncMsg]         = useState(null) // {tipo, texto}
 
   useEffect(() => { listarConexoes().then(setConexoes).catch(() => {}) }, [])
 
@@ -326,6 +328,20 @@ function FormDB({ onResult }) {
     } catch {}
   }
 
+  async function sincronizarConexaoSalva(id, e) {
+    e.stopPropagation()
+    setSincronizandoId(id); setSyncMsg(null)
+    try {
+      const r = await sincronizarConexao(id)
+      setSyncMsg({ tipo: 'ok', texto: `Sincronizado: ${r.n_devedores} devedores importados.` })
+      onResult(r.carteira)
+    } catch (err) {
+      setSyncMsg({ tipo: 'erro', texto: err.message })
+    } finally {
+      setSincronizandoId(null)
+    }
+  }
+
   async function conectar() {
     setLoadingConexao(true); setErro(null)
     if (isSheets) {
@@ -392,6 +408,10 @@ function FormDB({ onResult }) {
     setLoadingAnalise(true); setEtapa('analisando'); setErro(null)
     try {
       const data = await analisarDB({ ...paramsConexao(), mapeamento: mapa })
+      // Salva mapeamento na conexão para futuras sincronizações
+      if (conexaoSalvaId) {
+        atualizarConexao(conexaoSalvaId, { mapeamento: mapa, query: form.query }).catch(() => {})
+      }
       onResult(data)
     } catch (e) {
       setErro(e.message)
@@ -409,19 +429,34 @@ function FormDB({ onResult }) {
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Conexões salvas</p>
           <div className="flex flex-wrap gap-2">
             {conexoes.map(c => (
-              <button key={c.id} onClick={() => carregarConexaoSalva(c)}
+              <div key={c.id}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors
                   ${conexaoSalvaId === c.id
                     ? 'border-blue-400 bg-blue-50 text-blue-700'
-                    : 'border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:bg-blue-50'}`}>
-                <Database className="h-3 w-3 shrink-0" />
-                <span>{c.nome}</span>
-                <span className="text-slate-400 text-[10px]">({c.tipo})</span>
+                    : 'border-slate-200 bg-white text-slate-600'}`}>
+                <button onClick={() => carregarConexaoSalva(c)} className="flex items-center gap-1.5">
+                  <Database className="h-3 w-3 shrink-0" />
+                  <span>{c.nome}</span>
+                  <span className="text-slate-400 text-[10px]">({c.tipo})</span>
+                </button>
+                <button
+                  onClick={(e) => sincronizarConexaoSalva(c.id, e)}
+                  disabled={sincronizandoId === c.id}
+                  title="Importar dados atuais do banco"
+                  className="ml-1 text-slate-400 hover:text-blue-600 disabled:opacity-50 transition-colors">
+                  <RefreshCw className={`h-3 w-3 ${sincronizandoId === c.id ? 'animate-spin' : ''}`} />
+                </button>
                 <span onClick={(e) => removerConexaoSalva(c.id, e)}
                   className="ml-0.5 text-slate-300 hover:text-red-500 cursor-pointer font-bold">×</span>
-              </button>
+              </div>
             ))}
           </div>
+          {syncMsg && (
+            <div className={`mt-2 flex items-center gap-2 p-2 rounded-lg text-xs ${syncMsg.tipo === 'ok' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+              {syncMsg.tipo === 'ok' ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> : <XCircle className="h-3.5 w-3.5 shrink-0" />}
+              {syncMsg.texto}
+            </div>
+          )}
           <div className="border-t border-slate-100 mt-3" />
         </div>
       )}

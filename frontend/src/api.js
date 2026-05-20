@@ -177,12 +177,33 @@ export async function salvarConexao(dados) {
   return res.json()
 }
 
+export async function atualizarConexao(id, dados) {
+  const token = _getToken()
+  const res = await fetch(`${BASE}/conexoes/${id}`, {
+    method: 'PATCH', headers: _authHeader(token), body: JSON.stringify(dados),
+  })
+  if (!res.ok) throw new Error(`Erro HTTP ${res.status}`)
+  return res.json()
+}
+
 export async function deletarConexao(id) {
   const token = _getToken()
   const res = await fetch(`${BASE}/conexoes/${id}`, {
     method: 'DELETE', headers: _authHeader(token),
   })
   if (!res.ok) throw new Error(`Erro HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function sincronizarConexao(id) {
+  const token = _getToken()
+  const res = await fetch(`${BASE}/conexoes/${id}/sincronizar`, {
+    method: 'POST', headers: _authHeader(token),
+  })
+  if (!res.ok) {
+    const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
+    throw new Error(detail)
+  }
   return res.json()
 }
 
