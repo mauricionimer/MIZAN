@@ -457,7 +457,7 @@ def comando_carteiras(
     db = get_db()
     try:
         q = db.table("carteiras").select(
-            "id, empresa_id, usuario_email, nome_arquivo, total_devedores, valor_face, valor_esperado, score_medio, created_at, modelo_versao"
+            "id, empresa_id, usuario_email, nome_arquivo, total_devedores, valor_face, valor_esperado, score_medio, created_at, updated_at, modelo_versao"
         )
         if empresa_id:
             q = q.eq("empresa_id", empresa_id)
@@ -629,6 +629,7 @@ class ConexaoUpdateIn(BaseModel):
     nome: Optional[str] = None
     query: Optional[str] = None
     mapeamento: Optional[dict] = None
+    carteira_id: Optional[str] = None
 
 class WebhookPagamentoIn(BaseModel):
     cpf: str
@@ -901,11 +902,17 @@ async def sincronizar_conexao(conexao_id: str, credentials: HTTPAuthorizationCre
     eid      = payload.get("empresa_id", "")
     nome     = conn.nome_fonte or f"sync_{conexao_id[:8]}"
 
-    resultado = _analisar_df(df, nome, _usuario_id=uid, _usuario_email=uemail, _empresa_id=eid)
+    # Usa a carteira existente (atualiza no lugar) ou cria uma nova na primeira vez
+    carteira_id_existente = row.get("carteira_id")
+    resultado = _analisar_df(df, nome, _usuario_id=uid, _usuario_email=uemail, _empresa_id=eid,
+                             _carteira_id_existente=carteira_id_existente)
 
-    # Atualiza timestamp de último sync
+    # Atualiza conexão com timestamp e garante vínculo com a carteira
     try:
-        db.table("conexoes_db").update({"ultimo_sync": datetime.utcnow().isoformat()}).eq("id", conexao_id).execute()
+        updates = {"ultimo_sync": datetime.utcnow().isoformat()}
+        if resultado.get("carteira_id") and not carteira_id_existente:
+            updates["carteira_id"] = resultado["carteira_id"]
+        db.table("conexoes_db").update(updates).eq("id", conexao_id).execute()
     except Exception:
         pass
 
@@ -1128,7 +1135,7 @@ def _ler_google_sheets(conn: ConexaoDB) -> pd.DataFrame:
     return pd.DataFrame(dados)
 
 
-def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _usuario_email: str = None, _empresa_id: str = None) -> dict:
+def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _usuario_email: str = None, _empresa_id: str = None, _carteira_id_existente: str = None) -> dict:
     """Executa o pipeline de scoring em um DataFrame já carregado e persiste no Supabase."""
     # Aplica CAMPO_ALIASES para mapear colunas de qualquer fonte (CSV, Excel, DB)
     _cols_norm = {c.lower().strip().replace(" ", "_"): c for c in df.columns}
@@ -1230,27 +1237,50 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
 
     try:
         db = get_db()
-        cart_row = {
-            "nome_arquivo":    nome_fonte,
-            "total_devedores": resumo["total_devedores"],
-            "valor_face":      resumo["total_em_risco"],
-            "valor_esperado":  resumo["valor_esperado_recuperacao_total"],
-            "score_medio":     resumo["score_medio"],
-            "modelo_versao":   _get_versao_ativa(),
-        }
-        if _usuario_id:
-            cart_row["usuario_id"]    = _usuario_id
-            cart_row["usuario_email"] = _usuario_email
-        if _empresa_id:
-            cart_row["empresa_id"] = _empresa_id
-        cart_res = db.table("carteiras").insert(cart_row).execute()
-        carteira_id = cart_res.data[0]["id"]
-        resumo["carteira_id"] = carteira_id
 
         def _py(val):
             if val is None: return None
             if hasattr(val, "item"): return val.item()
             return val
+
+        if _carteira_id_existente:
+            # ── Modo atualização: substitui predicoes, preserva feedbacks ──
+            carteira_id = _carteira_id_existente
+            pred_res = db.table("predicoes").select("id").eq("carteira_id", carteira_id).execute()
+            pred_ids = [p["id"] for p in (pred_res.data or [])]
+            for i in range(0, len(pred_ids), 100):
+                lote = pred_ids[i:i+100]
+                if lote:
+                    db.table("feedbacks").update({"predicao_id": None}).in_("predicao_id", lote).execute()
+            db.table("predicoes").delete().eq("carteira_id", carteira_id).execute()
+            db.table("carteiras").update({
+                "nome_arquivo":    nome_fonte,
+                "total_devedores": resumo["total_devedores"],
+                "valor_face":      resumo["total_em_risco"],
+                "valor_esperado":  resumo["valor_esperado_recuperacao_total"],
+                "score_medio":     resumo["score_medio"],
+                "modelo_versao":   _get_versao_ativa(),
+                "updated_at":      datetime.utcnow().isoformat(),
+            }).eq("id", carteira_id).execute()
+        else:
+            # ── Modo criação: nova carteira ──
+            cart_row = {
+                "nome_arquivo":    nome_fonte,
+                "total_devedores": resumo["total_devedores"],
+                "valor_face":      resumo["total_em_risco"],
+                "valor_esperado":  resumo["valor_esperado_recuperacao_total"],
+                "score_medio":     resumo["score_medio"],
+                "modelo_versao":   _get_versao_ativa(),
+            }
+            if _usuario_id:
+                cart_row["usuario_id"]    = _usuario_id
+                cart_row["usuario_email"] = _usuario_email
+            if _empresa_id:
+                cart_row["empresa_id"] = _empresa_id
+            cart_res = db.table("carteiras").insert(cart_row).execute()
+            carteira_id = cart_res.data[0]["id"]
+
+        resumo["carteira_id"] = carteira_id
 
         predicoes_rows = [
             {"carteira_id": carteira_id, "cpf": str(d.get("cpf") or ""),
@@ -1262,7 +1292,6 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
              "perfil_cluster": d.get("perfil_cluster"), "cluster_id": _py(d.get("cluster_id"))}
             for d in devedores
         ]
-        # Captura os IDs das predições inseridas para linkar feedbacks
         pred_id_map: dict[str, str] = {}
         for i in range(0, len(predicoes_rows), 100):
             res_pred = db.table("predicoes").insert(predicoes_rows[i:i+100]).execute()
@@ -1449,7 +1478,16 @@ async def analisar_db(conn: ConexaoDB, credentials=Security(bearer_opcional)):
 
     uid, uemail, eid = _usuario_do_token(credentials)
     nome = conn.nome_fonte or "consulta_db"
-    return _analisar_df(df, nome, _usuario_id=uid, _usuario_email=uemail, _empresa_id=eid)
+    resultado = _analisar_df(df, nome, _usuario_id=uid, _usuario_email=uemail, _empresa_id=eid)
+
+    # Vincula a carteira criada à conexão salva (para sincronizações futuras atualizarem no lugar)
+    if conn.conexao_id and resultado.get("carteira_id"):
+        try:
+            get_db().table("conexoes_db").update({"carteira_id": resultado["carteira_id"]}).eq("id", conn.conexao_id).execute()
+        except Exception:
+            pass
+
+    return resultado
 
 
 @app.post("/feedback")

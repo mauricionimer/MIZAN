@@ -411,7 +411,7 @@ function FormDB({ onResult }) {
     try {
       const data = await analisarDB({ ...paramsConexao(), mapeamento: mapa })
       if (!conexaoSalvaId && form.nome_fonte.trim()) {
-        // Auto-salva a conexão com o mapeamento incluído
+        // Auto-salva a conexão com mapeamento e vincula a carteira criada
         try {
           const res = await salvarConexao({
             nome: form.nome_fonte.trim(),
@@ -429,9 +429,12 @@ function FormDB({ onResult }) {
             mapeamento: mapa,
           })
           setConexoes(prev => [res.conexao, ...prev])
+          if (data.carteira_id) {
+            atualizarConexao(res.conexao.id, { carteira_id: data.carteira_id }).catch(() => {})
+          }
         } catch {}
       } else if (conexaoSalvaId) {
-        atualizarConexao(conexaoSalvaId, { mapeamento: mapa, query: form.query }).catch(() => {})
+        atualizarConexao(conexaoSalvaId, { mapeamento: mapa, query: form.query, carteira_id: data.carteira_id || undefined }).catch(() => {})
       }
       onResult(data)
     } catch (e) {
@@ -1075,7 +1078,10 @@ export default function Upload() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-slate-700 truncate">{c.nome_arquivo}</p>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    {fmtDate(c.created_at)} · {fmtNum(c.total_devedores)} devedores · score médio {c.score_medio?.toFixed(1)}
+                    {c.updated_at
+                      ? <>Atualizado {fmtDate(c.updated_at)}</>
+                      : fmtDate(c.created_at)
+                    } · {fmtNum(c.total_devedores)} devedores · score médio {c.score_medio?.toFixed(1)}
                   </p>
                 </div>
                 <div className="text-right shrink-0 hidden sm:block">
