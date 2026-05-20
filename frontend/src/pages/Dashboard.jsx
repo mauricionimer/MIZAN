@@ -163,7 +163,7 @@ function PricingCard({ label, value, sub, highlight = false, icon: Icon }) {
 
 export default function Dashboard() {
   const { result } = useAnalysis()
-  const { usuario, logout, isAdmin, isComando } = useAuth()
+  const { token, usuario, logout, isAdmin, isComando } = useAuth()
   const navigate    = useNavigate()
   const [search, setSearch]               = useState('')
   const [exporting, setExporting]         = useState(false)
