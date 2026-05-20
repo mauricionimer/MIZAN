@@ -416,11 +416,12 @@ function FormDB({ onResult }) {
     setLoadingAnalise(true); setEtapa('analisando'); setErro(null)
     try {
       const data = await analisarDB({ ...paramsConexao(), mapeamento: mapa })
-      if (!conexaoSalvaId && form.nome_fonte.trim()) {
+      const nomeEfetivo = form.nome_fonte.trim() || nomeParaSalvar.trim()
+      if (!conexaoSalvaId && nomeEfetivo) {
         // Auto-salva a conexão com mapeamento e vincula a carteira criada
         try {
           const res = await salvarConexao({
-            nome: form.nome_fonte.trim(),
+            nome: nomeEfetivo,
             tipo: form.tipo,
             host: form.host || null,
             porta: form.porta ? Number(form.porta) : null,
@@ -815,24 +816,18 @@ function FormDB({ onResult }) {
       )}
 
       {!conexaoSalvaId && (
-        form.nome_fonte.trim() ? (
+        (form.nome_fonte.trim() || nomeParaSalvar.trim()) ? (
           <div className="flex items-center gap-2 p-3 rounded-xl text-xs bg-blue-50 border border-blue-100 text-blue-700">
             <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-            Conexão será salva como <strong className="ml-1">"{form.nome_fonte}"</strong> automaticamente.
+            Conexão será salva como <strong className="ml-1">"{form.nome_fonte.trim() || nomeParaSalvar.trim()}"</strong> automaticamente ao analisar.
           </div>
         ) : (
           <div className="p-3 rounded-xl bg-amber-50 border border-amber-100 space-y-2">
             <p className="text-xs font-semibold text-amber-700">Quer salvar esta conexão para reutilizar depois?</p>
-            <div className="flex gap-2">
-              <input value={nomeParaSalvar} onChange={e => setNomeParaSalvar(e.target.value)}
-                placeholder="Nome da conexão (ex: banco_principal)..."
-                className="flex-1 border border-amber-200 rounded-lg px-3 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-amber-300" />
-              <button onClick={salvarConexaoAtual} disabled={!nomeParaSalvar.trim() || salvandoConexao}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 transition-colors whitespace-nowrap">
-                {salvandoConexao ? 'Salvando...' : 'Salvar'}
-              </button>
-            </div>
-            <p className="text-xs text-amber-600">Salvando aqui, na próxima vez basta clicar em Sincronizar.</p>
+            <input value={nomeParaSalvar} onChange={e => setNomeParaSalvar(e.target.value)}
+              placeholder="Nome da conexão (ex: banco_principal)..."
+              className="w-full border border-amber-200 rounded-lg px-3 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-amber-300" />
+            <p className="text-xs text-amber-600">Preenchendo aqui, a conexão é salva automaticamente ao clicar em Analisar carteira.</p>
           </div>
         )
       )}
