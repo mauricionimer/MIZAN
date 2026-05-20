@@ -131,43 +131,43 @@ export default function AlterarSenha() {
               </button>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <Campo
-                label="Senha atual"
-                campo="senha_atual"
-                show={showAtual}
-                setShow={setShowAtual}
-              />
-              <Campo
-                label="Nova senha"
-                campo="nova_senha"
-                show={showNova}
-                setShow={setShowNova}
-              />
-              <Campo
-                label="Confirmar nova senha"
-                campo="confirmar"
-                show={showConfirmar}
-                setShow={setShowConfirmar}
-              />
+            <>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <Campo
+                  label="Senha atual"
+                  campo="senha_atual"
+                  show={showAtual}
+                  setShow={setShowAtual}
+                />
+                <Campo
+                  label="Nova senha"
+                  campo="nova_senha"
+                  show={showNova}
+                  setShow={setShowNova}
+                />
+                <Campo
+                  label="Confirmar nova senha"
+                  campo="confirmar"
+                  show={showConfirmar}
+                  setShow={setShowConfirmar}
+                />
 
-              {erro && (
-                <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">
-                  {erro}
-                </div>
-              )}
+                {erro && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">
+                    {erro}
+                  </div>
+                )}
 
-              <button
-                type="submit"
-                disabled={carregando}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white py-2.5 rounded-lg text-sm font-medium transition-colors"
-              >
-                {carregando ? 'Salvando...' : 'Salvar nova senha'}
-              </button>
-            </form>
-
-            {/* Zona de perigo — LGPD */}
-            <DeletarConta onDeleted={() => { logout(); navigate('/login') }} />
+                <button
+                  type="submit"
+                  disabled={carregando}
+                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white py-2.5 rounded-lg text-sm font-medium transition-colors"
+                >
+                  {carregando ? 'Salvando...' : 'Salvar nova senha'}
+                </button>
+              </form>
+              <DeletarConta onDeleted={() => { logout(); navigate('/login') }} />
+            </>
           )}
         </div>
       </div>
