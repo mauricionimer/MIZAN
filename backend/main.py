@@ -790,10 +790,14 @@ def listar_carteiras(credentials=Security(bearer_opcional)):
 
 
 @app.get("/carteiras/{carteira_id}")
-def carregar_carteira(carteira_id: str):
+def carregar_carteira(carteira_id: str, credentials=Security(bearer_opcional)):
+    _, _, empresa_id = _usuario_do_token(credentials)
     db = get_db()
 
-    cart_res = db.table("carteiras").select("*").eq("id", carteira_id).execute()
+    q = db.table("carteiras").select("*").eq("id", carteira_id)
+    if empresa_id:
+        q = q.eq("empresa_id", empresa_id)
+    cart_res = q.execute()
     if not cart_res.data:
         raise HTTPException(status_code=404, detail="Carteira não encontrada.")
 
@@ -1568,12 +1572,32 @@ async def feedback_lote(
 
 
 @app.get("/performance")
-async def performance():
-    """Métricas de acurácia do modelo baseadas nos feedbacks reais recebidos."""
+async def performance(credentials=Security(bearer_opcional)):
+    """Métricas de acurácia do modelo baseadas nos feedbacks reais — filtrados por empresa."""
+    _, _, empresa_id = _usuario_do_token(credentials)
     db = get_db()
+
+    # Filtra feedbacks pela empresa via carteira_id → empresa_id
+    empresa_pred_ids: set | None = None
+    if empresa_id:
+        try:
+            cart_res = db.table("carteiras").select("id").eq("empresa_id", empresa_id).execute()
+            cart_ids = [c["id"] for c in (cart_res.data or [])]
+            if not cart_ids:
+                return {"mensagem": "Nenhum feedback recebido ainda.", "total_feedbacks": 0}
+            pred_res_all: list = []
+            for i in range(0, len(cart_ids), 100):
+                pr = db.table("predicoes").select("id").in_("carteira_id", cart_ids[i:i+100]).execute()
+                pred_res_all.extend(pr.data or [])
+            empresa_pred_ids = {p["id"] for p in pred_res_all}
+        except Exception:
+            empresa_pred_ids = None
 
     fb_res = db.table("feedbacks").select("pagou, predicao_id").execute()
     feedbacks = fb_res.data
+
+    if empresa_pred_ids is not None:
+        feedbacks = [f for f in feedbacks if f.get("predicao_id") in empresa_pred_ids]
 
     if not feedbacks:
         return {"mensagem": "Nenhum feedback recebido ainda.", "total_feedbacks": 0}
