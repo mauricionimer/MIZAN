@@ -30,6 +30,41 @@ load_dotenv()
 
 _scheduler: BackgroundScheduler | None = None
 
+# ---------------------------------------------------------------------------
+# Criptografia de senhas salvas
+# ---------------------------------------------------------------------------
+_FERNET_KEY = os.getenv("MIZAN_ENCRYPTION_KEY", "")
+_fernet = None
+
+
+def _get_fernet():
+    global _fernet
+    if not _FERNET_KEY:
+        return None
+    if _fernet is None:
+        from cryptography.fernet import Fernet
+        _fernet = Fernet(_FERNET_KEY.encode())
+    return _fernet
+
+
+def _encrypt(text: str | None) -> str | None:
+    if not text:
+        return text
+    f = _get_fernet()
+    return f.encrypt(text.encode()).decode() if f else text
+
+
+def _decrypt(text: str | None) -> str | None:
+    if not text:
+        return text
+    f = _get_fernet()
+    if f is None:
+        return text
+    try:
+        return f.decrypt(text.encode()).decode()
+    except Exception:
+        return text  # fallback: plaintext (migração de dados antigos)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -199,6 +234,19 @@ class ConexaoDB(BaseModel):
     query: Optional[str] = None
     nome_fonte: Optional[str] = "consulta_db"
     mapeamento: Optional[dict] = None  # {campo_mizan: coluna_banco}
+    conexao_id: Optional[str] = None  # ID de conexão salva — senha buscada no servidor
+
+
+def _resolver_credenciais(conn: ConexaoDB) -> None:
+    """Se conexao_id está presente e senha está vazia, busca e decripta do banco."""
+    if not conn.conexao_id or conn.senha:
+        return
+    try:
+        res = get_db().table("conexoes_db").select("senha").eq("id", conn.conexao_id).execute()
+        if res.data and res.data[0].get("senha"):
+            conn.senha = _decrypt(res.data[0]["senha"])
+    except Exception:
+        pass
 
 
 
@@ -389,6 +437,9 @@ def listar_conexoes(credentials: HTTPAuthorizationCredentials = Security(bearer)
         .order("created_at", desc=True)
         .execute()
     )
+    # Nunca expõe a senha cifrada ao frontend
+    for row in res.data:
+        row["senha"] = ""
     return res.data
 
 @app.post("/conexoes")
@@ -400,8 +451,11 @@ def salvar_conexao(body: ConexaoSalvarIn, credentials: HTTPAuthorizationCredenti
     db = get_db()
     row = body.model_dump()
     row["usuario_id"] = payload["sub"]
+    row["senha"] = _encrypt(row.get("senha"))  # cifra antes de armazenar
     res = db.table("conexoes_db").insert(row).execute()
-    return {"ok": True, "conexao": res.data[0]}
+    saved = res.data[0]
+    saved["senha"] = ""  # não retorna a senha cifrada
+    return {"ok": True, "conexao": saved}
 
 @app.delete("/conexoes/{conexao_id}")
 def deletar_conexao(conexao_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
@@ -754,6 +808,7 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
 @app.post("/listar-tabelas")
 async def listar_tabelas(conn: ConexaoDB):
     """Lista as tabelas disponíveis no banco externo — sem precisar escrever SQL."""
+    _resolver_credenciais(conn)
     if conn.tipo == "sheets":
         raise HTTPException(status_code=400, detail="Google Sheets não tem tabelas SQL.")
     try:
@@ -791,6 +846,7 @@ async def listar_tabelas(conn: ConexaoDB):
 @app.post("/testar-db")
 async def testar_db(conn: ConexaoDB):
     """Testa conexão, executa query limitada e retorna colunas + preview + mapeamento sugerido."""
+    _resolver_credenciais(conn)
     try:
         if conn.tipo == "sheets":
             if not conn.sheets_id or not conn.sheets_credenciais:
@@ -847,6 +903,7 @@ async def testar_db(conn: ConexaoDB):
 @app.post("/analisar/db")
 async def analisar_db(conn: ConexaoDB, credentials=Security(bearer_opcional)):
     """Analisa uma carteira carregada diretamente de um banco de dados externo."""
+    _resolver_credenciais(conn)
     try:
         if conn.tipo == "sheets":
             if not conn.sheets_id or not conn.sheets_credenciais:

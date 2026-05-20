@@ -257,6 +257,7 @@ function FormDB({ onResult }) {
         sheets_credenciais: creds,
         nome_fonte: form.nome_fonte || 'google_sheets',
         query: null,
+        conexao_id: conexaoSalvaId || null,
       }
     }
     return {
@@ -270,6 +271,7 @@ function FormDB({ onResult }) {
       service_name:  isOracle ? (form.service_name || null) : null,
       query:         form.query,
       nome_fonte:    form.nome_fonte || `db_${form.tipo}`,
+      conexao_id:    conexaoSalvaId || null,
     }
   }
 
@@ -346,6 +348,7 @@ function FormDB({ onResult }) {
         instance_name: isSQLServer ? (form.instance_name || null) : null,
         service_name: isOracle ? (form.service_name || null) : null,
         query: 'SELECT 1',
+        conexao_id: conexaoSalvaId || null,
       })
       setTabelas(res.tabelas)
       setEtapa('tabelas')
