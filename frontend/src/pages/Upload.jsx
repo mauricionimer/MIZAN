@@ -429,12 +429,12 @@ function FormDB({ onResult }) {
             mapeamento: mapa,
           })
           setConexoes(prev => [res.conexao, ...prev])
-          if (data.carteira_id) {
-            atualizarConexao(res.conexao.id, { carteira_id: data.carteira_id }).catch(() => {})
+          if (data.resumo?.carteira_id) {
+            atualizarConexao(res.conexao.id, { carteira_id: data.resumo.carteira_id }).catch(() => {})
           }
         } catch {}
       } else if (conexaoSalvaId) {
-        atualizarConexao(conexaoSalvaId, { mapeamento: mapa, query: form.query, carteira_id: data.carteira_id || undefined }).catch(() => {})
+        atualizarConexao(conexaoSalvaId, { mapeamento: mapa, query: form.query, carteira_id: data.resumo?.carteira_id || undefined }).catch(() => {})
       }
       onResult(data)
     } catch (e) {

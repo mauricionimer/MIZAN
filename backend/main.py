@@ -908,15 +908,17 @@ async def sincronizar_conexao(conexao_id: str, credentials: HTTPAuthorizationCre
                              _carteira_id_existente=carteira_id_existente)
 
     # Atualiza conexão com timestamp e garante vínculo com a carteira
+    nova_carteira_id = resultado.get("resumo", {}).get("carteira_id")
     try:
         updates = {"ultimo_sync": datetime.utcnow().isoformat()}
-        if resultado.get("carteira_id") and not carteira_id_existente:
-            updates["carteira_id"] = resultado["carteira_id"]
+        if nova_carteira_id and not carteira_id_existente:
+            updates["carteira_id"] = nova_carteira_id
         db.table("conexoes_db").update(updates).eq("id", conexao_id).execute()
     except Exception:
         pass
 
-    return {"ok": True, "n_devedores": resultado.get("total_devedores", len(df)), "carteira": resultado}
+    n_dev = resultado.get("resumo", {}).get("total_devedores", len(df))
+    return {"ok": True, "n_devedores": n_dev, "carteira": resultado}
 
 @app.post("/auth/redefinir-senha")
 def auth_redefinir_senha(body: RedefinirSenhaIn):
@@ -1481,9 +1483,10 @@ async def analisar_db(conn: ConexaoDB, credentials=Security(bearer_opcional)):
     resultado = _analisar_df(df, nome, _usuario_id=uid, _usuario_email=uemail, _empresa_id=eid)
 
     # Vincula a carteira criada à conexão salva (para sincronizações futuras atualizarem no lugar)
-    if conn.conexao_id and resultado.get("carteira_id"):
+    nova_carteira_id = resultado.get("resumo", {}).get("carteira_id")
+    if conn.conexao_id and nova_carteira_id:
         try:
-            get_db().table("conexoes_db").update({"carteira_id": resultado["carteira_id"]}).eq("id", conn.conexao_id).execute()
+            get_db().table("conexoes_db").update({"carteira_id": nova_carteira_id}).eq("id", conn.conexao_id).execute()
         except Exception:
             pass
 
