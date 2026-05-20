@@ -1,33 +1,34 @@
 """
-Envio de e-mail via Resend HTTP API (gratuito, funciona no Render free tier).
-SMTP do Gmail é bloqueado pelo Render — usar Resend em vez disso.
-Configurar no Render: RESEND_API_KEY e RESEND_FROM.
+Envio de e-mail via Brevo HTTP API (gratuito, funciona no Render free tier).
+Configurar no Render: BREVO_API_KEY
+Remetente verificado: mauricionimer1@gmail.com
 """
 import os
 import json
 import urllib.request
 
-RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
-RESEND_FROM    = os.getenv("RESEND_FROM", "Mizan <onboarding@resend.dev>")
+BREVO_API_KEY = os.getenv("BREVO_API_KEY", "")
+SENDER_EMAIL  = "mauricionimer1@gmail.com"
+SENDER_NAME   = "Mizan"
 
 
 def enviar_email(destinatario: str, assunto: str, corpo_html: str) -> bool:
-    if not RESEND_API_KEY:
-        print("[Email] RESEND_API_KEY não configurado.")
+    if not BREVO_API_KEY:
+        print("[Email] BREVO_API_KEY não configurado.")
         return False
     try:
         payload = json.dumps({
-            "from":    RESEND_FROM,
-            "to":      [destinatario],
-            "subject": assunto,
-            "html":    corpo_html,
+            "sender":      {"name": SENDER_NAME, "email": SENDER_EMAIL},
+            "to":          [{"email": destinatario}],
+            "subject":     assunto,
+            "htmlContent": corpo_html,
         }).encode()
         req = urllib.request.Request(
-            "https://api.resend.com/emails",
+            "https://api.brevo.com/v3/smtp/email",
             data=payload,
             headers={
-                "Authorization": f"Bearer {RESEND_API_KEY}",
-                "Content-Type":  "application/json",
+                "api-key":      BREVO_API_KEY,
+                "Content-Type": "application/json",
             },
             method="POST",
         )
