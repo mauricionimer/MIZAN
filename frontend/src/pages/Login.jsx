@@ -90,9 +90,6 @@ export default function Login() {
         </p>
       </div>
 
-      <p className="mt-4 text-xs text-slate-400">
-        Primeiro acesso? Use <span className="font-mono">admin@mizan.com</span> / <span className="font-mono">mizan123</span>
-      </p>
     </div>
   )
 }
