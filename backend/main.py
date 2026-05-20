@@ -930,8 +930,19 @@ async def sincronizar_conexao(conexao_id: str, credentials: HTTPAuthorizationCre
     eid      = payload.get("empresa_id", "")
     nome     = conn.nome_fonte or f"sync_{conexao_id[:8]}"
 
-    # Usa a carteira existente (atualiza no lugar) ou cria uma nova na primeira vez
+    # Busca estado anterior da carteira ANTES de sobrescrever
     carteira_id_existente = row.get("carteira_id")
+    dados_anteriores = None
+    if carteira_id_existente:
+        try:
+            prev = db.table("carteiras").select("total_devedores, score_medio, valor_face") \
+                     .eq("id", carteira_id_existente).execute()
+            if prev.data:
+                dados_anteriores = prev.data[0]
+        except Exception:
+            pass
+
+    # Usa a carteira existente (atualiza no lugar) ou cria uma nova na primeira vez
     resultado = _analisar_df(df, nome, _usuario_id=uid, _usuario_email=uemail, _empresa_id=eid,
                              _carteira_id_existente=carteira_id_existente)
 
@@ -944,6 +955,20 @@ async def sincronizar_conexao(conexao_id: str, credentials: HTTPAuthorizationCre
         db.table("conexoes_db").update(updates).eq("id", conexao_id).execute()
     except Exception:
         pass
+
+    # Envia email de notificação se houve mudanças relevantes
+    if uemail:
+        try:
+            from email_utils import email_sync_mudancas
+            email_sync_mudancas(
+                destinatario=uemail,
+                nome_conexao=nome,
+                dados_novos=resultado.get("resumo", {}),
+                dados_anteriores=dados_anteriores,
+                frontend_url=os.getenv("FRONTEND_URL", "https://mizan-sand.vercel.app"),
+            )
+        except Exception as e:
+            print(f"[Sync] Aviso: falha ao enviar email: {e}")
 
     n_dev = resultado.get("resumo", {}).get("total_devedores", len(df))
     return {"ok": True, "n_devedores": n_dev, "carteira": resultado}
