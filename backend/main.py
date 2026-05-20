@@ -23,6 +23,7 @@ from auth import (
     criar_token, validar_token,
     buscar_usuario, criar_usuario, listar_usuarios, alterar_senha,
     verificar_senha, toggle_usuario_ativo, alterar_role, garantir_admin,
+    criar_reset_token, redefinir_senha_com_token,
 )
 
 load_dotenv()
@@ -296,6 +297,13 @@ class AtivoIn(BaseModel):
 class RoleIn(BaseModel):
     role: str
 
+class EsqueciSenhaIn(BaseModel):
+    email: str
+
+class RedefinirSenhaIn(BaseModel):
+    token: str
+    nova_senha: str
+
 @app.patch("/auth/usuarios/{usuario_id}/ativo")
 def auth_toggle_ativo(usuario_id: str, body: AtivoIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     _exigir_admin(credentials)
@@ -314,6 +322,27 @@ def auth_alterar_role(usuario_id: str, body: RoleIn, credentials: HTTPAuthorizat
     if not resultado:
         raise HTTPException(status_code=404, detail="Usuário não encontrado.")
     return {"ok": True, "usuario": resultado}
+
+
+@app.post("/auth/esqueci-senha")
+def auth_esqueci_senha(body: EsqueciSenhaIn):
+    from email_utils import email_redefinir_senha
+    FRONTEND_URL = os.getenv("FRONTEND_URL", "https://mizan-sand.vercel.app")
+    token = criar_reset_token(body.email)
+    if token:
+        usuario = buscar_usuario(body.email)
+        nome = usuario.get("nome", "usuário") if usuario else "usuário"
+        link = f"{FRONTEND_URL}/redefinir-senha?token={token}"
+        email_redefinir_senha(body.email, nome, link)
+    return {"ok": True, "mensagem": "Se o e-mail estiver cadastrado, você receberá as instruções em breve."}
+
+@app.post("/auth/redefinir-senha")
+def auth_redefinir_senha(body: RedefinirSenhaIn):
+    if len(body.nova_senha) < 6:
+        raise HTTPException(status_code=400, detail="A senha deve ter pelo menos 6 caracteres.")
+    if not redefinir_senha_com_token(body.token, body.nova_senha):
+        raise HTTPException(status_code=400, detail="Link inválido ou expirado. Solicite um novo.")
+    return {"ok": True}
 
 
 @app.get("/health")
@@ -967,6 +996,44 @@ async def performance():
         "total_com_predicao_associada": len(pred_ids),
         "acuracia_geral": acuracia_geral,
         "metricas_por_faixa": metricas,
+    }
+
+
+@app.get("/admin/drift")
+async def detectar_drift(credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    _validar_api_key(credentials)
+    db = get_db()
+
+    res = db.table("predicoes").select("score_recuperabilidade, created_at").execute()
+    todas = res.data
+
+    if len(todas) < 50:
+        return {"status": "dados_insuficientes", "mensagem": "Mínimo de 50 predições necessário.", "drift_detectado": False}
+
+    scores_todos = [float(p["score_recuperabilidade"]) for p in todas if p.get("score_recuperabilidade") is not None]
+
+    cutoff = (datetime.now().astimezone().replace(microsecond=0) - __import__("datetime").timedelta(days=30)).isoformat()
+    recentes = [p for p in todas if (p.get("created_at") or "") >= cutoff]
+
+    if len(recentes) < 10:
+        return {"status": "dados_insuficientes", "mensagem": "Menos de 10 predições nos últimos 30 dias.", "drift_detectado": False}
+
+    scores_recentes = [float(p["score_recuperabilidade"]) for p in recentes if p.get("score_recuperabilidade") is not None]
+
+    media_historica = round(sum(scores_todos) / len(scores_todos), 1)
+    media_recente   = round(sum(scores_recentes) / len(scores_recentes), 1)
+    diferenca       = round(abs(media_recente - media_historica), 1)
+    drift           = diferenca > 10
+
+    return {
+        "status":            "drift_detectado" if drift else "normal",
+        "drift_detectado":   drift,
+        "media_historica":   media_historica,
+        "media_recente_30d": media_recente,
+        "diferenca":         diferenca,
+        "total_predicoes":   len(scores_todos),
+        "predicoes_30d":     len(scores_recentes),
+        "mensagem": f"Score médio variou {diferenca} pontos nos últimos 30 dias — verifique o modelo." if drift else "Modelo estável.",
     }
 
 

@@ -4,7 +4,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell,
 } from 'recharts'
 import {
-  ArrowLeft, RefreshCw, Loader2, Zap, TrendingUp, Activity, Award, LogOut,
+  ArrowLeft, RefreshCw, Loader2, Zap, TrendingUp, Activity, Award, LogOut, AlertTriangle, CheckCircle2,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
@@ -65,6 +65,7 @@ export default function BanditDashboard() {
   const navigate = useNavigate()
   const { token, usuario, logout } = useAuth()
   const [dados, setDados]     = useState(null)
+  const [drift, setDrift]     = useState(null)
   const [loading, setLoading] = useState(true)
   const [erro, setErro]       = useState('')
 
@@ -72,11 +73,13 @@ export default function BanditDashboard() {
     setLoading(true)
     setErro('')
     try {
-      const res = await fetch(`${API_URL}/admin/bandit/stats`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      setDados(await res.json())
+      const [resBandit, resDrift] = await Promise.all([
+        fetch(`${API_URL}/admin/bandit/stats`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_URL}/admin/drift`,         { headers: { Authorization: `Bearer ${token}` } }),
+      ])
+      if (!resBandit.ok) throw new Error(`HTTP ${resBandit.status}`)
+      setDados(await resBandit.json())
+      if (resDrift.ok) setDrift(await resDrift.json())
     } catch (e) {
       setErro('Não foi possível carregar os dados do bandit. Verifique se o backend está rodando.')
     } finally {
@@ -191,6 +194,29 @@ export default function BanditDashboard() {
           <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-4 text-sm text-red-700">
             {erro}
           </div>
+        )}
+
+        {/* Drift detection */}
+        {drift && (
+          drift.drift_detectado ? (
+            <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 text-sm text-amber-800">
+              <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0 text-amber-500" />
+              <div>
+                <p className="font-semibold">Possível drift do modelo detectado</p>
+                <p className="text-amber-700 mt-0.5">
+                  Média dos scores nos últimos 30 dias: <strong>{drift.media_recente_30d?.toFixed(1)}</strong> vs. histórico: <strong>{drift.media_historica?.toFixed(1)}</strong> (diferença: {drift.diferenca?.toFixed(1)} pontos).
+                  Considere re-treinar o modelo.
+                </p>
+              </div>
+            </div>
+          ) : drift.media_recente_30d != null ? (
+            <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-5 py-3.5 text-sm text-emerald-700">
+              <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-emerald-500" />
+              <span>
+                Modelo estável — média recente: <strong>{drift.media_recente_30d?.toFixed(1)}</strong>, histórica: <strong>{drift.media_historica?.toFixed(1)}</strong> (diferença: {drift.diferenca?.toFixed(1)} pontos).
+              </span>
+            </div>
+          ) : null
         )}
 
         {dados && (

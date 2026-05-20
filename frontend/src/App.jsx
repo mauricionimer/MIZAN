@@ -8,6 +8,8 @@ import Feedback from './pages/Feedback'
 import BanditDashboard from './pages/BanditDashboard'
 import AdminUsuarios from './pages/AdminUsuarios'
 import AlterarSenha from './pages/AlterarSenha'
+import EsqueciSenha from './pages/EsqueciSenha'
+import RedefinirSenha from './pages/RedefinirSenha'
 import Login from './pages/Login'
 
 function RotaProtegida({ children }) {
@@ -24,6 +26,8 @@ export default function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/esqueci-senha" element={<EsqueciSenha />} />
+            <Route path="/redefinir-senha" element={<RedefinirSenha />} />
             <Route path="/" element={<RotaProtegida><Upload /></RotaProtegida>} />
             <Route path="/dashboard" element={<RotaProtegida><Dashboard /></RotaProtegida>} />
             <Route path="/devedor/:rank" element={<RotaProtegida><DebtorDetail /></RotaProtegida>} />

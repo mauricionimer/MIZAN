@@ -134,6 +134,31 @@ def alterar_senha(email: str, senha_atual: str, nova_senha: str) -> bool:
     db.table("usuarios").update({"senha_hash": hash_senha(nova_senha)}).eq("email", email).execute()
     return True
 
+def criar_reset_token(email: str) -> str | None:
+    """Gera token de reset de senha válido por 1 hora. Retorna None se e-mail não existe."""
+    db = _db()
+    if not db.table("usuarios").select("id").eq("email", email).execute().data:
+        return None
+    token = secrets.token_urlsafe(32)
+    from datetime import datetime, timedelta, timezone
+    expires = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+    db.table("reset_tokens").insert({"token": token, "email": email, "expires_at": expires}).execute()
+    return token
+
+def redefinir_senha_com_token(token: str, nova_senha: str) -> bool:
+    """Valida o token e redefine a senha. Retorna False se inválido/expirado."""
+    from datetime import datetime, timezone
+    db = _db()
+    res = db.table("reset_tokens").select("*").eq("token", token).eq("usado", False).execute()
+    if not res.data:
+        return False
+    rec = res.data[0]
+    if datetime.fromisoformat(rec["expires_at"]) < datetime.now(timezone.utc):
+        return False
+    db.table("usuarios").update({"senha_hash": hash_senha(nova_senha)}).eq("email", rec["email"]).execute()
+    db.table("reset_tokens").update({"usado": True}).eq("token", token).execute()
+    return True
+
 def toggle_usuario_ativo(usuario_id: str, ativo: bool) -> dict | None:
     db = _db()
     db.table("usuarios").update({"ativo": ativo}).eq("id", usuario_id).execute()

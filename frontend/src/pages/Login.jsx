@@ -88,6 +88,11 @@ export default function Login() {
         <p className="mt-6 text-center text-xs text-slate-400">
           Acesso restrito a usuários cadastrados pelo administrador.
         </p>
+        <p className="mt-3 text-center">
+          <a href="/esqueci-senha" className="text-xs text-blue-500 hover:text-blue-700">
+            Esqueci minha senha
+          </a>
+        </p>
       </div>
 
     </div>

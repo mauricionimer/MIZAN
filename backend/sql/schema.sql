@@ -53,6 +53,19 @@ CREATE TABLE IF NOT EXISTS api_keys (
   ativa        BOOLEAN DEFAULT TRUE
 );
 
+-- Tokens de redefinição de senha
+CREATE TABLE IF NOT EXISTS reset_tokens (
+  id         UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  email      TEXT NOT NULL,
+  token      TEXT NOT NULL UNIQUE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  usado      BOOLEAN DEFAULT FALSE
+);
+
+CREATE INDEX IF NOT EXISTS idx_reset_tokens_token ON reset_tokens(token);
+ALTER TABLE reset_tokens DISABLE ROW LEVEL SECURITY;
+
 -- Índices para buscas frequentes
 CREATE INDEX IF NOT EXISTS idx_predicoes_cpf        ON predicoes(cpf);
 CREATE INDEX IF NOT EXISTS idx_predicoes_carteira   ON predicoes(carteira_id);

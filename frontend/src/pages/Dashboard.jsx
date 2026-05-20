@@ -9,6 +9,7 @@ import {
   Download, RefreshCw, Search, Loader2,
   Tag, Percent, ArrowUpRight, Banknote, ClipboardList, FileSpreadsheet, Zap, LogOut, ShieldCheck, KeyRound,
 } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import { gerarRelatorioPDF } from '../utils/gerarPDF'
 import { useAnalysis } from '../context/AnalysisContext'
 import { useAuth } from '../context/AuthContext'
@@ -57,6 +58,43 @@ function exportCSV(ranking) {
   a.download = `mizan-ranking-${new Date().toISOString().slice(0,10)}.csv`
   a.click()
   URL.revokeObjectURL(url)
+}
+
+function exportExcel(ranking, resumo) {
+  const dados = ranking.map(d => ({
+    'Rank':                  d.rank,
+    'Nome':                  d.nome ?? '',
+    'CPF':                   d.cpf ?? '',
+    'Produto':               d.produto ?? '',
+    'Valor Face (R$)':       d.valor_divida ?? 0,
+    'Valor Esperado (R$)':   d.valor_esperado_recuperacao ?? 0,
+    'Dias em Atraso':        d.dias_em_atraso ?? 0,
+    'Score':                 d.score_recuperabilidade ?? 0,
+    'Prioridade':            prioLabel(d.score_recuperabilidade ?? 0),
+    'Aging':                 d.aging ?? '',
+    'Cluster':               d.perfil_cluster ?? '',
+  }))
+
+  const wsRanking = XLSX.utils.json_to_sheet(dados)
+  const colWidths = [6, 30, 16, 16, 18, 20, 14, 8, 12, 14, 20]
+  wsRanking['!cols'] = colWidths.map(w => ({ wch: w }))
+
+  const resumoSheet = [
+    { 'Métrica': 'Total de Devedores',           'Valor': resumo.total_devedores },
+    { 'Métrica': 'Valor de Face (R$)',            'Valor': resumo.total_em_risco },
+    { 'Métrica': 'Score Médio',                   'Valor': resumo.score_medio },
+    { 'Métrica': 'Taxa de Recuperação Esperada',  'Valor': `${(resumo.taxa_recuperacao_esperada ?? 0).toFixed(1)}%` },
+    { 'Métrica': 'Valor Esperado Total (R$)',     'Valor': resumo.valor_esperado_recuperacao_total },
+  ]
+  const wsResumo = XLSX.utils.json_to_sheet(resumoSheet)
+  wsResumo['!cols'] = [{ wch: 36 }, { wch: 20 }]
+
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, wsResumo,  'Resumo')
+  XLSX.utils.book_append_sheet(wb, wsRanking, 'Ranking')
+
+  const data = new Date().toISOString().slice(0, 10)
+  XLSX.writeFile(wb, `mizan-carteira-${data}.xlsx`)
 }
 
 const CustomBarTooltip = ({ active, payload, label }) => {
@@ -220,7 +258,13 @@ export default function Dashboard() {
             onClick={() => exportCSV(ranking_completo)}
             className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
           >
-            <FileSpreadsheet className="h-4 w-4" /> Exportar CSV
+            <FileSpreadsheet className="h-4 w-4" /> CSV
+          </button>
+          <button
+            onClick={() => exportExcel(ranking_completo, resumo)}
+            className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+          >
+            <FileSpreadsheet className="h-4 w-4" /> Excel
           </button>
           <button
             onClick={exportPDF}
