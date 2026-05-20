@@ -853,36 +853,48 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
              "perfil_cluster": d.get("perfil_cluster"), "cluster_id": _py(d.get("cluster_id"))}
             for d in devedores
         ]
+        # Captura os IDs das predições inseridas para linkar feedbacks
+        pred_id_map: dict[str, str] = {}
         for i in range(0, len(predicoes_rows), 100):
-            db.table("predicoes").insert(predicoes_rows[i:i+100]).execute()
+            res_pred = db.table("predicoes").insert(predicoes_rows[i:i+100]).execute()
+            for row in (res_pred.data or []):
+                if row.get("cpf") and row.get("id"):
+                    pred_id_map[str(row["cpf"])] = row["id"]
     except Exception as _e:
         print(f"[Supabase] Erro ao salvar: {_e}")
+        pred_id_map = {}
 
-    # Opção A: se o arquivo/query trouxer coluna 'pagou', registra feedbacks automaticamente
+    # Se o arquivo trouxer coluna 'pagou', registra feedbacks automaticamente linkados às predições
     n_feedbacks_auto = 0
     if "pagou" in df.columns:
         try:
-            db_fb = get_db()
             fb_rows = []
             for _, row in df.iterrows():
                 p = row.get("pagou")
                 if p is None or (isinstance(p, float) and pd.isna(p)):
                     continue
                 if isinstance(p, str):
-                    pagou = p.strip().lower() in ("true", "1", "sim", "s", "yes", "verdadeiro")
+                    pagou_val = p.strip().lower() in ("true", "1", "sim", "s", "yes", "verdadeiro")
                 else:
-                    pagou = bool(p)
+                    pagou_val = bool(p)
                 vr = row.get("valor_recuperado")
-                fb_rows.append({
-                    "cpf": str(row["cpf"]),
-                    "pagou": pagou,
+                cpf_str = str(row["cpf"])
+                fb_row: dict = {
+                    "cpf":             cpf_str,
+                    "pagou":           pagou_val,
                     "valor_recuperado": float(vr) if vr is not None and not pd.isna(vr) else 0.0,
-                })
+                }
+                if cpf_str in pred_id_map:
+                    fb_row["predicao_id"] = pred_id_map[cpf_str]
+                if _usuario_id:
+                    fb_row["usuario_id"] = _usuario_id
+                fb_rows.append(fb_row)
             if fb_rows:
+                db2 = get_db()
                 for i in range(0, len(fb_rows), 100):
-                    db_fb.table("feedbacks").insert(fb_rows[i:i+100]).execute()
+                    db2.table("feedbacks").insert(fb_rows[i:i+100]).execute()
                 n_feedbacks_auto = len(fb_rows)
-                print(f"[Auto-feedback] {n_feedbacks_auto} feedbacks registrados automaticamente")
+                print(f"[Auto-feedback] {n_feedbacks_auto} feedbacks registrados com predicao_id")
         except Exception as _fe:
             print(f"[Auto-feedback] Erro: {_fe}")
 
