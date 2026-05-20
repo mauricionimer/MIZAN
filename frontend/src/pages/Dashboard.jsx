@@ -4,6 +4,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   PieChart, Pie, Cell,
 } from 'recharts'
+import { buscarPagamentos } from '../api'
 import {
   Users, TrendingDown, BarChart2, Star,
   Download, RefreshCw, Search, Loader2,
@@ -189,8 +190,10 @@ export default function Dashboard() {
     return { ver, face, liquido, preco, retorno, desconto, taxaRecuperacao }
   }, [result, custoCobranca, retornoAlvo])
 
-  const [perf, setPerf]           = useState(null)
-  const [loadingPerf, setLoadingPerf] = useState(true)
+  const [perf, setPerf]                   = useState(null)
+  const [loadingPerf, setLoadingPerf]     = useState(true)
+  const [pagamentos, setPagamentos]       = useState([])
+  const [searchPag, setSearchPag]         = useState('')
 
   useEffect(() => {
     if (!token) return
@@ -199,6 +202,7 @@ export default function Dashboard() {
       .then(setPerf)
       .catch(() => {})
       .finally(() => setLoadingPerf(false))
+    buscarPagamentos().then(setPagamentos).catch(() => {})
   }, [token])
 
   useEffect(() => {
@@ -553,6 +557,79 @@ export default function Dashboard() {
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Pagamentos individuais ── */}
+        {pagamentos.length > 0 && (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
+                  <Banknote className="h-3.5 w-3.5 text-emerald-500" />
+                  Pagamentos Registrados — Detalhe Individual
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">{pagamentos.filter(p => p.pagou).length} pagamentos · {pagamentos.filter(p => !p.pagou).length} não pagaram</p>
+              </div>
+              <input
+                value={searchPag}
+                onChange={e => setSearchPag(e.target.value)}
+                placeholder="Buscar por nome ou CPF..."
+                className="border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-300 w-48"
+              />
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50">
+                    {['Nome', 'CPF', 'Dívida', 'Score', 'Situação', 'Valor Recuperado', 'Data'].map(h => (
+                      <th key={h} className="py-2.5 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wide text-left whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {pagamentos
+                    .filter(p => {
+                      if (!searchPag) return true
+                      const q = searchPag.toLowerCase()
+                      return (p.nome || '').toLowerCase().includes(q) || (p.cpf || '').includes(q)
+                    })
+                    .slice(0, 100)
+                    .map((p, i) => (
+                      <tr key={i} className="hover:bg-slate-50 transition-colors">
+                        <td className="py-3 px-4 font-medium text-slate-700 max-w-[160px] truncate">{p.nome || '—'}</td>
+                        <td className="py-3 px-4 font-mono text-slate-500 text-xs">{p.cpf || '—'}</td>
+                        <td className="py-3 px-4 text-slate-600">{p.valor_divida != null ? fmtBRL(p.valor_divida) : '—'}</td>
+                        <td className="py-3 px-4">
+                          {p.score != null ? (
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${p.score >= 70 ? 'bg-emerald-50 text-emerald-700' : p.score >= 40 ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-600'}`}>
+                              {p.score}
+                            </span>
+                          ) : '—'}
+                        </td>
+                        <td className="py-3 px-4">
+                          {p.pagou
+                            ? <span className="flex items-center gap-1 text-emerald-600 font-medium text-xs"><CheckCircle2 className="h-3.5 w-3.5" />Pagou</span>
+                            : <span className="flex items-center gap-1 text-red-400 font-medium text-xs"><XCircle className="h-3.5 w-3.5" />Não pagou</span>}
+                        </td>
+                        <td className="py-3 px-4 font-semibold text-emerald-700">
+                          {p.pagou && p.valor_recuperado > 0 ? fmtBRL(p.valor_recuperado) : p.pagou ? '—' : <span className="text-slate-300">—</span>}
+                        </td>
+                        <td className="py-3 px-4 text-slate-400 text-xs whitespace-nowrap">
+                          {p.data_pagamento ? new Intl.DateTimeFormat('pt-BR').format(new Date(p.data_pagamento + 'T12:00:00')) : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+              {pagamentos.filter(p => {
+                if (!searchPag) return true
+                const q = searchPag.toLowerCase()
+                return (p.nome || '').toLowerCase().includes(q) || (p.cpf || '').includes(q)
+              }).length === 0 && (
+                <p className="text-center text-slate-400 text-sm py-8">Nenhum resultado encontrado.</p>
+              )}
             </div>
           </div>
         )}

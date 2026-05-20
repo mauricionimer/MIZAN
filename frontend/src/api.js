@@ -195,6 +195,14 @@ export async function deletarConexao(id) {
   return res.json()
 }
 
+export async function buscarPagamentos() {
+  const token = _getToken()
+  const headers = token ? { Authorization: `Bearer ${token}` } : {}
+  const res = await fetch(`${BASE}/performance/pagamentos`, { headers })
+  if (!res.ok) throw new Error(`Erro HTTP ${res.status}`)
+  return res.json()
+}
+
 export async function sincronizarConexao(id) {
   const token = _getToken()
   const res = await fetch(`${BASE}/conexoes/${id}/sincronizar`, {

@@ -1786,6 +1786,59 @@ async def performance(credentials=Security(bearer_opcional)):
     }
 
 
+@app.get("/performance/pagamentos")
+async def performance_pagamentos(credentials=Security(bearer_opcional)):
+    """Lista individual de quem pagou, com nome, CPF e valor recuperado."""
+    _, _, empresa_id = _usuario_do_token(credentials)
+    db = get_db()
+
+    empresa_pred_ids: set | None = None
+    if empresa_id:
+        try:
+            cart_res = db.table("carteiras").select("id").eq("empresa_id", empresa_id).execute()
+            cart_ids = [c["id"] for c in (cart_res.data or [])]
+            if not cart_ids:
+                return []
+            pred_res_all: list = []
+            for i in range(0, len(cart_ids), 100):
+                pr = db.table("predicoes").select("id").in_("carteira_id", cart_ids[i:i+100]).execute()
+                pred_res_all.extend(pr.data or [])
+            empresa_pred_ids = {p["id"] for p in pred_res_all}
+        except Exception:
+            empresa_pred_ids = None
+
+    fb_res = db.table("feedbacks").select("cpf, pagou, valor_recuperado, data_pagamento, predicao_id, created_at").order("created_at", desc=True).limit(500).execute()
+    feedbacks = fb_res.data or []
+
+    if empresa_pred_ids is not None:
+        feedbacks = [f for f in feedbacks if f.get("predicao_id") in empresa_pred_ids]
+
+    if not feedbacks:
+        return []
+
+    pred_ids = [f["predicao_id"] for f in feedbacks if f.get("predicao_id")]
+    pred_map: dict = {}
+    if pred_ids:
+        for i in range(0, len(pred_ids), 100):
+            pr = db.table("predicoes").select("id, nome, cpf, valor_divida, score_recuperabilidade").in_("id", pred_ids[i:i+100]).execute()
+            for p in (pr.data or []):
+                pred_map[p["id"]] = p
+
+    result = []
+    for fb in feedbacks:
+        pred = pred_map.get(fb.get("predicao_id") or "")
+        result.append({
+            "cpf":               fb.get("cpf") or (pred or {}).get("cpf", ""),
+            "nome":              (pred or {}).get("nome", "—"),
+            "valor_divida":      (pred or {}).get("valor_divida"),
+            "score":             (pred or {}).get("score_recuperabilidade"),
+            "pagou":             fb.get("pagou", False),
+            "valor_recuperado":  fb.get("valor_recuperado") or 0,
+            "data_pagamento":    fb.get("data_pagamento") or fb.get("created_at", "")[:10],
+        })
+    return result
+
+
 @app.get("/admin/drift")
 async def detectar_drift(credentials: HTTPAuthorizationCredentials = Security(bearer)):
     _validar_api_key(credentials)
