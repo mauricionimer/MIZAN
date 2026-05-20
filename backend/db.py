@@ -1,5 +1,26 @@
 import os
+import re
 from supabase import create_client, Client
+
+# A biblioteca supabase<=2.10 valida chaves usando regex JWT e rejeita o novo
+# formato sb_secret_... / sb_publishable_... do Supabase. Este patch substitui
+# o módulo `re` dentro do namespace do client para aceitar ambos os formatos.
+import supabase._sync.client as _sc
+
+class _PatchedRe:
+    _JWT_PATTERN = r"^[A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*$"
+
+    def match(self, pattern, string, *args, **kwargs):
+        if (pattern == self._JWT_PATTERN
+                and isinstance(string, str)
+                and (string.startswith("sb_secret_") or string.startswith("sb_publishable_"))):
+            return re.match(r".+", string)
+        return re.match(pattern, string, *args, **kwargs)
+
+    def __getattr__(self, name):
+        return getattr(re, name)
+
+_sc.re = _PatchedRe()
 
 _client: Client | None = None
 

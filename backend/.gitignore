@@ -3,3 +3,5 @@ __pycache__/
 *.pkl
 *.env
 .env
+usuarios.json
+db_sync_config.json

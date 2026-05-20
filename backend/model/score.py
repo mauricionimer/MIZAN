@@ -1,10 +1,12 @@
+import os
 from pathlib import Path
 
 import joblib
 import numpy as np
 import pandas as pd
 
-MODEL_DIR = Path(__file__).parent
+_DATA_DIR_STR = os.getenv("MIZAN_DATA_DIR", "")
+MODEL_DIR = Path(_DATA_DIR_STR) / "model" if _DATA_DIR_STR else Path(__file__).parent
 
 FEATURES_NUMERICAS = [
     "valor_divida", "renda_estimada", "dias_em_atraso", "comprometimento_renda"

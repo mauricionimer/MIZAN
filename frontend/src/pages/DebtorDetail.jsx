@@ -1,7 +1,9 @@
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Phone, Tag, Zap, MessageSquare, Brain } from 'lucide-react'
 import { useAnalysis } from '../context/AnalysisContext'
 import PriorityBadge from '../components/PriorityBadge'
+import { buscarRecomendacao } from '../api'
 
 const fmtBRL = (v) => v != null
   ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
@@ -27,15 +29,122 @@ function Section({ title, children }) {
   )
 }
 
+const URGENCIA_CONFIG = {
+  Alta:  { color: '#ef4444', bg: '#fef2f2', ring: '#fecaca' },
+  Média: { color: '#f59e0b', bg: '#fffbeb', ring: '#fde68a' },
+  Baixa: { color: '#10b981', bg: '#f0fdf4', ring: '#a7f3d0' },
+}
+
+const MODO_CONFIG = {
+  exploração_inicial: { label: 'Explorando',  color: 'text-amber-600',  bg: 'bg-amber-50',  ring: 'ring-amber-200' },
+  aprendendo:         { label: 'Aprendendo',  color: 'text-blue-600',   bg: 'bg-blue-50',   ring: 'ring-blue-200'  },
+  calibrado:          { label: 'Calibrado',   color: 'text-emerald-600',bg: 'bg-emerald-50',ring: 'ring-emerald-200'},
+}
+
+function ApproachRecommendation({ devedor }) {
+  const score = devedor.score_recuperabilidade ?? 0
+  const urgencia = score >= 70 ? 'Alta' : score >= 40 ? 'Média' : 'Baixa'
+  const urgCfg = URGENCIA_CONFIG[urgencia]
+
+  const [rec, setRec] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [erro, setErro] = useState(null)
+
+  useEffect(() => {
+    if (!devedor.cpf) return
+    buscarRecomendacao(devedor.cpf)
+      .then(setRec)
+      .catch(e => setErro(e.message))
+      .finally(() => setLoading(false))
+  }, [devedor.cpf])
+
+  const modoCfg = rec ? (MODO_CONFIG[rec.modo] ?? MODO_CONFIG.aprendendo) : null
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+        <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+          Recomendação de Abordagem
+        </h3>
+        {modoCfg && (
+          <span className={`flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ring-1 ${modoCfg.color} ${modoCfg.bg} ${modoCfg.ring}`}>
+            <Brain className="h-3 w-3" />
+            IA · {modoCfg.label}
+          </span>
+        )}
+      </div>
+
+      <div className="p-5 space-y-4">
+        {loading && (
+          <div className="flex items-center justify-center py-6 text-slate-400 text-sm gap-2">
+            <div className="h-4 w-4 border-2 border-slate-300 border-t-blue-500 rounded-full animate-spin" />
+            Consultando IA...
+          </div>
+        )}
+
+        {erro && (
+          <p className="text-sm text-red-500 text-center py-4">{erro}</p>
+        )}
+
+        {rec && !loading && (
+          <>
+            <div className="grid grid-cols-3 gap-3">
+              {/* Urgência — derivada do score, não do bandit */}
+              <div
+                className="flex flex-col items-center gap-1.5 rounded-lg p-3 ring-1"
+                style={{ backgroundColor: urgCfg.bg, ringColor: urgCfg.ring }}
+              >
+                <Zap className="h-4 w-4" style={{ color: urgCfg.color }} />
+                <p className="text-xs text-slate-500 font-medium">Urgência</p>
+                <span className="text-sm font-bold" style={{ color: urgCfg.color }}>{urgencia}</span>
+              </div>
+
+              {/* Canal — escolhido pelo bandit */}
+              <div className="flex flex-col items-center gap-1.5 rounded-lg p-3 bg-blue-50 ring-1 ring-blue-100">
+                <Phone className="h-4 w-4 text-blue-500" />
+                <p className="text-xs text-slate-500 font-medium">Canal</p>
+                <span className="text-sm font-bold text-blue-700 text-center leading-tight">{rec.canal_label}</span>
+              </div>
+
+              {/* Oferta — escolhida pelo bandit */}
+              <div className="flex flex-col items-center gap-1.5 rounded-lg p-3 bg-emerald-50 ring-1 ring-emerald-100">
+                <Tag className="h-4 w-4 text-emerald-500" />
+                <p className="text-xs text-slate-500 font-medium">Oferta</p>
+                <span className="text-sm font-bold text-emerald-700 text-center leading-tight">{rec.oferta_label}</span>
+              </div>
+            </div>
+
+            {/* Justificativa do bandit */}
+            <div className="flex gap-3 p-4 bg-slate-50 rounded-lg border border-slate-100">
+              <MessageSquare className="h-4 w-4 text-slate-400 mt-0.5 shrink-0" />
+              <p className="text-sm text-slate-600 leading-relaxed">{rec.justificativa}</p>
+            </div>
+
+            {rec.total_interacoes > 0 && (
+              <p className="text-xs text-slate-400 text-right">
+                {rec.total_interacoes} interações registradas · esta ação usada {rec.n_tentativas_acao}×
+              </p>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function DebtorDetail() {
   const { rank } = useParams()
   const navigate = useNavigate()
   const { result } = useAnalysis()
 
-  if (!result) { navigate('/'); return null }
+  const d = result?.ranking_completo.find(x => x.rank === Number(rank)) ?? null
 
-  const d = result.ranking_completo.find(x => x.rank === Number(rank))
-  if (!d) { navigate('/dashboard'); return null }
+  useEffect(() => {
+    if (!result) { navigate('/'); return }
+    if (!d) navigate('/dashboard')
+  }, [result, d, navigate])
+
+  if (!result || !d) return null
 
   const score = d.score_recuperabilidade
   const scoreColor = score >= 70 ? '#10b981' : score >= 40 ? '#f59e0b' : '#94a3b8'
@@ -209,6 +318,9 @@ export default function DebtorDetail() {
                 })}
               </div>
             </div>
+
+            {/* AI Approach Recommendation */}
+            <ApproachRecommendation devedor={d} />
           </div>
         </div>
       </main>

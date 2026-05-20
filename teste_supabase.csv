@@ -1,0 +1,6 @@
+cpf,nome,produto,status,uf,valor_divida,renda_estimada,dias_em_atraso,tentativas_contato,promessa_quebrada
+111.111.111-11,João Silva,cartão de crédito,inadimplente,SP,15000.00,3500.00,120,3,false
+222.222.222-22,Maria Souza,empréstimo pessoal,inadimplente,RJ,8500.00,2200.00,45,1,false
+333.333.333-33,Carlos Oliveira,financiamento,inadimplente,MG,32000.00,5800.00,360,7,true
+444.444.444-44,Ana Costa,cartão de crédito,inadimplente,RS,4200.00,1800.00,15,0,false
+555.555.555-55,Pedro Lima,empréstimo pessoal,inadimplente,BA,11000.00,4100.00,200,5,true

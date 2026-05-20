@@ -1,4 +1,4 @@
-import { useRef, useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
@@ -7,11 +7,11 @@ import {
 import {
   Users, TrendingDown, BarChart2, Star,
   Download, RefreshCw, Search, Loader2,
-  Tag, Percent, ArrowUpRight, Banknote,
+  Tag, Percent, ArrowUpRight, Banknote, ClipboardList, FileSpreadsheet, Zap, LogOut, ShieldCheck, KeyRound,
 } from 'lucide-react'
-import jsPDF from 'jspdf'
-import html2canvas from 'html2canvas'
+import { gerarRelatorioPDF } from '../utils/gerarPDF'
 import { useAnalysis } from '../context/AnalysisContext'
+import { useAuth } from '../context/AuthContext'
 import StatCard from '../components/StatCard'
 import PriorityBadge from '../components/PriorityBadge'
 
@@ -23,6 +23,41 @@ const fmtBRL = (v) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v)
 const fmtNum  = (v) => new Intl.NumberFormat('pt-BR').format(v)
 const fmtPct  = (v) => `${v.toFixed(1)}%`
+
+function prioLabel(score) {
+  if (score >= 70) return 'Alta'
+  if (score >= 40) return 'Média'
+  return 'Baixa'
+}
+
+function exportCSV(ranking) {
+  const headers = ['Rank','Nome','CPF','Produto','Valor Face (R$)','Valor Esperado (R$)','Dias em Atraso','Score','Prioridade']
+  const rows = ranking.map(d => [
+    d.rank,
+    d.nome ?? '',
+    d.cpf  ?? '',
+    d.produto ?? '',
+    (d.valor_divida ?? 0).toFixed(2).replace('.', ','),
+    (d.valor_esperado_recuperacao ?? 0).toFixed(2).replace('.', ','),
+    d.dias_em_atraso ?? 0,
+    d.score_recuperabilidade ?? 0,
+    prioLabel(d.score_recuperabilidade ?? 0),
+  ])
+
+  const escape = (v) => {
+    const s = String(v)
+    return s.includes(';') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s
+  }
+  const csv = [headers, ...rows].map(r => r.map(escape).join(';')).join('\r\n')
+  const bom  = '﻿'  // BOM para Excel reconhecer UTF-8
+  const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a')
+  a.href     = url
+  a.download = `mizan-ranking-${new Date().toISOString().slice(0,10)}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
 
 const CustomBarTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
@@ -77,12 +112,12 @@ function PricingCard({ label, value, sub, highlight = false, icon: Icon }) {
 
 export default function Dashboard() {
   const { result } = useAnalysis()
+  const { usuario, logout, isAdmin } = useAuth()
   const navigate    = useNavigate()
-  const dashRef     = useRef()
   const [search, setSearch]               = useState('')
   const [exporting, setExporting]         = useState(false)
-  const [custoCobranca, setCustoCobranca] = useState(25)   // %
-  const [retornoAlvo, setRetornoAlvo]     = useState(30)   // %
+  const [custoCobranca, setCustoCobranca] = useState(25)
+  const [retornoAlvo, setRetornoAlvo]     = useState(30)
 
   // useMemo deve ficar ANTES de qualquer return condicional (regra dos hooks)
   const pricing = useMemo(() => {
@@ -98,7 +133,11 @@ export default function Dashboard() {
     return { ver, face, liquido, preco, retorno, desconto }
   }, [result, custoCobranca, retornoAlvo])
 
-  if (!result) { navigate('/'); return null }
+  useEffect(() => {
+    if (!result) navigate('/')
+  }, [result, navigate])
+
+  if (!result) return null
 
   const { resumo, distribuicao_aging, distribuicao_cluster, ranking_completo } = result
 
@@ -114,22 +153,10 @@ export default function Dashboard() {
       )
     : ranking_completo
 
-  const exportPDF = async () => {
+  function exportPDF() {
     setExporting(true)
     try {
-      const canvas  = await html2canvas(dashRef.current, { scale: 1.5, useCORS: true, backgroundColor: '#f8fafc' })
-      const imgData = canvas.toDataURL('image/png')
-      const pdf     = new jsPDF('l', 'mm', 'a4')
-      const w       = pdf.internal.pageSize.getWidth()
-      const h       = (canvas.height * w) / canvas.width
-      const pageH   = pdf.internal.pageSize.getHeight()
-      let yOffset   = 0
-      while (yOffset < h) {
-        if (yOffset > 0) pdf.addPage()
-        pdf.addImage(imgData, 'PNG', 0, -yOffset, w, h)
-        yOffset += pageH
-      }
-      pdf.save('mizan-relatorio.pdf')
+      gerarRelatorioPDF(result, pricing, custoCobranca, retornoAlvo)
     } finally {
       setExporting(false)
     }
@@ -149,11 +176,51 @@ export default function Dashboard() {
           <span className="text-slate-500 text-sm">Dashboard</span>
         </div>
         <div className="flex items-center gap-3">
+          {isAdmin && (
+            <button
+              onClick={() => navigate('/admin/usuarios')}
+              className="flex items-center gap-1.5 text-sm text-purple-600 hover:text-purple-800 transition-colors px-3 py-1.5 rounded-lg hover:bg-purple-50"
+            >
+              <ShieldCheck className="h-3.5 w-3.5" /> Usuários
+            </button>
+          )}
+          <button
+            onClick={() => navigate('/bandit')}
+            className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-100"
+          >
+            <Zap className="h-3.5 w-3.5" /> Performance IA
+          </button>
+          <button
+            onClick={() => navigate('/feedback')}
+            className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-100"
+          >
+            <ClipboardList className="h-3.5 w-3.5" /> Registrar pagamento
+          </button>
+          <button
+            onClick={() => navigate('/alterar-senha')}
+            className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-100"
+            title="Alterar senha"
+          >
+            <KeyRound className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">{usuario?.nome}</span>
+          </button>
           <button
             onClick={() => navigate('/')}
             className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-100"
           >
             <RefreshCw className="h-3.5 w-3.5" /> Nova análise
+          </button>
+          <button
+            onClick={() => { logout(); navigate('/login') }}
+            className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-red-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-red-50"
+          >
+            <LogOut className="h-3.5 w-3.5" /> Sair
+          </button>
+          <button
+            onClick={() => exportCSV(ranking_completo)}
+            className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+          >
+            <FileSpreadsheet className="h-4 w-4" /> Exportar CSV
           </button>
           <button
             onClick={exportPDF}
@@ -167,7 +234,7 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <main ref={dashRef} className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+      <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
 
         {/* ── Stat Cards ── */}
         <div className="grid grid-cols-4 gap-4">
