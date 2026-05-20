@@ -583,6 +583,7 @@ class ConexaoSalvarIn(BaseModel):
     sheets_id: Optional[str] = None
     sheets_aba: Optional[str] = None
     query: Optional[str] = None
+    mapeamento: Optional[dict] = None
 
 
 class ConexaoUpdateIn(BaseModel):

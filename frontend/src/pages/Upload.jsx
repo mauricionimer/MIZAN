@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { UploadCloud, FileText, AlertCircle, Loader2, History, FolderOpen, Database, RefreshCw, CheckCircle2, XCircle, ChevronRight, Plug } from 'lucide-react'
+import { UploadCloud, FileText, AlertCircle, Loader2, History, FolderOpen, Database, RefreshCw, CheckCircle2, XCircle, ChevronRight, Plug, X } from 'lucide-react'
 import { useAnalysis } from '../context/AnalysisContext'
 import { analisarCarteira, analisarDB, testarDB, listarTabelas, listarCarteiras, carregarCarteira, getDBSyncConfig, saveDBSyncConfig, executarDBSync, listarConexoes, salvarConexao, deletarConexao, sincronizarConexao, atualizarConexao } from '../api'
 
@@ -291,11 +291,12 @@ function FormDB({ onResult }) {
   }
 
   async function salvarConexaoAtual() {
-    if (!nomeParaSalvar.trim()) return
+    const nome = (nomeParaSalvar || form.nome_fonte || '').trim()
+    if (!nome) return
     setSalvandoConexao(true)
     try {
       const dados = {
-        nome: nomeParaSalvar.trim(),
+        nome,
         tipo: form.tipo,
         host: form.host || null,
         porta: form.porta ? Number(form.porta) : null,
@@ -307,6 +308,7 @@ function FormDB({ onResult }) {
         sheets_id: form.sheets_id || null,
         sheets_aba: form.sheets_aba || null,
         query: isSheets ? null : (form.query || null),
+        mapeamento: Object.keys(mapa).length > 0 ? mapa : undefined,
       }
       const res = await salvarConexao(dados)
       setConexoes(prev => [res.conexao, ...prev])
@@ -408,8 +410,27 @@ function FormDB({ onResult }) {
     setLoadingAnalise(true); setEtapa('analisando'); setErro(null)
     try {
       const data = await analisarDB({ ...paramsConexao(), mapeamento: mapa })
-      // Salva mapeamento na conexão para futuras sincronizações
-      if (conexaoSalvaId) {
+      if (!conexaoSalvaId && form.nome_fonte.trim()) {
+        // Auto-salva a conexão com o mapeamento incluído
+        try {
+          const res = await salvarConexao({
+            nome: form.nome_fonte.trim(),
+            tipo: form.tipo,
+            host: form.host || null,
+            porta: form.porta ? Number(form.porta) : null,
+            banco: form.banco || null,
+            usuario: form.usuario || null,
+            senha: form.senha || null,
+            instance_name: form.instance_name || null,
+            service_name: form.service_name || null,
+            sheets_id: form.sheets_id || null,
+            sheets_aba: form.sheets_aba || null,
+            query: isSheets ? null : (form.query || null),
+            mapeamento: mapa,
+          })
+          setConexoes(prev => [res.conexao, ...prev])
+        } catch {}
+      } else if (conexaoSalvaId) {
         atualizarConexao(conexaoSalvaId, { mapeamento: mapa, query: form.query }).catch(() => {})
       }
       onResult(data)
@@ -425,39 +446,52 @@ function FormDB({ onResult }) {
   if (etapa === 'conexao') return (
     <div className="space-y-4">
       {conexoes.length > 0 && (
-        <div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Conexões salvas</p>
-          <div className="flex flex-wrap gap-2">
+        <div className="mb-2">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+            Conexões salvas
+          </p>
+          <div className="space-y-2">
             {conexoes.map(c => (
-              <div key={c.id}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors
-                  ${conexaoSalvaId === c.id
-                    ? 'border-blue-400 bg-blue-50 text-blue-700'
-                    : 'border-slate-200 bg-white text-slate-600'}`}>
-                <button onClick={() => carregarConexaoSalva(c)} className="flex items-center gap-1.5">
-                  <Database className="h-3 w-3 shrink-0" />
-                  <span>{c.nome}</span>
-                  <span className="text-slate-400 text-[10px]">({c.tipo})</span>
-                </button>
+              <div key={c.id} className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-colors
+                ${conexaoSalvaId === c.id ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
+                <Database className="h-4 w-4 text-slate-400 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-700 truncate">{c.nome}</p>
+                  <p className="text-xs text-slate-400">{c.tipo}{c.host ? ` · ${c.host}` : ''}</p>
+                </div>
                 <button
                   onClick={(e) => sincronizarConexaoSalva(c.id, e)}
                   disabled={sincronizandoId === c.id}
-                  title="Importar dados atuais do banco"
-                  className="ml-1 text-slate-400 hover:text-blue-600 disabled:opacity-50 transition-colors">
-                  <RefreshCw className={`h-3 w-3 ${sincronizandoId === c.id ? 'animate-spin' : ''}`} />
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors shrink-0"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${sincronizandoId === c.id ? 'animate-spin' : ''}`} />
+                  {sincronizandoId === c.id ? 'Sincronizando...' : 'Sincronizar'}
                 </button>
-                <span onClick={(e) => removerConexaoSalva(c.id, e)}
-                  className="ml-0.5 text-slate-300 hover:text-red-500 cursor-pointer font-bold">×</span>
+                <button
+                  onClick={() => carregarConexaoSalva(c)}
+                  title="Editar e reanalisar"
+                  className="px-2 py-1.5 rounded-lg text-xs text-slate-500 hover:bg-slate-100 transition-colors shrink-0"
+                >
+                  Editar
+                </button>
+                <button
+                  onClick={(e) => removerConexaoSalva(c.id, e)}
+                  title="Remover conexão"
+                  className="text-slate-300 hover:text-red-400 transition-colors shrink-0"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
             ))}
           </div>
           {syncMsg && (
-            <div className={`mt-2 flex items-center gap-2 p-2 rounded-lg text-xs ${syncMsg.tipo === 'ok' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
-              {syncMsg.tipo === 'ok' ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> : <XCircle className="h-3.5 w-3.5 shrink-0" />}
+            <div className={`mt-2 flex items-center gap-2 p-3 rounded-xl text-sm border ${syncMsg.tipo === 'ok' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
+              {syncMsg.tipo === 'ok' ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <XCircle className="h-4 w-4 shrink-0" />}
               {syncMsg.texto}
             </div>
           )}
-          <div className="border-t border-slate-100 mt-3" />
+          <div className="border-t border-slate-100 mt-4 mb-2" />
+          <p className="text-xs text-slate-400 mb-1">Ou conecte a um novo banco abaixo</p>
         </div>
       )}
       <div>
@@ -546,10 +580,16 @@ function FormDB({ onResult }) {
         </div>
       )}
 
-      <div>
-        <label className="block text-xs font-medium text-slate-500 mb-1">Nome da fonte (opcional)</label>
+      <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+        <label className="block text-xs font-semibold text-blue-700 mb-1">
+          Nome da conexão — para salvar e reutilizar (recomendado)
+        </label>
         <input value={form.nome_fonte} onChange={e => set('nome_fonte', e.target.value)}
-          placeholder={`consulta_${form.tipo}`} className={inp()} />
+          placeholder="ex: banco_principal, clientes_producao..."
+          className="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300" />
+        <p className="text-xs text-blue-500 mt-1.5">
+          Preenchendo aqui, a conexão fica salva automaticamente após a análise. Na próxima vez, basta clicar em <strong>Sincronizar</strong> para atualizar os dados sem preencher nada.
+        </p>
       </div>
 
       {erro && (
@@ -583,20 +623,15 @@ function FormDB({ onResult }) {
       </div>
 
       {conexaoSalvaId ? (
-        <div className="flex items-center gap-1.5 text-xs text-emerald-600">
-          <CheckCircle2 className="h-3.5 w-3.5" /> Conexão salva
+        <div className="flex items-center gap-1.5 text-xs text-emerald-600 bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-100">
+          <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> Conexão salva — será atualizada após a análise.
         </div>
-      ) : (
-        <div className="flex gap-2">
-          <input value={nomeParaSalvar} onChange={e => setNomeParaSalvar(e.target.value)}
-            placeholder="Salvar esta conexão como..."
-            className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-300" />
-          <button onClick={salvarConexaoAtual} disabled={!nomeParaSalvar.trim() || salvandoConexao}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-40 transition-colors whitespace-nowrap">
-            {salvandoConexao ? 'Salvando...' : 'Salvar conexao'}
-          </button>
+      ) : form.nome_fonte.trim() ? (
+        <div className="flex items-center gap-1.5 text-xs text-blue-600 bg-blue-50 px-3 py-2 rounded-lg border border-blue-100">
+          <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+          Conexão será salva como <strong className="ml-1">"{form.nome_fonte}"</strong> automaticamente após a análise.
         </div>
-      )}
+      ) : null}
 
       <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
         Selecione a tabela com os devedores
@@ -720,6 +755,29 @@ function FormDB({ onResult }) {
         </div>
       )}
 
+      {!conexaoSalvaId && (
+        form.nome_fonte.trim() ? (
+          <div className="flex items-center gap-2 p-3 rounded-xl text-xs bg-blue-50 border border-blue-100 text-blue-700">
+            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+            Conexão será salva como <strong className="ml-1">"{form.nome_fonte}"</strong> automaticamente.
+          </div>
+        ) : (
+          <div className="p-3 rounded-xl bg-amber-50 border border-amber-100 space-y-2">
+            <p className="text-xs font-semibold text-amber-700">Quer salvar esta conexão para reutilizar depois?</p>
+            <div className="flex gap-2">
+              <input value={nomeParaSalvar} onChange={e => setNomeParaSalvar(e.target.value)}
+                placeholder="Nome da conexão (ex: banco_principal)..."
+                className="flex-1 border border-amber-200 rounded-lg px-3 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-amber-300" />
+              <button onClick={salvarConexaoAtual} disabled={!nomeParaSalvar.trim() || salvandoConexao}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 transition-colors whitespace-nowrap">
+                {salvandoConexao ? 'Salvando...' : 'Salvar'}
+              </button>
+            </div>
+            <p className="text-xs text-amber-600">Salvando aqui, na próxima vez basta clicar em Sincronizar.</p>
+          </div>
+        )
+      )}
+
       {erro && (
         <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
           <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" /><span>{erro}</span>
@@ -740,6 +798,9 @@ function FormDB({ onResult }) {
       <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
       <p className="text-sm font-medium">Carregando e analisando dados...</p>
       <p className="text-xs text-slate-400">Isso pode levar alguns segundos dependendo do volume.</p>
+      {!conexaoSalvaId && form.nome_fonte.trim() && (
+        <p className="text-xs text-blue-500">Salvando conexão "{form.nome_fonte}" automaticamente...</p>
+      )}
     </div>
   )
 }
