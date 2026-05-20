@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Phone, Tag, Zap, MessageSquare, Brain } from 'lucide-react'
+import { ArrowLeft, Phone, Tag, Zap, MessageSquare, Brain, Plus, ClipboardList } from 'lucide-react'
 import { useAnalysis } from '../context/AnalysisContext'
 import PriorityBadge from '../components/PriorityBadge'
-import { buscarRecomendacao } from '../api'
+import { buscarRecomendacao, registrarContato, listarContatos } from '../api'
 
 const fmtBRL = (v) => v != null
   ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
@@ -25,6 +25,148 @@ function Section({ title, children }) {
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
       <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">{title}</h3>
       {children}
+    </div>
+  )
+}
+
+const CANAL_ICONS    = { whatsapp: '💬', telefone: '📞', carta: '✉️' }
+const RESULTADO_CFG  = {
+  contactado:     { label: 'Contactado',        color: 'text-blue-600',    bg: 'bg-blue-50'    },
+  sem_resposta:   { label: 'Sem resposta',       color: 'text-slate-500',   bg: 'bg-slate-100'  },
+  prometeu_pagar: { label: 'Prometeu pagar',     color: 'text-amber-600',   bg: 'bg-amber-50'   },
+  pagou:          { label: 'Pagou',              color: 'text-emerald-600', bg: 'bg-emerald-50' },
+  nao_quis:       { label: 'Não quis negociar',  color: 'text-red-500',     bg: 'bg-red-50'     },
+}
+
+function HistoricoContatos({ cpf }) {
+  const [contatos, setContatos]     = useState([])
+  const [loading, setLoading]       = useState(true)
+  const [formAberto, setFormAberto] = useState(false)
+  const [salvando, setSalvando]     = useState(false)
+  const [erro, setErro]             = useState(null)
+  const [form, setForm] = useState({
+    canal: 'whatsapp', resultado: 'contactado',
+    data_contato: new Date().toISOString().slice(0, 10), observacao: '',
+  })
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  useEffect(() => {
+    listarContatos(cpf)
+      .then(setContatos)
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [cpf])
+
+  async function salvar() {
+    setSalvando(true); setErro(null)
+    try {
+      const res = await registrarContato({ cpf, ...form })
+      setContatos(prev => [res.contato, ...prev])
+      setFormAberto(false)
+      setForm({ canal: 'whatsapp', resultado: 'contactado', data_contato: new Date().toISOString().slice(0, 10), observacao: '' })
+    } catch (e) { setErro(e.message) }
+    finally { setSalvando(false) }
+  }
+
+  const fmtData = (iso) => iso
+    ? new Intl.DateTimeFormat('pt-BR').format(new Date(iso.includes('T') ? iso : iso + 'T12:00:00'))
+    : '—'
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+        <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
+          <ClipboardList className="h-3.5 w-3.5" />
+          Histórico de Contatos{contatos.length > 0 && ` (${contatos.length})`}
+        </h3>
+        <button onClick={() => setFormAberto(o => !o)}
+          className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors">
+          <Plus className="h-3.5 w-3.5" /> Registrar contato
+        </button>
+      </div>
+
+      {formAberto && (
+        <div className="px-5 py-4 border-b border-slate-100 bg-slate-50 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Canal</label>
+              <select value={form.canal} onChange={e => set('canal', e.target.value)}
+                className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-300">
+                <option value="whatsapp">WhatsApp</option>
+                <option value="telefone">Ligação Telefônica</option>
+                <option value="carta">Carta / E-mail</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Data</label>
+              <input type="date" value={form.data_contato} onChange={e => set('data_contato', e.target.value)}
+                className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-300" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Resultado</label>
+            <select value={form.resultado} onChange={e => set('resultado', e.target.value)}
+              className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-300">
+              <option value="contactado">Contactado</option>
+              <option value="sem_resposta">Sem resposta</option>
+              <option value="prometeu_pagar">Prometeu pagar</option>
+              <option value="pagou">Pagou</option>
+              <option value="nao_quis">Não quis negociar</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Observação (opcional)</label>
+            <textarea value={form.observacao} onChange={e => set('observacao', e.target.value)}
+              rows={2} placeholder="Detalhes do contato..."
+              className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none" />
+          </div>
+          {erro && <p className="text-xs text-red-500">{erro}</p>}
+          <div className="flex gap-2">
+            <button onClick={salvar} disabled={salvando}
+              className="px-4 py-1.5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors">
+              {salvando ? 'Salvando...' : 'Salvar'}
+            </button>
+            <button onClick={() => { setFormAberto(false); setErro(null) }}
+              className="px-4 py-1.5 rounded-lg text-xs font-medium text-slate-500 hover:bg-slate-100 transition-colors">
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="divide-y divide-slate-50">
+        {loading && (
+          <div className="flex items-center justify-center py-6 text-slate-400 text-xs gap-2">
+            <div className="h-3.5 w-3.5 border-2 border-slate-200 border-t-blue-400 rounded-full animate-spin" />
+            Carregando...
+          </div>
+        )}
+        {!loading && contatos.length === 0 && (
+          <p className="text-xs text-slate-400 text-center py-6">Nenhum contato registrado ainda.</p>
+        )}
+        {contatos.map(c => {
+          const res = RESULTADO_CFG[c.resultado] ?? { label: c.resultado, color: 'text-slate-500', bg: 'bg-slate-100' }
+          return (
+            <div key={c.id} className="px-5 py-3 flex items-start gap-3">
+              <span className="text-base shrink-0 mt-0.5">{CANAL_ICONS[c.canal] ?? '📋'}</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${res.bg} ${res.color}`}>
+                    {res.label}
+                  </span>
+                  <span className="text-xs text-slate-400">{fmtData(c.data_contato || c.created_at)}</span>
+                  {c.usuario_nome && (
+                    <span className="text-xs text-slate-300">por {c.usuario_nome}</span>
+                  )}
+                </div>
+                {c.observacao && (
+                  <p className="text-xs text-slate-500 mt-1">{c.observacao}</p>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -321,6 +463,9 @@ export default function DebtorDetail() {
 
             {/* AI Approach Recommendation */}
             <ApproachRecommendation devedor={d} />
+
+            {/* Histórico de contatos */}
+            {d.cpf && <HistoricoContatos cpf={d.cpf} />}
           </div>
         </div>
       </main>

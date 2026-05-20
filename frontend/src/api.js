@@ -186,6 +186,25 @@ export async function deletarConexao(id) {
   return res.json()
 }
 
+export async function registrarContato(dados) {
+  const token = _getToken()
+  const res = await fetch(`${BASE}/contatos`, {
+    method: 'POST', headers: _authHeader(token), body: JSON.stringify(dados),
+  })
+  if (!res.ok) {
+    const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
+    throw new Error(detail)
+  }
+  return res.json()
+}
+
+export async function listarContatos(cpf) {
+  const token = _getToken()
+  const res = await fetch(`${BASE}/contatos/${encodeURIComponent(cpf)}`, { headers: _authHeader(token) })
+  if (!res.ok) throw new Error(`Erro HTTP ${res.status}`)
+  return res.json()
+}
+
 export async function alterarRoleUsuario(token, id, role) {
   const res = await fetch(`${BASE}/auth/usuarios/${id}/role`, {
     method: 'PATCH', headers: _authHeader(token), body: JSON.stringify({ role }),

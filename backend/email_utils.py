@@ -40,6 +40,64 @@ def enviar_email(destinatario: str, assunto: str, corpo_html: str) -> bool:
         return False
 
 
+def email_retreino(admin_email: str, resultado: dict) -> bool:
+    retrain   = resultado.get("retrain", {})
+    versao    = retrain.get("versao", "nova versão")
+    acc       = retrain.get("acuracia")
+    n_fb      = resultado.get("n_feedbacks_novos", 0)
+    acc_linha = f"<p style='margin:4px 0;color:#475569'><strong>Acurácia:</strong> {acc:.1%}</p>" if acc else ""
+    assunto   = f"[Mizan] Modelo retreinado — {versao}"
+    corpo = f"""
+    <div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;padding:32px">
+      <div style="text-align:center;margin-bottom:24px">
+        <div style="display:inline-block;background:#2563eb;border-radius:12px;padding:10px 18px">
+          <span style="color:white;font-size:20px;font-weight:bold">⚖ Mizan</span>
+        </div>
+      </div>
+      <h2 style="color:#1e293b">Modelo retreinado com sucesso</h2>
+      <p style="color:#475569">O sistema de ML foi atualizado automaticamente com feedbacks reais.</p>
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin:20px 0">
+        <p style="margin:4px 0;color:#475569"><strong>Versão:</strong> {versao}</p>
+        <p style="margin:4px 0;color:#475569"><strong>Feedbacks usados:</strong> {n_fb}</p>
+        {acc_linha}
+      </div>
+      <p style="color:#94a3b8;font-size:13px">O modelo anterior foi substituído. Acesse o painel de IA para ver a performance.</p>
+      <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0">
+      <p style="color:#cbd5e1;font-size:12px;text-align:center">Mizan — Plataforma de análise de carteira de crédito com IA</p>
+    </div>
+    """
+    return enviar_email(admin_email, assunto, corpo)
+
+
+def email_drift(admin_email: str, score_atual: float, score_historico: float, n_dias: int = 30) -> bool:
+    diff     = score_atual - score_historico
+    direcao  = "queda" if diff < 0 else "aumento"
+    cor_diff = "#ef4444" if diff < 0 else "#10b981"
+    sinal    = "" if diff > 0 else ""
+    assunto  = f"[Mizan] Alerta de drift — {direcao} de {abs(diff):.1f} pts no score médio"
+    corpo = f"""
+    <div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;padding:32px">
+      <div style="text-align:center;margin-bottom:24px">
+        <div style="display:inline-block;background:#2563eb;border-radius:12px;padding:10px 18px">
+          <span style="color:white;font-size:20px;font-weight:bold">⚖ Mizan</span>
+        </div>
+      </div>
+      <h2 style="color:#1e293b">Alerta de drift detectado</h2>
+      <p style="color:#475569">O score médio de recuperabilidade mudou significativamente nos últimos {n_dias} dias.</p>
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin:20px 0">
+        <p style="margin:4px 0;color:#475569"><strong>Score histórico:</strong> {score_historico:.1f}</p>
+        <p style="margin:4px 0;color:#475569"><strong>Score recente ({n_dias}d):</strong> {score_atual:.1f}</p>
+        <p style="margin:4px 0;color:{cor_diff}"><strong>Variação:</strong> {sinal}{diff:.1f} pontos</p>
+      </div>
+      <p style="color:#475569">Isso pode indicar mudança no perfil das carteiras ou necessidade de retreinamento.</p>
+      <p style="color:#94a3b8;font-size:13px">Acesse o painel de IA para verificar a performance do modelo.</p>
+      <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0">
+      <p style="color:#cbd5e1;font-size:12px;text-align:center">Mizan — Plataforma de análise de carteira de crédito com IA</p>
+    </div>
+    """
+    return enviar_email(admin_email, assunto, corpo)
+
+
 def email_redefinir_senha(destinatario: str, nome: str, link: str) -> bool:
     assunto = "Redefinição de senha — Mizan"
     corpo = f"""

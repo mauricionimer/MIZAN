@@ -483,6 +483,46 @@ def salvar_conexao(body: ConexaoSalvarIn, credentials: HTTPAuthorizationCredenti
     saved["senha"] = ""  # não retorna a senha cifrada
     return {"ok": True, "conexao": saved}
 
+class ContatoIn(BaseModel):
+    cpf: str
+    canal: str        # whatsapp | telefone | carta
+    resultado: str    # contactado | sem_resposta | prometeu_pagar | pagou | nao_quis
+    data_contato: Optional[str] = None
+    observacao: Optional[str] = None
+
+
+@app.post("/contatos")
+def registrar_contato(body: ContatoIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    try:
+        payload = validar_token(credentials.credentials)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+    db = get_db()
+    row = body.model_dump()
+    row["usuario_id"]   = payload["sub"]
+    row["usuario_nome"] = payload.get("nome", "")
+    res = db.table("contatos").insert(row).execute()
+    return {"ok": True, "contato": res.data[0]}
+
+
+@app.get("/contatos/{cpf}")
+def listar_contatos_cpf(cpf: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    try:
+        validar_token(credentials.credentials)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+    db = get_db()
+    res = (
+        db.table("contatos")
+        .select("*")
+        .eq("cpf", cpf)
+        .order("created_at", desc=True)
+        .limit(50)
+        .execute()
+    )
+    return res.data
+
+
 @app.delete("/conexoes/{conexao_id}")
 def deletar_conexao(conexao_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     try:
@@ -1350,6 +1390,15 @@ async def detectar_drift(credentials: HTTPAuthorizationCredentials = Security(be
     media_recente   = round(sum(scores_recentes) / len(scores_recentes), 1)
     diferenca       = round(abs(media_recente - media_historica), 1)
     drift           = diferenca > 10
+
+    if drift:
+        admin_email = os.getenv("ADMIN_EMAIL", "")
+        if admin_email:
+            try:
+                from email_utils import email_drift
+                email_drift(admin_email, media_recente, media_historica)
+            except Exception as e:
+                print(f"[Drift] Erro ao enviar e-mail: {e}")
 
     return {
         "status":            "drift_detectado" if drift else "normal",

@@ -10,6 +10,7 @@ Comportamento:
   3. Estado em memória (reseta no restart) + log no console
 """
 
+import os
 from datetime import datetime, timezone
 
 # Estado em memória — consultado via GET /admin/scheduler/status
@@ -81,6 +82,13 @@ def verificar_e_retreinar(min_feedbacks: int = 30) -> dict:
                 _score_cache.clear()
             except Exception:
                 pass
+            admin_email = os.getenv("ADMIN_EMAIL", "")
+            if admin_email:
+                try:
+                    from email_utils import email_retreino
+                    email_retreino(admin_email, {**base, "retrain": retrain_result})
+                except Exception as e:
+                    print(f"[Scheduler] Erro ao enviar e-mail de retreino: {e}")
 
         resultado = {
             **base,
