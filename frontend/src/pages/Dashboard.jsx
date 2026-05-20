@@ -8,6 +8,7 @@ import {
   Users, TrendingDown, BarChart2, Star,
   Download, RefreshCw, Search, Loader2,
   Tag, Percent, ArrowUpRight, Banknote, ClipboardList, FileSpreadsheet, Zap, LogOut, ShieldCheck, KeyRound,
+  CheckCircle2, XCircle, TrendingUp,
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { gerarRelatorioPDF } from '../utils/gerarPDF'
@@ -15,6 +16,8 @@ import { useAnalysis } from '../context/AnalysisContext'
 import { useAuth } from '../context/AuthContext'
 import StatCard from '../components/StatCard'
 import PriorityBadge from '../components/PriorityBadge'
+
+const BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
 
 const AGING_ORDER = ['0-29 dias', '30-59 dias', '60-89 dias', '90-179 dias', '180+ dias']
 const AGING_COLORS  = ['#10b981', '#3b82f6', '#f59e0b', '#f97316', '#ef4444']
@@ -174,16 +177,29 @@ export default function Dashboard() {
   // useMemo deve ficar ANTES de qualquer return condicional (regra dos hooks)
   const pricing = useMemo(() => {
     if (!result) return null
-    const ver      = result.resumo.valor_esperado_recuperacao_total ?? 0
-    const face     = result.resumo.total_em_risco ?? 0
-    const cc       = custoCobranca / 100
-    const ra       = retornoAlvo   / 100
-    const liquido  = ver * (1 - cc)
-    const preco    = liquido / (1 + ra)
-    const retorno  = preco > 0 ? ((liquido - preco) / preco) * 100 : 0
-    const desconto = face  > 0 ? ((face - preco) / face) * 100 : 0
-    return { ver, face, liquido, preco, retorno, desconto }
+    const ver             = result.resumo.valor_esperado_recuperacao_total ?? 0
+    const face            = result.resumo.total_em_risco ?? 0
+    const cc              = custoCobranca / 100
+    const ra              = retornoAlvo   / 100
+    const liquido         = ver * (1 - cc)
+    const preco           = liquido / (1 + ra)
+    const retorno         = preco > 0 ? ((liquido - preco) / preco) * 100 : 0
+    const desconto        = face  > 0 ? ((face - preco) / face) * 100 : 0
+    const taxaRecuperacao = face  > 0 ? (ver / face) * 100 : 0
+    return { ver, face, liquido, preco, retorno, desconto, taxaRecuperacao }
   }, [result, custoCobranca, retornoAlvo])
+
+  const [perf, setPerf]           = useState(null)
+  const [loadingPerf, setLoadingPerf] = useState(true)
+
+  useEffect(() => {
+    if (!token) return
+    fetch(`${BASE}/performance`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(setPerf)
+      .catch(() => {})
+      .finally(() => setLoadingPerf(false))
+  }, [token])
 
   useEffect(() => {
     if (!result) navigate('/')
@@ -393,10 +409,10 @@ export default function Dashboard() {
                 icon={Tag}
               />
               <PricingCard
-                label="Retorno Esperado da Operação"
-                value={fmtPct(pricing.retorno)}
-                sub={`lucro estimado: ${fmtBRL(pricing.liquido - pricing.preco)}`}
-                icon={ArrowUpRight}
+                label="Taxa de Recuperação Estimada"
+                value={`${pricing.taxaRecuperacao.toFixed(1)}%`}
+                sub={`do valor de face · lucro: ${fmtBRL(pricing.liquido - pricing.preco)}`}
+                icon={TrendingUp}
               />
             </div>
           </div>
@@ -477,6 +493,69 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+
+        {/* ── Resultados Reais ── */}
+        {!loadingPerf && perf && perf.total_feedbacks > 0 && (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
+                  <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
+                  Resultados Reais — Quem Pagou
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">{perf.total_feedbacks} feedbacks registrados</p>
+              </div>
+              {perf.acuracia_geral != null && (
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 border border-blue-100">
+                  Acurácia do modelo: {perf.acuracia_geral}%
+                </span>
+              )}
+            </div>
+            <div className="p-6">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-100">
+                      {['Faixa de Score', 'Feedbacks', 'Pagaram', 'Não Pagaram', 'Taxa de Pagamento', ''].map(h => (
+                        <th key={h} className="pb-3 text-xs font-semibold text-slate-500 uppercase tracking-wide text-left first:pl-0 px-4">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {perf.metricas_por_faixa.map(f => {
+                      const taxa = f.taxa_pagamento ?? 0
+                      const barColor = taxa >= 60 ? '#10b981' : taxa >= 30 ? '#f59e0b' : '#ef4444'
+                      return (
+                        <tr key={f.faixa} className="hover:bg-slate-50">
+                          <td className="py-3 pl-0 pr-4 text-sm font-medium text-slate-700">{f.faixa}</td>
+                          <td className="py-3 px-4 text-slate-500 font-mono">{f.total_feedbacks}</td>
+                          <td className="py-3 px-4">
+                            <span className="flex items-center gap-1 text-emerald-600 font-medium">
+                              <CheckCircle2 className="h-3.5 w-3.5" />{f.pagaram}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="flex items-center gap-1 text-red-400 font-medium">
+                              <XCircle className="h-3.5 w-3.5" />{f.nao_pagaram}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="font-bold text-sm" style={{ color: barColor }}>{taxa.toFixed(1)}%</span>
+                          </td>
+                          <td className="py-3 px-4 w-32">
+                            <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full" style={{ width: `${Math.min(taxa, 100)}%`, backgroundColor: barColor }} />
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── Tabela ── */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
