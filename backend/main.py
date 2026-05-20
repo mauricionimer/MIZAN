@@ -280,6 +280,28 @@ def _resolver_credenciais(conn: ConexaoDB) -> None:
         pass
 
 
+_MIZAN_PROJECT_ID = "qbdxdtdxujluklyrtmjx"
+
+def _bloquear_autoconexao(conn: ConexaoDB) -> None:
+    """Impede que o usuário conecte ao próprio banco do Mizan como fonte externa.
+
+    Quando isso acontece, cada análise insere dados em 'predicoes', que é lida
+    de volta na próxima consulta — causando duplicação exponencial dos devedores.
+    """
+    host = (conn.host or "").lower()
+    user = (conn.usuario or "").lower()
+    if _MIZAN_PROJECT_ID in host or _MIZAN_PROJECT_ID in user:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Conexão bloqueada: você está tentando usar o banco interno do Mizan "
+                "como fonte de dados. Isso causaria duplicação dos devedores a cada análise. "
+                "Conecte ao banco de dados da sua empresa (ERP, CRM, sistema de cobrança), "
+                "não ao Supabase do Mizan."
+            ),
+        )
+
+
 
 def _exigir_comando(credentials: HTTPAuthorizationCredentials) -> dict:
     try:
@@ -820,6 +842,8 @@ async def sincronizar_conexao(conexao_id: str, credentials: HTTPAuthorizationCre
         mapeamento=row.get("mapeamento"),
     )
 
+    _bloquear_autoconexao(conn)
+
     try:
         if conn.tipo == "sheets":
             if not conn.sheets_id:
@@ -1277,6 +1301,7 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
 async def listar_tabelas(conn: ConexaoDB):
     """Lista as tabelas disponíveis no banco externo — sem precisar escrever SQL."""
     _resolver_credenciais(conn)
+    _bloquear_autoconexao(conn)
     if conn.tipo == "sheets":
         raise HTTPException(status_code=400, detail="Google Sheets não tem tabelas SQL.")
     try:
@@ -1315,6 +1340,7 @@ async def listar_tabelas(conn: ConexaoDB):
 async def testar_db(conn: ConexaoDB):
     """Testa conexão, executa query limitada e retorna colunas + preview + mapeamento sugerido."""
     _resolver_credenciais(conn)
+    _bloquear_autoconexao(conn)
     try:
         if conn.tipo == "sheets":
             if not conn.sheets_id or not conn.sheets_credenciais:
@@ -1372,6 +1398,7 @@ async def testar_db(conn: ConexaoDB):
 async def analisar_db(conn: ConexaoDB, credentials=Security(bearer_opcional)):
     """Analisa uma carteira carregada diretamente de um banco de dados externo."""
     _resolver_credenciais(conn)
+    _bloquear_autoconexao(conn)
     try:
         if conn.tipo == "sheets":
             if not conn.sheets_id or not conn.sheets_credenciais:
