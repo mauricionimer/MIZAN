@@ -40,7 +40,7 @@ ACOES: list[dict] = [
 ]
 
 N_ACOES = len(ACOES)
-D       = 8   # dimensão do vetor de contexto
+D       = 14  # score, dias, comprometimento, 4×produto, 5×uf_região, renda, bias
 
 CANAL_LABELS = {
     "whatsapp": "WhatsApp",
@@ -165,10 +165,23 @@ def _carregar_supabase() -> LinUCB | None:
 # Vetor de contexto
 # ---------------------------------------------------------------------------
 
+_UF_REGIAO: dict[str, str] = {
+    "AC": "norte", "AM": "norte", "AP": "norte", "PA": "norte",
+    "RO": "norte", "RR": "norte", "TO": "norte",
+    "AL": "nordeste", "BA": "nordeste", "CE": "nordeste", "MA": "nordeste",
+    "PB": "nordeste", "PE": "nordeste", "PI": "nordeste", "RN": "nordeste",
+    "SE": "nordeste",
+    "DF": "centro_oeste", "GO": "centro_oeste", "MS": "centro_oeste", "MT": "centro_oeste",
+    "ES": "sudeste", "MG": "sudeste", "RJ": "sudeste", "SP": "sudeste",
+    "PR": "sul", "RS": "sul", "SC": "sul",
+}
+
+
 def construir_contexto(devedor: dict) -> np.ndarray:
     score  = float(devedor.get("score_recuperabilidade") or 50) / 100.0
     dias   = min(float(devedor.get("dias_em_atraso") or 0), 360) / 360.0
     comp   = min(float(devedor.get("comprometimento_renda") or 1.0), 3.0) / 3.0
+
     produto = str(devedor.get("produto") or "").lower()
     consignado = 1.0 if "consignado" in produto else 0.0
     veiculo    = 1.0 if "veiculo"    in produto else 0.0
@@ -176,7 +189,24 @@ def construir_contexto(devedor: dict) -> np.ndarray:
     cartao     = 1.0 if "cartao"     in produto else 0.0
     if not any([consignado, veiculo, pessoal, cartao]):
         pessoal = 1.0
-    return np.array([score, dias, comp, consignado, veiculo, pessoal, cartao, 1.0])
+
+    regiao = _UF_REGIAO.get(str(devedor.get("uf") or "").upper(), "sudeste")
+    norte        = 1.0 if regiao == "norte"       else 0.0
+    nordeste     = 1.0 if regiao == "nordeste"    else 0.0
+    centro_oeste = 1.0 if regiao == "centro_oeste" else 0.0
+    sudeste      = 1.0 if regiao == "sudeste"     else 0.0
+    sul          = 1.0 if regiao == "sul"          else 0.0
+
+    renda_raw = float(devedor.get("renda_estimada") or 0)
+    renda = min(renda_raw / 10000.0, 1.0)  # normaliza até R$10k
+
+    return np.array([
+        score, dias, comp,
+        consignado, veiculo, pessoal, cartao,
+        norte, nordeste, centro_oeste, sudeste, sul,
+        renda,
+        1.0,  # bias
+    ])
 
 
 # ---------------------------------------------------------------------------

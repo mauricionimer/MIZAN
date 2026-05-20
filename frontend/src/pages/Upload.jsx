@@ -919,8 +919,54 @@ export default function Upload() {
         )}
 
         {!histLoading && historico.length === 0 && (
-          <div className="text-center py-8 text-sm text-slate-400 bg-white rounded-xl border border-slate-200">
-            Nenhuma análise salva ainda.
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
+            <div className="text-center mb-8">
+              <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl">⚖</span>
+              </div>
+              <h3 className="text-base font-semibold text-slate-800 mb-1">Bem-vindo ao Mizan</h3>
+              <p className="text-sm text-slate-500">Siga os passos abaixo para começar a recuperar valor da sua carteira</p>
+            </div>
+            <div className="grid grid-cols-4 gap-4">
+              {[
+                {
+                  num: '1', cor: 'blue', titulo: 'Importe sua carteira',
+                  desc: 'Faça upload de um CSV/Excel ou conecte diretamente ao seu banco de dados.',
+                  icon: '📂',
+                },
+                {
+                  num: '2', cor: 'indigo', titulo: 'IA analisa e ranqueia',
+                  desc: 'O modelo de ML classifica cada devedor por probabilidade de pagamento.',
+                  icon: '🤖',
+                },
+                {
+                  num: '3', cor: 'emerald', titulo: 'Defina sua estratégia',
+                  desc: 'Simule preços de compra de carteira e veja o retorno esperado da operação.',
+                  icon: '📊',
+                },
+                {
+                  num: '4', cor: 'amber', titulo: 'Registre os resultados',
+                  desc: 'A cada contato registrado, a IA aprende e melhora as recomendações.',
+                  icon: '🎯',
+                },
+              ].map(({ num, cor, titulo, desc, icon }) => {
+                const borda = { blue: 'border-blue-100 bg-blue-50', indigo: 'border-indigo-100 bg-indigo-50', emerald: 'border-emerald-100 bg-emerald-50', amber: 'border-amber-100 bg-amber-50' }[cor]
+                const badge = { blue: 'bg-blue-600', indigo: 'bg-indigo-600', emerald: 'bg-emerald-600', amber: 'bg-amber-500' }[cor]
+                return (
+                  <div key={num} className={`rounded-xl border p-4 ${borda}`}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className={`w-5 h-5 rounded-full ${badge} text-white text-xs font-bold flex items-center justify-center shrink-0`}>{num}</span>
+                      <span className="text-lg">{icon}</span>
+                    </div>
+                    <p className="text-xs font-semibold text-slate-700 mb-1">{titulo}</p>
+                    <p className="text-xs text-slate-500 leading-relaxed">{desc}</p>
+                  </div>
+                )
+              })}
+            </div>
+            <p className="text-center text-xs text-slate-400 mt-6">
+              Comece carregando um arquivo acima — CSV ou Excel com CPF, valor da dívida e dias em atraso são suficientes.
+            </p>
           </div>
         )}
 
