@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { UploadCloud, FileText, AlertCircle, Loader2, History, FolderOpen, Database, RefreshCw, CheckCircle2, XCircle, ChevronRight, Plug } from 'lucide-react'
 import { useAnalysis } from '../context/AnalysisContext'
-import { analisarCarteira, analisarDB, testarDB, listarTabelas, listarCarteiras, carregarCarteira, getDBSyncConfig, saveDBSyncConfig, executarDBSync } from '../api'
+import { analisarCarteira, analisarDB, testarDB, listarTabelas, listarCarteiras, carregarCarteira, getDBSyncConfig, saveDBSyncConfig, executarDBSync, listarConexoes, salvarConexao, deletarConexao } from '../api'
 
 const API_TOKEN = import.meta.env.VITE_API_TOKEN ?? ''
 
@@ -232,6 +232,13 @@ function FormDB({ onResult }) {
   const [loadingAnalise, setLoadingAnalise] = useState(false)
   const [erro, setErro]         = useState(null)
 
+  const [conexoes,        setConexoes]        = useState([])
+  const [nomeParaSalvar,  setNomeParaSalvar]  = useState('')
+  const [salvandoConexao, setSalvandoConexao] = useState(false)
+  const [conexaoSalvaId,  setConexaoSalvaId]  = useState(null)
+
+  useEffect(() => { listarConexoes().then(setConexoes).catch(() => {}) }, [])
+
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setErro(null) }
   const isSQLite  = form.tipo === 'sqlite'
   const isSheets  = form.tipo === 'sheets'
@@ -264,6 +271,57 @@ function FormDB({ onResult }) {
       query:         form.query,
       nome_fonte:    form.nome_fonte || `db_${form.tipo}`,
     }
+  }
+
+  function carregarConexaoSalva(c) {
+    setForm({
+      tipo: c.tipo, host: c.host || '', porta: c.porta || '',
+      banco: c.banco || '', usuario: c.usuario || '', senha: c.senha || '',
+      query: c.query || 'SELECT * FROM devedores', nome_fonte: '',
+      instance_name: c.instance_name || '', service_name: c.service_name || '',
+      sheets_id: c.sheets_id || '', sheets_aba: c.sheets_aba || '', sheets_credenciais: '',
+    })
+    setConexaoSalvaId(c.id)
+    setEtapa('conexao')
+    setErro(null)
+  }
+
+  async function salvarConexaoAtual() {
+    if (!nomeParaSalvar.trim()) return
+    setSalvandoConexao(true)
+    try {
+      const dados = {
+        nome: nomeParaSalvar.trim(),
+        tipo: form.tipo,
+        host: form.host || null,
+        porta: form.porta ? Number(form.porta) : null,
+        banco: form.banco || null,
+        usuario: form.usuario || null,
+        senha: form.senha || null,
+        instance_name: form.instance_name || null,
+        service_name: form.service_name || null,
+        sheets_id: form.sheets_id || null,
+        sheets_aba: form.sheets_aba || null,
+        query: isSheets ? null : (form.query || null),
+      }
+      const res = await salvarConexao(dados)
+      setConexoes(prev => [res.conexao, ...prev])
+      setConexaoSalvaId(res.conexao.id)
+      setNomeParaSalvar('')
+    } catch (e) {
+      setErro(`Erro ao salvar conexão: ${e.message}`)
+    } finally {
+      setSalvandoConexao(false)
+    }
+  }
+
+  async function removerConexaoSalva(id, e) {
+    e.stopPropagation()
+    try {
+      await deletarConexao(id)
+      setConexoes(prev => prev.filter(c => c.id !== id))
+      if (conexaoSalvaId === id) setConexaoSalvaId(null)
+    } catch {}
   }
 
   async function conectar() {
@@ -343,6 +401,27 @@ function FormDB({ onResult }) {
   // ── Etapa 1: conexão ──────────────────────────────────────
   if (etapa === 'conexao') return (
     <div className="space-y-4">
+      {conexoes.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Conexões salvas</p>
+          <div className="flex flex-wrap gap-2">
+            {conexoes.map(c => (
+              <button key={c.id} onClick={() => carregarConexaoSalva(c)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors
+                  ${conexaoSalvaId === c.id
+                    ? 'border-blue-400 bg-blue-50 text-blue-700'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:bg-blue-50'}`}>
+                <Database className="h-3 w-3 shrink-0" />
+                <span>{c.nome}</span>
+                <span className="text-slate-400 text-[10px]">({c.tipo})</span>
+                <span onClick={(e) => removerConexaoSalva(c.id, e)}
+                  className="ml-0.5 text-slate-300 hover:text-red-500 cursor-pointer font-bold">×</span>
+              </button>
+            ))}
+          </div>
+          <div className="border-t border-slate-100 mt-3" />
+        </div>
+      )}
       <div>
         <label className="block text-xs font-medium text-slate-500 mb-1">Tipo de banco</label>
         <select value={form.tipo} onChange={e => set('tipo', e.target.value)} className={inp()}>
@@ -464,6 +543,22 @@ function FormDB({ onResult }) {
           Voltar
         </button>
       </div>
+
+      {conexaoSalvaId ? (
+        <div className="flex items-center gap-1.5 text-xs text-emerald-600">
+          <CheckCircle2 className="h-3.5 w-3.5" /> Conexão salva
+        </div>
+      ) : (
+        <div className="flex gap-2">
+          <input value={nomeParaSalvar} onChange={e => setNomeParaSalvar(e.target.value)}
+            placeholder="Salvar esta conexão como..."
+            className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-300" />
+          <button onClick={salvarConexaoAtual} disabled={!nomeParaSalvar.trim() || salvandoConexao}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-40 transition-colors whitespace-nowrap">
+            {salvandoConexao ? 'Salvando...' : 'Salvar conexao'}
+          </button>
+        </div>
+      )}
 
       <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
         Selecione a tabela com os devedores

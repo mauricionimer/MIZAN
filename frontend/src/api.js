@@ -157,6 +157,35 @@ export async function toggleUsuarioAtivo(token, id, ativo) {
   return res.json()
 }
 
+export async function listarConexoes() {
+  const token = _getToken()
+  if (!token) return []
+  const res = await fetch(`${BASE}/conexoes`, { headers: _authHeader(token) })
+  if (!res.ok) throw new Error(`Erro HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function salvarConexao(dados) {
+  const token = _getToken()
+  const res = await fetch(`${BASE}/conexoes`, {
+    method: 'POST', headers: _authHeader(token), body: JSON.stringify(dados),
+  })
+  if (!res.ok) {
+    const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
+    throw new Error(detail)
+  }
+  return res.json()
+}
+
+export async function deletarConexao(id) {
+  const token = _getToken()
+  const res = await fetch(`${BASE}/conexoes/${id}`, {
+    method: 'DELETE', headers: _authHeader(token),
+  })
+  if (!res.ok) throw new Error(`Erro HTTP ${res.status}`)
+  return res.json()
+}
+
 export async function alterarRoleUsuario(token, id, role) {
   const res = await fetch(`${BASE}/auth/usuarios/${id}/role`, {
     method: 'PATCH', headers: _authHeader(token), body: JSON.stringify({ role }),

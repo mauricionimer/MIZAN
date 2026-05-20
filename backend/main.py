@@ -315,6 +315,20 @@ class AtivoIn(BaseModel):
 class RoleIn(BaseModel):
     role: str
 
+class ConexaoSalvarIn(BaseModel):
+    nome: str
+    tipo: str
+    host: Optional[str] = None
+    porta: Optional[int] = None
+    banco: Optional[str] = None
+    usuario: Optional[str] = None
+    senha: Optional[str] = None
+    instance_name: Optional[str] = None
+    service_name: Optional[str] = None
+    sheets_id: Optional[str] = None
+    sheets_aba: Optional[str] = None
+    query: Optional[str] = None
+
 class WebhookPagamentoIn(BaseModel):
     cpf: str
     pagou: bool
@@ -360,6 +374,44 @@ def auth_esqueci_senha(body: EsqueciSenhaIn, background_tasks: BackgroundTasks):
         link = f"{FRONTEND_URL}/redefinir-senha?token={token}"
         background_tasks.add_task(email_redefinir_senha, body.email, nome, link)
     return {"ok": True, "mensagem": "Se o e-mail estiver cadastrado, você receberá as instruções em breve."}
+
+@app.get("/conexoes")
+def listar_conexoes(credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    try:
+        payload = validar_token(credentials.credentials)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+    db = get_db()
+    res = (
+        db.table("conexoes_db")
+        .select("*")
+        .eq("usuario_id", payload["sub"])
+        .order("created_at", desc=True)
+        .execute()
+    )
+    return res.data
+
+@app.post("/conexoes")
+def salvar_conexao(body: ConexaoSalvarIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    try:
+        payload = validar_token(credentials.credentials)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+    db = get_db()
+    row = body.model_dump()
+    row["usuario_id"] = payload["sub"]
+    res = db.table("conexoes_db").insert(row).execute()
+    return {"ok": True, "conexao": res.data[0]}
+
+@app.delete("/conexoes/{conexao_id}")
+def deletar_conexao(conexao_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    try:
+        payload = validar_token(credentials.credentials)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+    db = get_db()
+    db.table("conexoes_db").delete().eq("id", conexao_id).eq("usuario_id", payload["sub"]).execute()
+    return {"ok": True}
 
 @app.post("/auth/redefinir-senha")
 def auth_redefinir_senha(body: RedefinirSenhaIn):
