@@ -11,14 +11,16 @@ Uso sem dados reais:
 """
 
 import sys
+from datetime import datetime as _dt
 from pathlib import Path
 
 import joblib
 import numpy as np
 import pandas as pd
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.cluster import KMeans
 from sklearn.ensemble import HistGradientBoostingClassifier
-from sklearn.model_selection import StratifiedKFold, cross_val_score
+from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test_split
 from sklearn.preprocessing import RobustScaler
 
 MODEL_DIR     = Path(__file__).parent
@@ -93,6 +95,9 @@ def _adicionar_derivadas(df: pd.DataFrame) -> pd.DataFrame:
         df['log_renda'] = np.log1p(df['renda_estimada'].clip(0))
     if 'valor_divida' in df.columns and 'dias_em_atraso' in df.columns:
         df['valor_por_dia'] = df['valor_divida'] / (df['dias_em_atraso'] + 1)
+    # Sazonalidade: mês da análise (1-12) — cobrança é mais fácil em jan/fev, difícil em dez
+    if 'mes_analise' not in df.columns:
+        df['mes_analise'] = _dt.now().month
     return df
 
 
@@ -278,6 +283,7 @@ def _gerar_dados_sinteticos(n: int = 3000, seed: int = 42) -> pd.DataFrame:
         "valor_divida":   valor_divida.astype(float),
         "renda_estimada": renda_estimada.astype(float),
         "dias_em_atraso": dias_em_atraso.astype(int),
+        "mes_analise":    rng.integers(1, 13, n).astype(int),
     })
 
 
@@ -305,7 +311,7 @@ def _treinar_com_df(df: pd.DataFrame) -> None:
     for cid, label in sorted(cluster_labels.items()):
         print(f"        [{cid}] {label}  (n={(clusters == cid).sum()})")
 
-    print("[5/6] Treinando HistGradientBoostingClassifier")
+    print("[5/6] Treinando HistGradientBoostingClassifier (class_weight=balanced)")
     y     = _criar_alvo_simulado(df_aug)
     n_tot = len(y)
     print(f"      Alvo: recuperável={y.sum()} ({y.mean():.1%}) | não recuperável={n_tot-y.sum()}")
@@ -314,11 +320,12 @@ def _treinar_com_df(df: pd.DataFrame) -> None:
     min_leaf = max(5, n_tot // 30)
     clf = HistGradientBoostingClassifier(
         max_iter=200, max_depth=4, learning_rate=0.05,
-        min_samples_leaf=min_leaf, l2_regularization=1.0, random_state=42,
+        min_samples_leaf=min_leaf, l2_regularization=1.0,
+        class_weight="balanced", random_state=42,
     )
     clf.fit(X_clf, y)
 
-    # Cross-validation
+    # Cross-validation (StratifiedKFold para dados sintéticos)
     n_splits = max(2, min(5, int(y.sum()), int(n_tot - y.sum())))
     cv  = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
     acc = cross_val_score(clf, X_clf, y, cv=cv, scoring="accuracy")
@@ -327,10 +334,30 @@ def _treinar_com_df(df: pd.DataFrame) -> None:
         auc = cross_val_score(clf, X_clf, y, cv=cv, scoring="roc_auc")
         print(f"      CV AUC-ROC:  {auc.mean():.3f} ± {auc.std():.3f}")
 
+    # Calibração de probabilidade (Platt scaling) quando há dados suficientes
+    clf_to_save = clf
+    if n_tot >= 200 and len(np.unique(y)) == 2:
+        try:
+            X_tr, X_cal, y_tr, y_cal = train_test_split(
+                X_clf, y, test_size=0.2, stratify=y, random_state=42,
+            )
+            clf_base = HistGradientBoostingClassifier(
+                max_iter=200, max_depth=4, learning_rate=0.05,
+                min_samples_leaf=min_leaf, l2_regularization=1.0,
+                class_weight="balanced", random_state=42,
+            )
+            clf_base.fit(X_tr, y_tr)
+            clf_to_save = CalibratedClassifierCV(clf_base, cv="prefit", method="sigmoid")
+            clf_to_save.fit(X_cal, y_cal)
+            print("      Calibração Platt aplicada.")
+        except Exception as _ce:
+            print(f"      Calibração ignorada: {_ce}")
+            clf_to_save = clf
+
     feature_names = list(X.columns) + ["cluster"]
 
     print("[6/6] Salvando modelos")
-    joblib.dump(clf,    MODEL_DIR / "mizan_model.pkl")
+    joblib.dump(clf_to_save, MODEL_DIR / "mizan_model.pkl")
     joblib.dump(kmeans, MODEL_DIR / "kmeans.pkl")
     joblib.dump({
         "scaler":               scaler,

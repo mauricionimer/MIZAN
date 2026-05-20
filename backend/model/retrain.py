@@ -25,9 +25,10 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.cluster import KMeans
 from sklearn.ensemble import HistGradientBoostingClassifier
-from sklearn.model_selection import StratifiedKFold, cross_val_score
+from sklearn.model_selection import StratifiedKFold, TimeSeriesSplit, cross_val_score, train_test_split
 from sklearn.preprocessing import RobustScaler
 
 _BACKEND_DIR = str(Path(__file__).parent.parent)
@@ -72,7 +73,7 @@ def _buscar_predicoes(db, ids: list[str]) -> dict[str, dict]:
     for i in range(0, len(ids), 500):
         res = (
             db.table("predicoes")
-            .select("id, produto, uf, valor_divida, dias_em_atraso, renda_estimada, status")
+            .select("id, cpf, produto, uf, valor_divida, dias_em_atraso, renda_estimada, status, created_at")
             .in_("id", ids[i: i + 500])
             .execute()
         )
@@ -81,13 +82,33 @@ def _buscar_predicoes(db, ids: list[str]) -> dict[str, dict]:
     return pred_map
 
 
-def _montar_dataset(feedbacks: list[dict], pred_map: dict[str, dict]) -> pd.DataFrame:
+def _buscar_historico_contatos(db, cpfs: list[str]) -> dict[str, dict]:
+    """Retorna histórico agregado de contatos por CPF para enriquecer o dataset de treino."""
+    hist: dict[str, dict] = {}
+    for i in range(0, len(cpfs), 500):
+        try:
+            res = db.table("contatos").select("cpf, resultado, created_at").in_("cpf", cpfs[i:i+500]).execute()
+            for ct in (res.data or []):
+                cpf = str(ct["cpf"])
+                if cpf not in hist:
+                    hist[cpf] = {"n": 0, "positivo": 0}
+                hist[cpf]["n"] += 1
+                if ct.get("resultado", "").lower() in ("pagamento_confirmado", "acordo_fechado"):
+                    hist[cpf]["positivo"] += 1
+        except Exception:
+            pass
+    return hist
+
+
+def _montar_dataset(feedbacks: list[dict], pred_map: dict[str, dict], hist_contatos: dict | None = None) -> pd.DataFrame:
     rows = []
     for fb in feedbacks:
         pred = pred_map.get(fb["predicao_id"])
         if not pred:
             continue
-        rows.append({
+        cpf = str(pred.get("cpf") or "")
+        row = {
+            "cpf":            cpf,
             "produto":        pred.get("produto") or "pessoal",
             "status":         pred.get("status") or "ativo",
             "uf":             pred.get("uf") or "SP",
@@ -95,7 +116,13 @@ def _montar_dataset(feedbacks: list[dict], pred_map: dict[str, dict]) -> pd.Data
             "renda_estimada": float(pred.get("renda_estimada") or 0),
             "dias_em_atraso": int(pred.get("dias_em_atraso") or 0),
             "pagou":          int(bool(fb["pagou"])),
-        })
+            "_created_at":    pred.get("created_at") or "",
+        }
+        if hist_contatos and cpf in hist_contatos:
+            h = hist_contatos[cpf]
+            row["hist_n_contatos"] = h["n"]
+            row["hist_positivo"]   = int(h["positivo"] > 0)
+        rows.append(row)
     return pd.DataFrame(rows)
 
 
@@ -201,14 +228,20 @@ def _gerar_labels_clusters(df_cl: pd.DataFrame, n_clusters: int) -> dict[int, st
 # Avaliação
 # ---------------------------------------------------------------------------
 
-def _avaliar(clf, X_rf: np.ndarray, y: np.ndarray) -> dict:
+def _avaliar(clf, X_rf: np.ndarray, y: np.ndarray, temporal: bool = False) -> dict:
     n_splits = max(2, min(5, int(y.sum()), int(len(y) - y.sum())))
-    cv  = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+    if temporal and len(y) >= 30:
+        # Validação temporal: treina no passado, valida no futuro (sem vazamento de dados)
+        cv = TimeSeriesSplit(n_splits=n_splits)
+        print(f"      Usando TimeSeriesSplit (validação temporal, k={n_splits})")
+    else:
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
     acc = cross_val_score(clf, X_rf, y, cv=cv, scoring="accuracy")
     metricas: dict = {
         "cv_acuracia_media": round(float(acc.mean()), 4),
         "cv_acuracia_std":   round(float(acc.std()), 4),
         "n_splits":          n_splits,
+        "validacao_temporal": temporal and len(y) >= 30,
     }
     if len(np.unique(y)) == 2:
         auc = cross_val_score(clf, X_rf, y, cv=cv, scoring="roc_auc")
@@ -313,15 +346,28 @@ def retreinar(
         print(f"\n[ENCERRADO] {msg}")
         return {"ok": False, "motivo": msg, "n_feedbacks": n_feedbacks}
 
-    print("\n[2/6] Buscando features das predicoes...")
+    print("\n[2/6] Buscando features das predicoes e histórico de contatos...")
     pred_ids = [f["predicao_id"] for f in feedbacks]
     pred_map = _buscar_predicoes(db, pred_ids)
     print(f"      {len(pred_map)} predicoes carregadas")
 
-    df       = _montar_dataset(feedbacks, pred_map)
+    cpfs_unicos = list({str(p.get("cpf", "")) for p in pred_map.values() if p.get("cpf")})
+    hist_contatos = _buscar_historico_contatos(db, cpfs_unicos) if cpfs_unicos else {}
+    print(f"      {len(hist_contatos)} CPFs com histórico de contatos")
+
+    df       = _montar_dataset(feedbacks, pred_map, hist_contatos)
     n_amostras = len(df)
     n_pagou  = int(df["pagou"].sum())
     print(f"      Dataset: {n_amostras} amostras | pagaram={n_pagou} | não pagaram={n_amostras - n_pagou}")
+
+    # Ordena por data para validação temporal correta (evita vazamento futuro→passado)
+    temporal = False
+    if "_created_at" in df.columns and df["_created_at"].ne("").any():
+        df["_created_at"] = pd.to_datetime(df["_created_at"], errors="coerce", utc=True)
+        df = df.sort_values("_created_at").reset_index(drop=True)
+        temporal = True
+        print("      Dataset ordenado por data — validação temporal ativa")
+    df = df.drop(columns=["_created_at", "cpf"], errors="ignore")
 
     if len(df["pagou"].unique()) < 2:
         msg = "Alvo uniforme. Impossível treinar classificador binário."
@@ -346,18 +392,19 @@ def retreinar(
     for cid, label in sorted(cluster_labels.items()):
         print(f"        [{cid}] {label} (n={(clusters == cid).sum()})")
 
-    print("\n[5/6] Treinando HistGradientBoostingClassifier com alvo real (pagou)...")
+    print("\n[5/6] Treinando HistGradientBoostingClassifier (class_weight=balanced, alvo real)...")
     y     = df["pagou"].values
     X_clf = np.column_stack([X_scaled, clusters])
     min_leaf = max(5, n_amostras // 30)
     clf = HistGradientBoostingClassifier(
         max_iter=200, max_depth=4, learning_rate=0.05,
-        min_samples_leaf=min_leaf, l2_regularization=1.0, random_state=42,
+        min_samples_leaf=min_leaf, l2_regularization=1.0,
+        class_weight="balanced", random_state=42,
     )
     clf.fit(X_clf, y)
 
     print("\n[5.5/6] Avaliando com cross-validation...")
-    metricas = _avaliar(clf, X_clf, y)
+    metricas = _avaliar(clf, X_clf, y, temporal=temporal)
     print(f"      Acurácia CV: {metricas['cv_acuracia_media']:.2%} ± {metricas['cv_acuracia_std']:.2%}")
     if "cv_auc_media" in metricas:
         print(f"      AUC-ROC CV: {metricas['cv_auc_media']:.3f} ± {metricas['cv_auc_std']:.3f}")
@@ -365,6 +412,25 @@ def retreinar(
     if dry_run:
         print("\n[DRY RUN] Avaliação concluída. Nenhum arquivo salvo.")
         return {"ok": True, "dry_run": True, "metricas": metricas, "n_amostras": n_amostras}
+
+    # Calibração de probabilidade (Platt scaling) quando há amostras suficientes
+    clf_to_save = clf
+    if n_amostras >= 150 and len(np.unique(y)) == 2:
+        try:
+            X_tr, X_cal, y_tr, y_cal = train_test_split(
+                X_clf, y, test_size=0.2, stratify=y, random_state=42,
+            )
+            clf_base = HistGradientBoostingClassifier(
+                max_iter=200, max_depth=4, learning_rate=0.05,
+                min_samples_leaf=min_leaf, l2_regularization=1.0,
+                class_weight="balanced", random_state=42,
+            )
+            clf_base.fit(X_tr, y_tr)
+            clf_to_save = CalibratedClassifierCV(clf_base, cv="prefit", method="sigmoid")
+            clf_to_save.fit(X_cal, y_cal)
+            print("      Calibração Platt aplicada.")
+        except Exception as _ce:
+            print(f"      Calibração ignorada: {_ce}")
 
     print("\n[6/6] Salvando modelo versionado...")
     versoes = _carregar_versoes()
@@ -384,7 +450,7 @@ def retreinar(
         "model_version":        MODEL_VERSION,
         "versao":               versao,
     }
-    _salvar_artefatos(versao, clf, kmeans, meta)
+    _salvar_artefatos(versao, clf_to_save, kmeans, meta)
 
     versao_ativa    = versoes.get("versao_ativa", "v1_inicial")
     acuracia_nova   = metricas["cv_acuracia_media"]

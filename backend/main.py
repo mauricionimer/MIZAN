@@ -764,6 +764,32 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
     """Executa o pipeline de scoring em um DataFrame já carregado e persiste no Supabase."""
     from model.train import _normalizar_colunas
     df = _normalizar_colunas(df)
+
+    # Enriquece com histórico de contatos anteriores do mesmo CPF
+    try:
+        cpfs = df["cpf"].astype(str).unique().tolist() if "cpf" in df.columns else []
+        if cpfs:
+            db_ct = get_db()
+            ct_raw: list[dict] = []
+            for _i in range(0, len(cpfs), 100):
+                res = db_ct.table("contatos").select("cpf, resultado, created_at").in_("cpf", cpfs[_i:_i+100]).execute()
+                ct_raw.extend(res.data or [])
+            if ct_raw:
+                ct_df = pd.DataFrame(ct_raw)
+                ct_df["created_at"] = pd.to_datetime(ct_df["created_at"], utc=True, errors="coerce")
+                _now = pd.Timestamp.now(tz="UTC")
+                ct_agg = ct_df.groupby("cpf").agg(
+                    hist_n_contatos        =("resultado", "count"),
+                    hist_resultado_positivo=("resultado", lambda x: int(x.str.lower().isin(["pagamento_confirmado", "acordo_fechado"]).any())),
+                    hist_dias_ultimo_contato=("created_at", lambda x: int((_now - x.dropna().max()).days) if x.dropna().any() else 9999),
+                ).reset_index()
+                df = df.merge(ct_agg, on="cpf", how="left")
+                df["hist_n_contatos"]         = df["hist_n_contatos"].fillna(0).astype(int)
+                df["hist_resultado_positivo"]  = df["hist_resultado_positivo"].fillna(0).astype(int)
+                df["hist_dias_ultimo_contato"] = df["hist_dias_ultimo_contato"].fillna(9999).astype(int)
+    except Exception as _ct_err:
+        print(f"[Contact enrichment] {_ct_err}")
+
     faltantes = [c for c in COLUNAS_OBRIGATORIAS if c not in df.columns]
     if faltantes:
         raise HTTPException(
