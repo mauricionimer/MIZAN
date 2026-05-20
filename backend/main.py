@@ -281,23 +281,40 @@ def _resolver_credenciais(conn: ConexaoDB) -> None:
 
 
 _MIZAN_PROJECT_ID = "qbdxdtdxujluklyrtmjx"
+_MIZAN_TABELAS_INTERNAS = {"predicoes", "carteiras", "feedbacks", "conexoes_db", "usuarios", "bandit_estado", "api_keys", "contatos"}
 
 def _bloquear_autoconexao(conn: ConexaoDB) -> None:
-    """Impede que o usuário conecte ao próprio banco do Mizan como fonte externa.
+    """Bloqueia consultas às tabelas internas do Mizan para evitar loop de duplicação.
 
-    Quando isso acontece, cada análise insere dados em 'predicoes', que é lida
-    de volta na próxima consulta — causando duplicação exponencial dos devedores.
+    Permite conectar ao mesmo Supabase desde que a query não acesse tabelas internas.
     """
     host = (conn.host or "").lower()
     user = (conn.usuario or "").lower()
-    if _MIZAN_PROJECT_ID in host or _MIZAN_PROJECT_ID in user:
+    if _MIZAN_PROJECT_ID not in host and _MIZAN_PROJECT_ID not in user:
+        return  # banco externo diferente — sem restrição
+
+    # É o Supabase do Mizan — verifica se a query acessa tabelas internas
+    query_lower = (conn.query or "").lower()
+    for tabela in _MIZAN_TABELAS_INTERNAS:
+        if tabela in query_lower:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Consulta bloqueada: a tabela '{tabela}' é interna do Mizan. "
+                    "Use uma tabela própria de origem (ex: 'minha_carteira', 'clientes') "
+                    "para importar seus devedores. Tabelas internas bloqueadas: "
+                    + ", ".join(sorted(_MIZAN_TABELAS_INTERNAS))
+                ),
+            )
+    # Também bloqueia a tabela 'devedores' que causou o loop histórico
+    if "devedores" in query_lower:
         raise HTTPException(
             status_code=400,
             detail=(
-                "Conexão bloqueada: você está tentando usar o banco interno do Mizan "
-                "como fonte de dados. Isso causaria duplicação dos devedores a cada análise. "
-                "Conecte ao banco de dados da sua empresa (ERP, CRM, sistema de cobrança), "
-                "não ao Supabase do Mizan."
+                "Consulta bloqueada: a tabela 'devedores' neste Supabase acumula dados "
+                "de análises anteriores e causaria duplicação. "
+                "Crie uma nova tabela de origem (ex: 'clientes', 'carteira_fonte') e "
+                "importe seus dados lá."
             ),
         )
 
