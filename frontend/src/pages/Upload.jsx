@@ -586,6 +586,7 @@ function FormDB({ onResult }) {
         </label>
         <input value={form.nome_fonte} onChange={e => set('nome_fonte', e.target.value)}
           placeholder="ex: banco_principal, clientes_producao..."
+          autoComplete="off"
           className="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300" />
         <p className="text-xs text-blue-500 mt-1.5">
           Preenchendo aqui, a conexão fica salva automaticamente após a análise. Na próxima vez, basta clicar em <strong>Sincronizar</strong> para atualizar os dados sem preencher nada.
