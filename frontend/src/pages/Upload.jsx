@@ -238,8 +238,13 @@ function FormDB({ onResult }) {
   const [conexaoSalvaId,  setConexaoSalvaId]  = useState(null)
   const [sincronizandoId, setSincronizandoId] = useState(null)
   const [syncMsg,         setSyncMsg]         = useState(null) // {tipo, texto}
+  const [modo,            setModo]            = useState('lista') // 'lista' | 'nova'
 
-  useEffect(() => { listarConexoes().then(setConexoes).catch(() => {}) }, [])
+  useEffect(() => {
+    listarConexoes()
+      .then(data => { setConexoes(data); if (data.length === 0) setModo('nova') })
+      .catch(() => { setModo('nova') })
+  }, [])
 
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setErro(null) }
   const isSQLite  = form.tipo === 'sqlite'
@@ -281,12 +286,13 @@ function FormDB({ onResult }) {
     setForm({
       tipo: c.tipo, host: c.host || '', porta: c.porta || '',
       banco: c.banco || '', usuario: c.usuario || '', senha: c.senha || '',
-      query: c.query || 'SELECT * FROM devedores', nome_fonte: '',
+      query: c.query || 'SELECT * FROM devedores', nome_fonte: c.nome || '',
       instance_name: c.instance_name || '', service_name: c.service_name || '',
       sheets_id: c.sheets_id || '', sheets_aba: c.sheets_aba || '', sheets_credenciais: '',
     })
     setConexaoSalvaId(c.id)
     setEtapa('conexao')
+    setModo('nova')
     setErro(null)
   }
 
@@ -445,58 +451,120 @@ function FormDB({ onResult }) {
     }
   }
 
-  // ── Etapa 1: conexão ──────────────────────────────────────
+  // ── Etapa 1 — lista de conexões salvas ───────────────────────
+  if (etapa === 'conexao' && modo === 'lista') return (
+    <div className="space-y-3">
+      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+        Bancos de dados conectados
+      </p>
+
+      {conexoes.map(c => (
+        <div key={c.id} className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+          <div className="flex items-start gap-3 px-4 pt-4 pb-3">
+            <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+              <Database className="h-4 w-4 text-blue-500" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-slate-800 text-sm leading-tight">{c.nome}</p>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {c.tipo?.toUpperCase()}{c.host ? ` · ${c.host}` : ''}
+              </p>
+              {c.ultimo_sync
+                ? <p className="text-xs text-emerald-600 mt-1">Último sync: {fmtDate(c.ultimo_sync)}</p>
+                : <p className="text-xs text-slate-400 mt-1">Nunca sincronizado</p>
+              }
+            </div>
+            <button onClick={(e) => removerConexaoSalva(c.id, e)} className="text-slate-300 hover:text-red-400 transition-colors shrink-0">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="px-4 pb-4 flex gap-2">
+            <button
+              onClick={(e) => sincronizarConexaoSalva(c.id, e)}
+              disabled={sincronizandoId !== null}
+              className={`flex-1 py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-colors
+                ${sincronizandoId === c.id
+                  ? 'bg-blue-100 text-blue-400 cursor-not-allowed'
+                  : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+            >
+              <RefreshCw className={`h-4 w-4 ${sincronizandoId === c.id ? 'animate-spin' : ''}`} />
+              {sincronizandoId === c.id ? 'Sincronizando...' : 'Sincronizar com o banco de dados'}
+            </button>
+            <button
+              onClick={() => carregarConexaoSalva(c)}
+              className="px-3 py-2.5 rounded-lg text-xs text-slate-500 border border-slate-200 hover:bg-slate-50 transition-colors whitespace-nowrap"
+            >
+              Editar
+            </button>
+          </div>
+        </div>
+      ))}
+
+      {syncMsg && (
+        <div className={`flex items-center gap-2 p-3 rounded-xl text-sm border ${
+          syncMsg.tipo === 'ok' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'
+        }`}>
+          {syncMsg.tipo === 'ok' ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <XCircle className="h-4 w-4 shrink-0" />}
+          {syncMsg.texto}
+        </div>
+      )}
+
+      <button
+        onClick={() => {
+          setModo('nova')
+          setConexaoSalvaId(null)
+          setForm({ tipo: 'postgres', host: '', porta: '', banco: '', usuario: '', senha: '', query: 'SELECT * FROM devedores', nome_fonte: '' })
+          setErro(null)
+        }}
+        className="w-full py-3 rounded-xl border-2 border-dashed border-slate-200 text-sm text-slate-500 hover:border-blue-300 hover:text-blue-600 flex items-center justify-center gap-2 transition-colors"
+      >
+        <Plug className="h-4 w-4" />
+        Conectar um novo banco de dados
+      </button>
+    </div>
+  )
+
+  // ── Etapa 1 — formulário de nova conexão ou edição ────────────
   if (etapa === 'conexao') return (
     <div className="space-y-4">
       {conexoes.length > 0 && (
-        <div className="mb-2">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
-            Conexões salvas
-          </p>
-          <div className="space-y-2">
-            {conexoes.map(c => (
-              <div key={c.id} className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-colors
-                ${conexaoSalvaId === c.id ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
-                <Database className="h-4 w-4 text-slate-400 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-700 truncate">{c.nome}</p>
-                  <p className="text-xs text-slate-400">{c.tipo}{c.host ? ` · ${c.host}` : ''}</p>
-                </div>
-                <button
-                  onClick={(e) => sincronizarConexaoSalva(c.id, e)}
-                  disabled={sincronizandoId === c.id}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors shrink-0"
-                >
-                  <RefreshCw className={`h-3.5 w-3.5 ${sincronizandoId === c.id ? 'animate-spin' : ''}`} />
-                  {sincronizandoId === c.id ? 'Sincronizando...' : 'Sincronizar'}
-                </button>
-                <button
-                  onClick={() => carregarConexaoSalva(c)}
-                  title="Editar e reanalisar"
-                  className="px-2 py-1.5 rounded-lg text-xs text-slate-500 hover:bg-slate-100 transition-colors shrink-0"
-                >
-                  Editar
-                </button>
-                <button
-                  onClick={(e) => removerConexaoSalva(c.id, e)}
-                  title="Remover conexão"
-                  className="text-slate-300 hover:text-red-400 transition-colors shrink-0"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            ))}
-          </div>
-          {syncMsg && (
-            <div className={`mt-2 flex items-center gap-2 p-3 rounded-xl text-sm border ${syncMsg.tipo === 'ok' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
-              {syncMsg.tipo === 'ok' ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <XCircle className="h-4 w-4 shrink-0" />}
-              {syncMsg.texto}
-            </div>
-          )}
-          <div className="border-t border-slate-100 mt-4 mb-2" />
-          <p className="text-xs text-slate-400 mb-1">Ou conecte a um novo banco abaixo</p>
-        </div>
+        <button
+          onClick={() => { setModo('lista'); setConexaoSalvaId(null); setErro(null) }}
+          className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-600 transition-colors"
+        >
+          ← Bancos salvos
+        </button>
       )}
+
+      {/* Nome da conexão em destaque — primeiro campo */}
+      <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+        {conexaoSalvaId ? (
+          <div className="flex items-center gap-2">
+            <Database className="h-4 w-4 text-blue-500 shrink-0" />
+            <div>
+              <p className="text-xs font-semibold text-blue-700">Editando conexão</p>
+              <p className="text-sm font-semibold text-slate-800 mt-0.5">{form.nome_fonte}</p>
+            </div>
+          </div>
+        ) : (
+          <>
+            <label className="block text-xs font-semibold text-blue-700 mb-1">
+              Nome da conexão *
+            </label>
+            <input
+              value={form.nome_fonte}
+              onChange={e => set('nome_fonte', e.target.value)}
+              placeholder="ex: banco_principal, clientes_producao..."
+              autoComplete="off"
+              className="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
+            />
+            <p className="text-xs text-blue-500 mt-1.5">
+              Identifica esta conexão. Depois de salva, basta clicar em <strong>Sincronizar</strong> para atualizar os dados sem preencher nada novamente.
+            </p>
+          </>
+        )}
+      </div>
+
       <div>
         <label className="block text-xs font-medium text-slate-500 mb-1">Tipo de banco</label>
         <select value={form.tipo} onChange={e => set('tipo', e.target.value)} className={inp()}>
@@ -582,19 +650,6 @@ function FormDB({ onResult }) {
           <p className="text-xs text-slate-400 mt-1">Apenas SELECT. O sistema detecta as colunas automaticamente.</p>
         </div>
       )}
-
-      <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
-        <label className="block text-xs font-semibold text-blue-700 mb-1">
-          Nome da conexão — para salvar e reutilizar (recomendado)
-        </label>
-        <input value={form.nome_fonte} onChange={e => set('nome_fonte', e.target.value)}
-          placeholder="ex: banco_principal, clientes_producao..."
-          autoComplete="off"
-          className="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300" />
-        <p className="text-xs text-blue-500 mt-1.5">
-          Preenchendo aqui, a conexão fica salva automaticamente após a análise. Na próxima vez, basta clicar em <strong>Sincronizar</strong> para atualizar os dados sem preencher nada.
-        </p>
-      </div>
 
       {erro && (
         <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
