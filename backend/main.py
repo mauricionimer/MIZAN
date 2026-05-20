@@ -12,7 +12,7 @@ import uvicorn
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, UploadFile, File, Security, BackgroundTasks
+from fastapi import FastAPI, HTTPException, UploadFile, File, Security, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
@@ -301,6 +301,13 @@ class AtivoIn(BaseModel):
 
 class RoleIn(BaseModel):
     role: str
+
+class WebhookPagamentoIn(BaseModel):
+    cpf: str
+    pagou: bool
+    valor_recuperado: Optional[float] = 0.0
+    data_pagamento: Optional[str] = None
+    empresa: Optional[str] = None
 
 class EsqueciSenhaIn(BaseModel):
     email: str
@@ -668,6 +675,39 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
             "ranking_completo": devedores}
 
 
+@app.post("/listar-tabelas")
+async def listar_tabelas(conn: ConexaoDB):
+    """Lista as tabelas disponíveis no banco externo — sem precisar escrever SQL."""
+    if conn.tipo == "sheets":
+        raise HTTPException(status_code=400, detail="Google Sheets não tem tabelas SQL.")
+    try:
+        from sqlalchemy import create_engine, text
+        url = _construir_url_db(conn)
+        timeout_args = {"connect_timeout": 10} if conn.tipo in ("postgres", "postgresql", "mysql", "mariadb") else {}
+        engine = create_engine(url, connect_args=timeout_args)
+        with engine.connect() as connection:
+            if conn.tipo in ("postgres", "postgresql"):
+                q = "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name"
+            elif conn.tipo in ("mysql", "mariadb"):
+                q = "SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() ORDER BY table_name"
+            elif conn.tipo == "sqlserver":
+                q = "SELECT table_name FROM information_schema.tables WHERE table_type = 'BASE TABLE' ORDER BY table_name"
+            elif conn.tipo == "oracle":
+                q = "SELECT table_name FROM user_tables ORDER BY table_name"
+            elif conn.tipo == "sqlite":
+                q = "SELECT name AS table_name FROM sqlite_master WHERE type='table' ORDER BY name"
+            else:
+                raise ValueError(f"Tipo não suportado: {conn.tipo}")
+            result = connection.execute(text(q))
+            tabelas = [row[0] for row in result]
+        engine.dispose()
+        return {"ok": True, "tabelas": tabelas}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Erro ao conectar: {str(e)}")
+
+
 @app.post("/testar-db")
 async def testar_db(conn: ConexaoDB):
     """Testa conexão, executa query limitada e retorna colunas + preview + mapeamento sugerido."""
@@ -818,6 +858,71 @@ async def receber_feedback(
         print(f"[Bandit] Erro ao atualizar com feedback: {_be}")
 
     return {"ok": True, "feedback_id": feedback_id, "predicao_id": predicao_id}
+
+
+@app.post("/webhook/pagamento")
+async def webhook_pagamento(body: WebhookPagamentoIn, request: Request):
+    """
+    Webhook para receber pagamentos em tempo real do sistema do cliente.
+    Autenticação: header X-API-Key com a api_key cadastrada no Mizan.
+    Exemplo: POST /webhook/pagamento com header X-API-Key: mizan_test_xxx
+    """
+    api_key = request.headers.get("X-API-Key", "")
+    if not api_key:
+        raise HTTPException(status_code=401, detail="Header X-API-Key obrigatório.")
+
+    db = get_db()
+    key_res = db.table("api_keys").select("*").eq("api_key", api_key).eq("ativa", True).execute()
+    if not key_res.data:
+        raise HTTPException(status_code=401, detail="API key inválida ou inativa.")
+
+    empresa = body.empresa or key_res.data[0].get("empresa_nome", "webhook")
+
+    pred_res = (
+        db.table("predicoes").select("id, score_recuperabilidade, valor_divida")
+        .eq("cpf", body.cpf).order("created_at", desc=True).limit(1).execute()
+    )
+    predicao_id = pred_res.data[0]["id"] if pred_res.data else None
+
+    fb_row = {
+        "cpf": body.cpf,
+        "pagou": body.pagou,
+        "valor_recuperado": body.valor_recuperado or 0,
+        "empresa": empresa,
+    }
+    if body.data_pagamento:
+        fb_row["data_pagamento"] = body.data_pagamento
+    if predicao_id:
+        fb_row["predicao_id"] = predicao_id
+
+    res = db.table("feedbacks").insert(fb_row).execute()
+    feedback_id = res.data[0]["id"]
+
+    # Atualiza o bandit
+    try:
+        rec_res = (
+            db.table("recomendacoes").select("acao_id, contexto")
+            .eq("cpf", body.cpf).order("created_at", desc=True).limit(1).execute()
+        )
+        if rec_res.data and pred_res.data:
+            valor_divida = float(pred_res.data[0].get("valor_divida") or 0)
+            if body.pagou and valor_divida > 0:
+                recompensa = min(1.0, float(body.valor_recuperado or valor_divida) / valor_divida)
+            elif body.pagou:
+                recompensa = 0.5
+            else:
+                recompensa = 0.0
+            from model.bandit import registrar_resultado
+            registrar_resultado(
+                acao_id=rec_res.data[0]["acao_id"],
+                contexto=rec_res.data[0]["contexto"],
+                recompensa=recompensa,
+            )
+    except Exception as e:
+        print(f"[Webhook] Erro ao atualizar bandit: {e}")
+
+    print(f"[Webhook] Pagamento recebido — CPF: {body.cpf}, pagou: {body.pagou}, empresa: {empresa}")
+    return {"ok": True, "feedback_id": feedback_id}
 
 
 @app.post("/feedback/lote")

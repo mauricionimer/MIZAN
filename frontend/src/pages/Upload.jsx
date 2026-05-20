@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { UploadCloud, FileText, AlertCircle, Loader2, History, FolderOpen, Database, RefreshCw, CheckCircle2, XCircle, ChevronRight, Plug } from 'lucide-react'
 import { useAnalysis } from '../context/AnalysisContext'
-import { analisarCarteira, analisarDB, testarDB, listarCarteiras, carregarCarteira, getDBSyncConfig, saveDBSyncConfig, executarDBSync } from '../api'
+import { analisarCarteira, analisarDB, testarDB, listarTabelas, listarCarteiras, carregarCarteira, getDBSyncConfig, saveDBSyncConfig, executarDBSync } from '../api'
 
 const API_TOKEN = import.meta.env.VITE_API_TOKEN ?? ''
 
@@ -224,8 +224,10 @@ function FormDB({ onResult }) {
     tipo: 'postgres', host: '', porta: '', banco: '',
     usuario: '', senha: '', query: 'SELECT * FROM devedores', nome_fonte: '',
   })
-  const [teste, setTeste]       = useState(null)        // resultado de /testar-db
-  const [mapa, setMapa]         = useState({})          // {campo_mizan: coluna_banco}
+  const [teste, setTeste]       = useState(null)
+  const [mapa, setMapa]         = useState({})
+  const [tabelas, setTabelas]   = useState([])
+  const [loadingConexao, setLoadingConexao] = useState(false)
   const [loadingTeste, setLoadingTeste] = useState(false)
   const [loadingAnalise, setLoadingAnalise] = useState(false)
   const [erro, setErro]         = useState(null)
@@ -262,6 +264,46 @@ function FormDB({ onResult }) {
       query:         form.query,
       nome_fonte:    form.nome_fonte || `db_${form.tipo}`,
     }
+  }
+
+  async function conectar() {
+    setLoadingConexao(true); setErro(null)
+    if (isSheets) {
+      if (!form.sheets_id) { setErro('Informe o ID da planilha.'); setLoadingConexao(false); return }
+      // Sheets: vai direto para testar (não tem tabelas)
+      try {
+        const res = await testarDB(paramsConexao())
+        setTeste(res); setMapa(res.mapeamento_sugerido); setEtapa('mapeamento')
+      } catch (e) { setErro(e.message) }
+      finally { setLoadingConexao(false) }
+      return
+    }
+    try {
+      const res = await listarTabelas({
+        tipo: form.tipo, host: form.host || null,
+        porta: form.porta ? Number(form.porta) : null,
+        banco: form.banco || null,
+        usuario: form.usuario || null,
+        senha: form.senha || null,
+        instance_name: isSQLServer ? (form.instance_name || null) : null,
+        service_name: isOracle ? (form.service_name || null) : null,
+        query: 'SELECT 1',
+      })
+      setTabelas(res.tabelas)
+      setEtapa('tabelas')
+    } catch (e) { setErro(e.message) }
+    finally { setLoadingConexao(false) }
+  }
+
+  async function selecionarTabela(tabela) {
+    const query = `SELECT * FROM ${tabela}`
+    setForm(f => ({ ...f, query }))
+    setLoadingTeste(true); setErro(null)
+    try {
+      const res = await testarDB({ ...paramsConexao(), query })
+      setTeste(res); setMapa(res.mapeamento_sugerido); setEtapa('mapeamento')
+    } catch (e) { setErro(e.message); setEtapa('tabelas') }
+    finally { setLoadingTeste(false) }
   }
 
   async function testar() {
@@ -399,14 +441,55 @@ function FormDB({ onResult }) {
         </div>
       )}
 
-      <button onClick={testar} disabled={loadingTeste}
+      <button onClick={conectar} disabled={loadingConexao}
         className={`w-full py-3 rounded-xl font-semibold text-sm text-white flex items-center justify-center gap-2 transition-all
-          ${loadingTeste ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-sm active:scale-[0.98]'}`}
+          ${loadingConexao ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-sm active:scale-[0.98]'}`}
       >
-        {loadingTeste
-          ? <><Loader2 className="h-4 w-4 animate-spin" /> Testando conexão...</>
-          : <><Plug className="h-4 w-4" /> Testar conexão e detectar colunas</>}
+        {loadingConexao
+          ? <><Loader2 className="h-4 w-4 animate-spin" /> Conectando...</>
+          : <><Plug className="h-4 w-4" /> Conectar</>}
       </button>
+    </div>
+  )
+
+  // ── Etapa 1.5: seleção de tabela ─────────────────────────
+  if (etapa === 'tabelas') return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+        <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+        <span className="text-sm font-medium text-emerald-800">
+          Conectado! {tabelas.length} tabelas encontradas.
+        </span>
+        <button onClick={() => setEtapa('conexao')} className="ml-auto text-xs text-slate-400 hover:text-slate-600 underline">
+          Voltar
+        </button>
+      </div>
+
+      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+        Selecione a tabela com os devedores
+      </p>
+
+      {loadingTeste && (
+        <div className="flex items-center gap-2 text-sm text-slate-500 py-2">
+          <Loader2 className="h-4 w-4 animate-spin" /> Carregando colunas...
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
+        {tabelas.map(t => (
+          <button key={t} onClick={() => selecionarTabela(t)} disabled={loadingTeste}
+            className="text-left px-3 py-2.5 rounded-lg border border-slate-200 hover:border-blue-400 hover:bg-blue-50 text-sm text-slate-700 transition-colors disabled:opacity-50 font-mono truncate"
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {erro && (
+        <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+          <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" /><span>{erro}</span>
+        </div>
+      )}
     </div>
   )
 

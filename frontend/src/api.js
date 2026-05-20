@@ -71,6 +71,19 @@ export async function analisarDB(params) {
   return res.json()
 }
 
+export async function listarTabelas(params) {
+  const token = _getToken()
+  const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+  const res = await fetch(`${BASE}/listar-tabelas`, {
+    method: 'POST', headers, body: JSON.stringify(params),
+  })
+  if (!res.ok) {
+    const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
+    throw new Error(detail)
+  }
+  return res.json()
+}
+
 export async function feedbackLote(file, token) {
   const fd = new FormData()
   fd.append('file', file)
