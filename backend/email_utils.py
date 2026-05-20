@@ -1,33 +1,38 @@
 """
-Envio de e-mail via Gmail SMTP usando smtplib (built-in Python).
-Configurar no Render: GMAIL_USER e GMAIL_APP_PASSWORD.
+Envio de e-mail via Resend HTTP API (gratuito, funciona no Render free tier).
+SMTP do Gmail é bloqueado pelo Render — usar Resend em vez disso.
+Configurar no Render: RESEND_API_KEY e RESEND_FROM.
 """
 import os
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+import json
+import urllib.request
 
-GMAIL_USER         = os.getenv("GMAIL_USER", "")
-GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "")
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+RESEND_FROM    = os.getenv("RESEND_FROM", "Mizan <onboarding@resend.dev>")
 
 
 def enviar_email(destinatario: str, assunto: str, corpo_html: str) -> bool:
-    if not GMAIL_USER or not GMAIL_APP_PASSWORD:
-        print("[Email] GMAIL_USER ou GMAIL_APP_PASSWORD não configurados.")
+    if not RESEND_API_KEY:
+        print("[Email] RESEND_API_KEY não configurado.")
         return False
     try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = assunto
-        msg["From"]    = f"Mizan <{GMAIL_USER}>"
-        msg["To"]      = destinatario
-        msg.attach(MIMEText(corpo_html, "html"))
-
-        with smtplib.SMTP("smtp.gmail.com", 587) as s:
-            s.ehlo()
-            s.starttls()
-            s.login(GMAIL_USER, GMAIL_APP_PASSWORD)
-            s.sendmail(GMAIL_USER, destinatario, msg.as_string())
-        print(f"[Email] Enviado para {destinatario}")
+        payload = json.dumps({
+            "from":    RESEND_FROM,
+            "to":      [destinatario],
+            "subject": assunto,
+            "html":    corpo_html,
+        }).encode()
+        req = urllib.request.Request(
+            "https://api.resend.com/emails",
+            data=payload,
+            headers={
+                "Authorization": f"Bearer {RESEND_API_KEY}",
+                "Content-Type":  "application/json",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            print(f"[Email] Enviado para {destinatario} (status {resp.status})")
         return True
     except Exception as e:
         print(f"[Email] Erro: {e}")
