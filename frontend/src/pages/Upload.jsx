@@ -100,7 +100,7 @@ function PainelSyncAuto() {
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1">Tipo de banco</label>
             <select value={cfg.tipo} onChange={e => set('tipo', e.target.value)}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300">
+              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400 transition-all bg-white text-slate-800">
               {SYNC_TIPOS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
           </div>
@@ -110,13 +110,13 @@ function PainelSyncAuto() {
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-slate-500 mb-1">Host</label>
                 <input value={cfg.host ?? ''} onChange={e => set('host', e.target.value)} placeholder="localhost"
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400 transition-all bg-white text-slate-800" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">Porta</label>
                 <input value={cfg.porta ?? ''} onChange={e => set('porta', e.target.value ? Number(e.target.value) : null)} type="number"
                   placeholder={String(SYNC_TIPOS.find(t => t.value === cfg.tipo)?.portaPadrao ?? '')}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400 transition-all bg-white text-slate-800" />
               </div>
             </div>
           )}
@@ -127,7 +127,7 @@ function PainelSyncAuto() {
             </label>
             <input value={cfg.banco ?? ''} onChange={e => set('banco', e.target.value)}
               placeholder={isSQLite ? '/caminho/banco.db' : 'nome_do_banco'}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400 transition-all bg-white text-slate-800" />
           </div>
 
           {!isSQLite && (
@@ -135,12 +135,12 @@ function PainelSyncAuto() {
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">Usuário</label>
                 <input value={cfg.usuario ?? ''} onChange={e => set('usuario', e.target.value)}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400 transition-all bg-white text-slate-800" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">Senha</label>
                 <input type="password" value={cfg.senha === '***' ? '' : (cfg.senha ?? '')} onChange={e => set('senha', e.target.value)}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400 transition-all bg-white text-slate-800" />
               </div>
             </div>
           )}
@@ -148,7 +148,7 @@ function PainelSyncAuto() {
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1">Query SQL</label>
             <textarea value={cfg.query ?? ''} onChange={e => set('query', e.target.value)} rows={3}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none" />
+              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-mono focus:outline-none focus:border-blue-400 transition-all bg-white text-slate-800 resize-none" />
             <p className="text-xs text-slate-400 mt-1">Use <code className="bg-slate-100 px-1 rounded">:ultimo_sync</code> para filtrar apenas registros novos.</p>
           </div>
 
@@ -157,13 +157,13 @@ function PainelSyncAuto() {
               <div key={k}>
                 <label className="block text-xs font-medium text-slate-500 mb-1">{l}</label>
                 <input value={cfg[k] ?? ''} onChange={e => set(k, e.target.value)}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400 transition-all bg-white text-slate-800" />
               </div>
             ))}
           </div>
 
           {msg && (
-            <div className={`flex items-center gap-2 p-3 rounded-lg text-sm ${msg.tipo === 'ok' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+            <div className={`flex items-center gap-2 p-3 rounded-xl text-sm ${msg.tipo === 'ok' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-red-50 text-red-600 border border-red-100'}`}>
               {msg.tipo === 'ok' ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <XCircle className="h-4 w-4 shrink-0" />}
               {msg.texto}
             </div>
@@ -178,11 +178,11 @@ function PainelSyncAuto() {
 
           <div className="flex gap-3">
             <button onClick={salvar} disabled={salvando}
-              className="flex-1 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors">
+              className="btn-primary flex-1 py-2 text-sm disabled:opacity-50">
               {salvando ? 'Salvando...' : 'Salvar configuração'}
             </button>
             <button onClick={sincronizar} disabled={sincronizando}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">
               <RefreshCw className={`h-3.5 w-3.5 ${sincronizando ? 'animate-spin' : ''}`} />
               {sincronizando ? 'Sincronizando...' : 'Testar agora'}
             </button>
@@ -680,14 +680,15 @@ function FormDB({ onResult }) {
       )}
 
       {erro && (
-        <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+        <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm">
           <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" /><span>{erro}</span>
         </div>
       )}
 
       <button onClick={conectar} disabled={loadingConexao}
-        className={`w-full py-3 rounded-xl font-semibold text-sm text-white flex items-center justify-center gap-2 transition-all
-          ${loadingConexao ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-sm active:scale-[0.98]'}`}
+        className={`w-full py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.97]
+          ${loadingConexao ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'text-white active:scale-[0.97]'}`}
+        style={loadingConexao ? {} : { background: 'linear-gradient(135deg,#1d4ed8,#2563eb)', boxShadow: '0 1px 2px rgba(29,78,216,0.2),0 4px 12px rgba(29,78,216,0.15)' }}
       >
         {loadingConexao
           ? <><Loader2 className="h-4 w-4 animate-spin" /> Conectando...</>
@@ -699,7 +700,7 @@ function FormDB({ onResult }) {
   // ── Etapa 1.5: seleção de tabela ─────────────────────────
   if (etapa === 'tabelas') return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+      <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-100 rounded-xl">
         <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
         <span className="text-sm font-medium text-emerald-800">
           Conectado! {tabelas.length} tabelas encontradas.
@@ -733,7 +734,7 @@ function FormDB({ onResult }) {
       <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
         {tabelas.map(t => (
           <button key={t} onClick={() => selecionarTabela(t)} disabled={loadingTeste}
-            className="text-left px-3 py-2.5 rounded-lg border border-slate-200 hover:border-blue-400 hover:bg-blue-50 text-sm text-slate-700 transition-colors disabled:opacity-50 font-mono truncate"
+            className="text-left px-3 py-2.5 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50 text-sm text-slate-700 transition-colors disabled:opacity-50 font-mono truncate"
           >
             {t}
           </button>
@@ -741,7 +742,7 @@ function FormDB({ onResult }) {
       </div>
 
       {erro && (
-        <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+        <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm">
           <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" /><span>{erro}</span>
         </div>
       )}
@@ -752,7 +753,7 @@ function FormDB({ onResult }) {
   if (etapa === 'mapeamento') return (
     <div className="space-y-4">
       {/* Status da conexão */}
-      <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+      <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-100 rounded-xl">
         <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
         <div className="text-sm">
           <span className="font-medium text-emerald-800">Conectado com sucesso.</span>
@@ -860,13 +861,13 @@ function FormDB({ onResult }) {
       )}
 
       {erro && (
-        <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+        <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm">
           <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" /><span>{erro}</span>
         </div>
       )}
 
       <button onClick={analisar} disabled={loadingAnalise}
-        className="w-full py-3 rounded-xl font-semibold text-sm text-white bg-blue-600 hover:bg-blue-700 flex items-center justify-center gap-2 transition-all shadow-sm active:scale-[0.98]"
+        className="btn-primary w-full py-3 disabled:opacity-50"
       >
         <ChevronRight className="h-4 w-4" /> Analisar carteira
       </button>
@@ -988,13 +989,13 @@ export default function Upload() {
         <div className="flex gap-1 p-1 bg-slate-100 rounded-xl mb-6">
           <button
             onClick={() => { setAba('arquivo'); setError(null) }}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${aba === 'arquivo' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${aba === 'arquivo' ? 'bg-white text-slate-800 shadow-[0_1px_3px_rgba(15,23,42,0.08)]' : 'text-slate-500 hover:text-slate-700'}`}
           >
             <UploadCloud className="h-4 w-4" /> Arquivo
           </button>
           <button
             onClick={() => { setAba('db'); setError(null) }}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${aba === 'db' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${aba === 'db' ? 'bg-white text-slate-800 shadow-[0_1px_3px_rgba(15,23,42,0.08)]' : 'text-slate-500 hover:text-slate-700'}`}
           >
             <Database className="h-4 w-4" /> Banco de Dados
           </button>

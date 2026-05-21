@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;0,14..32,900&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -7,13 +7,15 @@
 @layer base {
   * { box-sizing: border-box; }
 
+  html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+
   body {
-    @apply bg-slate-50 text-slate-900 antialiased;
+    @apply bg-slate-50 text-slate-900;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   }
 
-  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { @apply bg-slate-200 rounded-full; }
   ::-webkit-scrollbar-thumb:hover { @apply bg-slate-300; }
@@ -21,40 +23,69 @@
   ::selection { @apply bg-blue-100 text-blue-900; }
 
   input[type='range']::-webkit-slider-thumb {
-    @apply appearance-none w-3.5 h-3.5 rounded-full bg-white border-2 border-blue-500 shadow-sm cursor-pointer;
+    @apply appearance-none w-4 h-4 rounded-full bg-white border-2 border-blue-500 cursor-pointer;
+    box-shadow: 0 1px 4px rgba(37,99,235,0.3);
   }
   input[type='range']::-moz-range-thumb {
-    @apply w-3.5 h-3.5 rounded-full bg-white border-2 border-blue-500 shadow-sm cursor-pointer;
+    @apply w-4 h-4 rounded-full bg-white cursor-pointer;
     border: 2px solid #3b82f6;
+    box-shadow: 0 1px 4px rgba(37,99,235,0.3);
   }
 }
 
 @layer components {
+  /* ── Cards ── */
   .card {
-    @apply bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)];
+    @apply bg-white rounded-2xl border border-slate-100;
+    box-shadow: 0 1px 3px rgba(15,23,42,0.04), 0 4px 16px rgba(15,23,42,0.04);
   }
+  .card-hover {
+    @apply card transition-shadow duration-200;
+  }
+  .card-hover:hover {
+    box-shadow: 0 2px 8px rgba(15,23,42,0.06), 0 8px 24px rgba(15,23,42,0.06);
+  }
+
+  /* ── Section label ── */
   .section-label {
     @apply text-[11px] font-semibold text-slate-400 uppercase tracking-widest;
   }
+
+  /* ── Inputs ── */
   .input-base {
     @apply w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800
-           placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20
-           focus:border-blue-400 transition bg-white;
+           placeholder-slate-400 focus:outline-none focus:border-blue-400 transition-all bg-white;
+    box-shadow: 0 1px 2px rgba(15,23,42,0.04);
   }
+  .input-base:focus {
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.12), 0 1px 2px rgba(15,23,42,0.04);
+  }
+
+  /* ── Primary button ── */
   .btn-primary {
     @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl
-           font-semibold text-sm text-white transition-all active:scale-[0.98];
-    background: linear-gradient(135deg, #1d4ed8, #2563eb);
+           font-semibold text-sm text-white transition-all duration-150
+           active:scale-[0.97] focus:outline-none;
+    background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%);
+    box-shadow: 0 1px 2px rgba(29,78,216,0.2), 0 4px 12px rgba(29,78,216,0.15);
   }
-  .btn-primary:hover { background: linear-gradient(135deg, #1e40af, #1d4ed8); }
-  .btn-primary:disabled { @apply bg-slate-200 text-slate-400 cursor-not-allowed; background: none; }
+  .btn-primary:hover:not(:disabled) {
+    background: linear-gradient(135deg, #1e40af 0%, #1d4ed8 100%);
+    box-shadow: 0 1px 4px rgba(29,78,216,0.25), 0 6px 16px rgba(29,78,216,0.2);
+    transform: translateY(-0.5px);
+  }
+  .btn-primary:disabled {
+    @apply cursor-not-allowed opacity-50;
+    box-shadow: none;
+  }
 
+  /* ── Nav links ── */
   .nav-link {
-    @apply flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800
+    @apply flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-800
            transition-colors px-3 py-1.5 rounded-xl hover:bg-slate-100;
   }
   .nav-link-danger {
-    @apply flex items-center gap-1.5 text-sm text-slate-500 hover:text-red-600
+    @apply flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-red-600
            transition-colors px-3 py-1.5 rounded-xl hover:bg-red-50;
   }
 }

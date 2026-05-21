@@ -114,7 +114,7 @@ function exportExcel(ranking, resumo) {
 const CustomBarTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
   return (
-    <div className="bg-white border border-slate-200 rounded-lg shadow-lg p-3 text-xs">
+    <div className="bg-white border border-slate-100 rounded-xl shadow-[0_4px_16px_rgba(15,23,42,0.10)] p-3 text-xs">
       <p className="font-semibold text-slate-700 mb-1">{label}</p>
       <p className="text-slate-600">Devedores: <span className="font-bold">{fmtNum(payload[0].value)}</span></p>
     </div>
@@ -147,8 +147,8 @@ function PricingCard({ label, value, sub, highlight = false, icon: Icon }) {
   return (
     <div className={`rounded-2xl border p-4 flex flex-col gap-1 ${
       highlight
-        ? 'bg-blue-600 border-blue-500 text-white'
-        : 'bg-white border-slate-100 shadow-sm'
+        ? 'bg-blue-600 border-blue-500 text-white shadow-[0_4px_16px_rgba(29,78,216,0.25)]'
+        : 'bg-white border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)]'
     }`}>
       <div className="flex items-center justify-between">
         <p className={`text-xs font-semibold uppercase tracking-wide ${highlight ? 'text-blue-200' : 'text-slate-500'}`}>
@@ -465,7 +465,7 @@ export default function Dashboard() {
                   ))}
                 </Pie>
                 <Tooltip
-                  contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: 11 }}
+                  contentStyle={{ borderRadius: '12px', border: '1px solid #f1f5f9', fontSize: 11, boxShadow: '0 4px 16px rgba(15,23,42,0.10)' }}
                   formatter={(v, _, { payload }) => [fmtNum(v), payload.perfil_cluster]}
                 />
               </PieChart>
@@ -562,7 +562,7 @@ export default function Dashboard() {
                 value={searchPag}
                 onChange={e => setSearchPag(e.target.value)}
                 placeholder="Buscar por nome ou CPF..."
-                className="border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-300 w-48"
+                className="border border-slate-200 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:border-blue-400 transition-all w-48 bg-white"
               />
             </div>
             <div className="overflow-x-auto">
@@ -640,7 +640,7 @@ export default function Dashboard() {
                   placeholder="Buscar por nome ou CPF..."
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  className="text-sm border border-slate-200 rounded-lg pl-9 pr-3 py-2 w-56 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="text-sm border border-slate-200 rounded-xl pl-9 pr-3 py-2 w-56 focus:outline-none focus:border-blue-400 transition-all bg-white"
                 />
               </div>
             </div>
@@ -662,14 +662,14 @@ export default function Dashboard() {
               </div>
               {produtos.length > 1 && (
                 <select value={filtroProduto} onChange={e => setFiltroProduto(e.target.value)}
-                  className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-300 text-slate-600">
+                  className="text-xs border border-slate-200 rounded-xl px-2 py-1.5 focus:outline-none focus:border-blue-400 transition-all text-slate-600 bg-white">
                   <option value="todos">Todos produtos</option>
                   {produtos.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
               )}
               {ufs.length > 1 && (
                 <select value={filtroUF} onChange={e => setFiltroUF(e.target.value)}
-                  className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-300 text-slate-600">
+                  className="text-xs border border-slate-200 rounded-xl px-2 py-1.5 focus:outline-none focus:border-blue-400 transition-all text-slate-600 bg-white">
                   <option value="todas">Todos estados</option>
                   {ufs.map(u => <option key={u} value={u}>{u}</option>)}
                 </select>
