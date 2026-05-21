@@ -31,6 +31,12 @@ load_dotenv()
 
 _scheduler: BackgroundScheduler | None = None
 
+_auto_sync_estado: dict = {
+    "ultima_execucao":  None,
+    "ultimo_resultado": None,
+    "n_execucoes":      0,
+}
+
 # ---------------------------------------------------------------------------
 # Rate limiting de login (in-memory, 5 tentativas / 15 min por IP+email)
 # ---------------------------------------------------------------------------
@@ -115,6 +121,12 @@ async def lifespan(app: FastAPI):
         db_sync_sincronizar,
         IntervalTrigger(hours=intervalo),
         id="db_sync",
+        replace_existing=True,
+    )
+    _scheduler.add_job(
+        _auto_sync_todas_conexoes,
+        IntervalTrigger(hours=intervalo),
+        id="auto_sync_conexoes",
         replace_existing=True,
     )
     _scheduler.start()
@@ -851,25 +863,9 @@ def deletar_conexao(conexao_id: str, credentials: HTTPAuthorizationCredentials =
     return {"ok": True}
 
 
-@app.post("/conexoes/{conexao_id}/sincronizar")
-async def sincronizar_conexao(conexao_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
-    """Re-lê o banco externo salvo e cria uma nova carteira com todos os devedores atuais."""
-    try:
-        payload = validar_token(credentials.credentials)
-    except ValueError as e:
-        raise HTTPException(status_code=401, detail=str(e))
-
-    db = get_db()
-    eid = payload.get("empresa_id", "")
-    uid = payload["sub"]
-    res = db.table("conexoes_db").select("*").eq("id", conexao_id).execute()
-    if not res.data:
-        raise HTTPException(status_code=404, detail="Conexão não encontrada.")
-    r = res.data[0]
-    if not ((eid and r.get("empresa_id") == eid) or r.get("usuario_id") == uid):
-        raise HTTPException(status_code=403, detail="Acesso negado.")
-
-    row = res.data[0]
+def _sincronizar_conexao_row(row: dict, uemail: str, uid: str, eid: str) -> dict:
+    """Core de sync de uma conexão. Levanta ValueError (dados inválidos) ou Exception (falha de conexão)."""
+    conexao_id = row["id"]
     senha_decriptada = _decrypt(row.get("senha"))
 
     conn = ConexaoDB(
@@ -890,47 +886,39 @@ async def sincronizar_conexao(conexao_id: str, credentials: HTTPAuthorizationCre
 
     _bloquear_autoconexao(conn)
 
-    try:
-        if conn.tipo == "sheets":
-            if not conn.sheets_id:
-                raise HTTPException(status_code=400, detail="Conexão do tipo Sheets sem sheets_id.")
-            sheets_creds = row.get("sheets_credenciais")
-            if sheets_creds and isinstance(sheets_creds, str):
-                import json as _json
-                conn.sheets_credenciais = _json.loads(sheets_creds)
-            else:
-                conn.sheets_credenciais = sheets_creds
-            df = _ler_google_sheets(conn)
+    if conn.tipo == "sheets":
+        if not conn.sheets_id:
+            raise ValueError("Conexão do tipo Sheets sem sheets_id.")
+        sheets_creds = row.get("sheets_credenciais")
+        if sheets_creds and isinstance(sheets_creds, str):
+            import json as _json
+            conn.sheets_credenciais = _json.loads(sheets_creds)
         else:
-            q = (conn.query or "").strip()
-            if not q.lower().startswith("select"):
-                raise HTTPException(status_code=400, detail="A query salva não é um SELECT válido.")
-            if conn.tipo == "sqlserver":
-                with _sqlserver_connect(conn) as tds_conn:
-                    df = pd.read_sql(q, tds_conn)
-            else:
-                from sqlalchemy import create_engine, text
-                url = _construir_url_db(conn)
-                timeout_args = {"connect_timeout": 10} if conn.tipo in ("postgres", "postgresql", "mysql", "mariadb") else {}
-                engine = create_engine(url, connect_args=timeout_args)
-                with engine.connect() as connection:
-                    df = pd.read_sql(text(q), connection)
-                engine.dispose()
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=503, detail=f"Erro ao conectar no banco: {e}")
+            conn.sheets_credenciais = sheets_creds
+        df = _ler_google_sheets(conn)
+    else:
+        q = (conn.query or "").strip()
+        if not q.lower().startswith("select"):
+            raise ValueError("A query salva não é um SELECT válido.")
+        if conn.tipo == "sqlserver":
+            with _sqlserver_connect(conn) as tds_conn:
+                df = pd.read_sql(q, tds_conn)
+        else:
+            from sqlalchemy import create_engine, text
+            url = _construir_url_db(conn)
+            timeout_args = {"connect_timeout": 10} if conn.tipo in ("postgres", "postgresql", "mysql", "mariadb") else {}
+            engine = create_engine(url, connect_args=timeout_args)
+            with engine.connect() as connection:
+                df = pd.read_sql(text(q), connection)
+            engine.dispose()
 
     if conn.mapeamento:
         rename = {col_banco: campo for campo, col_banco in conn.mapeamento.items() if col_banco in df.columns}
         df = df.rename(columns=rename)
 
-    uid      = payload["sub"]
-    uemail   = payload.get("email", "")
-    eid      = payload.get("empresa_id", "")
-    nome     = conn.nome_fonte or f"sync_{conexao_id[:8]}"
+    nome = conn.nome_fonte or f"sync_{conexao_id[:8]}"
 
-    # Busca estado anterior da carteira ANTES de sobrescrever
+    db = get_db()
     carteira_id_existente = row.get("carteira_id")
     dados_anteriores = None
     if carteira_id_existente:
@@ -942,11 +930,9 @@ async def sincronizar_conexao(conexao_id: str, credentials: HTTPAuthorizationCre
         except Exception:
             pass
 
-    # Usa a carteira existente (atualiza no lugar) ou cria uma nova na primeira vez
     resultado = _analisar_df(df, nome, _usuario_id=uid, _usuario_email=uemail, _empresa_id=eid,
                              _carteira_id_existente=carteira_id_existente)
 
-    # Atualiza conexão com timestamp e garante vínculo com a carteira
     nova_carteira_id = resultado.get("resumo", {}).get("carteira_id")
     try:
         updates = {"ultimo_sync": datetime.utcnow().isoformat()}
@@ -956,7 +942,6 @@ async def sincronizar_conexao(conexao_id: str, credentials: HTTPAuthorizationCre
     except Exception:
         pass
 
-    # Envia email de notificação se houve mudanças relevantes
     if uemail:
         try:
             from email_utils import email_sync_mudancas
@@ -970,7 +955,85 @@ async def sincronizar_conexao(conexao_id: str, credentials: HTTPAuthorizationCre
         except Exception as e:
             print(f"[Sync] Aviso: falha ao enviar email: {e}")
 
-    n_dev = resultado.get("resumo", {}).get("total_devedores", len(df))
+    return resultado
+
+
+def _auto_sync_todas_conexoes() -> None:
+    """Job do scheduler: sincroniza todas as conexões com mapeamento configurado e envia email se mudou."""
+    from datetime import timezone
+    agora = datetime.now(timezone.utc).isoformat()
+    _auto_sync_estado["ultima_execucao"] = agora
+    _auto_sync_estado["n_execucoes"] = _auto_sync_estado.get("n_execucoes", 0) + 1
+
+    db = get_db()
+    try:
+        rows = db.table("conexoes_db").select("*").execute().data
+    except Exception as e:
+        print(f"[AutoSync] Erro ao listar conexões: {e}")
+        _auto_sync_estado["ultimo_resultado"] = {"erro": str(e), "executado_em": agora}
+        return
+
+    ativas = [r for r in rows if r.get("mapeamento") and (r.get("query") or r.get("tipo") == "sheets")]
+    print(f"[AutoSync] {len(ativas)} conexões para sincronizar automaticamente")
+
+    resultados = []
+    for row in ativas:
+        cid = row.get("id", "?")
+        try:
+            uid   = row.get("usuario_id", "")
+            eid   = row.get("empresa_id", "") or ""
+            uemail = ""
+            try:
+                u = db.table("usuarios").select("email").eq("id", uid).limit(1).execute()
+                if u.data:
+                    uemail = u.data[0].get("email", "")
+            except Exception:
+                pass
+
+            res = _sincronizar_conexao_row(row, uemail, uid, eid)
+            n = res.get("resumo", {}).get("total_devedores", 0)
+            resultados.append({"conexao_id": cid, "ok": True, "n_devedores": n})
+            print(f"[AutoSync] Conexão {cid} ok ({n} devedores)")
+        except Exception as e:
+            print(f"[AutoSync] Erro na conexão {cid}: {e}")
+            resultados.append({"conexao_id": cid, "ok": False, "erro": str(e)})
+
+    _auto_sync_estado["ultimo_resultado"] = {
+        "executado_em": agora,
+        "n_conexoes": len(ativas),
+        "resultados": resultados,
+    }
+    print(f"[AutoSync] Concluído: {len(resultados)} conexões processadas")
+
+
+@app.post("/conexoes/{conexao_id}/sincronizar")
+async def sincronizar_conexao(conexao_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Re-lê o banco externo salvo e cria uma nova carteira com todos os devedores atuais."""
+    try:
+        payload = validar_token(credentials.credentials)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+
+    db = get_db()
+    eid = payload.get("empresa_id", "")
+    uid = payload["sub"]
+    res = db.table("conexoes_db").select("*").eq("id", conexao_id).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Conexão não encontrada.")
+    r = res.data[0]
+    if not ((eid and r.get("empresa_id") == eid) or r.get("usuario_id") == uid):
+        raise HTTPException(status_code=403, detail="Acesso negado.")
+
+    uemail = payload.get("email", "")
+
+    try:
+        resultado = await asyncio.to_thread(_sincronizar_conexao_row, r, uemail, uid, eid)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Erro ao conectar no banco: {e}")
+
+    n_dev = resultado.get("resumo", {}).get("total_devedores", 0)
     return {"ok": True, "n_devedores": n_dev, "carteira": resultado}
 
 @app.post("/auth/redefinir-senha")
@@ -2322,6 +2385,29 @@ async def scheduler_verificar_agora(
     from scheduler import verificar_e_retreinar
     resultado = await asyncio.to_thread(verificar_e_retreinar, min_fb)
     return resultado
+
+
+@app.get("/admin/auto-sync/status")
+async def auto_sync_status(
+    credentials: HTTPAuthorizationCredentials = Security(bearer),
+):
+    """Estado do auto-sync de conexões: última execução, conexões sincronizadas, erros."""
+    _validar_api_key(credentials)
+    resultado = dict(_auto_sync_estado)
+    job = _scheduler.get_job("auto_sync_conexoes") if _scheduler else None
+    if job and getattr(job, "next_run_time", None):
+        resultado["proxima_execucao"] = job.next_run_time.isoformat()
+    return resultado
+
+
+@app.post("/admin/auto-sync/executar")
+async def auto_sync_executar(
+    credentials: HTTPAuthorizationCredentials = Security(bearer),
+):
+    """Dispara sync imediato de todas as conexões sem aguardar o próximo intervalo."""
+    _validar_api_key(credentials)
+    await asyncio.to_thread(_auto_sync_todas_conexoes)
+    return _auto_sync_estado
 
 
 class DBSyncConfigIn(BaseModel):
