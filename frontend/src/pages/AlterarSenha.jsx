@@ -80,7 +80,7 @@ export default function AlterarSenha() {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: 'linear-gradient(180deg, rgba(239,246,255,0.5) 0%, #f8fafc 150px), #f8fafc' }}>
+    <div className="min-h-screen">
       <header className="navbar-glass px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button onClick={() => navigate(-1)} className="text-slate-400 hover:text-slate-700 transition-colors p-1 rounded-lg hover:bg-slate-100">
@@ -100,7 +100,7 @@ export default function AlterarSenha() {
       </header>
 
       <div className="max-w-md mx-auto px-6 py-12">
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.06)] p-8">
+        <div className="bg-white rounded-2xl border border-white/10 shadow-[0_16px_48px_rgba(2,11,31,0.40),0_4px_12px_rgba(2,11,31,0.25)] p-8">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center">
               <KeyRound className="w-5 h-5 text-blue-600" />

@@ -69,7 +69,7 @@ function PainelSyncAuto() {
     <div className="w-full max-w-lg mt-4">
       <button
         onClick={() => setAberto(o => !o)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] hover:bg-slate-50 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3 bg-white rounded-2xl border border-slate-100 shadow-[0_8px_32px_rgba(2,11,31,0.30),0_2px_6px_rgba(2,11,31,0.15)] hover:bg-slate-50 transition-colors"
       >
         <div className="flex items-center gap-2">
           <RefreshCw className="h-4 w-4 text-slate-400" />
@@ -487,7 +487,7 @@ function FormDB({ onResult }) {
       )}
 
       {conexoes.map(c => (
-        <div key={c.id} className="rounded-2xl border border-slate-100 bg-white overflow-hidden shadow-[0_1px_4px_rgba(15,23,42,0.06)]">
+        <div key={c.id} className="rounded-2xl border border-slate-100 bg-white overflow-hidden shadow-[0_8px_32px_rgba(2,11,31,0.30),0_2px_6px_rgba(2,11,31,0.15)]">
           <div className="flex items-start gap-3 px-4 pt-4 pb-3">
             <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
               <Database className="h-4 w-4 text-blue-500" />
@@ -965,10 +965,7 @@ export default function Upload() {
     : `${(bytes / 1024 / 1024).toFixed(1)} MB`
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden"
-      style={{ background: 'linear-gradient(180deg, rgba(239,246,255,0.9) 0%, #f8fafc 250px), #f8fafc' }}>
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full opacity-[0.08] -translate-y-1/2 blur-3xl pointer-events-none"
-        style={{ background: 'radial-gradient(circle, #3b82f6, #1d4ed8)' }} />
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden">
       {/* Hero */}
       <div className="mb-12 text-center relative z-10">
         <div className="relative inline-block mb-5">
@@ -979,15 +976,15 @@ export default function Upload() {
             <span className="text-white text-2xl font-bold">⚖</span>
           </div>
         </div>
-        <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight mb-2">Mizan</h1>
-        <p className="text-slate-500 text-base max-w-xs mx-auto leading-relaxed">
+        <h1 className="text-4xl font-extrabold text-white tracking-tight mb-2">Mizan</h1>
+        <p className="text-blue-200 text-base max-w-xs mx-auto leading-relaxed">
           Análise de carteira de crédito com inteligência artificial
         </p>
       </div>
 
       {/* Card */}
-      <div className="w-full max-w-lg bg-white rounded-2xl border border-slate-100 p-8 relative z-10"
-        style={{ boxShadow: '0 4px 24px rgba(15,23,42,0.10), 0 1px 4px rgba(15,23,42,0.06)' }}>
+      <div className="w-full max-w-lg bg-white rounded-2xl border border-white/10 p-8 relative z-10"
+        style={{ boxShadow: '0 16px 48px rgba(2,11,31,0.50), 0 4px 12px rgba(2,11,31,0.30)' }}>
         <h2 className="text-base font-semibold text-slate-800 mb-1">Carregar carteira</h2>
         <p className="text-sm text-slate-500 mb-5">
           Importe os dados dos devedores via arquivo ou conexão direta com banco de dados.
@@ -1096,8 +1093,8 @@ export default function Upload() {
       {/* Histórico de análises */}
       <div className="w-full max-w-lg mt-6">
         <div className="flex items-center gap-2 mb-3">
-          <History className="h-4 w-4 text-slate-400" />
-          <h3 className="text-sm font-semibold text-slate-600">Análises anteriores</h3>
+          <History className="h-4 w-4 text-blue-300" />
+          <h3 className="text-sm font-semibold text-white">Análises anteriores</h3>
         </div>
 
         {histLoading && (
@@ -1107,7 +1104,7 @@ export default function Upload() {
         )}
 
         {!histLoading && historico.length === 0 && (
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.06)] p-8">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_8px_32px_rgba(2,11,31,0.35),0_2px_8px_rgba(2,11,31,0.20)] p-8">
             <div className="text-center mb-8">
               <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-4">
                 <span className="text-2xl">⚖</span>
@@ -1159,7 +1156,7 @@ export default function Upload() {
         )}
 
         {!histLoading && historico.length > 0 && (
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] divide-y divide-slate-50 overflow-hidden">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_8px_32px_rgba(2,11,31,0.30),0_2px_6px_rgba(2,11,31,0.15)] divide-y divide-slate-50 overflow-hidden">
             {historico.slice(0, histLimit).map((c) => (
               <div key={c.id} className="flex items-center gap-4 px-4 py-3 hover:bg-slate-50 transition-colors">
                 <FileText className="h-4 w-4 text-slate-300 shrink-0" />

@@ -13,14 +13,14 @@ function Logo() {
 export default function Privacidade() {
   const navigate = useNavigate()
   return (
-    <div className="min-h-screen bg-slate-50 py-12 px-6">
+    <div className="min-h-screen py-12 px-6">
       <div className="max-w-2xl mx-auto">
         <button onClick={() => navigate(-1)}
-          className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-700 mb-8 transition-colors font-medium">
+          className="flex items-center gap-1.5 text-sm text-blue-300 hover:text-white mb-8 transition-colors font-medium">
           <ArrowLeft className="h-4 w-4" /> Voltar
         </button>
 
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.06)] p-8 space-y-6">
+        <div className="bg-white rounded-2xl border border-white/10 shadow-[0_8px_32px_rgba(2,11,31,0.35),0_2px_8px_rgba(2,11,31,0.20)] p-8 space-y-6">
           <div className="flex items-center gap-3 mb-1">
             <Logo />
             <div>

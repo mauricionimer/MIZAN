@@ -31,7 +31,7 @@ function DataRow({ label, value }) {
 
 function Section({ title, children }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] p-5">
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_8px_32px_rgba(2,11,31,0.30),0_2px_6px_rgba(2,11,31,0.15)] p-5">
       <p className="section-label mb-3">{title}</p>
       {children}
     </div>
@@ -87,7 +87,7 @@ function HistoricoContatos({ cpf, rec }) {
     : '—'
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] overflow-hidden">
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_8px_32px_rgba(2,11,31,0.30),0_2px_6px_rgba(2,11,31,0.15)] overflow-hidden">
       <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <ClipboardList className="h-3.5 w-3.5 text-slate-400" />
@@ -230,7 +230,7 @@ function ApproachRecommendation({ devedor, rec, loading, erro }) {
   const modoCfg = rec ? (MODO_CONFIG[rec.modo] ?? MODO_CONFIG.aprendendo) : null
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] overflow-hidden">
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_8px_32px_rgba(2,11,31,0.30),0_2px_6px_rgba(2,11,31,0.15)] overflow-hidden">
       <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
         <p className="section-label">Recomendação de Abordagem</p>
         {modoCfg && (
@@ -326,7 +326,7 @@ export default function DebtorDetail() {
   const dash = (score / 100) * circumference
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen">
       <header className="navbar-glass px-6 py-3 flex items-center gap-3">
         <button
           onClick={() => navigate('/dashboard')}
@@ -354,7 +354,7 @@ export default function DebtorDetail() {
 
         <div className="grid grid-cols-3 gap-6">
           <div className="col-span-1 flex flex-col gap-5">
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] p-6 flex flex-col items-center">
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_8px_32px_rgba(2,11,31,0.30),0_2px_6px_rgba(2,11,31,0.15)] p-6 flex flex-col items-center">
               <p className="section-label mb-5 text-center">Score de Recuperabilidade</p>
 
               <div className="relative w-36 h-36">
@@ -390,7 +390,7 @@ export default function DebtorDetail() {
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] p-5">
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_8px_32px_rgba(2,11,31,0.30),0_2px_6px_rgba(2,11,31,0.15)] p-5">
               <p className="section-label mb-3">Perfil IA</p>
               <div
                 className="text-center py-3 rounded-xl text-sm font-semibold"
@@ -445,7 +445,7 @@ export default function DebtorDetail() {
               </Section>
             )}
 
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] p-5">
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_8px_32px_rgba(2,11,31,0.30),0_2px_6px_rgba(2,11,31,0.15)] p-5">
               <p className="section-label mb-4">Faixas de Recuperabilidade</p>
               <div className="space-y-2">
                 {[
@@ -472,7 +472,7 @@ export default function DebtorDetail() {
             <ApproachRecommendation devedor={d} rec={rec} loading={recLoading} erro={recErro} />
 
             {d.desconto_sugerido_pct != null && (
-              <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] overflow-hidden">
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_8px_32px_rgba(2,11,31,0.30),0_2px_6px_rgba(2,11,31,0.15)] overflow-hidden">
                 <div className="px-5 py-4 border-b border-slate-100">
                   <p className="section-label">Oferta Sugerida</p>
                 </div>

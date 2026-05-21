@@ -147,8 +147,8 @@ function PricingCard({ label, value, sub, highlight = false, icon: Icon }) {
   return (
     <div className={`rounded-2xl border p-4 flex flex-col gap-1 ${
       highlight
-        ? 'bg-blue-600 border-blue-500 text-white shadow-[0_4px_16px_rgba(29,78,216,0.25)]'
-        : 'bg-white border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)]'
+        ? 'bg-blue-600 border-blue-500 text-white shadow-[0_8px_32px_rgba(29,78,216,0.5),0_4px_12px_rgba(29,78,216,0.3)]'
+        : 'bg-white border-slate-100 shadow-[0_8px_32px_rgba(2,11,31,0.30),0_2px_6px_rgba(2,11,31,0.15)]'
     }`}>
       <div className="flex items-center justify-between">
         <p className={`text-xs font-semibold uppercase tracking-wide ${highlight ? 'text-blue-200' : 'text-slate-500'}`}>
@@ -261,7 +261,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen">
 
       {/* Navbar */}
       <header className="navbar-glass px-6 py-3 flex items-center justify-between">
@@ -345,7 +345,7 @@ export default function Dashboard() {
         </div>
 
         {/* ── Precificação ── */}
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] p-6">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_8px_32px_rgba(2,11,31,0.30),0_2px_6px_rgba(2,11,31,0.15)] p-6">
           <div className="flex items-center gap-3 mb-6">
             <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
               <Banknote className="h-4.5 w-4.5 text-blue-600" style={{ width: '1.125rem', height: '1.125rem' }} />
@@ -425,7 +425,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-5 gap-6">
 
           {/* Aging Bar Chart */}
-          <div className="col-span-3 bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] p-6">
+          <div className="col-span-3 bg-white rounded-2xl border border-slate-100 shadow-[0_8px_32px_rgba(2,11,31,0.30),0_2px_6px_rgba(2,11,31,0.15)] p-6">
             <div className="flex items-center gap-2.5 mb-5">
               <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
                 <BarChart2 className="h-4 w-4 text-blue-500" />
@@ -455,7 +455,7 @@ export default function Dashboard() {
           </div>
 
           {/* Cluster Pie */}
-          <div className="col-span-2 bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] p-6">
+          <div className="col-span-2 bg-white rounded-2xl border border-slate-100 shadow-[0_8px_32px_rgba(2,11,31,0.30),0_2px_6px_rgba(2,11,31,0.15)] p-6">
             <div className="flex items-center gap-2.5 mb-5">
               <div className="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
                 <Users className="h-4 w-4 text-violet-500" />
@@ -494,7 +494,7 @@ export default function Dashboard() {
 
         {/* ── Resultados Reais ── */}
         {!loadingPerf && perf && perf.total_feedbacks > 0 && (
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] overflow-hidden">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_8px_32px_rgba(2,11,31,0.30),0_2px_6px_rgba(2,11,31,0.15)] overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
@@ -559,7 +559,7 @@ export default function Dashboard() {
 
         {/* ── Pagamentos individuais ── */}
         {pagamentos.length > 0 && (
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] overflow-hidden">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_8px_32px_rgba(2,11,31,0.30),0_2px_6px_rgba(2,11,31,0.15)] overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
@@ -633,7 +633,7 @@ export default function Dashboard() {
         )}
 
         {/* ── Tabela ── */}
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] overflow-hidden">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_8px_32px_rgba(2,11,31,0.30),0_2px_6px_rgba(2,11,31,0.15)] overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100 space-y-3">
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div className="flex items-center gap-3">
