@@ -4,6 +4,15 @@ import { useAuth } from '../context/AuthContext'
 import { listarUsuarios, registrarUsuario, toggleUsuarioAtivo, alterarRoleUsuario } from '../api'
 import { Users, UserPlus, LogOut, ShieldCheck, ShieldOff, ToggleLeft, ToggleRight, ArrowLeft } from 'lucide-react'
 
+function Logo() {
+  return (
+    <div className="w-7 h-7 rounded-lg flex items-center justify-center shadow-md shadow-blue-500/20"
+      style={{ background: 'linear-gradient(135deg,#1d4ed8,#2563eb)' }}>
+      <span className="text-white font-bold text-xs">⚖</span>
+    </div>
+  )
+}
+
 export default function AdminUsuarios() {
   const { token, usuario, logout, isAdmin } = useAuth()
   const navigate = useNavigate()
@@ -80,104 +89,95 @@ export default function AdminUsuarios() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Navbar */}
-      <nav className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
+    <div className="min-h-screen bg-slate-50">
+      <header className="bg-white border-b border-slate-100 px-6 py-3 flex items-center justify-between sticky top-0 z-20">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/dashboard')} className="text-gray-500 hover:text-gray-800">
-            <ArrowLeft className="w-5 h-5" />
+          <button onClick={() => navigate('/dashboard')} className="text-slate-400 hover:text-slate-700 transition-colors p-1 rounded-lg hover:bg-slate-100">
+            <ArrowLeft className="w-4 h-4" />
           </button>
-          <Users className="w-5 h-5 text-blue-600" />
-          <span className="font-semibold text-gray-800">Gerenciar Usuários</span>
+          <Logo />
+          <span className="font-bold text-slate-800 text-sm">Mizan</span>
+          <span className="text-slate-200 text-sm">/</span>
+          <span className="text-slate-500 text-sm">Usuários</span>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-600">{usuario?.nome}</span>
-          <button
-            onClick={logout}
-            className="flex items-center gap-1 text-sm text-gray-500 hover:text-red-600 transition-colors"
-          >
+          <span className="text-sm text-slate-400 hidden sm:block">{usuario?.nome}</span>
+          <button onClick={logout} className="nav-link-danger">
             <LogOut className="w-4 h-4" /> Sair
           </button>
         </div>
-      </nav>
+      </header>
 
-      <div className="max-w-4xl mx-auto px-6 py-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+      <div className="max-w-5xl mx-auto px-6 py-10">
+        <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Usuários do sistema</h1>
-            <p className="text-sm text-gray-500 mt-1">
-              Gerencie quem tem acesso ao Mizan e suas permissões.
-            </p>
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">Usuários do sistema</h1>
+            <p className="text-sm text-slate-500 mt-1">Gerencie quem tem acesso ao Mizan e suas permissões.</p>
           </div>
           <button
             onClick={() => { setShowForm(!showForm); setFormErro('') }}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            className="btn-primary"
           >
-            <UserPlus className="w-4 h-4" />
-            Novo usuário
+            <UserPlus className="w-4 h-4" /> Novo usuário
           </button>
         </div>
 
-        {/* Mensagem de sucesso */}
         {msg && (
-          <div className="mb-4 bg-green-50 border border-green-200 text-green-800 rounded-lg px-4 py-3 text-sm">
+          <div className="mb-5 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-xl px-4 py-3 text-sm">
             {msg}
           </div>
         )}
 
-        {/* Erro geral */}
         {erro && (
-          <div className="mb-4 bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-3 text-sm">
+          <div className="mb-5 bg-red-50 border border-red-100 text-red-700 rounded-xl px-4 py-3 text-sm">
             {erro}
           </div>
         )}
 
-        {/* Formulário de novo usuário */}
         {showForm && (
-          <div className="mb-6 bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-            <h2 className="text-base font-semibold text-gray-800 mb-4">Criar novo usuário</h2>
+          <div className="mb-6 bg-white rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.06)] p-6">
+            <h2 className="text-sm font-bold text-slate-800 mb-5">Criar novo usuário</h2>
             <form onSubmit={handleRegistrar} className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Nome completo</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Nome completo</label>
                 <input
                   type="text"
                   required
                   value={form.nome}
                   onChange={e => setForm(f => ({ ...f, nome: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="input-base"
                   placeholder="João Silva"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">E-mail</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">E-mail</label>
                 <input
                   type="email"
                   required
                   value={form.email}
                   onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="input-base"
                   placeholder="joao@empresa.com"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Senha inicial</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Senha inicial</label>
                 <input
                   type="password"
                   required
                   minLength={6}
                   value={form.senha}
                   onChange={e => setForm(f => ({ ...f, senha: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="input-base"
                   placeholder="mínimo 6 caracteres"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Permissão</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Permissão</label>
                 <select
                   value={form.role}
                   onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  className="input-base"
                 >
                   <option value="operador">Operador</option>
                   <option value="admin">Administrador</option>
@@ -185,22 +185,18 @@ export default function AdminUsuarios() {
               </div>
 
               {formErro && (
-                <p className="col-span-2 text-sm text-red-600">{formErro}</p>
+                <p className="col-span-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-2">{formErro}</p>
               )}
 
-              <div className="col-span-2 flex gap-3 justify-end">
+              <div className="col-span-2 flex gap-3 justify-end pt-1">
                 <button
                   type="button"
                   onClick={() => setShowForm(false)}
-                  className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
+                  className="px-4 py-2 text-sm text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors"
                 >
                   Cancelar
                 </button>
-                <button
-                  type="submit"
-                  disabled={salvando}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm font-medium disabled:opacity-60"
-                >
+                <button type="submit" disabled={salvando} className="btn-primary disabled:opacity-50">
                   {salvando ? 'Criando...' : 'Criar usuário'}
                 </button>
               </div>
@@ -208,65 +204,67 @@ export default function AdminUsuarios() {
           </div>
         )}
 
-        {/* Tabela de usuários */}
         {carregando ? (
-          <div className="text-center py-12 text-gray-500">Carregando...</div>
+          <div className="text-center py-16 text-slate-400 text-sm">Carregando...</div>
         ) : (
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.06)] overflow-hidden">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="text-left px-5 py-3 font-medium text-gray-600">Nome</th>
-                  <th className="text-left px-5 py-3 font-medium text-gray-600">E-mail</th>
-                  <th className="text-center px-5 py-3 font-medium text-gray-600">Permissão</th>
-                  <th className="text-center px-5 py-3 font-medium text-gray-600">Status</th>
-                  <th className="text-center px-5 py-3 font-medium text-gray-600">Ações</th>
+                <tr className="bg-slate-50 border-b border-slate-100">
+                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Nome</th>
+                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">E-mail</th>
+                  <th className="text-center px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Permissão</th>
+                  <th className="text-center px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
+                  <th className="text-center px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {usuarios.map(u => (
-                  <tr key={u.id} className={`border-b border-gray-100 last:border-0 ${!u.ativo ? 'opacity-50' : ''}`}>
-                    <td className="px-5 py-3 font-medium text-gray-900">{u.nome}</td>
-                    <td className="px-5 py-3 text-gray-600">{u.email}</td>
-                    <td className="px-5 py-3 text-center">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                        u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-50 text-blue-700'
+                  <tr key={u.id} className={`border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors ${!u.ativo ? 'opacity-50' : ''}`}>
+                    <td className="px-5 py-4 font-medium text-slate-900">{u.nome}</td>
+                    <td className="px-5 py-4 text-slate-500">{u.email}</td>
+                    <td className="px-5 py-4 text-center">
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                        u.role === 'admin'
+                          ? 'bg-violet-50 text-violet-700 ring-1 ring-violet-200/60'
+                          : 'bg-blue-50 text-blue-700 ring-1 ring-blue-200/60'
                       }`}>
-                        {u.role === 'admin' ? <ShieldCheck className="w-3 h-3" /> : null}
+                        {u.role === 'admin' && <ShieldCheck className="w-3 h-3" />}
                         {u.role}
                       </span>
                     </td>
-                    <td className="px-5 py-3 text-center">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                        u.ativo ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                    <td className="px-5 py-4 text-center">
+                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                        u.ativo
+                          ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/60'
+                          : 'bg-slate-100 text-slate-400 ring-1 ring-slate-200/60'
                       }`}>
                         {u.ativo ? 'Ativo' : 'Inativo'}
                       </span>
                     </td>
-                    <td className="px-5 py-3">
-                      <div className="flex items-center justify-center gap-2">
-                        {/* Não permite alterar o próprio usuário logado */}
+                    <td className="px-5 py-4">
+                      <div className="flex items-center justify-center gap-1">
                         {u.email !== usuario?.email ? (
                           <>
                             <button
                               onClick={() => handleToggleAtivo(u)}
                               title={u.ativo ? 'Desativar' : 'Ativar'}
-                              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-800 transition-colors"
+                              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
                             >
-                              {u.ativo ? <ToggleRight className="w-5 h-5 text-green-600" /> : <ToggleLeft className="w-5 h-5" />}
+                              {u.ativo ? <ToggleRight className="w-5 h-5 text-emerald-500" /> : <ToggleLeft className="w-5 h-5" />}
                             </button>
                             <button
                               onClick={() => handleToggleRole(u)}
                               title={u.role === 'admin' ? 'Rebaixar para operador' : 'Promover a admin'}
-                              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-800 transition-colors"
+                              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
                             >
                               {u.role === 'admin'
-                                ? <ShieldOff className="w-4 h-4 text-purple-500" />
-                                : <ShieldCheck className="w-4 h-4 text-gray-400" />}
+                                ? <ShieldOff className="w-4 h-4 text-violet-500" />
+                                : <ShieldCheck className="w-4 h-4" />}
                             </button>
                           </>
                         ) : (
-                          <span className="text-xs text-gray-400 italic">você</span>
+                          <span className="text-xs text-slate-300 italic px-2">você</span>
                         )}
                       </div>
                     </td>
@@ -275,14 +273,13 @@ export default function AdminUsuarios() {
               </tbody>
             </table>
             {usuarios.length === 0 && (
-              <div className="text-center py-10 text-gray-400">Nenhum usuário encontrado.</div>
+              <div className="text-center py-12 text-slate-400 text-sm">Nenhum usuário encontrado.</div>
             )}
           </div>
         )}
 
-        <p className="mt-4 text-xs text-gray-400">
-          Total: {usuarios.length} usuário{usuarios.length !== 1 ? 's' : ''} •
-          Ativos: {usuarios.filter(u => u.ativo).length}
+        <p className="mt-4 text-xs text-slate-400">
+          Total: {usuarios.length} usuário{usuarios.length !== 1 ? 's' : ''} · Ativos: {usuarios.filter(u => u.ativo).length}
         </p>
       </div>
     </div>

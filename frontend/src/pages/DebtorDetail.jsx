@@ -11,19 +11,28 @@ const fmtBRL = (v) => v != null
 const fmtNum = (v) => v != null ? new Intl.NumberFormat('pt-BR').format(v) : '—'
 const fmtPct = (v) => v != null ? `${(v * 100).toFixed(1)}%` : '—'
 
+function Logo() {
+  return (
+    <div className="w-7 h-7 rounded-lg flex items-center justify-center shadow-md shadow-blue-500/20"
+      style={{ background: 'linear-gradient(135deg,#1d4ed8,#2563eb)' }}>
+      <span className="text-white font-bold text-xs">⚖</span>
+    </div>
+  )
+}
+
 function DataRow({ label, value }) {
   return (
-    <div className="flex items-center justify-between py-2.5 border-b border-slate-100 last:border-0">
+    <div className="flex items-center justify-between py-2.5 border-b border-slate-50 last:border-0">
       <span className="text-sm text-slate-500">{label}</span>
-      <span className="text-sm font-medium text-slate-800">{value ?? '—'}</span>
+      <span className="text-sm font-semibold text-slate-800">{value ?? '—'}</span>
     </div>
   )
 }
 
 function Section({ title, children }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-      <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">{title}</h3>
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] p-5">
+      <p className="section-label mb-3">{title}</p>
       {children}
     </div>
   )
@@ -31,11 +40,11 @@ function Section({ title, children }) {
 
 const CANAL_ICONS    = { whatsapp: '💬', telefone: '📞', carta: '✉️' }
 const RESULTADO_CFG  = {
-  contactado:     { label: 'Contactado',        color: 'text-blue-600',    bg: 'bg-blue-50'    },
-  sem_resposta:   { label: 'Sem resposta',       color: 'text-slate-500',   bg: 'bg-slate-100'  },
-  prometeu_pagar: { label: 'Prometeu pagar',     color: 'text-amber-600',   bg: 'bg-amber-50'   },
-  pagou:          { label: 'Pagou',              color: 'text-emerald-600', bg: 'bg-emerald-50' },
-  nao_quis:       { label: 'Não quis negociar',  color: 'text-red-500',     bg: 'bg-red-50'     },
+  contactado:     { label: 'Contactado',        color: 'text-blue-700',    bg: 'bg-blue-50 ring-1 ring-blue-200/60'    },
+  sem_resposta:   { label: 'Sem resposta',       color: 'text-slate-500',   bg: 'bg-slate-100 ring-1 ring-slate-200/60'  },
+  prometeu_pagar: { label: 'Prometeu pagar',     color: 'text-amber-700',   bg: 'bg-amber-50 ring-1 ring-amber-200/60'   },
+  pagou:          { label: 'Pagou',              color: 'text-emerald-700', bg: 'bg-emerald-50 ring-1 ring-emerald-200/60' },
+  nao_quis:       { label: 'Não quis negociar',  color: 'text-red-600',     bg: 'bg-red-50 ring-1 ring-red-200/60'     },
 }
 
 function HistoricoContatos({ cpf, rec }) {
@@ -78,40 +87,42 @@ function HistoricoContatos({ cpf, rec }) {
     : '—'
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] overflow-hidden">
       <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-        <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
-          <ClipboardList className="h-3.5 w-3.5" />
-          Histórico de Contatos{contatos.length > 0 && ` (${contatos.length})`}
-        </h3>
+        <div className="flex items-center gap-2">
+          <ClipboardList className="h-3.5 w-3.5 text-slate-400" />
+          <p className="section-label">
+            Histórico de Contatos{contatos.length > 0 && ` (${contatos.length})`}
+          </p>
+        </div>
         <button onClick={() => setFormAberto(o => !o)}
-          className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors">
+          className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors">
           <Plus className="h-3.5 w-3.5" /> Registrar contato
         </button>
       </div>
 
       {formAberto && (
-        <div className="px-5 py-4 border-b border-slate-100 bg-slate-50 space-y-3">
+        <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/50 space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Canal</label>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Canal</label>
               <select value={form.canal} onChange={e => set('canal', e.target.value)}
-                className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-300">
+                className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 bg-white transition">
                 <option value="whatsapp">WhatsApp</option>
                 <option value="telefone">Ligação Telefônica</option>
                 <option value="carta">Carta / E-mail</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Data</label>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Data</label>
               <input type="date" value={form.data_contato} onChange={e => set('data_contato', e.target.value)}
-                className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 bg-white transition" />
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">Resultado</label>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Resultado</label>
             <select value={form.resultado} onChange={e => set('resultado', e.target.value)}
-              className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-300">
+              className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 bg-white transition">
               <option value="contactado">Contactado</option>
               <option value="sem_resposta">Sem resposta</option>
               <option value="prometeu_pagar">Prometeu pagar</option>
@@ -122,38 +133,38 @@ function HistoricoContatos({ cpf, rec }) {
           {(form.resultado === 'pagou' || form.resultado === 'prometeu_pagar') && (
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Valor Recuperado (R$)</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Valor Recuperado (R$)</label>
                 <input type="number" min="0" step="0.01" value={form.valor_recuperado}
                   onChange={e => set('valor_recuperado', e.target.value)}
                   placeholder="0,00"
-                  className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                  className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 bg-white transition" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">
                   Desconto Oferecido (%)
                   {rec?.oferta_label && <span className="text-blue-400 ml-1 font-normal">· IA: {rec.oferta_label}</span>}
                 </label>
                 <input type="number" min="0" max="100" step="1" value={form.desconto_oferecido_pct}
                   onChange={e => set('desconto_oferecido_pct', e.target.value)}
                   placeholder="Ex: 30"
-                  className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                  className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 bg-white transition" />
               </div>
             </div>
           )}
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">Observação (opcional)</label>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Observação (opcional)</label>
             <textarea value={form.observacao} onChange={e => set('observacao', e.target.value)}
               rows={2} placeholder="Detalhes do contato..."
-              className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none" />
+              className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 bg-white transition resize-none" />
           </div>
-          {erro && <p className="text-xs text-red-500">{erro}</p>}
+          {erro && <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{erro}</p>}
           <div className="flex gap-2">
             <button onClick={salvar} disabled={salvando}
-              className="px-4 py-1.5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors">
+              className="btn-primary py-1.5 disabled:opacity-50">
               {salvando ? 'Salvando...' : 'Salvar'}
             </button>
             <button onClick={() => { setFormAberto(false); setErro(null) }}
-              className="px-4 py-1.5 rounded-lg text-xs font-medium text-slate-500 hover:bg-slate-100 transition-colors">
+              className="px-4 py-1.5 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-100 transition-colors">
               Cancelar
             </button>
           </div>
@@ -162,22 +173,22 @@ function HistoricoContatos({ cpf, rec }) {
 
       <div className="divide-y divide-slate-50">
         {loading && (
-          <div className="flex items-center justify-center py-6 text-slate-400 text-xs gap-2">
+          <div className="flex items-center justify-center py-8 text-slate-400 text-xs gap-2">
             <div className="h-3.5 w-3.5 border-2 border-slate-200 border-t-blue-400 rounded-full animate-spin" />
             Carregando...
           </div>
         )}
         {!loading && contatos.length === 0 && (
-          <p className="text-xs text-slate-400 text-center py-6">Nenhum contato registrado ainda.</p>
+          <p className="text-xs text-slate-400 text-center py-8">Nenhum contato registrado ainda.</p>
         )}
         {contatos.map(c => {
           const res = RESULTADO_CFG[c.resultado] ?? { label: c.resultado, color: 'text-slate-500', bg: 'bg-slate-100' }
           return (
-            <div key={c.id} className="px-5 py-3 flex items-start gap-3">
+            <div key={c.id} className="px-5 py-3.5 flex items-start gap-3">
               <span className="text-base shrink-0 mt-0.5">{CANAL_ICONS[c.canal] ?? '📋'}</span>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${res.bg} ${res.color}`}>
+                  <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${res.bg} ${res.color}`}>
                     {res.label}
                   </span>
                   <span className="text-xs text-slate-400">{fmtData(c.data_contato || c.created_at)}</span>
@@ -186,10 +197,10 @@ function HistoricoContatos({ cpf, rec }) {
                   )}
                 </div>
                 {c.observacao && (
-                  <p className="text-xs text-slate-500 mt-1">{c.observacao}</p>
+                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">{c.observacao}</p>
                 )}
                 {c.valor_recuperado > 0 && (
-                  <p className="text-xs text-emerald-600 font-medium mt-0.5">{fmtBRL(c.valor_recuperado)} recuperados</p>
+                  <p className="text-xs text-emerald-600 font-semibold mt-0.5">{fmtBRL(c.valor_recuperado)} recuperados</p>
                 )}
               </div>
             </div>
@@ -207,26 +218,23 @@ const URGENCIA_CONFIG = {
 }
 
 const MODO_CONFIG = {
-  exploração_inicial: { label: 'Explorando',  color: 'text-amber-600',  bg: 'bg-amber-50',  ring: 'ring-amber-200' },
-  aprendendo:         { label: 'Aprendendo',  color: 'text-blue-600',   bg: 'bg-blue-50',   ring: 'ring-blue-200'  },
-  calibrado:          { label: 'Calibrado',   color: 'text-emerald-600',bg: 'bg-emerald-50',ring: 'ring-emerald-200'},
+  exploração_inicial: { label: 'Explorando', color: 'text-amber-600',   bg: 'bg-amber-50',   ring: 'ring-amber-200'   },
+  aprendendo:         { label: 'Aprendendo', color: 'text-blue-600',    bg: 'bg-blue-50',    ring: 'ring-blue-200'    },
+  calibrado:          { label: 'Calibrado',  color: 'text-emerald-600', bg: 'bg-emerald-50', ring: 'ring-emerald-200' },
 }
 
 function ApproachRecommendation({ devedor, rec, loading, erro }) {
   const score = devedor.score_recuperabilidade ?? 0
   const urgencia = score >= 70 ? 'Alta' : score >= 40 ? 'Média' : 'Baixa'
   const urgCfg = URGENCIA_CONFIG[urgencia]
-
   const modoCfg = rec ? (MODO_CONFIG[rec.modo] ?? MODO_CONFIG.aprendendo) : null
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] overflow-hidden">
       <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-        <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
-          Recomendação de Abordagem
-        </h3>
+        <p className="section-label">Recomendação de Abordagem</p>
         {modoCfg && (
-          <span className={`flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ring-1 ${modoCfg.color} ${modoCfg.bg} ${modoCfg.ring}`}>
+          <span className={`flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full ring-1 ${modoCfg.color} ${modoCfg.bg} ${modoCfg.ring}`}>
             <Brain className="h-3 w-3" />
             IA · {modoCfg.label}
           </span>
@@ -235,8 +243,8 @@ function ApproachRecommendation({ devedor, rec, loading, erro }) {
 
       <div className="p-5 space-y-4">
         {loading && (
-          <div className="flex items-center justify-center py-6 text-slate-400 text-sm gap-2">
-            <div className="h-4 w-4 border-2 border-slate-300 border-t-blue-500 rounded-full animate-spin" />
+          <div className="flex items-center justify-center py-8 text-slate-400 text-sm gap-2">
+            <div className="h-4 w-4 border-2 border-slate-200 border-t-blue-500 rounded-full animate-spin" />
             Consultando IA...
           </div>
         )}
@@ -248,33 +256,27 @@ function ApproachRecommendation({ devedor, rec, loading, erro }) {
         {rec && !loading && (
           <>
             <div className="grid grid-cols-3 gap-3">
-              {/* Urgência — derivada do score, não do bandit */}
               <div
-                className="flex flex-col items-center gap-1.5 rounded-lg p-3 ring-1"
+                className="flex flex-col items-center gap-1.5 rounded-xl p-3 ring-1"
                 style={{ backgroundColor: urgCfg.bg, ringColor: urgCfg.ring }}
               >
                 <Zap className="h-4 w-4" style={{ color: urgCfg.color }} />
                 <p className="text-xs text-slate-500 font-medium">Urgência</p>
                 <span className="text-sm font-bold" style={{ color: urgCfg.color }}>{urgencia}</span>
               </div>
-
-              {/* Canal — escolhido pelo bandit */}
-              <div className="flex flex-col items-center gap-1.5 rounded-lg p-3 bg-blue-50 ring-1 ring-blue-100">
+              <div className="flex flex-col items-center gap-1.5 rounded-xl p-3 bg-blue-50 ring-1 ring-blue-100">
                 <Phone className="h-4 w-4 text-blue-500" />
                 <p className="text-xs text-slate-500 font-medium">Canal</p>
                 <span className="text-sm font-bold text-blue-700 text-center leading-tight">{rec.canal_label}</span>
               </div>
-
-              {/* Oferta — escolhida pelo bandit */}
-              <div className="flex flex-col items-center gap-1.5 rounded-lg p-3 bg-emerald-50 ring-1 ring-emerald-100">
+              <div className="flex flex-col items-center gap-1.5 rounded-xl p-3 bg-emerald-50 ring-1 ring-emerald-100">
                 <Tag className="h-4 w-4 text-emerald-500" />
                 <p className="text-xs text-slate-500 font-medium">Oferta</p>
                 <span className="text-sm font-bold text-emerald-700 text-center leading-tight">{rec.oferta_label}</span>
               </div>
             </div>
 
-            {/* Justificativa do bandit */}
-            <div className="flex gap-3 p-4 bg-slate-50 rounded-lg border border-slate-100">
+            <div className="flex gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
               <MessageSquare className="h-4 w-4 text-slate-400 mt-0.5 shrink-0" />
               <p className="text-sm text-slate-600 leading-relaxed">{rec.justificativa}</p>
             </div>
@@ -320,36 +322,30 @@ export default function DebtorDetail() {
 
   const score = d.score_recuperabilidade
   const scoreColor = score >= 70 ? '#10b981' : score >= 40 ? '#f59e0b' : '#94a3b8'
-  const circumference = 2 * Math.PI * 38  // r=38 in a 100x100 viewBox
+  const circumference = 2 * Math.PI * 38
   const dash = (score / 100) * circumference
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Navbar */}
-      <header className="bg-white border-b border-slate-200 px-6 py-3.5 flex items-center gap-3 sticky top-0 z-20">
+      <header className="bg-white border-b border-slate-100 px-6 py-3 flex items-center gap-3 sticky top-0 z-20">
         <button
           onClick={() => navigate('/dashboard')}
-          className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors px-2 py-1.5 rounded-lg hover:bg-slate-100"
+          className="text-slate-400 hover:text-slate-700 transition-colors p-1 rounded-lg hover:bg-slate-100"
         >
           <ArrowLeft className="h-4 w-4" />
-          Voltar
         </button>
-        <span className="text-slate-200">|</span>
-        <div className="w-6 h-6 rounded-md bg-blue-600 flex items-center justify-center">
-          <span className="text-white text-xs font-bold">⚖</span>
-        </div>
+        <Logo />
         <span className="font-bold text-slate-800 text-sm">Mizan</span>
-        <span className="text-slate-300 text-sm">/</span>
-        <span className="text-slate-400 text-sm truncate max-w-xs">Dashboard</span>
-        <span className="text-slate-300 text-sm">/</span>
-        <span className="text-slate-600 text-sm font-medium truncate">{d.nome}</span>
+        <span className="text-slate-200 text-sm">/</span>
+        <button onClick={() => navigate('/dashboard')} className="text-slate-400 hover:text-slate-600 text-sm transition-colors">Dashboard</button>
+        <span className="text-slate-200 text-sm">/</span>
+        <span className="text-slate-700 text-sm font-medium truncate max-w-xs">{d.nome}</span>
       </header>
 
       <main className="max-w-5xl mx-auto px-6 py-8">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-6">
+        <div className="flex items-start justify-between mb-7">
           <div>
-            <h1 className="text-2xl font-bold text-slate-800">{d.nome}</h1>
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{d.nome}</h1>
             <p className="text-slate-400 font-mono text-sm mt-1">{d.cpf}</p>
             <p className="text-slate-500 text-sm mt-1 capitalize">{d.produto} · {d.uf} · Rank #{d.rank}</p>
           </div>
@@ -357,14 +353,10 @@ export default function DebtorDetail() {
         </div>
 
         <div className="grid grid-cols-3 gap-6">
-          {/* Score visual — col 1 */}
-          <div className="col-span-1 flex flex-col gap-6">
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex flex-col items-center">
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-5 text-center">
-                Score de Recuperabilidade
-              </p>
+          <div className="col-span-1 flex flex-col gap-5">
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] p-6 flex flex-col items-center">
+              <p className="section-label mb-5 text-center">Score de Recuperabilidade</p>
 
-              {/* Circular progress */}
               <div className="relative w-36 h-36">
                 <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
                   <circle cx="50" cy="50" r="38" fill="none" stroke="#f1f5f9" strokeWidth="8" />
@@ -384,7 +376,6 @@ export default function DebtorDetail() {
                 </div>
               </div>
 
-              {/* Score bar */}
               <div className="w-full mt-5">
                 <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                   <div
@@ -397,28 +388,22 @@ export default function DebtorDetail() {
                   <span>100</span>
                 </div>
               </div>
-
-              <p className="text-xs text-slate-500 mt-4 text-center leading-relaxed">
-                {d.perfil_cluster}
-              </p>
             </div>
 
-            {/* Cluster info */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-              <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Perfil IA</h3>
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] p-5">
+              <p className="section-label mb-3">Perfil IA</p>
               <div
-                className="text-center py-3 rounded-lg text-sm font-medium"
+                className="text-center py-3 rounded-xl text-sm font-semibold"
                 style={{ backgroundColor: `${scoreColor}15`, color: scoreColor }}
               >
                 {d.perfil_cluster}
               </div>
-              <p className="text-xs text-slate-400 mt-3 text-center">
+              <p className="text-xs text-slate-400 mt-3 text-center leading-relaxed">
                 Cluster #{d.cluster_id ?? '—'} identificado por machine learning
               </p>
             </div>
           </div>
 
-          {/* Data columns — col 2-3 */}
           <div className="col-span-2 flex flex-col gap-4">
             <Section title="Dados Cadastrais">
               <DataRow label="Nome completo" value={d.nome} />
@@ -432,11 +417,7 @@ export default function DebtorDetail() {
               <DataRow label="Valor da Dívida (face)" value={fmtBRL(d.valor_divida)} />
               <DataRow
                 label="Valor Esperado de Recuperação"
-                value={
-                  <span className="text-emerald-600 font-semibold">
-                    {fmtBRL(d.valor_esperado_recuperacao)}
-                  </span>
-                }
+                value={<span className="text-emerald-600 font-bold">{fmtBRL(d.valor_esperado_recuperacao)}</span>}
               />
               <DataRow label="Renda Estimada" value={fmtBRL(d.renda_estimada)} />
               <DataRow label="Dias em Atraso" value={fmtNum(d.dias_em_atraso)} />
@@ -464,12 +445,9 @@ export default function DebtorDetail() {
               </Section>
             )}
 
-            {/* Score bar detail */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-              <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-4">
-                Faixas de Recuperabilidade
-              </h3>
-              <div className="space-y-2.5">
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] p-5">
+              <p className="section-label mb-4">Faixas de Recuperabilidade</p>
+              <div className="space-y-2">
                 {[
                   { label: 'Alta (≥ 70)', min: 70, max: 100, color: '#10b981' },
                   { label: 'Média (40–69)', min: 40, max: 69, color: '#f59e0b' },
@@ -477,7 +455,7 @@ export default function DebtorDetail() {
                 ].map(({ label, min, max, color }) => {
                   const active = score >= min && score <= max
                   return (
-                    <div key={label} className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${active ? 'bg-slate-50 ring-1 ring-slate-200' : ''}`}>
+                    <div key={label} className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-colors ${active ? 'bg-slate-50 ring-1 ring-slate-200' : ''}`}>
                       <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
                       <span className={`text-sm ${active ? 'font-semibold text-slate-800' : 'text-slate-400'}`}>
                         {label}
@@ -491,31 +469,29 @@ export default function DebtorDetail() {
               </div>
             </div>
 
-            {/* AI Approach Recommendation */}
             <ApproachRecommendation devedor={d} rec={rec} loading={recLoading} erro={recErro} />
 
-            {/* Oferta sugerida */}
             {d.desconto_sugerido_pct != null && (
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] overflow-hidden">
                 <div className="px-5 py-4 border-b border-slate-100">
-                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Oferta Sugerida</h3>
+                  <p className="section-label">Oferta Sugerida</p>
                 </div>
                 <div className="p-5 space-y-4">
                   <div className="grid grid-cols-3 gap-3">
-                    <div className="rounded-lg bg-slate-50 border border-slate-100 p-3 text-center">
+                    <div className="rounded-xl bg-slate-50 border border-slate-100 p-3 text-center">
                       <p className="text-xs text-slate-400 mb-1">Desconto</p>
                       <p className="text-xl font-bold text-slate-800">{d.desconto_sugerido_pct}%</p>
                     </div>
-                    <div className="rounded-lg bg-emerald-50 border border-emerald-100 p-3 text-center">
+                    <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-3 text-center">
                       <p className="text-xs text-emerald-600 mb-1">Valor Proposta</p>
                       <p className="text-lg font-bold text-emerald-700">{fmtBRL(d.valor_proposta)}</p>
                     </div>
-                    <div className="rounded-lg bg-slate-50 border border-slate-100 p-3 text-center">
+                    <div className="rounded-xl bg-slate-50 border border-slate-100 p-3 text-center">
                       <p className="text-xs text-slate-400 mb-1">Até</p>
                       <p className="text-xl font-bold text-slate-800">{d.parcelas_max}x</p>
                     </div>
                   </div>
-                  <p className="text-sm text-slate-600 bg-blue-50 border border-blue-100 rounded-lg px-4 py-3">
+                  <p className="text-sm text-slate-600 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 leading-relaxed">
                     {d.estrategia_oferta}
                   </p>
                   {d.desconto_sugerido_pct > 0 && (
@@ -527,7 +503,6 @@ export default function DebtorDetail() {
               </div>
             )}
 
-            {/* Histórico de contatos */}
             {d.cpf && <HistoricoContatos cpf={d.cpf} rec={rec} />}
           </div>
         </div>

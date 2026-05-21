@@ -19,7 +19,7 @@ function ServerWarmupBanner() {
 
   if (!show) return null
   return (
-    <div className="fixed top-0 inset-x-0 z-50 bg-amber-50 border-b border-amber-200 px-4 py-2.5 flex items-center justify-center gap-3 text-sm text-amber-800 shadow-sm">
+    <div className="fixed top-0 inset-x-0 z-50 bg-amber-50 border-b border-amber-100 px-4 py-2.5 flex items-center justify-center gap-3 text-sm text-amber-800 shadow-sm">
       <Loader2 className="h-4 w-4 animate-spin text-amber-500 shrink-0" />
       <span>O servidor está acordando — a primeira requisição pode levar até 30s (plano gratuito).</span>
     </div>

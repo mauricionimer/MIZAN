@@ -69,18 +69,18 @@ function PainelSyncAuto() {
     <div className="w-full max-w-lg mt-4">
       <button
         onClick={() => setAberto(o => !o)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-white rounded-xl border border-slate-200 shadow-sm hover:bg-slate-50 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3 bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] hover:bg-slate-50 transition-colors"
       >
         <div className="flex items-center gap-2">
           <RefreshCw className="h-4 w-4 text-slate-400" />
           <span className="text-sm font-semibold text-slate-700">Sincronização Automática de Pagamentos</span>
-          {cfg?.ativo && <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium">Ativo</span>}
+          {cfg?.ativo && <span className="text-xs bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/60 px-2 py-0.5 rounded-full font-semibold">Ativo</span>}
         </div>
         <span className="text-slate-400 text-xs">{aberto ? '▲' : '▼'}</span>
       </button>
 
       {aberto && cfg && (
-        <div className="bg-white border border-slate-200 border-t-0 rounded-b-xl px-6 py-5 space-y-4 shadow-sm">
+        <div className="bg-white border border-slate-100 border-t-0 rounded-b-2xl px-6 py-5 space-y-4 shadow-[0_2px_8px_rgba(15,23,42,0.05)]">
           <p className="text-xs text-slate-500">
             Conecte ao seu banco de dados de cobrança. O sistema vai buscar automaticamente quem pagou a cada 24h e registrar os feedbacks.
           </p>
@@ -215,7 +215,7 @@ const CAMPOS_MIZAN = [
 ]
 
 function inp(cls = '') {
-  return `w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 ${cls}`
+  return `w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition bg-white ${cls}`
 }
 
 function FormDB({ onResult }) {
@@ -487,7 +487,7 @@ function FormDB({ onResult }) {
       )}
 
       {conexoes.map(c => (
-        <div key={c.id} className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+        <div key={c.id} className="rounded-2xl border border-slate-100 bg-white overflow-hidden shadow-[0_1px_4px_rgba(15,23,42,0.06)]">
           <div className="flex items-start gap-3 px-4 pt-4 pb-3">
             <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
               <Database className="h-4 w-4 text-blue-500" />
@@ -529,7 +529,7 @@ function FormDB({ onResult }) {
       ))}
 
       {syncMsg && (
-        <div className={`flex items-center gap-2 p-3 rounded-xl text-sm border ${
+        <div className={`flex items-center gap-2 p-3 rounded-2xl text-sm border ${
           syncMsg.tipo === 'ok' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'
         }`}>
           {syncMsg.tipo === 'ok' ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <XCircle className="h-4 w-4 shrink-0" />}
@@ -544,7 +544,7 @@ function FormDB({ onResult }) {
           setForm({ tipo: 'postgres', host: '', porta: '', banco: '', usuario: '', senha: '', query: 'SELECT * FROM devedores', nome_fonte: '' })
           setErro(null)
         }}
-        className="w-full py-3 rounded-xl border-2 border-dashed border-slate-200 text-sm text-slate-500 hover:border-blue-300 hover:text-blue-600 flex items-center justify-center gap-2 transition-colors"
+        className="w-full py-3 rounded-2xl border-2 border-dashed border-slate-200 text-sm text-slate-500 hover:border-blue-300 hover:text-blue-600 flex items-center justify-center gap-2 transition-colors"
       >
         <Plug className="h-4 w-4" />
         Conectar um novo banco de dados
@@ -968,16 +968,17 @@ export default function Upload() {
       {/* Logo */}
       <div className="mb-10 text-center">
         <div className="inline-flex items-center gap-3 mb-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center">
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/25"
+            style={{ background: 'linear-gradient(135deg,#1d4ed8,#2563eb)' }}>
             <span className="text-white text-lg font-bold">⚖</span>
           </div>
-          <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Mizan</h1>
+          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Mizan</h1>
         </div>
         <p className="text-slate-500 text-sm">Plataforma de análise de carteira de crédito com IA</p>
       </div>
 
       {/* Card */}
-      <div className="w-full max-w-lg bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
+      <div className="w-full max-w-lg bg-white rounded-2xl shadow-[0_2px_12px_rgba(15,23,42,0.08)] border border-slate-100 p-8">
         <h2 className="text-base font-semibold text-slate-800 mb-1">Carregar carteira</h2>
         <p className="text-sm text-slate-500 mb-5">
           Importe os dados dos devedores via arquivo ou conexão direta com banco de dados.
@@ -1011,13 +1012,13 @@ export default function Upload() {
               onDragOver={onDragOver}
               onDragLeave={onDragLeave}
               className={`
-                border-2 border-dashed rounded-xl p-10 text-center cursor-pointer
+                border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer
                 transition-all duration-200 select-none
                 ${isDragging
                   ? 'border-blue-400 bg-blue-50 scale-[1.01]'
                   : file
                     ? 'border-emerald-300 bg-emerald-50'
-                    : 'border-slate-300 hover:border-blue-300 hover:bg-slate-50'}
+                    : 'border-slate-200 hover:border-blue-300 hover:bg-slate-50/50'}
               `}
             >
               <input
@@ -1048,7 +1049,7 @@ export default function Upload() {
             </div>
 
             {error && (
-              <div className="mt-4 flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+              <div className="mt-4 flex items-start gap-2 p-3 bg-red-50 border border-red-100 rounded-2xl text-red-600 text-sm">
                 <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
                 <span>{error}</span>
               </div>
@@ -1058,12 +1059,13 @@ export default function Upload() {
               onClick={analisar}
               disabled={!file || loading}
               className={`
-                mt-5 w-full py-3 rounded-xl font-semibold text-sm text-white
+                mt-5 w-full py-3 rounded-2xl font-semibold text-sm text-white
                 flex items-center justify-center gap-2 transition-all duration-200
                 ${!file || loading
                   ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                  : 'bg-blue-600 hover:bg-blue-700 shadow-sm active:scale-[0.98]'}
+                  : 'active:scale-[0.98]'}
               `}
+              style={(!file || loading) ? {} : { background: 'linear-gradient(135deg,#1d4ed8,#2563eb)' }}
             >
               {loading
                 ? <><Loader2 className="h-4 w-4 animate-spin" /> Analisando carteira...</>
@@ -1096,7 +1098,7 @@ export default function Upload() {
         )}
 
         {!histLoading && historico.length === 0 && (
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.06)] p-8">
             <div className="text-center mb-8">
               <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-4">
                 <span className="text-2xl">⚖</span>
@@ -1148,7 +1150,7 @@ export default function Upload() {
         )}
 
         {!histLoading && historico.length > 0 && (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-100 overflow-hidden">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] divide-y divide-slate-50 overflow-hidden">
             {historico.slice(0, histLimit).map((c) => (
               <div key={c.id} className="flex items-center gap-4 px-4 py-3 hover:bg-slate-50 transition-colors">
                 <FileText className="h-4 w-4 text-slate-300 shrink-0" />

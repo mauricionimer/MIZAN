@@ -1,7 +1,17 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Loader2, Eye, EyeOff, Scale } from 'lucide-react'
+import { Loader2, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+
+function Logo({ size = 'md' }) {
+  const sz = size === 'lg' ? 'w-11 h-11 text-lg' : 'w-8 h-8 text-sm'
+  return (
+    <div className={`${sz} rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/25 shrink-0`}
+      style={{ background: 'linear-gradient(135deg,#1d4ed8,#2563eb)' }}>
+      <span className="text-white font-bold">⚖</span>
+    </div>
+  )
+}
 
 export default function Login() {
   const navigate = useNavigate()
@@ -20,60 +30,62 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex">
-      {/* Painel esquerdo — gradiente azul */}
-      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12"
-        style={{ background: 'linear-gradient(145deg, #1e40af 0%, #1d4ed8 40%, #2563eb 70%, #3b82f6 100%)' }}>
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
-            <span className="text-white text-base font-bold">⚖</span>
-          </div>
+      {/* Painel esquerdo */}
+      <div className="hidden lg:flex lg:w-[52%] flex-col justify-between p-14 relative overflow-hidden"
+        style={{ background: 'linear-gradient(150deg,#0f172a 0%,#1e3a8a 50%,#1d4ed8 100%)' }}>
+        {/* Decoração de fundo */}
+        <div className="absolute inset-0 opacity-[0.03]"
+          style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '32px 32px' }} />
+        <div className="absolute bottom-0 right-0 w-96 h-96 rounded-full opacity-10 blur-3xl"
+          style={{ background: 'radial-gradient(circle,#60a5fa,transparent)' }} />
+
+        <div className="flex items-center gap-3 relative">
+          <Logo size="lg" />
           <span className="text-white text-xl font-bold tracking-tight">Mizan</span>
         </div>
 
-        <div>
-          <h2 className="text-4xl font-bold text-white leading-tight mb-4">
-            Recuperação de crédito<br />guiada por inteligência artificial
+        <div className="relative">
+          <p className="text-blue-300 text-xs font-semibold uppercase tracking-widest mb-5">Recuperação de crédito com IA</p>
+          <h2 className="text-4xl font-extrabold text-white leading-[1.15] tracking-tight mb-6">
+            Recupere mais.<br />Aprenda com cada resultado.
           </h2>
-          <p className="text-blue-200 text-base leading-relaxed max-w-sm">
-            Analise carteiras, priorize devedores e receba recomendações de abordagem que aprendem com cada resultado.
+          <p className="text-blue-200/80 text-base leading-relaxed max-w-sm">
+            Analise carteiras, priorize devedores e receba recomendações que evoluem com cada contato registrado.
           </p>
 
-          <div className="mt-10 grid grid-cols-3 gap-4">
+          <div className="mt-10 grid grid-cols-3 gap-3">
             {[
-              { n: '98%', l: 'Precisão do modelo' },
-              { n: '<1s', l: 'Análise por devedor' },
-              { n: '12', l: 'Estratégias de oferta' },
+              { n: '98%',  l: 'Precisão ML' },
+              { n: '<1s',  l: 'Por devedor' },
+              { n: '12',   l: 'Estratégias' },
             ].map(({ n, l }) => (
-              <div key={l} className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-                <p className="text-2xl font-bold text-white">{n}</p>
-                <p className="text-blue-200 text-xs mt-1">{l}</p>
+              <div key={l} className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-4">
+                <p className="text-2xl font-extrabold text-white tracking-tight">{n}</p>
+                <p className="text-blue-300 text-xs mt-1 font-medium">{l}</p>
               </div>
             ))}
           </div>
         </div>
 
-        <p className="text-blue-300 text-xs">© 2026 Mizan · Todos os direitos reservados</p>
+        <p className="text-blue-400/60 text-xs relative">© 2026 Mizan · Todos os direitos reservados</p>
       </div>
 
       {/* Painel direito — formulário */}
-      <div className="flex-1 flex flex-col items-center justify-center p-8 bg-slate-50">
-        {/* Logo mobile */}
-        <div className="lg:hidden flex items-center gap-2 mb-10">
-          <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center">
-            <span className="text-white text-base font-bold">⚖</span>
-          </div>
+      <div className="flex-1 flex flex-col items-center justify-center p-8 bg-white">
+        <div className="lg:hidden flex items-center gap-2.5 mb-10">
+          <Logo />
           <span className="text-slate-800 text-xl font-bold tracking-tight">Mizan</span>
         </div>
 
         <div className="w-full max-w-sm">
           <div className="mb-8">
-            <h1 className="text-2xl font-bold text-slate-800">Bem-vindo de volta</h1>
-            <p className="text-slate-500 text-sm mt-1">Entre com suas credenciais para acessar</p>
+            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Bem-vindo de volta</h1>
+            <p className="text-slate-500 text-sm mt-1.5">Entre com suas credenciais para acessar</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {sessionExpirada && (
-              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-sm text-center">
+              <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-100 text-amber-700 text-sm text-center">
                 Sua sessão expirou. Faça login novamente.
               </div>
             )}
@@ -87,7 +99,7 @@ export default function Login() {
                 placeholder="seu@email.com"
                 required
                 autoFocus
-                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm transition"
+                className="input-base"
               />
             </div>
 
@@ -100,7 +112,7 @@ export default function Login() {
                   onChange={e => setSenha(e.target.value)}
                   placeholder="••••••••"
                   required
-                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 pr-11 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm transition"
+                  className="input-base pr-11"
                 />
                 <button
                   type="button"
@@ -111,7 +123,7 @@ export default function Login() {
                 </button>
               </div>
               <div className="flex justify-end mt-1.5">
-                <a href="/esqueci-senha" className="text-xs text-blue-500 hover:text-blue-700 transition-colors">
+                <a href="/esqueci-senha" className="text-xs text-blue-600 hover:text-blue-800 transition-colors font-medium">
                   Esqueci minha senha
                 </a>
               </div>
@@ -126,20 +138,17 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-xl font-semibold text-sm text-white transition-all shadow-sm active:scale-[0.98]"
-              style={{ background: loading ? '#93c5fd' : 'linear-gradient(135deg, #1d4ed8, #2563eb)' }}
+              className="btn-primary w-full py-3 disabled:opacity-50"
             >
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Entrando...
-                </span>
-              ) : 'Entrar'}
+              {loading
+                ? <><Loader2 className="h-4 w-4 animate-spin" /> Entrando...</>
+                : 'Entrar'}
             </button>
           </form>
 
           <p className="mt-8 text-center text-xs text-slate-400">
             Acesso restrito a usuários cadastrados.{' '}
-            <a href="/privacidade" className="underline hover:text-slate-600">Privacidade</a>
+            <a href="/privacidade" className="underline hover:text-slate-600 transition-colors">Privacidade</a>
           </p>
         </div>
       </div>

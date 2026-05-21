@@ -20,20 +20,20 @@ const fmtData = iso => iso
 
 function KpiCard({ label, value, sub, icon: Icon, accent = 'indigo' }) {
   const cfg = {
-    indigo:  { wrap: 'border-indigo-800/50 bg-indigo-950/30',  icon: 'bg-indigo-900/60 text-indigo-300',  val: 'text-indigo-100' },
-    emerald: { wrap: 'border-emerald-800/50 bg-emerald-950/30', icon: 'bg-emerald-900/60 text-emerald-300', val: 'text-emerald-100' },
-    amber:   { wrap: 'border-amber-800/50 bg-amber-950/30',    icon: 'bg-amber-900/60 text-amber-300',    val: 'text-amber-100' },
-    red:     { wrap: 'border-red-800/50 bg-red-950/30',        icon: 'bg-red-900/60 text-red-300',        val: 'text-red-100' },
+    indigo:  { wrap: 'border-indigo-800/40 bg-indigo-950/40',  icon: 'bg-indigo-900/60 text-indigo-300',  val: 'text-indigo-100' },
+    emerald: { wrap: 'border-emerald-800/40 bg-emerald-950/40', icon: 'bg-emerald-900/60 text-emerald-300', val: 'text-emerald-100' },
+    amber:   { wrap: 'border-amber-800/40 bg-amber-950/40',    icon: 'bg-amber-900/60 text-amber-300',    val: 'text-amber-100' },
+    red:     { wrap: 'border-red-800/40 bg-red-950/40',        icon: 'bg-red-900/60 text-red-300',        val: 'text-red-100' },
   }[accent]
   return (
-    <div className={`rounded-xl border p-5 flex gap-4 items-start ${cfg.wrap}`}>
-      <div className={`rounded-lg p-2.5 shrink-0 ${cfg.icon}`}>
+    <div className={`rounded-2xl border p-5 flex gap-4 items-start ${cfg.wrap}`}>
+      <div className={`rounded-xl p-2.5 shrink-0 ${cfg.icon}`}>
         <Icon className="h-5 w-5" />
       </div>
       <div className="min-w-0">
-        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{label}</p>
-        <p className={`text-2xl font-bold mt-0.5 leading-tight ${cfg.val}`}>{value}</p>
-        {sub && <p className="text-xs text-slate-500 mt-0.5">{sub}</p>}
+        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">{label}</p>
+        <p className={`text-2xl font-bold mt-1 leading-tight ${cfg.val}`}>{value}</p>
+        {sub && <p className="text-xs text-slate-600 mt-0.5">{sub}</p>}
       </div>
     </div>
   )
@@ -42,20 +42,20 @@ function KpiCard({ label, value, sub, icon: Icon, accent = 'indigo' }) {
 function StatusBadge({ suspeita, taxaFeedback }) {
   if (suspeita) {
     return (
-      <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-red-900/40 text-red-400 border border-red-800/50">
+      <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-red-900/40 text-red-400 border border-red-800/50">
         <AlertTriangle className="h-3 w-3" /> Suspeita
       </span>
     )
   }
   if (taxaFeedback >= 20) {
     return (
-      <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-900/40 text-emerald-400 border border-emerald-800/50">
+      <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-900/40 text-emerald-400 border border-emerald-800/50">
         <CheckCircle2 className="h-3 w-3" /> Ativa
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+    <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
       <Activity className="h-3 w-3" /> Normal
     </span>
   )
@@ -149,38 +149,34 @@ export default function ComandoDashboard() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
-
-      {/* Navbar */}
       <header className="bg-slate-900 border-b border-slate-800 px-6 py-3.5 flex items-center justify-between sticky top-0 z-20">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-900/50">
+          <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-900/50 shrink-0">
             <Shield className="h-4 w-4 text-white" />
           </div>
           <div>
-            <span className="font-bold text-white tracking-wide">COMANDO</span>
-            <span className="ml-2 text-xs text-slate-500 font-mono">Visão geral do ecossistema</span>
+            <span className="font-bold text-white tracking-wide text-sm">COMANDO</span>
+            <span className="ml-2 text-xs text-slate-500">Visão geral do ecossistema</span>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={carregar} disabled={loadingMain}
-            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800 disabled:opacity-40">
+            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800 disabled:opacity-40 font-medium">
             <RefreshCw className={`h-3.5 w-3.5 ${loadingMain ? 'animate-spin' : ''}`} /> Atualizar
           </button>
           <span className="text-xs text-slate-600 hidden sm:block">{usuario?.nome}</span>
           <button onClick={() => navigate(-1)}
-            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800">
+            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800 font-medium">
             <ArrowLeft className="h-3.5 w-3.5" /> Voltar
           </button>
           <button onClick={() => { logout(); navigate('/login') }}
-            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-red-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-red-950/40">
+            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-red-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-red-950/40 font-medium">
             <LogOut className="h-3.5 w-3.5" /> Sair
           </button>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
-
-        {/* Loading inicial */}
+      <main className="max-w-7xl mx-auto px-6 py-10 space-y-6">
         {loadingMain && !dados && (
           <div className="flex flex-col items-center justify-center py-32 gap-3 text-slate-600">
             <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
@@ -189,17 +185,16 @@ export default function ComandoDashboard() {
         )}
 
         {erro && (
-          <div className="bg-red-950/40 border border-red-800/50 rounded-xl px-5 py-4 text-sm text-red-400">
+          <div className="bg-red-950/40 border border-red-800/50 rounded-2xl px-5 py-4 text-sm text-red-400">
             {erro}
           </div>
         )}
 
         {dados && (
           <>
-            {/* Título */}
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-2xl font-bold text-white">Painel COMANDO</h1>
+                <h1 className="text-2xl font-bold text-white tracking-tight">Painel COMANDO</h1>
                 <p className="text-sm text-slate-500 mt-1">
                   Visibilidade total sobre todos os clientes e carteiras analisadas na plataforma
                 </p>
@@ -209,7 +204,6 @@ export default function ComandoDashboard() {
               </div>
             </div>
 
-            {/* KPI cards */}
             <div className="grid grid-cols-4 gap-4">
               <KpiCard
                 label="Empresas na plataforma"
@@ -243,15 +237,14 @@ export default function ComandoDashboard() {
               />
             </div>
 
-            {/* Alerta de suspeitas */}
             {suspeitas.length > 0 && (
-              <div className="flex items-start gap-3 bg-red-950/30 border border-red-800/50 rounded-xl px-5 py-4">
+              <div className="flex items-start gap-3 bg-red-950/30 border border-red-800/50 rounded-2xl px-5 py-4">
                 <AlertTriangle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-semibold text-red-300">
                     {suspeitas.length} empresa{suspeitas.length > 1 ? 's' : ''} com comportamento suspeito
                   </p>
-                  <p className="text-xs text-red-400/70 mt-1">
+                  <p className="text-xs text-red-400/70 mt-1 leading-relaxed">
                     Essas empresas analisaram mais de 50 devedores mas registraram menos de 5% de feedback —
                     podem estar usando a plataforma sem reportar os resultados reais.
                     {' '}<span className="font-medium">{suspeitas.map(e => e.usuario_email || e.empresa_id).join(', ')}</span>
@@ -260,14 +253,13 @@ export default function ComandoDashboard() {
               </div>
             )}
 
-            {/* Tabela de empresas */}
-            <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
+            <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
                 <div>
                   <h2 className="text-sm font-semibold text-slate-200">Empresas clientes</h2>
-                  <p className="text-xs text-slate-500 mt-0.5">Clique em uma linha para ver as carteiras individuais</p>
+                  <p className="text-xs text-slate-600 mt-0.5">Clique em uma linha para ver as carteiras individuais</p>
                 </div>
-                <Eye className="h-4 w-4 text-slate-600" />
+                <Eye className="h-4 w-4 text-slate-700" />
               </div>
 
               <div className="overflow-x-auto">
@@ -285,7 +277,7 @@ export default function ComandoDashboard() {
                         ['Última atividade', 'text-right'],
                         ['Status', 'text-right'],
                       ].map(([h, cls = '']) => (
-                        <th key={h} className={`px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap ${cls}`}>
+                        <th key={h} className={`px-4 py-3.5 text-[11px] font-semibold text-slate-500 uppercase tracking-widest whitespace-nowrap ${cls}`}>
                           {h}
                         </th>
                       ))}
@@ -305,13 +297,13 @@ export default function ComandoDashboard() {
                               : 'hover:bg-slate-800/40'
                           }`}
                         >
-                          <td className="pl-4 pr-2 py-3.5 text-slate-600">
+                          <td className="pl-4 pr-2 py-4 text-slate-600">
                             {isOpen
                               ? <ChevronDown className="h-3.5 w-3.5 text-indigo-400" />
                               : <ChevronRight className="h-3.5 w-3.5" />
                             }
                           </td>
-                          <td className="px-4 py-3.5">
+                          <td className="px-4 py-4">
                             <div className="flex items-center gap-2">
                               <Building2 className={`h-3.5 w-3.5 shrink-0 ${isSusp ? 'text-red-500' : 'text-slate-600'}`} />
                               <div>
@@ -322,19 +314,19 @@ export default function ComandoDashboard() {
                               </div>
                             </div>
                           </td>
-                          <td className="px-4 py-3.5 text-right text-slate-300 font-mono text-sm">{fmtNum(e.total_devedores)}</td>
-                          <td className="px-4 py-3.5 text-right text-slate-300 font-mono text-sm">{fmtBRL(e.valor_face_total)}</td>
-                          <td className="px-4 py-3.5 text-right text-slate-400 font-mono text-sm">{fmtBRL(e.valor_esperado_total)}</td>
-                          <td className="px-4 py-3.5 text-right">
+                          <td className="px-4 py-4 text-right text-slate-300 font-mono text-sm">{fmtNum(e.total_devedores)}</td>
+                          <td className="px-4 py-4 text-right text-slate-300 font-mono text-sm">{fmtBRL(e.valor_face_total)}</td>
+                          <td className="px-4 py-4 text-right text-slate-400 font-mono text-sm">{fmtBRL(e.valor_esperado_total)}</td>
+                          <td className="px-4 py-4 text-right">
                             <span className={`text-sm font-bold ${
-                              e.score_medio == null   ? 'text-slate-600' :
-                              e.score_medio >= 60     ? 'text-emerald-400' :
-                              e.score_medio >= 40     ? 'text-amber-400' : 'text-red-400'
+                              e.score_medio == null ? 'text-slate-600' :
+                              e.score_medio >= 60   ? 'text-emerald-400' :
+                              e.score_medio >= 40   ? 'text-amber-400' : 'text-red-400'
                             }`}>
                               {e.score_medio?.toFixed(1) ?? '—'}
                             </span>
                           </td>
-                          <td className="px-4 py-3.5 text-right">
+                          <td className="px-4 py-4 text-right">
                             <div className="flex flex-col items-end gap-0.5">
                               <span className="text-sm text-slate-300 font-mono">{fmtNum(e.n_feedbacks)}</span>
                               <span className={`text-xs font-mono ${e.flag_suspeita ? 'text-red-500' : 'text-slate-600'}`}>
@@ -345,10 +337,10 @@ export default function ComandoDashboard() {
                               )}
                             </div>
                           </td>
-                          <td className="px-4 py-3.5 text-right text-xs text-slate-500 font-mono whitespace-nowrap">
+                          <td className="px-4 py-4 text-right text-xs text-slate-500 font-mono whitespace-nowrap">
                             {fmtData(e.ultima_atividade)}
                           </td>
-                          <td className="px-4 py-3.5 text-right">
+                          <td className="px-4 py-4 text-right">
                             <StatusBadge suspeita={e.flag_suspeita} taxaFeedback={e.taxa_feedback} />
                           </td>
                         </tr>,
@@ -373,7 +365,6 @@ export default function ComandoDashboard() {
               )}
             </div>
 
-            {/* Legenda */}
             <div className="flex flex-wrap gap-5 text-xs text-slate-600">
               <div className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-500" /> Ativa — taxa de feedback ≥ 20%

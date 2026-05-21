@@ -1,24 +1,35 @@
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 
+function Logo() {
+  return (
+    <div className="w-8 h-8 rounded-xl flex items-center justify-center shadow-md shadow-blue-500/20"
+      style={{ background: 'linear-gradient(135deg,#1d4ed8,#2563eb)' }}>
+      <span className="text-white font-bold text-sm">⚖</span>
+    </div>
+  )
+}
+
 export default function Privacidade() {
   const navigate = useNavigate()
   return (
     <div className="min-h-screen bg-slate-50 py-12 px-6">
       <div className="max-w-2xl mx-auto">
         <button onClick={() => navigate(-1)}
-          className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 mb-8">
+          className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-700 mb-8 transition-colors font-medium">
           <ArrowLeft className="h-4 w-4" /> Voltar
         </button>
 
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 space-y-6">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
-              <span className="text-white text-sm font-bold">⚖</span>
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.06)] p-8 space-y-6">
+          <div className="flex items-center gap-3 mb-1">
+            <Logo />
+            <div>
+              <h1 className="text-lg font-bold text-slate-900 tracking-tight">Política de Privacidade</h1>
+              <p className="text-xs text-slate-400 mt-0.5">Última atualização: maio de 2026 · Em conformidade com a LGPD (Lei nº 13.709/2018)</p>
             </div>
-            <h1 className="text-xl font-bold text-slate-800">Política de Privacidade</h1>
           </div>
-          <p className="text-xs text-slate-400">Última atualização: maio de 2026 · Em conformidade com a LGPD (Lei nº 13.709/2018)</p>
+
+          <div className="border-t border-slate-100" />
 
           {[
             {
@@ -59,7 +70,7 @@ export default function Privacidade() {
             },
           ].map(({ titulo, texto }) => (
             <div key={titulo}>
-              <h2 className="text-sm font-semibold text-slate-700 mb-1.5">{titulo}</h2>
+              <h2 className="text-sm font-semibold text-slate-800 mb-1.5">{titulo}</h2>
               <p className="text-sm text-slate-500 leading-relaxed">{texto}</p>
             </div>
           ))}

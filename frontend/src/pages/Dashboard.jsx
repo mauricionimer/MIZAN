@@ -145,10 +145,10 @@ function Slider({ label, hint, value, min, max, step, onChange, color = 'blue' }
 
 function PricingCard({ label, value, sub, highlight = false, icon: Icon }) {
   return (
-    <div className={`rounded-xl border p-4 flex flex-col gap-1 ${
+    <div className={`rounded-2xl border p-4 flex flex-col gap-1 ${
       highlight
         ? 'bg-blue-600 border-blue-500 text-white'
-        : 'bg-white border-slate-200 shadow-sm'
+        : 'bg-white border-slate-100 shadow-sm'
     }`}>
       <div className="flex items-center justify-between">
         <p className={`text-xs font-semibold uppercase tracking-wide ${highlight ? 'text-blue-200' : 'text-slate-500'}`}>
@@ -264,20 +264,21 @@ export default function Dashboard() {
     <div className="min-h-screen bg-slate-50">
 
       {/* Navbar */}
-      <header className="bg-white border-b border-slate-200 px-6 py-3.5 flex items-center justify-between sticky top-0 z-20">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center">
-            <span className="text-white text-sm font-bold">⚖</span>
+      <header className="bg-white border-b border-slate-100 px-6 py-3 flex items-center justify-between sticky top-0 z-20">
+        <div className="flex items-center gap-3">
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0"
+            style={{ background: 'linear-gradient(135deg,#1d4ed8,#2563eb)' }}>
+            <span className="text-white font-bold text-xs">⚖</span>
           </div>
-          <span className="font-bold text-slate-800">Mizan</span>
-          <span className="text-slate-300 mx-1">/</span>
+          <span className="font-bold text-slate-800 text-sm">Mizan</span>
+          <span className="text-slate-200 text-sm">/</span>
           <span className="text-slate-500 text-sm">Dashboard</span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5">
           {isComando && (
             <button
               onClick={() => navigate('/comando')}
-              className="flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-800 transition-colors px-3 py-1.5 rounded-lg hover:bg-indigo-50 font-semibold"
+              className="flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-800 transition-colors px-3 py-1.5 rounded-xl hover:bg-indigo-50 font-semibold"
             >
               <ShieldCheck className="h-3.5 w-3.5" /> COMANDO
             </button>
@@ -285,65 +286,50 @@ export default function Dashboard() {
           {isAdmin && (
             <button
               onClick={() => navigate('/admin/usuarios')}
-              className="flex items-center gap-1.5 text-sm text-purple-600 hover:text-purple-800 transition-colors px-3 py-1.5 rounded-lg hover:bg-purple-50"
+              className="flex items-center gap-1.5 text-sm text-violet-600 hover:text-violet-800 transition-colors px-3 py-1.5 rounded-xl hover:bg-violet-50 font-semibold"
             >
               <ShieldCheck className="h-3.5 w-3.5" /> Usuários
             </button>
           )}
           {isAdmin && (
-            <button
-              onClick={() => navigate('/bandit')}
-              className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-100"
-            >
+            <button onClick={() => navigate('/bandit')} className="nav-link">
               <Zap className="h-3.5 w-3.5" /> Performance IA
             </button>
           )}
-          <button
-            onClick={() => navigate('/feedback')}
-            className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-100"
-          >
+          <button onClick={() => navigate('/feedback')} className="nav-link">
             <ClipboardList className="h-3.5 w-3.5" /> Registrar pagamento
           </button>
-          <button
-            onClick={() => navigate('/alterar-senha')}
-            className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-100"
-            title="Alterar senha"
-          >
+          <button onClick={() => navigate('/alterar-senha')} className="nav-link" title="Alterar senha">
             <KeyRound className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">{usuario?.nome}</span>
           </button>
-          <button
-            onClick={() => navigate('/')}
-            className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-100"
-          >
+          <button onClick={() => navigate('/')} className="nav-link">
             <RefreshCw className="h-3.5 w-3.5" /> Nova análise
           </button>
-          <button
-            onClick={() => { logout(); navigate('/login') }}
-            className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-red-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-red-50"
-          >
+          <button onClick={() => { logout(); navigate('/login') }} className="nav-link-danger">
             <LogOut className="h-3.5 w-3.5" /> Sair
           </button>
+          <div className="w-px h-5 bg-slate-200 mx-1" />
           <button
             onClick={() => exportCSV(ranking_completo)}
-            className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+            className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3 py-1.5 rounded-xl transition-colors"
           >
-            <FileSpreadsheet className="h-4 w-4" /> CSV
+            <FileSpreadsheet className="h-3.5 w-3.5" /> CSV
           </button>
           <button
             onClick={() => exportExcel(ranking_completo, resumo)}
-            className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+            className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold px-3 py-1.5 rounded-xl transition-colors"
           >
-            <FileSpreadsheet className="h-4 w-4" /> Excel
+            <FileSpreadsheet className="h-3.5 w-3.5" /> Excel
           </button>
           <button
             onClick={exportPDF}
             disabled={exporting}
-            className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 disabled:bg-slate-300 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+            className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 disabled:bg-slate-300 text-white text-xs font-semibold px-3 py-1.5 rounded-xl transition-colors"
           >
             {exporting
-              ? <><Loader2 className="h-4 w-4 animate-spin" /> Exportando...</>
-              : <><Download className="h-4 w-4" /> Exportar PDF</>}
+              ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Exportando...</>
+              : <><Download className="h-3.5 w-3.5" /> PDF</>}
           </button>
         </div>
       </header>
@@ -359,7 +345,7 @@ export default function Dashboard() {
         </div>
 
         {/* ── Precificação ── */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] p-6">
           <div className="flex items-center gap-2 mb-5">
             <Banknote className="h-4 w-4 text-blue-600" />
             <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
@@ -437,7 +423,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-5 gap-6">
 
           {/* Aging Bar Chart */}
-          <div className="col-span-3 bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+          <div className="col-span-3 bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] p-6">
             <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-5">
               Distribuição por Aging
             </h3>
@@ -464,7 +450,7 @@ export default function Dashboard() {
           </div>
 
           {/* Cluster Pie */}
-          <div className="col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+          <div className="col-span-2 bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] p-6">
             <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-5">
               Perfis de Devedores
             </h3>
@@ -500,7 +486,7 @@ export default function Dashboard() {
 
         {/* ── Resultados Reais ── */}
         {!loadingPerf && perf && perf.total_feedbacks > 0 && (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
               <div>
                 <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
@@ -563,7 +549,7 @@ export default function Dashboard() {
 
         {/* ── Pagamentos individuais ── */}
         {pagamentos.length > 0 && (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
               <div>
                 <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
@@ -635,7 +621,7 @@ export default function Dashboard() {
         )}
 
         {/* ── Tabela ── */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100 space-y-3">
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div>

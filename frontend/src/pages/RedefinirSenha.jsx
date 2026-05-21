@@ -1,8 +1,17 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { KeyRound, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { KeyRound, Eye, EyeOff, Loader2, CheckCircle2 } from 'lucide-react'
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
+
+function Logo() {
+  return (
+    <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/20"
+      style={{ background: 'linear-gradient(135deg,#1d4ed8,#2563eb)' }}>
+      <span className="text-white font-bold text-sm">⚖</span>
+    </div>
+  )
+}
 
 export default function RedefinirSenha() {
   const navigate = useNavigate()
@@ -48,68 +57,69 @@ export default function RedefinirSenha() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6">
-      <div className="mb-8 text-center">
-        <div className="inline-flex items-center gap-3 mb-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center">
-            <span className="text-white text-lg font-bold">⚖</span>
-          </div>
-          <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Mizan</h1>
-        </div>
+      <div className="flex items-center gap-2.5 mb-10">
+        <Logo />
+        <span className="text-slate-800 text-xl font-bold tracking-tight">Mizan</span>
       </div>
 
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
+      <div className="w-full max-w-sm bg-white rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.08)] p-8">
         {sucesso ? (
           <div className="text-center py-4">
-            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
-              <KeyRound className="w-6 h-6 text-green-600" />
+            <div className="w-14 h-14 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <CheckCircle2 className="w-7 h-7 text-emerald-600" />
             </div>
-            <h2 className="text-lg font-semibold text-slate-900 mb-2">Senha redefinida!</h2>
-            <p className="text-sm text-slate-500 mb-6">Sua senha foi atualizada. Faça login com a nova senha.</p>
-            <button
-              onClick={() => navigate('/login')}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl text-sm font-medium"
-            >
+            <h2 className="text-lg font-bold text-slate-900 mb-2 tracking-tight">Senha redefinida!</h2>
+            <p className="text-sm text-slate-500 mb-7 leading-relaxed">Sua senha foi atualizada. Faça login com a nova senha.</p>
+            <button onClick={() => navigate('/login')} className="btn-primary w-full py-2.5">
               Ir para o login
             </button>
           </div>
         ) : (
           <>
-            <h2 className="text-base font-semibold text-slate-800 mb-1">Nova senha</h2>
-            <p className="text-sm text-slate-500 mb-6">Escolha uma nova senha com pelo menos 6 caracteres.</p>
+            <div className="w-12 h-12 bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-center mb-5">
+              <KeyRound className="w-6 h-6 text-blue-600" />
+            </div>
+            <h2 className="text-lg font-bold text-slate-900 mb-1 tracking-tight">Nova senha</h2>
+            <p className="text-sm text-slate-500 mb-7">Escolha uma nova senha com pelo menos 6 caracteres.</p>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1.5">Nova senha</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Nova senha</label>
                 <div className="relative">
                   <input
                     type={showNova ? 'text' : 'password'}
                     required value={nova}
                     onChange={e => setNova(e.target.value)}
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="input-base pr-11"
+                    placeholder="mínimo 6 caracteres"
                   />
-                  <button type="button" onClick={() => setShowNova(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                  <button type="button" onClick={() => setShowNova(s => !s)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
                     {showNova ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1.5">Confirmar nova senha</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Confirmar nova senha</label>
                 <div className="relative">
                   <input
                     type={showConf ? 'text' : 'password'}
                     required value={confirmar}
                     onChange={e => setConfirmar(e.target.value)}
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="input-base pr-11"
+                    placeholder="repita a nova senha"
                   />
-                  <button type="button" onClick={() => setShowConf(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                  <button type="button" onClick={() => setShowConf(s => !s)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
                     {showConf ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
-              {erro && <p className="text-sm text-red-600">{erro}</p>}
-              <button
-                type="submit" disabled={carregando}
-                className="w-full py-2.5 rounded-xl font-semibold text-sm text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 flex items-center justify-center gap-2"
-              >
+              {erro && (
+                <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+                  {erro}
+                </div>
+              )}
+              <button type="submit" disabled={carregando} className="btn-primary w-full py-2.5 disabled:opacity-50">
                 {carregando ? <><Loader2 className="h-4 w-4 animate-spin" /> Salvando...</> : 'Salvar nova senha'}
               </button>
             </form>

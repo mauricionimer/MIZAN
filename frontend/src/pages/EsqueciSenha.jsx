@@ -4,12 +4,21 @@ import { ArrowLeft, Mail, Loader2 } from 'lucide-react'
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
 
+function Logo() {
+  return (
+    <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/20"
+      style={{ background: 'linear-gradient(135deg,#1d4ed8,#2563eb)' }}>
+      <span className="text-white font-bold text-sm">⚖</span>
+    </div>
+  )
+}
+
 export default function EsqueciSenha() {
   const navigate = useNavigate()
-  const [email, setEmail]         = useState('')
-  const [enviado, setEnviado]     = useState(false)
+  const [email, setEmail]           = useState('')
+  const [enviado, setEnviado]       = useState(false)
   const [carregando, setCarregando] = useState(false)
-  const [erro, setErro]           = useState('')
+  const [erro, setErro]             = useState('')
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -36,61 +45,64 @@ export default function EsqueciSenha() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6">
-      <div className="mb-8 text-center">
-        <div className="inline-flex items-center gap-3 mb-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center">
-            <span className="text-white text-lg font-bold">⚖</span>
-          </div>
-          <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Mizan</h1>
-        </div>
+      <div className="flex items-center gap-2.5 mb-10">
+        <Logo />
+        <span className="text-slate-800 text-xl font-bold tracking-tight">Mizan</span>
       </div>
 
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
-        <button onClick={() => navigate('/login')} className="flex items-center gap-1 text-sm text-slate-400 hover:text-slate-700 mb-6">
+      <div className="w-full max-w-sm bg-white rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.08)] p-8">
+        <button onClick={() => navigate('/login')}
+          className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-700 mb-7 transition-colors font-medium">
           <ArrowLeft className="w-4 h-4" /> Voltar ao login
         </button>
 
         {enviado ? (
           <div className="text-center py-4">
-            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
-              <Mail className="w-6 h-6 text-green-600" />
+            <div className="w-14 h-14 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <Mail className="w-7 h-7 text-emerald-600" />
             </div>
-            <h2 className="text-lg font-semibold text-slate-900 mb-2">E-mail enviado!</h2>
-            <p className="text-sm text-slate-500">
+            <h2 className="text-lg font-bold text-slate-900 mb-2 tracking-tight">E-mail enviado!</h2>
+            <p className="text-sm text-slate-500 leading-relaxed">
               Se o e-mail estiver cadastrado, você receberá as instruções em breve. Verifique também a caixa de spam.
             </p>
             <button
               onClick={() => navigate('/login')}
-              className="mt-6 w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl text-sm font-medium"
+              className="btn-primary mt-6 w-full py-2.5"
             >
               Voltar ao login
             </button>
           </div>
         ) : (
           <>
-            <h2 className="text-base font-semibold text-slate-800 mb-1">Esqueceu a senha?</h2>
-            <p className="text-sm text-slate-500 mb-6">
+            <h2 className="text-lg font-bold text-slate-900 mb-1 tracking-tight">Esqueceu a senha?</h2>
+            <p className="text-sm text-slate-500 mb-7 leading-relaxed">
               Digite seu e-mail e enviaremos um link para redefinir a senha.
             </p>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1.5">E-mail</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">E-mail</label>
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   placeholder="seu@email.com"
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="input-base"
                 />
               </div>
-              {erro && <p className="text-sm text-red-600">{erro}</p>}
+              {erro && (
+                <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+                  {erro}
+                </div>
+              )}
               <button
                 type="submit"
                 disabled={carregando}
-                className="w-full py-2.5 rounded-xl font-semibold text-sm text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 flex items-center justify-center gap-2"
+                className="btn-primary w-full py-2.5 disabled:opacity-50"
               >
-                {carregando ? <><Loader2 className="h-4 w-4 animate-spin" /> Enviando...</> : 'Enviar link de redefinição'}
+                {carregando
+                  ? <><Loader2 className="h-4 w-4 animate-spin" /> Enviando...</>
+                  : 'Enviar link de redefinição'}
               </button>
             </form>
           </>
