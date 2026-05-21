@@ -56,8 +56,11 @@ export default function RedefinirSenha() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6">
-      <div className="flex items-center gap-2.5 mb-10">
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden"
+      style={{ background: 'linear-gradient(180deg, rgba(239,246,255,0.8) 0%, #f8fafc 200px), #f8fafc' }}>
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-96 rounded-full opacity-10 -translate-y-1/2 blur-3xl"
+        style={{ background: 'radial-gradient(circle, #3b82f6, #1d4ed8)' }} />
+      <div className="flex items-center gap-2.5 mb-10 relative">
         <Logo />
         <span className="text-slate-800 text-xl font-bold tracking-tight">Mizan</span>
       </div>

@@ -327,7 +327,7 @@ export default function DebtorDetail() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b border-slate-100 px-6 py-3 flex items-center gap-3 sticky top-0 z-20">
+      <header className="navbar-glass px-6 py-3 flex items-center gap-3">
         <button
           onClick={() => navigate('/dashboard')}
           className="text-slate-400 hover:text-slate-700 transition-colors p-1 rounded-lg hover:bg-slate-100"

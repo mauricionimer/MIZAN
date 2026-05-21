@@ -965,21 +965,29 @@ export default function Upload() {
     : `${(bytes / 1024 / 1024).toFixed(1)} MB`
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6">
-      {/* Logo */}
-      <div className="mb-10 text-center">
-        <div className="inline-flex items-center gap-3 mb-3">
-          <div className="w-11 h-11 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/25"
-            style={{ background: 'linear-gradient(135deg,#1d4ed8,#2563eb)' }}>
-            <span className="text-white text-lg font-bold">⚖</span>
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden"
+      style={{ background: 'linear-gradient(180deg, rgba(239,246,255,0.9) 0%, #f8fafc 250px), #f8fafc' }}>
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full opacity-[0.08] -translate-y-1/2 blur-3xl pointer-events-none"
+        style={{ background: 'radial-gradient(circle, #3b82f6, #1d4ed8)' }} />
+      {/* Hero */}
+      <div className="mb-12 text-center relative z-10">
+        <div className="relative inline-block mb-5">
+          <div className="absolute inset-0 rounded-full blur-3xl scale-[2] opacity-25"
+            style={{ background: 'radial-gradient(circle, #3b82f6, #1d4ed8)' }} />
+          <div className="relative w-16 h-16 rounded-2xl flex items-center justify-center"
+            style={{ background: 'linear-gradient(135deg,#1d4ed8,#2563eb)', boxShadow: '0 8px 32px rgba(29,78,216,0.4), 0 2px 8px rgba(29,78,216,0.3)' }}>
+            <span className="text-white text-2xl font-bold">⚖</span>
           </div>
-          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Mizan</h1>
         </div>
-        <p className="text-slate-500 text-sm">Plataforma de análise de carteira de crédito com IA</p>
+        <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight mb-2">Mizan</h1>
+        <p className="text-slate-500 text-base max-w-xs mx-auto leading-relaxed">
+          Análise de carteira de crédito com inteligência artificial
+        </p>
       </div>
 
       {/* Card */}
-      <div className="w-full max-w-lg bg-white rounded-2xl shadow-[0_2px_12px_rgba(15,23,42,0.08)] border border-slate-100 p-8">
+      <div className="w-full max-w-lg bg-white rounded-2xl border border-slate-100 p-8 relative z-10"
+        style={{ boxShadow: '0 4px 24px rgba(15,23,42,0.10), 0 1px 4px rgba(15,23,42,0.06)' }}>
         <h2 className="text-base font-semibold text-slate-800 mb-1">Carregar carteira</h2>
         <p className="text-sm text-slate-500 mb-5">
           Importe os dados dos devedores via arquivo ou conexão direta com banco de dados.

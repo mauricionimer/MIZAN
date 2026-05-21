@@ -264,7 +264,7 @@ export default function Dashboard() {
     <div className="min-h-screen bg-slate-50">
 
       {/* Navbar */}
-      <header className="bg-white border-b border-slate-100 px-6 py-3 flex items-center justify-between sticky top-0 z-20">
+      <header className="navbar-glass px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-7 h-7 rounded-lg flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0"
             style={{ background: 'linear-gradient(135deg,#1d4ed8,#2563eb)' }}>
@@ -338,20 +338,22 @@ export default function Dashboard() {
 
         {/* ── Stat Cards ── */}
         <div className="grid grid-cols-4 gap-4">
-          <StatCard label="Total de Devedores"     value={fmtNum(resumo.total_devedores)}  icon={Users} />
-          <StatCard label="Valor de Face"           value={fmtBRL(resumo.total_em_risco)}   sub="valor nominal da carteira"       icon={TrendingDown} />
-          <StatCard label="Score Médio"             value={resumo.score_medio.toFixed(1)}   sub="recuperabilidade (0–100)"        icon={BarChart2} />
-          <StatCard label="Devedores Prioritários" value={fmtNum(prioritarios)}             sub="score ≥ 70"                      icon={Star} />
+          <StatCard label="Total de Devedores"     value={fmtNum(resumo.total_devedores)}  icon={Users}       accent="blue" />
+          <StatCard label="Valor de Face"           value={fmtBRL(resumo.total_em_risco)}   sub="valor nominal da carteira"       icon={TrendingDown} accent="amber" />
+          <StatCard label="Score Médio"             value={resumo.score_medio.toFixed(1)}   sub="recuperabilidade (0–100)"        icon={BarChart2}   accent="violet" />
+          <StatCard label="Devedores Prioritários" value={fmtNum(prioritarios)}             sub="score ≥ 70"                      icon={Star}        accent="emerald" />
         </div>
 
         {/* ── Precificação ── */}
         <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] p-6">
-          <div className="flex items-center gap-2 mb-5">
-            <Banknote className="h-4 w-4 text-blue-600" />
-            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-              Precificação da Carteira
-            </h3>
-            <span className="ml-auto text-xs text-slate-400 italic">Ajuste os parâmetros para simular cenários</span>
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
+              <Banknote className="h-4.5 w-4.5 text-blue-600" style={{ width: '1.125rem', height: '1.125rem' }} />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-800 tracking-tight">Precificação da Carteira</h3>
+              <p className="text-xs text-slate-400 mt-0.5">Ajuste os parâmetros para simular cenários de compra</p>
+            </div>
           </div>
 
           <div className="grid grid-cols-5 gap-6 items-start">
@@ -424,9 +426,12 @@ export default function Dashboard() {
 
           {/* Aging Bar Chart */}
           <div className="col-span-3 bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] p-6">
-            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-5">
-              Distribuição por Aging
-            </h3>
+            <div className="flex items-center gap-2.5 mb-5">
+              <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
+                <BarChart2 className="h-4 w-4 text-blue-500" />
+              </div>
+              <h3 className="text-sm font-bold text-slate-800 tracking-tight">Distribuição por Aging</h3>
+            </div>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={agingData} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
@@ -451,9 +456,12 @@ export default function Dashboard() {
 
           {/* Cluster Pie */}
           <div className="col-span-2 bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] p-6">
-            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-5">
-              Perfis de Devedores
-            </h3>
+            <div className="flex items-center gap-2.5 mb-5">
+              <div className="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
+                <Users className="h-4 w-4 text-violet-500" />
+              </div>
+              <h3 className="text-sm font-bold text-slate-800 tracking-tight">Perfis de Devedores</h3>
+            </div>
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
                 <Pie
@@ -488,12 +496,14 @@ export default function Dashboard() {
         {!loadingPerf && perf && perf.total_feedbacks > 0 && (
           <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-              <div>
-                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
-                  <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
-                  Resultados Reais — Quem Pagou
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">{perf.total_feedbacks} feedbacks registrados</p>
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+                  <TrendingUp className="h-4.5 w-4.5 text-emerald-600" style={{ width: '1.125rem', height: '1.125rem' }} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800 tracking-tight">Resultados Reais — Quem Pagou</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">{perf.total_feedbacks} feedbacks registrados</p>
+                </div>
               </div>
               {perf.acuracia_geral != null && (
                 <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 border border-blue-100">
@@ -551,12 +561,14 @@ export default function Dashboard() {
         {pagamentos.length > 0 && (
           <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
-              <div>
-                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
-                  <Banknote className="h-3.5 w-3.5 text-emerald-500" />
-                  Pagamentos Registrados — Detalhe Individual
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">{pagamentos.filter(p => p.pagou).length} pagamentos · {pagamentos.filter(p => !p.pagou).length} não pagaram</p>
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+                  <Banknote className="h-4.5 w-4.5 text-emerald-600" style={{ width: '1.125rem', height: '1.125rem' }} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800 tracking-tight">Pagamentos Registrados</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">{pagamentos.filter(p => p.pagou).length} pagamentos · {pagamentos.filter(p => !p.pagou).length} não pagaram</p>
+                </div>
               </div>
               <input
                 value={searchPag}
@@ -624,14 +636,17 @@ export default function Dashboard() {
         <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100 space-y-3">
             <div className="flex items-center justify-between gap-4 flex-wrap">
-              <div>
-                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                  Ranking de Recuperabilidade
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  {fmtNum(filtered.length)} devedores{search || filtroPrio !== 'todos' || filtroProduto !== 'todos' || filtroUF !== 'todas' ? ' filtrados' : ''}
-                  {totalPages > 1 && ` · página ${page} de ${totalPages}`}
-                </p>
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
+                  <Star className="h-4.5 w-4.5 text-blue-600" style={{ width: '1.125rem', height: '1.125rem' }} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800 tracking-tight">Ranking de Recuperabilidade</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {fmtNum(filtered.length)} devedores{search || filtroPrio !== 'todos' || filtroProduto !== 'todos' || filtroUF !== 'todas' ? ' filtrados' : ''}
+                    {totalPages > 1 && ` · página ${page} de ${totalPages}`}
+                  </p>
+                </div>
               </div>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />

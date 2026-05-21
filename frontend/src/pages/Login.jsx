@@ -55,11 +55,13 @@ export default function Login() {
 
           <div className="mt-10 grid grid-cols-3 gap-3">
             {[
-              { n: '98%',  l: 'Precisão ML' },
-              { n: '<1s',  l: 'Por devedor' },
-              { n: '12',   l: 'Estratégias' },
-            ].map(({ n, l }) => (
-              <div key={l} className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-4">
+              { n: '98%',  l: 'Precisão ML',   icon: '🎯' },
+              { n: '<1s',  l: 'Por devedor',   icon: '⚡' },
+              { n: '12',   l: 'Estratégias',   icon: '🧠' },
+            ].map(({ n, l, icon }) => (
+              <div key={l} className="rounded-2xl border border-white/10 bg-white/8 backdrop-blur-sm p-4"
+                style={{ background: 'rgba(255,255,255,0.07)' }}>
+                <p className="text-lg mb-1">{icon}</p>
                 <p className="text-2xl font-extrabold text-white tracking-tight">{n}</p>
                 <p className="text-blue-300 text-xs mt-1 font-medium">{l}</p>
               </div>
@@ -71,7 +73,11 @@ export default function Login() {
       </div>
 
       {/* Painel direito — formulário */}
-      <div className="flex-1 flex flex-col items-center justify-center p-8 bg-white">
+      <div className="flex-1 flex flex-col items-center justify-center p-8 bg-white relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 rounded-full opacity-[0.04] -translate-y-1/2 translate-x-1/2"
+          style={{ background: 'radial-gradient(circle, #3b82f6, #1d4ed8)' }} />
+        <div className="absolute bottom-0 left-0 w-48 h-48 rounded-full opacity-[0.03] translate-y-1/2 -translate-x-1/2"
+          style={{ background: 'radial-gradient(circle, #8b5cf6, #1d4ed8)' }} />
         <div className="lg:hidden flex items-center gap-2.5 mb-10">
           <Logo />
           <span className="text-slate-800 text-xl font-bold tracking-tight">Mizan</span>
