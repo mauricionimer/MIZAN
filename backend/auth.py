@@ -95,9 +95,9 @@ def garantir_admin():
                 "email":      email,
                 "nome":       "Administrador",
                 "senha_hash": hash_senha("mizan123"),
-                "role":       "admin",
+                "role":       "comando",
                 "ativo":      True,
-                "empresa_id": _empresa_do_email(email),
+                "empresa_id": "",
             }
             db.table("usuarios").insert(admin).execute()
             print("\n[Auth] *** Primeiro acesso — usuário padrão criado ***")
@@ -178,6 +178,9 @@ def alterar_role(usuario_id: str, role: str) -> dict | None:
     if role not in ("admin", "operador"):
         raise ValueError("Role inválido. Use 'admin' ou 'operador'.")
     db = _db()
+    atual = db.table("usuarios").select("role").eq("id", usuario_id).limit(1).execute()
+    if atual.data and atual.data[0].get("role") == "comando":
+        raise ValueError("Não é possível alterar a role de um usuário COMANDO.")
     db.table("usuarios").update({"role": role}).eq("id", usuario_id).execute()
     res = db.table("usuarios").select("id, email, nome, role, ativo").eq("id", usuario_id).limit(1).execute()
     return res.data[0] if res.data else None
