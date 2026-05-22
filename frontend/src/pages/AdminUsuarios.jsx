@@ -118,6 +118,7 @@ function PainelPermissoes({ conexao, operadores, token }) {
 
 // ── Card de empresa ──────────────────────────────────────────────────────────
 function CardEmpresa({ empresa, token, onAtualizar }) {
+  const [membros, setMembros] = useState(empresa.usuarios)
   const [emailInput, setEmailInput] = useState('')
   const [adicionando, setAdicionando] = useState(false)
   const [showInput, setShowInput] = useState(false)
@@ -137,12 +138,13 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
   async function handleRemover(usuarioId) {
     try {
       await removerUsuarioEmpresa(token, empresa.empresa_id, usuarioId)
-      onAtualizar()
+      // Atualiza só o estado local — mantém o card visível mesmo com 0 membros
+      setMembros(prev => prev.filter(u => u.id !== usuarioId))
     } catch (err) { setErro(err.message) }
   }
 
   async function handleDeletar() {
-    if (!confirm(`Excluir empresa "${empresa.empresa_id}"? Todos os ${empresa.usuarios.length} usuário(s) ficarão sem empresa.`)) return
+    if (!confirm(`Excluir empresa "${empresa.empresa_id}"? Todos os ${membros.length} usuário(s) ficarão sem empresa.`)) return
     try {
       await deletarEmpresa(token, empresa.empresa_id)
       onAtualizar()
@@ -158,7 +160,7 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
           </div>
           <div>
             <p className="font-bold text-slate-800 text-sm">{empresa.empresa_id}</p>
-            <p className="text-xs text-slate-400">{empresa.usuarios.length} membro{empresa.usuarios.length !== 1 ? 's' : ''}</p>
+            <p className="text-xs text-slate-400">{membros.length} membro{membros.length !== 1 ? 's' : ''}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -200,10 +202,10 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
       {erro && <p className="px-5 py-2 text-xs text-red-600 bg-red-50 border-b border-red-100">{erro}</p>}
 
       <div className="divide-y divide-slate-50">
-        {empresa.usuarios.length === 0 ? (
+        {membros.length === 0 ? (
           <p className="px-5 py-4 text-sm text-slate-400 text-center">Nenhum usuário nesta empresa ainda.</p>
         ) : (
-          empresa.usuarios.map(u => (
+          membros.map(u => (
             <div key={u.id} className={`flex items-center justify-between px-5 py-3 ${!u.ativo ? 'opacity-50' : ''}`}>
               <div className="flex items-center gap-3">
                 <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-500">
