@@ -283,7 +283,7 @@ export default function Dashboard() {
               <ShieldCheck className="h-3.5 w-3.5" /> COMANDO
             </button>
           )}
-          {isAdmin && (
+          {(isAdmin || isComando) && (
             <button
               onClick={() => navigate('/admin/usuarios')}
               className="flex items-center gap-1.5 text-sm text-violet-600 hover:text-violet-800 transition-colors px-3 py-1.5 rounded-xl hover:bg-violet-50 font-semibold"
@@ -291,7 +291,7 @@ export default function Dashboard() {
               <ShieldCheck className="h-3.5 w-3.5" /> Usuários
             </button>
           )}
-          {isAdmin && (
+          {isComando && (
             <button onClick={() => navigate('/bandit')} className="nav-link">
               <Zap className="h-3.5 w-3.5" /> Performance IA
             </button>
