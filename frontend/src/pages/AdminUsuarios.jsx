@@ -4,12 +4,12 @@ import { useAuth } from '../context/AuthContext'
 import {
   listarUsuarios, registrarUsuario, toggleUsuarioAtivo, alterarRoleUsuario,
   listarConexoes, listarPermissoesConexao, concederPermissaoConexao, revogarPermissaoConexao,
-  listarEmpresas, adicionarUsuarioEmpresa, removerUsuarioEmpresa,
+  listarEmpresas, adicionarUsuarioEmpresa, removerUsuarioEmpresa, deletarEmpresa,
 } from '../api'
 import {
   Users, UserPlus, LogOut, ShieldCheck, ShieldOff, ToggleLeft, ToggleRight,
   ArrowLeft, Database, Lock, Unlock, ChevronDown, ChevronUp,
-  Building2, Plus, X, UserMinus, Mail,
+  Building2, Plus, X, UserMinus, Mail, Trash2,
 } from 'lucide-react'
 
 function Logo() {
@@ -141,6 +141,14 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
     } catch (err) { setErro(err.message) }
   }
 
+  async function handleDeletar() {
+    if (!confirm(`Excluir empresa "${empresa.empresa_id}"? Todos os ${empresa.usuarios.length} usuário(s) ficarão sem empresa.`)) return
+    try {
+      await deletarEmpresa(token, empresa.empresa_id)
+      onAtualizar()
+    } catch (err) { setErro(err.message) }
+  }
+
   return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.06)] overflow-hidden">
       <div className="px-5 py-4 border-b border-slate-50 flex items-center justify-between">
@@ -153,12 +161,21 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
             <p className="text-xs text-slate-400">{empresa.usuarios.length} membro{empresa.usuarios.length !== 1 ? 's' : ''}</p>
           </div>
         </div>
-        <button
-          onClick={() => { setShowInput(s => !s); setErro('') }}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"
-        >
-          <Plus className="w-3.5 h-3.5" /> Adicionar usuário
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { setShowInput(s => !s); setErro('') }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" /> Adicionar usuário
+          </button>
+          <button
+            onClick={handleDeletar}
+            title="Excluir empresa"
+            className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {showInput && (

@@ -954,6 +954,17 @@ def adicionar_usuario_empresa(empresa_id: str, body: AdicionarUsuarioEmpresaIn, 
     return {"ok": True, "usuario": {**u, "empresa_id": empresa_id}}
 
 
+@app.delete("/empresas/{empresa_id}")
+def deletar_empresa(empresa_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    _exigir_comando(credentials)
+    db = get_db()
+    membros = db.table("usuarios").select("id, role").eq("empresa_id", empresa_id).execute()
+    for u in (membros.data or []):
+        if u.get("role") == "comando":
+            raise HTTPException(status_code=400, detail="Não é possível excluir empresa com usuário COMANDO.")
+    db.table("usuarios").update({"empresa_id": ""}).eq("empresa_id", empresa_id).execute()
+    return {"ok": True, "removidos": len(membros.data or [])}
+
 @app.delete("/empresas/{empresa_id}/usuarios/{usuario_id}")
 def remover_usuario_empresa(empresa_id: str, usuario_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     _exigir_comando(credentials)

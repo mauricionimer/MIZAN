@@ -25,12 +25,15 @@ function ServerWarmupBanner() {
     </div>
   )
 }
+
 import Upload from './pages/Upload'
 import Dashboard from './pages/Dashboard'
 import DebtorDetail from './pages/DebtorDetail'
 import Feedback from './pages/Feedback'
 import BanditDashboard from './pages/BanditDashboard'
 import ComandoDashboard from './pages/ComandoDashboard'
+import AdminHome from './pages/AdminHome'
+import OperadorHome from './pages/OperadorHome'
 import AdminUsuarios from './pages/AdminUsuarios'
 import AlterarSenha from './pages/AlterarSenha'
 import EsqueciSenha from './pages/EsqueciSenha'
@@ -62,6 +65,8 @@ export default function App() {
             <Route path="/feedback" element={<RotaProtegida><Feedback /></RotaProtegida>} />
             <Route path="/bandit" element={<RotaProtegida roles={['comando']}><BanditDashboard /></RotaProtegida>} />
             <Route path="/comando" element={<RotaProtegida roles={['comando']}><ComandoDashboard /></RotaProtegida>} />
+            <Route path="/admin" element={<RotaProtegida roles={['admin', 'comando']}><AdminHome /></RotaProtegida>} />
+            <Route path="/operador" element={<RotaProtegida roles={['operador']}><OperadorHome /></RotaProtegida>} />
             <Route path="/admin/usuarios" element={<RotaProtegida roles={['admin', 'comando']}><AdminUsuarios /></RotaProtegida>} />
             <Route path="/alterar-senha" element={<RotaProtegida><AlterarSenha /></RotaProtegida>} />
             <Route path="/privacidade" element={<Privacidade />} />

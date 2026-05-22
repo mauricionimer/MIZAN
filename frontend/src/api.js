@@ -327,3 +327,14 @@ export async function refreshToken(token) {
   if (!res.ok) throw new Error(`Erro HTTP ${res.status}`)
   return res.json()
 }
+
+export async function deletarEmpresa(token, empresaId) {
+  const res = await fetch(`${BASE}/empresas/${encodeURIComponent(empresaId)}`, {
+    method: 'DELETE', headers: _authHeader(token),
+  })
+  if (!res.ok) {
+    const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
+    throw new Error(detail)
+  }
+  return res.json()
+}

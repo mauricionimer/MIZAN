@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import {
   Shield, AlertTriangle, TrendingUp, Users, DollarSign,
   ChevronDown, ChevronRight, RefreshCw, Loader2, LogOut,
-  Building2, CheckCircle2, Activity, Eye, ArrowLeft,
+  Building2, CheckCircle2, Activity, Eye, Upload, Zap, UserCog,
 } from 'lucide-react'
 
 const BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001'
@@ -159,16 +159,24 @@ export default function ComandoDashboard() {
             <span className="ml-2 text-xs text-slate-500">Visão geral do ecossistema</span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          <button onClick={() => navigate('/')}
+            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800 font-medium">
+            <Upload className="h-3.5 w-3.5" /> Análise
+          </button>
+          <button onClick={() => navigate('/admin/usuarios')}
+            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800 font-medium">
+            <UserCog className="h-3.5 w-3.5" /> Usuários
+          </button>
+          <button onClick={() => navigate('/bandit')}
+            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800 font-medium">
+            <Zap className="h-3.5 w-3.5" /> Performance IA
+          </button>
           <button onClick={carregar} disabled={loadingMain}
             className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800 disabled:opacity-40 font-medium">
             <RefreshCw className={`h-3.5 w-3.5 ${loadingMain ? 'animate-spin' : ''}`} /> Atualizar
           </button>
-          <span className="text-xs text-slate-600 hidden sm:block">{usuario?.nome}</span>
-          <button onClick={() => navigate(-1)}
-            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800 font-medium">
-            <ArrowLeft className="h-3.5 w-3.5" /> Voltar
-          </button>
+          <span className="text-xs text-slate-600 hidden md:block">{usuario?.nome}</span>
           <button onClick={() => { logout(); navigate('/login') }}
             className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-red-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-red-950/40 font-medium">
             <LogOut className="h-3.5 w-3.5" /> Sair

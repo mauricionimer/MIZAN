@@ -14,8 +14,11 @@ export default function Login() {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    const ok = await login(email, senha)
-    if (ok) navigate('/')
+    const user = await login(email, senha)
+    if (!user) return
+    if (user.role === 'comando') navigate('/comando')
+    else if (user.role === 'admin') navigate('/admin')
+    else navigate('/operador')
   }
 
   return (

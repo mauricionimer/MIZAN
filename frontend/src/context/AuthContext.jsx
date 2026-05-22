@@ -43,15 +43,15 @@ export function AuthProvider({ children }) {
         body:    JSON.stringify({ email, senha }),
       })
       const data = await res.json()
-      if (!res.ok) { setErro(data.detail ?? 'Erro ao fazer login'); return false }
+      if (!res.ok) { setErro(data.detail ?? 'Erro ao fazer login'); return null }
       localStorage.setItem(TOKEN_KEY, data.token)
       localStorage.setItem(USER_KEY, JSON.stringify(data.usuario))
       setToken(data.token)
       setUsuario(data.usuario)
-      return true
+      return data.usuario
     } catch {
       setErro('Não foi possível conectar ao servidor.')
-      return false
+      return null
     } finally {
       setLoading(false)
     }
