@@ -14,6 +14,26 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(false)
   const [erro,    setErro]    = useState('')
 
+  // Atualiza silenciosamente o token e dados do usuário com os dados atuais do banco.
+  // Corrige role desatualizada caso ela tenha mudado após o último login.
+  useEffect(() => {
+    const t = localStorage.getItem(TOKEN_KEY)
+    if (!t) return
+    fetch(`${BASE}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data) return
+        localStorage.setItem(TOKEN_KEY, data.token)
+        localStorage.setItem(USER_KEY, JSON.stringify(data.usuario))
+        setToken(data.token)
+        setUsuario(data.usuario)
+      })
+      .catch(() => {})
+  }, [])
+
   async function login(email, senha) {
     setLoading(true); setErro('')
     try {

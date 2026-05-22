@@ -281,6 +281,34 @@ export async function listarContatos(cpf) {
   return res.json()
 }
 
+export async function listarEmpresas(token) {
+  const res = await fetch(`${BASE}/empresas`, { headers: _authHeader(token) })
+  if (!res.ok) throw new Error(`Erro HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function adicionarUsuarioEmpresa(token, empresaId, email) {
+  const res = await fetch(`${BASE}/empresas/${encodeURIComponent(empresaId)}/usuarios`, {
+    method: 'POST', headers: _authHeader(token), body: JSON.stringify({ email }),
+  })
+  if (!res.ok) {
+    const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
+    throw new Error(detail)
+  }
+  return res.json()
+}
+
+export async function removerUsuarioEmpresa(token, empresaId, usuarioId) {
+  const res = await fetch(`${BASE}/empresas/${encodeURIComponent(empresaId)}/usuarios/${usuarioId}`, {
+    method: 'DELETE', headers: _authHeader(token),
+  })
+  if (!res.ok) {
+    const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
+    throw new Error(detail)
+  }
+  return res.json()
+}
+
 export async function alterarRoleUsuario(token, id, role) {
   const res = await fetch(`${BASE}/auth/usuarios/${id}/role`, {
     method: 'PATCH', headers: _authHeader(token), body: JSON.stringify({ role }),
@@ -289,5 +317,13 @@ export async function alterarRoleUsuario(token, id, role) {
     const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
     throw new Error(detail)
   }
+  return res.json()
+}
+
+export async function refreshToken(token) {
+  const res = await fetch(`${BASE}/auth/refresh`, {
+    method: 'POST', headers: _authHeader(token),
+  })
+  if (!res.ok) throw new Error(`Erro HTTP ${res.status}`)
   return res.json()
 }

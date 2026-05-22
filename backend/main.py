@@ -22,7 +22,7 @@ from db import get_db
 from model.score import score_carteira, _cache as _score_cache
 from auth import (
     criar_token, validar_token,
-    buscar_usuario, criar_usuario, listar_usuarios, alterar_senha,
+    buscar_usuario, buscar_usuario_por_id, criar_usuario, listar_usuarios, alterar_senha,
     verificar_senha, toggle_usuario_ativo, alterar_role, garantir_admin,
     criar_reset_token, redefinir_senha_com_token,
 )
@@ -598,6 +598,23 @@ def auth_me(credentials: HTTPAuthorizationCredentials = Security(bearer)):
     except ValueError as e:
         raise HTTPException(status_code=401, detail=str(e))
 
+@app.post("/auth/refresh")
+def auth_refresh(credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Emite um novo token com os dados atuais do banco (corrige role desatualizada no JWT)."""
+    try:
+        payload = validar_token(credentials.credentials)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+    user = buscar_usuario_por_id(payload["sub"])
+    if not user or not user.get("ativo"):
+        raise HTTPException(status_code=401, detail="Usuário inativo ou não encontrado.")
+    new_token = criar_token({
+        "sub": user["id"], "email": user["email"],
+        "nome": user["nome"], "role": user["role"],
+        "empresa_id": user.get("empresa_id", ""),
+    })
+    return {"token": new_token, "usuario": {k: v for k, v in user.items() if k != "senha_hash"}}
+
 @app.get("/auth/usuarios")
 def auth_listar(credentials: HTTPAuthorizationCredentials = Security(bearer)):
     payload = _exigir_admin_ou_comando(credentials)
@@ -890,6 +907,61 @@ def deletar_conexao(conexao_id: str, credentials: HTTPAuthorizationCredentials =
     if not ((eid and r.get("empresa_id") == eid) or r.get("usuario_id") == uid):
         raise HTTPException(status_code=403, detail="Acesso negado.")
     db.table("conexoes_db").delete().eq("id", conexao_id).execute()
+    return {"ok": True}
+
+
+
+# ── Gestão de Empresas (comando only) ─────────────────────────────────────────
+
+@app.get("/empresas")
+def listar_empresas(credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    _exigir_comando(credentials)
+    db = get_db()
+    todos = db.table("usuarios").select("id, nome, email, role, ativo, empresa_id").order("empresa_id").execute()
+    empresas: dict = {}
+    sem_empresa: list = []
+    for u in (todos.data or []):
+        if u.get("role") == "comando":
+            continue
+        eid = (u.get("empresa_id") or "").strip()
+        if not eid:
+            sem_empresa.append(u)
+        else:
+            if eid not in empresas:
+                empresas[eid] = {"empresa_id": eid, "usuarios": []}
+            empresas[eid]["usuarios"].append(u)
+    return {"empresas": list(empresas.values()), "sem_empresa": sem_empresa}
+
+
+class AdicionarUsuarioEmpresaIn(BaseModel):
+    email: str
+
+
+@app.post("/empresas/{empresa_id}/usuarios")
+def adicionar_usuario_empresa(empresa_id: str, body: AdicionarUsuarioEmpresaIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    _exigir_comando(credentials)
+    empresa_id = empresa_id.strip()
+    if not empresa_id:
+        raise HTTPException(status_code=400, detail="empresa_id inválido.")
+    db = get_db()
+    res = db.table("usuarios").select("id, email, nome, role, empresa_id").eq("email", body.email.strip()).limit(1).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+    u = res.data[0]
+    if u.get("role") == "comando":
+        raise HTTPException(status_code=403, detail="Não é possível mover um usuário COMANDO para uma empresa.")
+    db.table("usuarios").update({"empresa_id": empresa_id}).eq("id", u["id"]).execute()
+    return {"ok": True, "usuario": {**u, "empresa_id": empresa_id}}
+
+
+@app.delete("/empresas/{empresa_id}/usuarios/{usuario_id}")
+def remover_usuario_empresa(empresa_id: str, usuario_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    _exigir_comando(credentials)
+    db = get_db()
+    chk = db.table("usuarios").select("role").eq("id", usuario_id).limit(1).execute()
+    if chk.data and chk.data[0].get("role") == "comando":
+        raise HTTPException(status_code=403, detail="Não é possível remover um usuário COMANDO.")
+    db.table("usuarios").update({"empresa_id": ""}).eq("id", usuario_id).execute()
     return {"ok": True}
 
 

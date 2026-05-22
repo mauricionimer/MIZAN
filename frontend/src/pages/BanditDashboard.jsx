@@ -72,13 +72,11 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 export default function BanditDashboard() {
   const navigate = useNavigate()
-  const { token, usuario, logout, isAdmin } = useAuth()
+  const { token, usuario, logout, isComando } = useAuth()
   const [dados, setDados]     = useState(null)
   const [drift, setDrift]     = useState(null)
   const [loading, setLoading] = useState(true)
   const [erro, setErro]       = useState('')
-
-  useEffect(() => { if (!isAdmin) navigate('/') }, [isAdmin])
 
   async function carregar() {
     setLoading(true)

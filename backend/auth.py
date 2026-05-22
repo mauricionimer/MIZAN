@@ -111,6 +111,10 @@ def buscar_usuario(email: str) -> dict | None:
     res = _db().table("usuarios").select("*").eq("email", email).limit(1).execute()
     return res.data[0] if res.data else None
 
+def buscar_usuario_por_id(usuario_id: str) -> dict | None:
+    res = _db().table("usuarios").select("*").eq("id", usuario_id).limit(1).execute()
+    return res.data[0] if res.data else None
+
 def criar_usuario(email: str, nome: str, senha: str, role: str = "operador", empresa_id: str = "") -> dict:
     db = _db()
     if db.table("usuarios").select("id").eq("email", email).execute().data:
