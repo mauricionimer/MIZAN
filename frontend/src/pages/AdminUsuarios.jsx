@@ -4,10 +4,12 @@ import { useAuth } from '../context/AuthContext'
 import {
   listarUsuarios, registrarUsuario, toggleUsuarioAtivo, alterarRoleUsuario,
   listarConexoes, listarPermissoesConexao, concederPermissaoConexao, revogarPermissaoConexao,
+  listarEmpresas, adicionarUsuarioEmpresa, removerUsuarioEmpresa,
 } from '../api'
 import {
   Users, UserPlus, LogOut, ShieldCheck, ShieldOff, ToggleLeft, ToggleRight,
   ArrowLeft, Database, Lock, Unlock, ChevronDown, ChevronUp,
+  Building2, Plus, X, UserMinus, Mail,
 } from 'lucide-react'
 
 function Logo() {
@@ -114,6 +116,105 @@ function PainelPermissoes({ conexao, operadores, token }) {
   )
 }
 
+// ── Card de empresa ──────────────────────────────────────────────────────────
+function CardEmpresa({ empresa, token, onAtualizar }) {
+  const [emailInput, setEmailInput] = useState('')
+  const [adicionando, setAdicionando] = useState(false)
+  const [showInput, setShowInput] = useState(false)
+  const [erro, setErro] = useState('')
+
+  async function handleAdicionar(e) {
+    e.preventDefault()
+    if (!emailInput.trim()) return
+    setAdicionando(true); setErro('')
+    try {
+      await adicionarUsuarioEmpresa(token, empresa.empresa_id, emailInput.trim())
+      setEmailInput(''); setShowInput(false)
+      onAtualizar()
+    } catch (err) { setErro(err.message) } finally { setAdicionando(false) }
+  }
+
+  async function handleRemover(usuarioId) {
+    try {
+      await removerUsuarioEmpresa(token, empresa.empresa_id, usuarioId)
+      onAtualizar()
+    } catch (err) { setErro(err.message) }
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.06)] overflow-hidden">
+      <div className="px-5 py-4 border-b border-slate-50 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0">
+            <Building2 className="w-4 h-4 text-indigo-500" />
+          </div>
+          <div>
+            <p className="font-bold text-slate-800 text-sm">{empresa.empresa_id}</p>
+            <p className="text-xs text-slate-400">{empresa.usuarios.length} membro{empresa.usuarios.length !== 1 ? 's' : ''}</p>
+          </div>
+        </div>
+        <button
+          onClick={() => { setShowInput(s => !s); setErro('') }}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"
+        >
+          <Plus className="w-3.5 h-3.5" /> Adicionar usuário
+        </button>
+      </div>
+
+      {showInput && (
+        <form onSubmit={handleAdicionar} className="px-5 py-3 border-b border-slate-50 flex gap-2 items-center bg-slate-50/50">
+          <Mail className="w-4 h-4 text-slate-400 shrink-0" />
+          <input
+            type="email" required
+            value={emailInput}
+            onChange={e => { setEmailInput(e.target.value); setErro('') }}
+            placeholder="email@dominio.com (já cadastrado no sistema)"
+            className="flex-1 text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-400 bg-white"
+          />
+          <button type="submit" disabled={adicionando} className="px-3 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors whitespace-nowrap">
+            {adicionando ? 'Adicionando...' : 'Confirmar'}
+          </button>
+          <button type="button" onClick={() => { setShowInput(false); setErro('') }} className="p-2 text-slate-400 hover:text-slate-600">
+            <X className="w-4 h-4" />
+          </button>
+        </form>
+      )}
+
+      {erro && <p className="px-5 py-2 text-xs text-red-600 bg-red-50 border-b border-red-100">{erro}</p>}
+
+      <div className="divide-y divide-slate-50">
+        {empresa.usuarios.length === 0 ? (
+          <p className="px-5 py-4 text-sm text-slate-400 text-center">Nenhum usuário nesta empresa ainda.</p>
+        ) : (
+          empresa.usuarios.map(u => (
+            <div key={u.id} className={`flex items-center justify-between px-5 py-3 ${!u.ativo ? 'opacity-50' : ''}`}>
+              <div className="flex items-center gap-3">
+                <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-500">
+                  {(u.nome || u.email)[0].toUpperCase()}
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-800">{u.nome}</p>
+                  <p className="text-xs text-slate-400">{u.email}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${ROLE_BADGE[u.role] ?? 'bg-slate-100 text-slate-500'}`}>{u.role}</span>
+                <button
+                  onClick={() => handleRemover(u.id)}
+                  title="Remover da empresa"
+                  className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                >
+                  <UserMinus className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Componente principal ─────────────────────────────────────────────────────
 export default function AdminUsuarios() {
   const { token, usuario, logout, isAdmin, isComando } = useAuth()
@@ -121,10 +222,13 @@ export default function AdminUsuarios() {
 
   const [usuarios, setUsuarios] = useState([])
   const [conexoes, setConexoes] = useState([])
+  const [empresas, setEmpresas] = useState({ empresas: [], sem_empresa: [] })
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState('')
   const [msg, setMsg] = useState('')
-  const [aba, setAba] = useState('usuarios') // 'usuarios' | 'permissoes'
+  const [aba, setAba] = useState('usuarios') // 'usuarios' | 'empresas' | 'permissoes'
+  const [novaEmpresa, setNovaEmpresa] = useState('')
+  const [criandoEmpresa, setCriandoEmpresa] = useState(false)
 
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ email: '', nome: '', senha: '', role: 'operador', empresa_id: '' })
@@ -139,17 +243,43 @@ export default function AdminUsuarios() {
   async function carregar() {
     setCarregando(true); setErro('')
     try {
-      const [lista, conxs] = await Promise.all([
+      const [lista, conxs, emps] = await Promise.all([
         listarUsuarios(token),
         isAdmin || isComando ? listarConexoes() : Promise.resolve([]),
+        isComando ? listarEmpresas(token) : Promise.resolve({ empresas: [], sem_empresa: [] }),
       ])
       setUsuarios(lista)
       setConexoes(conxs)
+      setEmpresas(emps)
     } catch (e) {
       setErro(e.message)
     } finally {
       setCarregando(false)
     }
+  }
+
+  async function carregarEmpresas() {
+    try {
+      const emps = await listarEmpresas(token)
+      setEmpresas(emps)
+    } catch (e) { setErro(e.message) }
+  }
+
+  async function handleCriarEmpresa(e) {
+    e.preventDefault()
+    const id = novaEmpresa.trim().toLowerCase().replace(/\s+/g, '_')
+    if (!id) return
+    setCriandoEmpresa(true)
+    try {
+      // Empresa é criada implicitamente ao adicionar o primeiro usuário.
+      // Aqui apenas abrimos a empresa vazia na lista local.
+      setEmpresas(prev => ({
+        ...prev,
+        empresas: [...prev.empresas, { empresa_id: id, usuarios: [] }],
+      }))
+      setNovaEmpresa('')
+      flash(`Empresa "${id}" criada. Adicione usuários a ela.`)
+    } finally { setCriandoEmpresa(false) }
   }
 
   function flash(texto) { setMsg(texto); setTimeout(() => setMsg(''), 3500) }
@@ -208,9 +338,13 @@ export default function AdminUsuarios() {
       <div className="max-w-5xl mx-auto px-6 py-10">
 
         {/* Abas */}
-        {isAdmin && (
+        {(isAdmin || isComando) && (
           <div className="flex gap-1 mb-8 bg-slate-100 p-1 rounded-xl w-fit">
-            {[['usuarios', <Users className="w-4 h-4" />, 'Usuários'], ['permissoes', <Database className="w-4 h-4" />, 'Permissões de Banco']].map(([id, icon, label]) => (
+            {[
+              ['usuarios', <Users className="w-4 h-4" />, 'Usuários'],
+              ...(isComando ? [['empresas', <Building2 className="w-4 h-4" />, 'Empresas']] : []),
+              ['permissoes', <Database className="w-4 h-4" />, 'Permissões de Banco'],
+            ].map(([id, icon, label]) => (
               <button
                 key={id}
                 onClick={() => setAba(id)}
@@ -343,8 +477,72 @@ export default function AdminUsuarios() {
           </>
         )}
 
-        {/* ── ABA PERMISSÕES DE BANCO (apenas admin) ── */}
-        {aba === 'permissoes' && isAdmin && (
+        {/* ── ABA EMPRESAS (apenas comando) ── */}
+        {aba === 'empresas' && isComando && (
+          <>
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h1 className="text-xl font-bold text-slate-900 tracking-tight">Empresas parceiras</h1>
+                <p className="text-sm text-slate-500 mt-1">Agrupe usuários por empresa. Adicione pelo e-mail de contas já cadastradas.</p>
+              </div>
+            </div>
+
+            {/* Formulário nova empresa */}
+            <form onSubmit={handleCriarEmpresa} className="mb-6 flex gap-3 items-center">
+              <Building2 className="w-4 h-4 text-slate-400 shrink-0" />
+              <input
+                type="text"
+                value={novaEmpresa}
+                onChange={e => setNovaEmpresa(e.target.value)}
+                placeholder="Nome/ID da nova empresa (ex: sicoob, bradesco)"
+                className="flex-1 text-sm border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:border-indigo-400 bg-white shadow-sm"
+              />
+              <button
+                type="submit"
+                disabled={criandoEmpresa || !novaEmpresa.trim()}
+                className="flex items-center gap-1.5 px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-40 transition-colors whitespace-nowrap"
+              >
+                <Plus className="w-4 h-4" />
+                {criandoEmpresa ? 'Criando...' : 'Nova empresa'}
+              </button>
+            </form>
+
+            {carregando ? (
+              <div className="text-center py-16 text-slate-400 text-sm">Carregando...</div>
+            ) : (
+              <div className="space-y-5">
+                {empresas.empresas.length === 0 && (
+                  <div className="text-center py-12 text-slate-400 text-sm">Nenhuma empresa cadastrada ainda. Crie uma acima.</div>
+                )}
+                {empresas.empresas.map(emp => (
+                  <CardEmpresa key={emp.empresa_id} empresa={emp} token={token} onAtualizar={carregarEmpresas} />
+                ))}
+                {empresas.sem_empresa?.length > 0 && (
+                  <div className="mt-8">
+                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Sem empresa atribuída ({empresas.sem_empresa.length})</p>
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.06)] divide-y divide-slate-50 overflow-hidden">
+                      {empresas.sem_empresa.map(u => (
+                        <div key={u.id} className="flex items-center gap-3 px-5 py-3">
+                          <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-500 shrink-0">
+                            {(u.nome || u.email)[0].toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-slate-800 truncate">{u.nome}</p>
+                            <p className="text-xs text-slate-400 truncate">{u.email}</p>
+                          </div>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold shrink-0 ${ROLE_BADGE[u.role] ?? 'bg-slate-100 text-slate-500'}`}>{u.role}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ── ABA PERMISSÕES DE BANCO ── */}
+        {aba === 'permissoes' && (isAdmin || isComando) && (
           <>
             <div className="mb-8">
               <h1 className="text-xl font-bold text-slate-900 tracking-tight">Permissões de banco de dados</h1>
