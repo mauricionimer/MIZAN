@@ -108,8 +108,6 @@ export default function ComandoDashboard() {
   const [loadingCart, setLoadingCart] = useState(false)
   const [erro,       setErro]       = useState('')
 
-  useEffect(() => { if (!isComando) navigate('/') }, [isComando])
-
   async function carregar() {
     setLoadingMain(true); setErro('')
     try {
@@ -142,7 +140,7 @@ export default function ComandoDashboard() {
     }
   }
 
-  useEffect(() => { if (isComando) carregar() }, [])
+  useEffect(() => { carregar() }, [])
 
   const t = dados?.totais
   const suspeitas = dados?.empresas?.filter(e => e.flag_suspeita) || []
