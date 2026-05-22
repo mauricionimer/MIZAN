@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { UploadCloud, FileText, AlertCircle, Loader2, History, FolderOpen, Database, RefreshCw, CheckCircle2, XCircle, ChevronRight, Plug, X } from 'lucide-react'
+import { UploadCloud, FileText, AlertCircle, Loader2, History, FolderOpen, Database, RefreshCw, CheckCircle2, XCircle, ChevronRight, Plug, X, ArrowLeft } from 'lucide-react'
 import { useAnalysis } from '../context/AnalysisContext'
 import { useAuth } from '../context/AuthContext'
 import { analisarCarteira, analisarDB, testarDB, listarTabelas, listarCarteiras, carregarCarteira, getDBSyncConfig, saveDBSyncConfig, executarDBSync, listarConexoes, salvarConexao, deletarConexao, sincronizarConexao, atualizarConexao } from '../api'
@@ -921,7 +921,7 @@ export default function Upload() {
   const inputRef = useRef()
   const navigate = useNavigate()
   const { setResult } = useAnalysis()
-  const { isOperador } = useAuth()
+  const { isOperador, isAdmin, isComando } = useAuth()
 
   useEffect(() => {
     listarCarteiras()
@@ -988,6 +988,14 @@ export default function Upload() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden">
+      {(isAdmin || isComando || isOperador) && (
+        <button
+          onClick={() => navigate(isComando ? '/comando' : isAdmin ? '/admin' : '/operador')}
+          className="absolute top-5 left-5 z-20 flex items-center gap-1.5 text-blue-200 hover:text-white transition-colors text-sm font-medium"
+        >
+          <ArrowLeft className="w-4 h-4" /> Início
+        </button>
+      )}
       {/* Hero */}
       <div className="mb-12 text-center relative z-10">
         <div className="relative inline-block mb-5">

@@ -9,7 +9,7 @@ import {
   Users, TrendingDown, BarChart2, Star,
   Download, RefreshCw, Search, Loader2,
   Tag, Percent, ArrowUpRight, Banknote, ClipboardList, FileSpreadsheet, Zap, LogOut, ShieldCheck, KeyRound,
-  CheckCircle2, XCircle, TrendingUp,
+  CheckCircle2, XCircle, TrendingUp, Home,
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { gerarRelatorioPDF } from '../utils/gerarPDF'
@@ -164,7 +164,7 @@ function PricingCard({ label, value, sub, highlight = false, icon: Icon }) {
 
 export default function Dashboard() {
   const { result } = useAnalysis()
-  const { token, usuario, logout, isAdmin, isComando } = useAuth()
+  const { token, usuario, logout, isAdmin, isComando, isOperador } = useAuth()
   const navigate    = useNavigate()
   const [search, setSearch]               = useState('')
   const [exporting, setExporting]         = useState(false)
@@ -283,6 +283,16 @@ export default function Dashboard() {
               <ShieldCheck className="h-3.5 w-3.5" /> COMANDO
             </button>
           )}
+          {isAdmin && (
+            <button onClick={() => navigate('/admin')} className="nav-link">
+              <Home className="h-3.5 w-3.5" /> Início
+            </button>
+          )}
+          {isOperador && (
+            <button onClick={() => navigate('/operador')} className="nav-link">
+              <Home className="h-3.5 w-3.5" /> Início
+            </button>
+          )}
           {(isAdmin || isComando) && (
             <button
               onClick={() => navigate('/admin/usuarios')}
@@ -345,7 +355,7 @@ export default function Dashboard() {
         </div>
 
         {/* ── Precificação ── */}
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_8px_32px_rgba(2,11,31,0.30),0_2px_6px_rgba(2,11,31,0.15)] p-6">
+        {!isOperador && <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_8px_32px_rgba(2,11,31,0.30),0_2px_6px_rgba(2,11,31,0.15)] p-6">
           <div className="flex items-center gap-3 mb-6">
             <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
               <Banknote className="h-4.5 w-4.5 text-blue-600" style={{ width: '1.125rem', height: '1.125rem' }} />
@@ -419,7 +429,7 @@ export default function Dashboard() {
             <span className="text-slate-200">›</span>
             <span><span className="font-medium text-slate-500">Retorno</span> = (Líquido − Preço) ÷ Preço</span>
           </div>
-        </div>
+        </div>}
 
         {/* ── Charts ── */}
         <div className="grid grid-cols-5 gap-6">
@@ -493,7 +503,7 @@ export default function Dashboard() {
         </div>
 
         {/* ── Resultados Reais ── */}
-        {!loadingPerf && perf && perf.total_feedbacks > 0 && (
+        {!isOperador && !loadingPerf && perf && perf.total_feedbacks > 0 && (
           <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_8px_32px_rgba(2,11,31,0.30),0_2px_6px_rgba(2,11,31,0.15)] overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
               <div className="flex items-center gap-3">

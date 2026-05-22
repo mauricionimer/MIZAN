@@ -743,8 +743,12 @@ def listar_conexoes(credentials: HTTPAuthorizationCredentials = Security(bearer)
 
     rows: list = []
 
-    if role in ("admin", "comando"):
-        # Admin/comando vê todas as conexões da empresa
+    if role == "comando":
+        # Comando vê TODAS as conexões de todas as empresas
+        r = db.table("conexoes_db").select("*").order("created_at", desc=True).execute()
+        rows = r.data or []
+    elif role == "admin":
+        # Admin vê conexões da sua empresa + as que criou
         seen: set = set()
         if eid:
             r1 = db.table("conexoes_db").select("*").eq("empresa_id", eid).order("created_at", desc=True).execute()
