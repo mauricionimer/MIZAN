@@ -42,12 +42,11 @@ function ActionCard({ icon: Icon, label, desc, onClick, accent = 'blue', full = 
 }
 
 export default function AdminHome() {
-  const { token, usuario, logout, isAdmin, isComando } = useAuth()
+  const { token, usuario, logout } = useAuth()
   const navigate = useNavigate()
   const [stats, setStats] = useState({ operadores: 0, conexoes: 0 })
 
   useEffect(() => {
-    if (!isAdmin && !isComando) { navigate('/'); return }
     Promise.all([listarUsuarios(token), listarConexoes()])
       .then(([users, conxs]) => setStats({
         operadores: users.filter(u => u.role === 'operador' && u.ativo).length,

@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useAnalysis } from '../context/AnalysisContext'
@@ -49,10 +48,6 @@ export default function OperadorHome() {
   const { usuario, logout, isOperador } = useAuth()
   const { result } = useAnalysis()
   const navigate = useNavigate()
-
-  useEffect(() => {
-    if (!isOperador) { navigate('/'); return }
-  }, [isOperador])
 
   const primeiroNome = usuario?.nome?.split(' ')[0] ?? usuario?.nome ?? ''
   const empresa = usuario?.empresa_id || ''
