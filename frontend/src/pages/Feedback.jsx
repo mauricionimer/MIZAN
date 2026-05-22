@@ -173,7 +173,8 @@ function ImportacaoLote({ token }) {
 
 export default function Feedback() {
   const navigate = useNavigate()
-  const { token, usuario, logout } = useAuth()
+  const { token, usuario, logout, isComando, isAdmin } = useAuth()
+  const homePath = isComando ? '/comando' : isAdmin ? '/admin' : '/operador'
   const [aba, setAba]           = useState('manual')
   const [form, setForm]         = useState(EMPTY)
   const [loading, setLoading]   = useState(false)
@@ -248,7 +249,7 @@ export default function Feedback() {
     <div className="min-h-screen">
       <header className="navbar-glass px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="text-slate-400 hover:text-slate-700 transition-colors p-1 rounded-lg hover:bg-slate-100">
+          <button onClick={() => navigate(homePath)} className="text-slate-400 hover:text-slate-700 transition-colors p-1 rounded-lg hover:bg-slate-100">
             <ArrowLeft className="w-4 h-4" />
           </button>
           <Logo />
