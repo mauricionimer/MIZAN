@@ -2,15 +2,17 @@
 Contextual Bandit para recomendação de abordagem de cobrança — Mizan.
 
 Algoritmo: LinUCB (Linear Upper Confidence Bound)
-  Contexto (d=8): score, dias_atraso, comprometimento, produto (one-hot × 4), bias
+  Contexto (d=14): score, dias_atraso, comprometimento, produto (one-hot × 4),
+                   região (one-hot × 5), renda (log-normalizada), bias
   Ações (12): 3 canais × 4 ofertas
   Recompensa: valor_recuperado / valor_divida  (0 se não pagou)
 
 Persistência: Supabase (tabela bandit_estado) + arquivo local bandit.pkl como fallback.
-O estado no Supabase garante que o aprendizado não se perde entre deploys.
+Cache em memória com TTL de 5 min para sincronizar entre replicas via Supabase.
 """
 
 import os
+import time
 from pathlib import Path
 
 import joblib
@@ -40,7 +42,7 @@ ACOES: list[dict] = [
 ]
 
 N_ACOES = len(ACOES)
-D       = 14  # score, dias, comprometimento, 4×produto, 5×uf_região, renda, bias
+D       = 14  # score, dias, comprometimento, 4×produto, 5×região, renda, bias
 
 CANAL_LABELS = {
     "whatsapp": "WhatsApp",
@@ -53,6 +55,8 @@ OFERTA_LABELS = {
     "desconto_30pct": "30% de desconto à vista",
     "parcelado_12x":  "Parcelamento em 12x",
 }
+
+_LOG_RENDA_MAX = np.log1p(10000.0)  # normalização log: log(R$10k)
 
 
 # ---------------------------------------------------------------------------
@@ -96,7 +100,7 @@ class LinUCB:
         return [
             {
                 **ACOES[a],
-                "n_tentativas":    self.n_tentativas[a],
+                "n_tentativas":     self.n_tentativas[a],
                 "recompensa_media": round(
                     self.recompensa_acumulada[a] / self.n_tentativas[a], 4
                 ) if self.n_tentativas[a] > 0 else None,
@@ -111,13 +115,13 @@ class LinUCB:
 
 def _bandit_para_json(bandit: LinUCB) -> dict:
     return {
-        "A":                   [a.tolist() for a in bandit.A],
-        "b":                   [b.tolist() for b in bandit.b],
-        "n_tentativas":        bandit.n_tentativas,
+        "A":                    [a.tolist() for a in bandit.A],
+        "b":                    [b.tolist() for b in bandit.b],
+        "n_tentativas":         bandit.n_tentativas,
         "recompensa_acumulada": bandit.recompensa_acumulada,
-        "alpha":               bandit.alpha,
-        "n_acoes":             bandit.n_acoes,
-        "d":                   bandit.d,
+        "alpha":                bandit.alpha,
+        "n_acoes":              bandit.n_acoes,
+        "d":                    bandit.d,
     }
 
 
@@ -148,7 +152,7 @@ def _salvar_supabase(bandit: LinUCB) -> None:
         print(f"[Bandit] Aviso: falha ao salvar no Supabase: {e}")
 
 
-def _carregar_supabase() -> LinUCB | None:
+def _carregar_supabase() -> "LinUCB | None":
     try:
         import sys as _sys
         _sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -178,9 +182,19 @@ _UF_REGIAO: dict[str, str] = {
 
 
 def construir_contexto(devedor: dict) -> np.ndarray:
-    score  = float(devedor.get("score_recuperabilidade") or 50) / 100.0
-    dias   = min(float(devedor.get("dias_em_atraso") or 0), 360) / 360.0
-    comp   = min(float(devedor.get("comprometimento_renda") or 1.0), 3.0) / 3.0
+    """Constrói vetor de contexto d=14 para o LinUCB. Robusto a valores nulos."""
+    def _safe_float(val, default: float) -> float:
+        try:
+            return float(val) if val is not None else default
+        except (TypeError, ValueError):
+            return default
+
+    score = _safe_float(devedor.get("score_recuperabilidade"), 50.0) / 100.0
+    score = max(0.0, min(1.0, score))
+
+    dias  = min(_safe_float(devedor.get("dias_em_atraso"), 0.0), 360.0) / 360.0
+
+    comp  = min(_safe_float(devedor.get("comprometimento_renda"), 1.0), 3.0) / 3.0
 
     produto = str(devedor.get("produto") or "").lower()
     consignado = 1.0 if "consignado" in produto else 0.0
@@ -190,15 +204,16 @@ def construir_contexto(devedor: dict) -> np.ndarray:
     if not any([consignado, veiculo, pessoal, cartao]):
         pessoal = 1.0
 
-    regiao = _UF_REGIAO.get(str(devedor.get("uf") or "").upper(), "sudeste")
-    norte        = 1.0 if regiao == "norte"       else 0.0
-    nordeste     = 1.0 if regiao == "nordeste"    else 0.0
+    regiao       = _UF_REGIAO.get(str(devedor.get("uf") or "").upper(), "sudeste")
+    norte        = 1.0 if regiao == "norte"        else 0.0
+    nordeste     = 1.0 if regiao == "nordeste"     else 0.0
     centro_oeste = 1.0 if regiao == "centro_oeste" else 0.0
-    sudeste      = 1.0 if regiao == "sudeste"     else 0.0
-    sul          = 1.0 if regiao == "sul"          else 0.0
+    sudeste      = 1.0 if regiao == "sudeste"      else 0.0
+    sul          = 1.0 if regiao == "sul"           else 0.0
 
-    renda_raw = float(devedor.get("renda_estimada") or 0)
-    renda = min(renda_raw / 10000.0, 1.0)  # normaliza até R$10k
+    # Normalização logarítmica: preserva informação acima de R$10k (não satura)
+    renda_raw = max(0.0, _safe_float(devedor.get("renda_estimada"), 0.0))
+    renda = min(np.log1p(renda_raw) / _LOG_RENDA_MAX, 1.0)
 
     return np.array([
         score, dias, comp,
@@ -206,35 +221,43 @@ def construir_contexto(devedor: dict) -> np.ndarray:
         norte, nordeste, centro_oeste, sudeste, sul,
         renda,
         1.0,  # bias
-    ])
+    ], dtype=float)
 
 
 # ---------------------------------------------------------------------------
-# Singleton em memória + persistência dupla (Supabase + arquivo)
+# Singleton em memória com TTL — sincroniza entre replicas via Supabase
 # ---------------------------------------------------------------------------
 
-_bandit_cache: LinUCB | None = None
+_bandit_cache: "LinUCB | None" = None
+_bandit_cache_ts: float = 0.0
+_BANDIT_TTL: float = 300.0  # 5 minutos
 
 
 def carregar_bandit() -> LinUCB:
-    global _bandit_cache
-    if _bandit_cache is not None:
+    global _bandit_cache, _bandit_cache_ts
+    agora = time.monotonic()
+    if _bandit_cache is not None and (agora - _bandit_cache_ts) < _BANDIT_TTL:
         return _bandit_cache
-    # Supabase tem prioridade — persiste entre deploys
+    # Cache expirado ou primeira carga — recarrega do Supabase
     bandit = _carregar_supabase()
     if bandit is None:
+        # Supabase indisponível: usa cache em memória se existir, senão arquivo local
+        if _bandit_cache is not None:
+            return _bandit_cache
         bandit = joblib.load(BANDIT_FILE) if BANDIT_FILE.exists() else LinUCB()
     _bandit_cache = bandit
+    _bandit_cache_ts = agora
     return _bandit_cache
 
 
 def salvar_bandit(bandit: LinUCB) -> None:
-    global _bandit_cache
+    global _bandit_cache, _bandit_cache_ts
     try:
         joblib.dump(bandit, BANDIT_FILE)
     except Exception:
         pass
-    _bandit_cache = bandit
+    _bandit_cache    = bandit
+    _bandit_cache_ts = time.monotonic()  # reseta TTL após salvar
     _salvar_supabase(bandit)
 
 
@@ -252,21 +275,21 @@ def recomendar(devedor: dict) -> dict:
     n_acao           = bandit.n_tentativas[acao_id]
 
     if total_interacoes == 0:
-        modo         = "exploração_inicial"
+        modo          = "exploração_inicial"
         justificativa = (
             "O sistema ainda está na fase de exploração — ainda não recebeu feedbacks reais. "
             "Esta recomendação é a melhor estimativa inicial com base no perfil do devedor."
         )
     elif n_acao < 3:
-        modo         = "aprendendo"
+        modo          = "aprendendo"
         justificativa = (
             f"Recomendação com {total_interacoes} interações registradas. "
             f"Esta combinação ({CANAL_LABELS[acao['canal']]} + {OFERTA_LABELS[acao['oferta']]}) "
             "ainda tem poucas amostras — o sistema está explorando para calibrar."
         )
     else:
-        recomp_media = bandit.recompensa_acumulada[acao_id] / n_acao
-        modo         = "calibrado"
+        recomp_media  = bandit.recompensa_acumulada[acao_id] / n_acao
+        modo          = "calibrado"
         justificativa = (
             f"Baseado em {n_acao} interações com perfis similares, "
             f"{CANAL_LABELS[acao['canal']]} + {OFERTA_LABELS[acao['oferta']]} "
@@ -291,6 +314,52 @@ def recomendar(devedor: dict) -> dict:
 
 
 def registrar_resultado(acao_id: int, contexto: list[float], recompensa: float) -> None:
+    if not (0 <= acao_id < N_ACOES):
+        print(f"[Bandit] acao_id inválido: {acao_id}")
+        return
+    ctx = np.array(contexto, dtype=float)
+    if len(ctx) != D:
+        print(f"[Bandit] contexto com dimensão incorreta: {len(ctx)} (esperado {D})")
+        return
     bandit = carregar_bandit()
-    bandit.atualizar(acao_id, np.array(contexto, dtype=float), float(recompensa))
+    bandit.atualizar(acao_id, ctx, float(np.clip(recompensa, 0.0, 1.0)))
     salvar_bandit(bandit)
+
+
+# ---------------------------------------------------------------------------
+# Funções de monitoramento
+# ---------------------------------------------------------------------------
+
+def convergencia_stats() -> list[dict]:
+    """
+    Calcula incerteza (diagonal de A^{-1}) por ação para monitorar convergência.
+    Incerteza alta = bandit ainda explorando. Abaixo de 0.01 com ≥10 tentativas = convergido.
+    """
+    bandit = carregar_bandit()
+    result = []
+    for a in range(bandit.n_acoes):
+        A_inv   = np.linalg.inv(bandit.A[a])
+        theta   = A_inv @ bandit.b[a]
+        incerteza = float(np.mean(np.diag(A_inv)))
+        recomp_media = (
+            bandit.recompensa_acumulada[a] / bandit.n_tentativas[a]
+            if bandit.n_tentativas[a] > 0 else None
+        )
+        result.append({
+            **ACOES[a],
+            "n_tentativas":     bandit.n_tentativas[a],
+            "recompensa_media": round(recomp_media, 4) if recomp_media is not None else None,
+            "theta_norm":       round(float(np.linalg.norm(theta)), 4),
+            "incerteza_media":  round(incerteza, 6),
+            "convergido":       incerteza < 0.01 and bandit.n_tentativas[a] >= 10,
+        })
+    return result
+
+
+def ajustar_alpha(novo_alpha: float) -> float:
+    """Ajusta o parâmetro de exploração e persiste. Retorna o valor efetivo aplicado."""
+    alpha_efetivo = float(np.clip(novo_alpha, 0.1, 5.0))
+    bandit = carregar_bandit()
+    bandit.alpha = alpha_efetivo
+    salvar_bandit(bandit)
+    return alpha_efetivo

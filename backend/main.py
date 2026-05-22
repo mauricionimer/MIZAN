@@ -514,6 +514,53 @@ def _aging_label(dias: int) -> str:
     return "180+ dias"
 
 
+def _fechar_loop_bandit(db, cpf: str, pagou: bool, valor_recuperado: float, pred_data: dict | None) -> None:
+    """
+    Atualiza o bandit com o resultado do feedback.
+    Se não há recomendação prévia registrada, usa offline learning:
+    reconstrói o contexto do devedor e atualiza com a ação que o bandit
+    teria recomendado — captura sinal mesmo sem recomendação explícita.
+    """
+    from model.bandit import registrar_resultado, recomendar as _bandit_rec
+
+    valor_divida = float((pred_data or {}).get("valor_divida") or 0)
+    if pagou and valor_divida > 0:
+        recompensa = min(1.0, float(valor_recuperado or valor_divida) / valor_divida)
+    elif pagou:
+        recompensa = 0.5
+    else:
+        recompensa = 0.0
+
+    try:
+        rec_res = (
+            db.table("recomendacoes")
+            .select("acao_id, contexto")
+            .eq("cpf", cpf)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if rec_res.data:
+            acao_id  = rec_res.data[0]["acao_id"]
+            contexto = rec_res.data[0]["contexto"]
+        elif pred_data:
+            # Offline learning: sem recomendação prévia, infere ação pelo perfil atual
+            valor_d = float(pred_data.get("valor_divida") or 0)
+            renda   = float(pred_data.get("renda_estimada") or 0)
+            comp    = valor_d / renda if renda > 0 else 1.0
+            devedor_ctx = {**pred_data, "comprometimento_renda": comp}
+            rec_virtual = _bandit_rec(devedor_ctx)
+            acao_id     = rec_virtual["acao_id"]
+            contexto    = rec_virtual["contexto"]
+            print(f"[Bandit] Offline learning CPF {cpf}: acao={acao_id} recompensa={recompensa:.2f}")
+        else:
+            return
+
+        registrar_resultado(acao_id=acao_id, contexto=contexto, recompensa=recompensa)
+    except Exception as _be:
+        print(f"[Bandit] Erro ao fechar loop (CPF {cpf}): {_be}")
+
+
 def _validar_api_key(credentials: HTTPAuthorizationCredentials) -> dict:
     """Aceita JWT do frontend OU api_key legada do Supabase."""
     token = credentials.credentials
@@ -1799,34 +1846,11 @@ async def receber_feedback(
     res = db.table("feedbacks").insert(fb_row).execute()
     feedback_id = res.data[0]["id"]
 
-    # Fecha o loop do bandit: atualiza com a recompensa real
-    try:
-        rec_res = (
-            db.table("recomendacoes")
-            .select("acao_id, contexto")
-            .eq("cpf", payload.cpf)
-            .order("created_at", desc=True)
-            .limit(1)
-            .execute()
-        )
-        if rec_res.data:
-            ultima_rec = rec_res.data[0]
-            valor_divida = float((pred_res.data[0].get("valor_divida") or 0)) if pred_res.data else 0
-            if payload.pagou and valor_divida > 0:
-                recompensa = min(1.0, float(payload.valor_recuperado or valor_divida) / valor_divida)
-            elif payload.pagou:
-                recompensa = 0.5
-            else:
-                recompensa = 0.0
-
-            from model.bandit import registrar_resultado
-            registrar_resultado(
-                acao_id=ultima_rec["acao_id"],
-                contexto=ultima_rec["contexto"],
-                recompensa=recompensa,
-            )
-    except Exception as _be:
-        print(f"[Bandit] Erro ao atualizar com feedback: {_be}")
+    _fechar_loop_bandit(
+        db, payload.cpf, payload.pagou,
+        float(payload.valor_recuperado or 0),
+        pred_res.data[0] if pred_res.data else None,
+    )
 
     return {"ok": True, "feedback_id": feedback_id, "predicao_id": predicao_id}
 
@@ -1869,28 +1893,11 @@ async def webhook_pagamento(body: WebhookPagamentoIn, request: Request):
     res = db.table("feedbacks").insert(fb_row).execute()
     feedback_id = res.data[0]["id"]
 
-    # Atualiza o bandit
-    try:
-        rec_res = (
-            db.table("recomendacoes").select("acao_id, contexto")
-            .eq("cpf", body.cpf).order("created_at", desc=True).limit(1).execute()
-        )
-        if rec_res.data and pred_res.data:
-            valor_divida = float(pred_res.data[0].get("valor_divida") or 0)
-            if body.pagou and valor_divida > 0:
-                recompensa = min(1.0, float(body.valor_recuperado or valor_divida) / valor_divida)
-            elif body.pagou:
-                recompensa = 0.5
-            else:
-                recompensa = 0.0
-            from model.bandit import registrar_resultado
-            registrar_resultado(
-                acao_id=rec_res.data[0]["acao_id"],
-                contexto=rec_res.data[0]["contexto"],
-                recompensa=recompensa,
-            )
-    except Exception as e:
-        print(f"[Webhook] Erro ao atualizar bandit: {e}")
+    _fechar_loop_bandit(
+        db, body.cpf, body.pagou,
+        float(body.valor_recuperado or 0),
+        pred_res.data[0] if pred_res.data else None,
+    )
 
     print(f"[Webhook] Pagamento recebido — CPF: {body.cpf}, pagou: {body.pagou}, empresa: {empresa}")
     return {"ok": True, "feedback_id": feedback_id}
@@ -2003,32 +2010,10 @@ async def feedback_lote(
             res = db.table("feedbacks").insert(fb_row).execute()
             feedback_id = res.data[0]["id"]
 
-            # Atualiza bandit
-            try:
-                rec_res = (
-                    db.table("recomendacoes")
-                    .select("acao_id, contexto")
-                    .eq("cpf", cpf)
-                    .order("created_at", desc=True)
-                    .limit(1)
-                    .execute()
-                )
-                if rec_res.data:
-                    valor_divida = float((pred_res.data[0].get("valor_divida") or 0)) if pred_res.data else 0
-                    if pagou and valor_divida > 0:
-                        recompensa = min(1.0, valor_recuperado / valor_divida) if valor_recuperado > 0 else 0.5
-                    elif pagou:
-                        recompensa = 0.5
-                    else:
-                        recompensa = 0.0
-                    from model.bandit import registrar_resultado
-                    registrar_resultado(
-                        acao_id=rec_res.data[0]["acao_id"],
-                        contexto=rec_res.data[0]["contexto"],
-                        recompensa=recompensa,
-                    )
-            except Exception:
-                pass
+            _fechar_loop_bandit(
+                db, cpf, pagou, valor_recuperado,
+                pred_res.data[0] if pred_res.data else None,
+            )
 
             detalhes.append({"linha": linha, "cpf": cpf, "ok": True, "feedback_id": feedback_id})
             n_ok += 1
@@ -2331,6 +2316,74 @@ async def feature_importance(
             {"nome": n, "importancia": round(v, 4), "percentual": round(v * 100, 1)}
             for n, v in pares
         ],
+    }
+
+
+@app.get("/admin/bandit/convergencia")
+async def bandit_convergencia(
+    credentials: HTTPAuthorizationCredentials = Security(bearer),
+):
+    """Incerteza e convergência por ação do bandit. Incerteza < 0.01 com ≥10 tentativas = convergido."""
+    _exigir_comando(credentials)
+    from model.bandit import convergencia_stats, carregar_bandit
+    bandit = carregar_bandit()
+    total  = sum(bandit.n_tentativas)
+    acoes  = convergencia_stats()
+    n_conv = sum(1 for a in acoes if a["convergido"])
+    return {
+        "total_interacoes": total,
+        "alpha":            bandit.alpha,
+        "acoes_convergidas": n_conv,
+        "acoes_total":       len(acoes),
+        "acoes":             acoes,
+    }
+
+
+@app.patch("/admin/bandit/alpha")
+async def ajustar_alpha_bandit(
+    body: dict,
+    credentials: HTTPAuthorizationCredentials = Security(bearer),
+):
+    """Ajusta o parâmetro de exploração do bandit (0.1 – 5.0). Valor alto = mais exploração."""
+    _exigir_comando(credentials)
+    novo_alpha = body.get("alpha")
+    if novo_alpha is None:
+        raise HTTPException(status_code=422, detail="Campo 'alpha' obrigatório.")
+    from model.bandit import ajustar_alpha
+    alpha_efetivo = ajustar_alpha(float(novo_alpha))
+    return {"ok": True, "alpha": alpha_efetivo}
+
+
+@app.get("/predicoes/historico/{cpf}")
+async def historico_score_devedor(
+    cpf: str,
+    credentials: HTTPAuthorizationCredentials = Security(bearer),
+):
+    """Evolução do score de recuperabilidade de um devedor ao longo do tempo."""
+    db = get_db()
+    res = (
+        db.table("predicoes")
+        .select("id, score_recuperabilidade, perfil_cluster, cluster_id, valor_divida, dias_em_atraso, created_at")
+        .eq("cpf", cpf)
+        .order("created_at")
+        .execute()
+    )
+    historico = res.data or []
+    if not historico:
+        raise HTTPException(status_code=404, detail=f"Nenhuma predição encontrada para CPF: {cpf}")
+
+    tendencia = None
+    if len(historico) >= 2:
+        primeiro = float(historico[0].get("score_recuperabilidade") or 0)
+        ultimo   = float(historico[-1].get("score_recuperabilidade") or 0)
+        delta    = ultimo - primeiro
+        tendencia = "melhora" if delta > 5 else "piora" if delta < -5 else "estável"
+
+    return {
+        "cpf":      cpf,
+        "n_analises": len(historico),
+        "tendencia":  tendencia,
+        "historico":  historico,
     }
 
 

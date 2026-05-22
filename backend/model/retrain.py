@@ -56,8 +56,9 @@ def _buscar_feedbacks(db) -> list[dict]:
     while True:
         res = (
             db.table("feedbacks")
-            .select("predicao_id, pagou, valor_recuperado")
+            .select("predicao_id, pagou, valor_recuperado, created_at")
             .not_.is_("predicao_id", "null")
+            .order("created_at", desc=True)  # mais recente primeiro para dedup
             .range(offset, offset + _BATCH - 1)
             .execute()
         )
@@ -65,7 +66,17 @@ def _buscar_feedbacks(db) -> list[dict]:
         if len(res.data) < _BATCH:
             break
         offset += _BATCH
-    return rows
+
+    # Deduplicar por predicao_id: evita que a mesma análise entre múltiplas vezes no treino.
+    # Quando há conflito, feedback positivo (pagou=True) tem prioridade sobre negativo.
+    seen: dict[str, dict] = {}
+    for fb in rows:
+        pid = fb["predicao_id"]
+        if pid not in seen:
+            seen[pid] = fb
+        elif fb.get("pagou") and not seen[pid].get("pagou"):
+            seen[pid] = fb
+    return list(seen.values())
 
 
 def _buscar_predicoes(db, ids: list[str]) -> dict[str, dict]:
@@ -360,6 +371,13 @@ def retreinar(
     n_pagou  = int(df["pagou"].sum())
     print(f"      Dataset: {n_amostras} amostras | pagaram={n_pagou} | não pagaram={n_amostras - n_pagou}")
 
+    # Verificação de balanceamento extremo
+    taxa_pos = n_pagou / n_amostras if n_amostras > 0 else 0.0
+    if taxa_pos < 0.05:
+        print(f"      AVISO: apenas {taxa_pos:.1%} positivos — dataset muito desbalanceado.")
+    elif taxa_pos > 0.95:
+        print(f"      AVISO: {taxa_pos:.1%} positivos — verifique se feedbacks negativos estão sendo registrados.")
+
     # Ordena por data para validação temporal correta (evita vazamento futuro→passado)
     temporal = False
     if "_created_at" in df.columns and df["_created_at"].ne("").any():
@@ -395,7 +413,8 @@ def retreinar(
     print("\n[5/6] Treinando HistGradientBoostingClassifier (class_weight=balanced, alvo real)...")
     y     = df["pagou"].values
     X_clf = np.column_stack([X_scaled, clusters])
-    min_leaf = max(5, n_amostras // 30)
+    # min_leaf conservador: evita overfitting em datasets pequenos
+    min_leaf = max(5, min(20, n_amostras // 50))
     clf = HistGradientBoostingClassifier(
         max_iter=200, max_depth=4, learning_rate=0.05,
         min_samples_leaf=min_leaf, l2_regularization=1.0,
@@ -403,11 +422,29 @@ def retreinar(
     )
     clf.fit(X_clf, y)
 
-    print("\n[5.5/6] Avaliando com cross-validation...")
+    print("\n[5.5/6] Avaliando com cross-validation + holdout real...")
     metricas = _avaliar(clf, X_clf, y, temporal=temporal)
     print(f"      Acurácia CV: {metricas['cv_acuracia_media']:.2%} ± {metricas['cv_acuracia_std']:.2%}")
     if "cv_auc_media" in metricas:
         print(f"      AUC-ROC CV: {metricas['cv_auc_media']:.3f} ± {metricas['cv_auc_std']:.3f}")
+
+    # Holdout real (20% final do dataset, respeitando ordem temporal)
+    holdout_acuracia = None
+    if n_amostras >= 50:
+        try:
+            split = int(n_amostras * 0.8)
+            X_ho, y_ho = X_clf[split:], y[split:]
+            clf_ho = HistGradientBoostingClassifier(
+                max_iter=200, max_depth=4, learning_rate=0.05,
+                min_samples_leaf=min_leaf, l2_regularization=1.0,
+                class_weight="balanced", random_state=42,
+            )
+            clf_ho.fit(X_clf[:split], y[:split])
+            holdout_acuracia = round(float((clf_ho.predict(X_ho) == y_ho).mean()), 4)
+            metricas["holdout_acuracia"] = holdout_acuracia
+            print(f"      Holdout real (20%): {holdout_acuracia:.2%}")
+        except Exception as _he:
+            print(f"      Holdout ignorado: {_he}")
 
     if dry_run:
         print("\n[DRY RUN] Avaliação concluída. Nenhum arquivo salvo.")
@@ -452,12 +489,14 @@ def retreinar(
     }
     _salvar_artefatos(versao, clf_to_save, kmeans, meta)
 
-    versao_ativa    = versoes.get("versao_ativa", "v1_inicial")
-    acuracia_nova   = metricas["cv_acuracia_media"]
-    acuracia_ativa  = 0.0
+    versao_ativa   = versoes.get("versao_ativa", "v1_inicial")
+    # Usa holdout real para comparação quando disponível; fallback para CV
+    acuracia_nova  = metricas.get("holdout_acuracia") or metricas["cv_acuracia_media"]
+    acuracia_ativa = 0.0
     for v in versoes["versoes"]:
         if v["versao"] == versao_ativa and v.get("metricas"):
-            acuracia_ativa = v["metricas"].get("cv_acuracia_media", 0.0)
+            m = v["metricas"]
+            acuracia_ativa = m.get("holdout_acuracia") or m.get("cv_acuracia_media", 0.0)
             break
 
     melhorou = acuracia_nova > acuracia_ativa
