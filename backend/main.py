@@ -541,9 +541,18 @@ def _validar_api_key(credentials: HTTPAuthorizationCredentials) -> dict:
 def _exigir_admin(credentials: HTTPAuthorizationCredentials):
     info = _validar_api_key(credentials)
     role = info.get("role") or info.get("jwt", {}).get("role", "")
-    if role not in ("admin",) and not info.get("api_key"):
+    if role not in ("admin", "comando") and not info.get("api_key"):
         raise HTTPException(status_code=403, detail="Acesso restrito a administradores.")
     return info
+
+def _exigir_admin_ou_comando(credentials: HTTPAuthorizationCredentials) -> dict:
+    try:
+        payload = validar_token(credentials.credentials)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+    if payload.get("role") not in ("admin", "comando"):
+        raise HTTPException(status_code=403, detail="Acesso restrito a administradores.")
+    return payload
 
 
 # ── Modelos de auth ───────────────────────────────────────────
@@ -553,10 +562,11 @@ class LoginIn(BaseModel):
     senha: str
 
 class RegistrarIn(BaseModel):
-    email: str
-    nome:  str
-    senha: str
-    role:  str = "operador"
+    email:      str
+    nome:       str
+    senha:      str
+    role:       str = "operador"
+    empresa_id: Optional[str] = None
 
 class AlterarSenhaIn(BaseModel):
     senha_atual: str
@@ -590,15 +600,18 @@ def auth_me(credentials: HTTPAuthorizationCredentials = Security(bearer)):
 
 @app.get("/auth/usuarios")
 def auth_listar(credentials: HTTPAuthorizationCredentials = Security(bearer)):
-    _exigir_admin(credentials)
-    return listar_usuarios()
+    payload = _exigir_admin_ou_comando(credentials)
+    if payload.get("role") == "comando":
+        return listar_usuarios()
+    return listar_usuarios(empresa_id=payload.get("empresa_id", ""))
 
 @app.post("/auth/registrar")
 def auth_registrar(body: RegistrarIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
-    _exigir_admin(credentials)
+    _exigir_comando(credentials)
+    if body.role not in ("admin", "operador", "comando"):
+        raise HTTPException(status_code=400, detail="Role inválido.")
+    empresa_id = body.empresa_id or ""
     try:
-        payload = validar_token(credentials.credentials)
-        empresa_id = payload.get("empresa_id", "")
         novo = criar_usuario(body.email, body.nome, body.senha, body.role, empresa_id)
         return {"ok": True, "usuario": novo}
     except ValueError as e:
@@ -659,7 +672,16 @@ class RedefinirSenhaIn(BaseModel):
 
 @app.patch("/auth/usuarios/{usuario_id}/ativo")
 def auth_toggle_ativo(usuario_id: str, body: AtivoIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
-    _exigir_admin(credentials)
+    payload = _exigir_admin_ou_comando(credentials)
+    if payload.get("role") == "admin":
+        db = get_db()
+        u = db.table("usuarios").select("empresa_id, role").eq("id", usuario_id).limit(1).execute()
+        if not u.data:
+            raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+        if u.data[0].get("empresa_id") != payload.get("empresa_id", ""):
+            raise HTTPException(status_code=403, detail="Sem permissão para alterar este usuário.")
+        if u.data[0].get("role") == "comando":
+            raise HTTPException(status_code=403, detail="Não é possível alterar um usuário COMANDO.")
     resultado = toggle_usuario_ativo(usuario_id, body.ativo)
     if not resultado:
         raise HTTPException(status_code=404, detail="Usuário não encontrado.")
@@ -667,7 +689,9 @@ def auth_toggle_ativo(usuario_id: str, body: AtivoIn, credentials: HTTPAuthoriza
 
 @app.patch("/auth/usuarios/{usuario_id}/role")
 def auth_alterar_role(usuario_id: str, body: RoleIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
-    _exigir_admin(credentials)
+    _exigir_comando(credentials)
+    if body.role not in ("admin", "operador"):
+        raise HTTPException(status_code=400, detail="Role inválido. Use 'admin' ou 'operador'.")
     try:
         resultado = alterar_role(usuario_id, body.role)
     except ValueError as e:
@@ -698,17 +722,29 @@ def listar_conexoes(credentials: HTTPAuthorizationCredentials = Security(bearer)
     db = get_db()
     eid = payload.get("empresa_id", "")
     uid = payload["sub"]
-    # Duas queries separadas para evitar problemas com caracteres especiais no or_()
-    seen: set = set()
+    role = payload.get("role", "operador")
+
     rows: list = []
-    if eid:
-        r1 = db.table("conexoes_db").select("*").eq("empresa_id", eid).order("created_at", desc=True).execute()
-        for r in (r1.data or []):
-            seen.add(r["id"]); rows.append(r)
-    r2 = db.table("conexoes_db").select("*").eq("usuario_id", uid).order("created_at", desc=True).execute()
-    for r in (r2.data or []):
-        if r["id"] not in seen:
-            rows.append(r)
+
+    if role in ("admin", "comando"):
+        # Admin/comando vê todas as conexões da empresa
+        seen: set = set()
+        if eid:
+            r1 = db.table("conexoes_db").select("*").eq("empresa_id", eid).order("created_at", desc=True).execute()
+            for r in (r1.data or []):
+                seen.add(r["id"]); rows.append(r)
+        r2 = db.table("conexoes_db").select("*").eq("usuario_id", uid).order("created_at", desc=True).execute()
+        for r in (r2.data or []):
+            if r["id"] not in seen:
+                rows.append(r)
+    else:
+        # Operador vê apenas conexões com permissão explícita
+        perm = db.table("conexao_permissoes").select("conexao_id").eq("operador_id", uid).execute()
+        ids_permitidos = [p["conexao_id"] for p in (perm.data or [])]
+        if ids_permitidos:
+            r = db.table("conexoes_db").select("*").in_("id", ids_permitidos).order("created_at", desc=True).execute()
+            rows = r.data or []
+
     rows.sort(key=lambda r: r.get("created_at", ""), reverse=True)
     for row in rows:
         row["senha"] = ""
@@ -716,10 +752,7 @@ def listar_conexoes(credentials: HTTPAuthorizationCredentials = Security(bearer)
 
 @app.post("/conexoes")
 def salvar_conexao(body: ConexaoSalvarIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
-    try:
-        payload = validar_token(credentials.credentials)
-    except ValueError as e:
-        raise HTTPException(status_code=401, detail=str(e))
+    payload = _exigir_admin_ou_comando(credentials)
     db = get_db()
     # Filtra nulos para não enviar colunas que podem não existir na tabela
     row = {k: v for k, v in body.model_dump().items() if v is not None}
@@ -846,10 +879,7 @@ def atualizar_conexao(conexao_id: str, body: ConexaoUpdateIn, credentials: HTTPA
 
 @app.delete("/conexoes/{conexao_id}")
 def deletar_conexao(conexao_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
-    try:
-        payload = validar_token(credentials.credentials)
-    except ValueError as e:
-        raise HTTPException(status_code=401, detail=str(e))
+    payload = _exigir_admin_ou_comando(credentials)
     db = get_db()
     eid = payload.get("empresa_id", "")
     uid = payload["sub"]
@@ -860,6 +890,36 @@ def deletar_conexao(conexao_id: str, credentials: HTTPAuthorizationCredentials =
     if not ((eid and r.get("empresa_id") == eid) or r.get("usuario_id") == uid):
         raise HTTPException(status_code=403, detail="Acesso negado.")
     db.table("conexoes_db").delete().eq("id", conexao_id).execute()
+    return {"ok": True}
+
+
+@app.get("/conexoes/{conexao_id}/permissoes")
+def listar_permissoes_conexao(conexao_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    _exigir_admin_ou_comando(credentials)
+    db = get_db()
+    perm = db.table("conexao_permissoes").select("operador_id").eq("conexao_id", conexao_id).execute()
+    ids = [p["operador_id"] for p in (perm.data or [])]
+    if not ids:
+        return []
+    operadores = db.table("usuarios").select("id, nome, email, role, ativo").in_("id", ids).execute()
+    return operadores.data or []
+
+
+@app.post("/conexoes/{conexao_id}/permissoes/{operador_id}")
+def conceder_permissao_conexao(conexao_id: str, operador_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    _exigir_admin_ou_comando(credentials)
+    db = get_db()
+    existing = db.table("conexao_permissoes").select("id").eq("conexao_id", conexao_id).eq("operador_id", operador_id).execute()
+    if not existing.data:
+        db.table("conexao_permissoes").insert({"conexao_id": conexao_id, "operador_id": operador_id}).execute()
+    return {"ok": True}
+
+
+@app.delete("/conexoes/{conexao_id}/permissoes/{operador_id}")
+def revogar_permissao_conexao(conexao_id: str, operador_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    _exigir_admin_ou_comando(credentials)
+    db = get_db()
+    db.table("conexao_permissoes").delete().eq("conexao_id", conexao_id).eq("operador_id", operador_id).execute()
     return {"ok": True}
 
 
@@ -1017,12 +1077,20 @@ async def sincronizar_conexao(conexao_id: str, credentials: HTTPAuthorizationCre
     db = get_db()
     eid = payload.get("empresa_id", "")
     uid = payload["sub"]
+    role = payload.get("role", "operador")
     res = db.table("conexoes_db").select("*").eq("id", conexao_id).execute()
     if not res.data:
         raise HTTPException(status_code=404, detail="Conexão não encontrada.")
     r = res.data[0]
-    if not ((eid and r.get("empresa_id") == eid) or r.get("usuario_id") == uid):
-        raise HTTPException(status_code=403, detail="Acesso negado.")
+
+    if role in ("admin", "comando"):
+        if not ((eid and r.get("empresa_id") == eid) or r.get("usuario_id") == uid):
+            raise HTTPException(status_code=403, detail="Acesso negado.")
+    else:
+        # Operador precisa de permissão explícita
+        perm = db.table("conexao_permissoes").select("id").eq("conexao_id", conexao_id).eq("operador_id", uid).execute()
+        if not perm.data:
+            raise HTTPException(status_code=403, detail="Sem permissão para sincronizar esta conexão.")
 
     uemail = payload.get("email", "")
 
@@ -2043,7 +2111,7 @@ async def performance_pagamentos(credentials=Security(bearer_opcional)):
 
 @app.get("/admin/drift")
 async def detectar_drift(credentials: HTTPAuthorizationCredentials = Security(bearer)):
-    _validar_api_key(credentials)
+    _exigir_comando(credentials)
     db = get_db()
 
     res = db.table("predicoes").select("score_recuperabilidade, created_at").execute()
@@ -2138,7 +2206,7 @@ async def bandit_stats(
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     """Estatísticas do bandit por ação: tentativas, recompensa média, convergência."""
-    _validar_api_key(credentials)
+    _exigir_comando(credentials)
     from model.bandit import carregar_bandit
     bandit = carregar_bandit()
     total = sum(bandit.n_tentativas)
@@ -2155,7 +2223,7 @@ async def feature_importance(
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     """Retorna a importância de cada feature no modelo ativo — mostra o que drive o score."""
-    _validar_api_key(credentials)
+    _exigir_comando(credentials)
     from model.score import _carregar_modelos
     try:
         clf, _, meta = _carregar_modelos()
@@ -2188,7 +2256,7 @@ async def listar_modelos(
     - Métricas de treino (acurácia e AUC-ROC por cross-validation)
     - Performance real (acurácia calculada com feedbacks reais recebidos enquanto essa versão era ativa)
     """
-    _validar_api_key(credentials)
+    _exigir_comando(credentials)
 
     # Carrega versions.json
     try:
@@ -2307,7 +2375,7 @@ async def admin_retreinar(
     Dispara o pipeline de retreinamento com dados reais de feedback.
     Requer API key válida. Promoção automática opcional via ?auto_promover=true.
     """
-    _validar_api_key(credentials)
+    _exigir_comando(credentials)
 
     try:
         from model.retrain import retreinar
@@ -2327,7 +2395,7 @@ async def admin_promover(
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     """Promove uma versão específica como modelo ativo."""
-    _validar_api_key(credentials)
+    _exigir_comando(credentials)
 
     try:
         from model.retrain import promover_versao
@@ -2346,7 +2414,7 @@ async def admin_status_retreinamento(
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     """Lista versões de modelo disponíveis e a versão ativa."""
-    _validar_api_key(credentials)
+    _exigir_comando(credentials)
 
     from pathlib import Path
     versions_file = Path(__file__).parent / "model" / "versions.json"
@@ -2362,7 +2430,7 @@ async def scheduler_status(
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     """Estado atual do scheduler: última verificação, próxima, quantos retreinamentos automáticos."""
-    _validar_api_key(credentials)
+    _exigir_comando(credentials)
     from scheduler import estado as sched_estado
     resultado = dict(sched_estado)
     if _scheduler:
@@ -2380,7 +2448,7 @@ async def scheduler_verificar_agora(
     Dispara verificação imediata sem aguardar o próximo intervalo.
     Útil para testar ou forçar retreinamento fora do horário programado.
     """
-    _validar_api_key(credentials)
+    _exigir_comando(credentials)
     min_fb = int(os.getenv("SCHEDULER_MIN_FEEDBACKS", 30))
     from scheduler import verificar_e_retreinar
     resultado = await asyncio.to_thread(verificar_e_retreinar, min_fb)
@@ -2392,7 +2460,7 @@ async def auto_sync_status(
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     """Estado do auto-sync de conexões: última execução, conexões sincronizadas, erros."""
-    _validar_api_key(credentials)
+    _exigir_comando(credentials)
     resultado = dict(_auto_sync_estado)
     job = _scheduler.get_job("auto_sync_conexoes") if _scheduler else None
     if job and getattr(job, "next_run_time", None):
@@ -2405,7 +2473,7 @@ async def auto_sync_executar(
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     """Dispara sync imediato de todas as conexões sem aguardar o próximo intervalo."""
-    _validar_api_key(credentials)
+    _exigir_comando(credentials)
     await asyncio.to_thread(_auto_sync_todas_conexoes)
     return _auto_sync_estado
 
@@ -2429,7 +2497,7 @@ async def db_sync_get_config(
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     """Retorna config atual da sincronização automática (senha omitida)."""
-    _validar_api_key(credentials)
+    _exigir_comando(credentials)
     from db_sync import carregar_config
     cfg = carregar_config()
     return {**cfg, "senha": "***" if cfg.get("senha") else ""}
@@ -2441,7 +2509,7 @@ async def db_sync_set_config(
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     """Salva ou atualiza a configuração de sincronização automática."""
-    _validar_api_key(credentials)
+    _exigir_comando(credentials)
     from db_sync import carregar_config, salvar_config
     cfg = carregar_config()
     update = payload.model_dump(exclude_none=False)
@@ -2457,7 +2525,7 @@ async def db_sync_executar(
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     """Dispara sincronização imediata com o banco externo."""
-    _validar_api_key(credentials)
+    _exigir_comando(credentials)
     from db_sync import sincronizar
     resultado = await asyncio.to_thread(sincronizar)
     return resultado
@@ -2468,7 +2536,7 @@ async def db_sync_status(
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     """Retorna status da última sincronização."""
-    _validar_api_key(credentials)
+    _exigir_comando(credentials)
     from db_sync import carregar_config
     cfg = carregar_config()
     return {

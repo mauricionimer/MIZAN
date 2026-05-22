@@ -1,8 +1,14 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { listarUsuarios, registrarUsuario, toggleUsuarioAtivo, alterarRoleUsuario } from '../api'
-import { Users, UserPlus, LogOut, ShieldCheck, ShieldOff, ToggleLeft, ToggleRight, ArrowLeft } from 'lucide-react'
+import {
+  listarUsuarios, registrarUsuario, toggleUsuarioAtivo, alterarRoleUsuario,
+  listarConexoes, listarPermissoesConexao, concederPermissaoConexao, revogarPermissaoConexao,
+} from '../api'
+import {
+  Users, UserPlus, LogOut, ShieldCheck, ShieldOff, ToggleLeft, ToggleRight,
+  ArrowLeft, Database, Lock, Unlock, ChevronDown, ChevronUp,
+} from 'lucide-react'
 
 function Logo() {
   return (
@@ -13,31 +19,132 @@ function Logo() {
   )
 }
 
+const ROLE_BADGE = {
+  comando:  'bg-rose-50 text-rose-700 ring-1 ring-rose-200/60',
+  admin:    'bg-violet-50 text-violet-700 ring-1 ring-violet-200/60',
+  operador: 'bg-blue-50 text-blue-700 ring-1 ring-blue-200/60',
+}
+
+function BadgeRole({ role }) {
+  return (
+    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${ROLE_BADGE[role] ?? 'bg-slate-100 text-slate-500'}`}>
+      {role === 'admin' && <ShieldCheck className="w-3 h-3" />}
+      {role}
+    </span>
+  )
+}
+
+// ── Painel de permissões de uma conexão ──────────────────────────────────────
+function PainelPermissoes({ conexao, operadores, token }) {
+  const [aberto, setAberto] = useState(false)
+  const [permitidos, setPermitidos] = useState([])
+  const [carregando, setCarregando] = useState(false)
+
+  async function carregar() {
+    setCarregando(true)
+    try {
+      const data = await listarPermissoesConexao(token, conexao.id)
+      setPermitidos(data.map(o => o.id))
+    } finally {
+      setCarregando(false)
+    }
+  }
+
+  useEffect(() => { if (aberto) carregar() }, [aberto])
+
+  async function toggle(operadorId, temPermissao) {
+    if (temPermissao) {
+      await revogarPermissaoConexao(token, conexao.id, operadorId)
+    } else {
+      await concederPermissaoConexao(token, conexao.id, operadorId)
+    }
+    carregar()
+  }
+
+  const somenteOperadores = operadores.filter(o => o.role === 'operador' && o.ativo)
+
+  return (
+    <div className="border border-slate-100 rounded-xl overflow-hidden">
+      <button
+        onClick={() => setAberto(o => !o)}
+        className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors text-sm"
+      >
+        <div className="flex items-center gap-2 font-medium text-slate-700">
+          <Database className="w-4 h-4 text-slate-400" />
+          {conexao.nome}
+          <span className="text-xs text-slate-400 font-normal">({conexao.tipo})</span>
+        </div>
+        {aberto ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+      </button>
+
+      {aberto && (
+        <div className="px-4 py-3 space-y-2">
+          {carregando ? (
+            <p className="text-xs text-slate-400">Carregando...</p>
+          ) : somenteOperadores.length === 0 ? (
+            <p className="text-xs text-slate-400">Nenhum operador ativo nesta empresa.</p>
+          ) : (
+            somenteOperadores.map(op => {
+              const tem = permitidos.includes(op.id)
+              return (
+                <div key={op.id} className="flex items-center justify-between py-1">
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">{op.nome}</p>
+                    <p className="text-xs text-slate-400">{op.email}</p>
+                  </div>
+                  <button
+                    onClick={() => toggle(op.id, tem)}
+                    title={tem ? 'Revogar acesso' : 'Conceder acesso'}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                      tem
+                        ? 'bg-emerald-50 text-emerald-700 hover:bg-red-50 hover:text-red-700'
+                        : 'bg-slate-100 text-slate-500 hover:bg-emerald-50 hover:text-emerald-700'
+                    }`}
+                  >
+                    {tem ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+                    {tem ? 'Com acesso' : 'Sem acesso'}
+                  </button>
+                </div>
+              )
+            })
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Componente principal ─────────────────────────────────────────────────────
 export default function AdminUsuarios() {
-  const { token, usuario, logout, isAdmin } = useAuth()
+  const { token, usuario, logout, isAdmin, isComando } = useAuth()
   const navigate = useNavigate()
 
   const [usuarios, setUsuarios] = useState([])
+  const [conexoes, setConexoes] = useState([])
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState('')
   const [msg, setMsg] = useState('')
+  const [aba, setAba] = useState('usuarios') // 'usuarios' | 'permissoes'
 
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ email: '', nome: '', senha: '', role: 'operador' })
+  const [form, setForm] = useState({ email: '', nome: '', senha: '', role: 'operador', empresa_id: '' })
   const [formErro, setFormErro] = useState('')
   const [salvando, setSalvando] = useState(false)
 
   useEffect(() => {
-    if (!isAdmin) { navigate('/'); return }
+    if (!isAdmin && !isComando) { navigate('/'); return }
     carregar()
   }, [])
 
   async function carregar() {
-    setCarregando(true)
-    setErro('')
+    setCarregando(true); setErro('')
     try {
-      const lista = await listarUsuarios(token)
+      const [lista, conxs] = await Promise.all([
+        listarUsuarios(token),
+        isAdmin || isComando ? listarConexoes() : Promise.resolve([]),
+      ])
       setUsuarios(lista)
+      setConexoes(conxs)
     } catch (e) {
       setErro(e.message)
     } finally {
@@ -45,54 +152,46 @@ export default function AdminUsuarios() {
     }
   }
 
+  function flash(texto) { setMsg(texto); setTimeout(() => setMsg(''), 3500) }
+
   async function handleToggleAtivo(u) {
-    const novoAtivo = !u.ativo
     try {
-      await toggleUsuarioAtivo(token, u.id, novoAtivo)
-      setMsg(`Usuário ${u.nome} ${novoAtivo ? 'ativado' : 'desativado'} com sucesso.`)
-      setUsuarios(prev => prev.map(x => x.id === u.id ? { ...x, ativo: novoAtivo } : x))
-      setTimeout(() => setMsg(''), 3000)
-    } catch (e) {
-      setErro(e.message)
-    }
+      await toggleUsuarioAtivo(token, u.id, !u.ativo)
+      flash(`${u.nome} ${!u.ativo ? 'ativado' : 'desativado'}.`)
+      setUsuarios(prev => prev.map(x => x.id === u.id ? { ...x, ativo: !u.ativo } : x))
+    } catch (e) { setErro(e.message) }
   }
 
   async function handleToggleRole(u) {
-    const novoRole = u.role === 'admin' ? 'operador' : 'admin'
-    if (!confirm(`Alterar ${u.nome} para ${novoRole}?`)) return
+    const novo = u.role === 'admin' ? 'operador' : 'admin'
+    if (!confirm(`Alterar ${u.nome} para ${novo}?`)) return
     try {
-      await alterarRoleUsuario(token, u.id, novoRole)
-      setMsg(`Permissão de ${u.nome} alterada para ${novoRole}.`)
-      setUsuarios(prev => prev.map(x => x.id === u.id ? { ...x, role: novoRole } : x))
-      setTimeout(() => setMsg(''), 3000)
-    } catch (e) {
-      setErro(e.message)
-    }
+      await alterarRoleUsuario(token, u.id, novo)
+      flash(`Permissão de ${u.nome} alterada para ${novo}.`)
+      setUsuarios(prev => prev.map(x => x.id === u.id ? { ...x, role: novo } : x))
+    } catch (e) { setErro(e.message) }
   }
 
   async function handleRegistrar(e) {
-    e.preventDefault()
-    setFormErro('')
-    setSalvando(true)
+    e.preventDefault(); setFormErro(''); setSalvando(true)
     try {
       await registrarUsuario(token, form)
-      setMsg(`Usuário ${form.email} criado com sucesso.`)
-      setForm({ email: '', nome: '', senha: '', role: 'operador' })
+      flash(`Usuário ${form.email} criado.`)
+      setForm({ email: '', nome: '', senha: '', role: 'operador', empresa_id: '' })
       setShowForm(false)
       carregar()
-      setTimeout(() => setMsg(''), 4000)
-    } catch (e) {
-      setFormErro(e.message)
-    } finally {
-      setSalvando(false)
-    }
+    } catch (e) { setFormErro(e.message) } finally { setSalvando(false) }
   }
+
+  const usuariosExibidos = isAdmin
+    ? usuarios.filter(u => u.role !== 'comando')
+    : usuarios
 
   return (
     <div className="min-h-screen">
       <header className="navbar-glass px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/dashboard')} className="text-slate-400 hover:text-slate-700 transition-colors p-1 rounded-lg hover:bg-slate-100">
+          <button onClick={() => navigate('/')} className="text-slate-400 hover:text-slate-700 transition-colors p-1 rounded-lg hover:bg-slate-100">
             <ArrowLeft className="w-4 h-4" />
           </button>
           <Logo />
@@ -102,185 +201,169 @@ export default function AdminUsuarios() {
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm text-slate-400 hidden sm:block">{usuario?.nome}</span>
-          <button onClick={logout} className="nav-link-danger">
-            <LogOut className="w-4 h-4" /> Sair
-          </button>
+          <button onClick={logout} className="nav-link-danger"><LogOut className="w-4 h-4" /> Sair</button>
         </div>
       </header>
 
       <div className="max-w-5xl mx-auto px-6 py-10">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight">Usuários do sistema</h1>
-            <p className="text-sm text-slate-500 mt-1">Gerencie quem tem acesso ao Mizan e suas permissões.</p>
-          </div>
-          <button
-            onClick={() => { setShowForm(!showForm); setFormErro('') }}
-            className="btn-primary"
-          >
-            <UserPlus className="w-4 h-4" /> Novo usuário
-          </button>
-        </div>
 
-        {msg && (
-          <div className="mb-5 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-xl px-4 py-3 text-sm">
-            {msg}
+        {/* Abas */}
+        {isAdmin && (
+          <div className="flex gap-1 mb-8 bg-slate-100 p-1 rounded-xl w-fit">
+            {[['usuarios', <Users className="w-4 h-4" />, 'Usuários'], ['permissoes', <Database className="w-4 h-4" />, 'Permissões de Banco']].map(([id, icon, label]) => (
+              <button
+                key={id}
+                onClick={() => setAba(id)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${aba === id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                {icon}{label}
+              </button>
+            ))}
           </div>
         )}
 
-        {erro && (
-          <div className="mb-5 bg-red-50 border border-red-100 text-red-700 rounded-xl px-4 py-3 text-sm">
-            {erro}
-          </div>
-        )}
+        {msg && <div className="mb-5 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-xl px-4 py-3 text-sm">{msg}</div>}
+        {erro && <div className="mb-5 bg-red-50 border border-red-100 text-red-700 rounded-xl px-4 py-3 text-sm">{erro}</div>}
 
-        {showForm && (
-          <div className="mb-6 bg-white rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.06)] p-6">
-            <h2 className="text-sm font-bold text-slate-800 mb-5">Criar novo usuário</h2>
-            <form onSubmit={handleRegistrar} className="grid grid-cols-2 gap-4">
+        {/* ── ABA USUÁRIOS ── */}
+        {aba === 'usuarios' && (
+          <>
+            <div className="flex items-center justify-between mb-8">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Nome completo</label>
-                <input
-                  type="text"
-                  required
-                  value={form.nome}
-                  onChange={e => setForm(f => ({ ...f, nome: e.target.value }))}
-                  className="input-base"
-                  placeholder="João Silva"
-                />
+                <h1 className="text-xl font-bold text-slate-900 tracking-tight">Usuários do sistema</h1>
+                <p className="text-sm text-slate-500 mt-1">
+                  {isComando ? 'Gerencie todos os usuários e empresas.' : 'Gerencie os operadores da sua empresa.'}
+                </p>
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">E-mail</label>
-                <input
-                  type="email"
-                  required
-                  value={form.email}
-                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                  className="input-base"
-                  placeholder="joao@empresa.com"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Senha inicial</label>
-                <input
-                  type="password"
-                  required
-                  minLength={6}
-                  value={form.senha}
-                  onChange={e => setForm(f => ({ ...f, senha: e.target.value }))}
-                  className="input-base"
-                  placeholder="mínimo 6 caracteres"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Permissão</label>
-                <select
-                  value={form.role}
-                  onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
-                  className="input-base"
-                >
-                  <option value="operador">Operador</option>
-                  <option value="admin">Administrador</option>
-                </select>
-              </div>
-
-              {formErro && (
-                <p className="col-span-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-2">{formErro}</p>
+              {isComando && (
+                <button onClick={() => { setShowForm(!showForm); setFormErro('') }} className="btn-primary">
+                  <UserPlus className="w-4 h-4" /> Novo usuário
+                </button>
               )}
+            </div>
 
-              <div className="col-span-2 flex gap-3 justify-end pt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowForm(false)}
-                  className="px-4 py-2 text-sm text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button type="submit" disabled={salvando} className="btn-primary disabled:opacity-50">
-                  {salvando ? 'Criando...' : 'Criar usuário'}
-                </button>
+            {/* Formulário de criação — apenas COMANDO */}
+            {isComando && showForm && (
+              <div className="mb-6 bg-white rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.06)] p-6">
+                <h2 className="text-sm font-bold text-slate-800 mb-5">Criar novo usuário</h2>
+                <form onSubmit={handleRegistrar} className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Nome completo</label>
+                    <input type="text" required value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} className="input-base" placeholder="João Silva" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">E-mail</label>
+                    <input type="email" required value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} className="input-base" placeholder="joao@empresa.com" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Senha inicial</label>
+                    <input type="password" required minLength={6} value={form.senha} onChange={e => setForm(f => ({ ...f, senha: e.target.value }))} className="input-base" placeholder="mínimo 6 caracteres" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Permissão</label>
+                    <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))} className="input-base">
+                      <option value="operador">Operador</option>
+                      <option value="admin">Administrador</option>
+                    </select>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Empresa (ID ou nome)</label>
+                    <input type="text" required value={form.empresa_id} onChange={e => setForm(f => ({ ...f, empresa_id: e.target.value }))} className="input-base" placeholder="ex: sicoob, bradesco, empresa.com" />
+                    <p className="text-xs text-slate-400 mt-1">Usuários com o mesmo empresa_id compartilham os dados entre si.</p>
+                  </div>
+
+                  {formErro && <p className="col-span-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-2">{formErro}</p>}
+
+                  <div className="col-span-2 flex gap-3 justify-end pt-1">
+                    <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors">Cancelar</button>
+                    <button type="submit" disabled={salvando} className="btn-primary disabled:opacity-50">{salvando ? 'Criando...' : 'Criar usuário'}</button>
+                  </div>
+                </form>
               </div>
-            </form>
-          </div>
-        )}
-
-        {carregando ? (
-          <div className="text-center py-16 text-slate-400 text-sm">Carregando...</div>
-        ) : (
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.06)] overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-100">
-                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Nome</th>
-                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">E-mail</th>
-                  <th className="text-center px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Permissão</th>
-                  <th className="text-center px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
-                  <th className="text-center px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {usuarios.map(u => (
-                  <tr key={u.id} className={`border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors ${!u.ativo ? 'opacity-50' : ''}`}>
-                    <td className="px-5 py-4 font-medium text-slate-900">{u.nome}</td>
-                    <td className="px-5 py-4 text-slate-500">{u.email}</td>
-                    <td className="px-5 py-4 text-center">
-                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                        u.role === 'admin'
-                          ? 'bg-violet-50 text-violet-700 ring-1 ring-violet-200/60'
-                          : 'bg-blue-50 text-blue-700 ring-1 ring-blue-200/60'
-                      }`}>
-                        {u.role === 'admin' && <ShieldCheck className="w-3 h-3" />}
-                        {u.role}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 text-center">
-                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                        u.ativo
-                          ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/60'
-                          : 'bg-slate-100 text-slate-400 ring-1 ring-slate-200/60'
-                      }`}>
-                        {u.ativo ? 'Ativo' : 'Inativo'}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4">
-                      <div className="flex items-center justify-center gap-1">
-                        {u.email !== usuario?.email ? (
-                          <>
-                            <button
-                              onClick={() => handleToggleAtivo(u)}
-                              title={u.ativo ? 'Desativar' : 'Ativar'}
-                              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
-                            >
-                              {u.ativo ? <ToggleRight className="w-5 h-5 text-emerald-500" /> : <ToggleLeft className="w-5 h-5" />}
-                            </button>
-                            <button
-                              onClick={() => handleToggleRole(u)}
-                              title={u.role === 'admin' ? 'Rebaixar para operador' : 'Promover a admin'}
-                              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
-                            >
-                              {u.role === 'admin'
-                                ? <ShieldOff className="w-4 h-4 text-violet-500" />
-                                : <ShieldCheck className="w-4 h-4" />}
-                            </button>
-                          </>
-                        ) : (
-                          <span className="text-xs text-slate-300 italic px-2">você</span>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {usuarios.length === 0 && (
-              <div className="text-center py-12 text-slate-400 text-sm">Nenhum usuário encontrado.</div>
             )}
-          </div>
+
+            {/* Tabela de usuários */}
+            {carregando ? (
+              <div className="text-center py-16 text-slate-400 text-sm">Carregando...</div>
+            ) : (
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.06)] overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-100">
+                      <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Nome</th>
+                      <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">E-mail</th>
+                      {isComando && <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Empresa</th>}
+                      <th className="text-center px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Permissão</th>
+                      <th className="text-center px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
+                      <th className="text-center px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {usuariosExibidos.map(u => (
+                      <tr key={u.id} className={`border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors ${!u.ativo ? 'opacity-50' : ''}`}>
+                        <td className="px-5 py-4 font-medium text-slate-900">{u.nome}</td>
+                        <td className="px-5 py-4 text-slate-500">{u.email}</td>
+                        {isComando && <td className="px-5 py-4 text-slate-400 text-xs">{u.empresa_id || '—'}</td>}
+                        <td className="px-5 py-4 text-center"><BadgeRole role={u.role} /></td>
+                        <td className="px-5 py-4 text-center">
+                          <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${u.ativo ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/60' : 'bg-slate-100 text-slate-400 ring-1 ring-slate-200/60'}`}>
+                            {u.ativo ? 'Ativo' : 'Inativo'}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4">
+                          <div className="flex items-center justify-center gap-1">
+                            {u.email !== usuario?.email && u.role !== 'comando' ? (
+                              <>
+                                <button onClick={() => handleToggleAtivo(u)} title={u.ativo ? 'Desativar' : 'Ativar'} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors">
+                                  {u.ativo ? <ToggleRight className="w-5 h-5 text-emerald-500" /> : <ToggleLeft className="w-5 h-5" />}
+                                </button>
+                                {isComando && (
+                                  <button onClick={() => handleToggleRole(u)} title={u.role === 'admin' ? 'Rebaixar para operador' : 'Promover a admin'} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors">
+                                    {u.role === 'admin' ? <ShieldOff className="w-4 h-4 text-violet-500" /> : <ShieldCheck className="w-4 h-4" />}
+                                  </button>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-xs text-slate-300 italic px-2">você</span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {usuariosExibidos.length === 0 && (
+                  <div className="text-center py-12 text-slate-400 text-sm">Nenhum usuário encontrado.</div>
+                )}
+              </div>
+            )}
+            <p className="mt-4 text-xs text-slate-400">
+              Total: {usuariosExibidos.length} usuário{usuariosExibidos.length !== 1 ? 's' : ''} · Ativos: {usuariosExibidos.filter(u => u.ativo).length}
+            </p>
+          </>
         )}
 
-        <p className="mt-4 text-xs text-slate-400">
-          Total: {usuarios.length} usuário{usuarios.length !== 1 ? 's' : ''} · Ativos: {usuarios.filter(u => u.ativo).length}
-        </p>
+        {/* ── ABA PERMISSÕES DE BANCO (apenas admin) ── */}
+        {aba === 'permissoes' && isAdmin && (
+          <>
+            <div className="mb-8">
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight">Permissões de banco de dados</h1>
+              <p className="text-sm text-slate-500 mt-1">Controle quais operadores podem sincronizar cada conexão cadastrada.</p>
+            </div>
+
+            {carregando ? (
+              <div className="text-center py-16 text-slate-400 text-sm">Carregando...</div>
+            ) : conexoes.length === 0 ? (
+              <div className="text-center py-16 text-slate-400 text-sm">Nenhuma conexão cadastrada ainda.</div>
+            ) : (
+              <div className="space-y-3">
+                {conexoes.map(c => (
+                  <PainelPermissoes key={c.id} conexao={c} operadores={usuarios} token={token} />
+                ))}
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   )

@@ -38,10 +38,11 @@ import RedefinirSenha from './pages/RedefinirSenha'
 import Login from './pages/Login'
 import Privacidade from './pages/Privacidade'
 
-function RotaProtegida({ children }) {
-  const { autenticado } = useAuth()
+function RotaProtegida({ children, roles }) {
+  const { autenticado, usuario } = useAuth()
   const location = useLocation()
   if (!autenticado) return <Navigate to="/login" state={{ from: location }} replace />
+  if (roles && !roles.includes(usuario?.role)) return <Navigate to="/" replace />
   return children
 }
 
@@ -59,9 +60,9 @@ export default function App() {
             <Route path="/dashboard" element={<RotaProtegida><Dashboard /></RotaProtegida>} />
             <Route path="/devedor/:rank" element={<RotaProtegida><DebtorDetail /></RotaProtegida>} />
             <Route path="/feedback" element={<RotaProtegida><Feedback /></RotaProtegida>} />
-            <Route path="/bandit" element={<RotaProtegida><BanditDashboard /></RotaProtegida>} />
-            <Route path="/comando" element={<RotaProtegida><ComandoDashboard /></RotaProtegida>} />
-            <Route path="/admin/usuarios" element={<RotaProtegida><AdminUsuarios /></RotaProtegida>} />
+            <Route path="/bandit" element={<RotaProtegida roles={['comando']}><BanditDashboard /></RotaProtegida>} />
+            <Route path="/comando" element={<RotaProtegida roles={['comando']}><ComandoDashboard /></RotaProtegida>} />
+            <Route path="/admin/usuarios" element={<RotaProtegida roles={['admin', 'comando']}><AdminUsuarios /></RotaProtegida>} />
             <Route path="/alterar-senha" element={<RotaProtegida><AlterarSenha /></RotaProtegida>} />
             <Route path="/privacidade" element={<Privacidade />} />
             <Route path="*" element={<Navigate to="/" replace />} />

@@ -154,6 +154,31 @@ export async function registrarUsuario(token, dados) {
   return res.json()
 }
 
+export async function listarPermissoesConexao(token, conexaoId) {
+  const res = await fetch(`${BASE}/conexoes/${conexaoId}/permissoes`, { headers: _authHeader(token) })
+  if (!res.ok) throw new Error(`Erro HTTP ${res.status}`)
+  return res.json()
+}
+
+export async function concederPermissaoConexao(token, conexaoId, operadorId) {
+  const res = await fetch(`${BASE}/conexoes/${conexaoId}/permissoes/${operadorId}`, {
+    method: 'POST', headers: _authHeader(token),
+  })
+  if (!res.ok) {
+    const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
+    throw new Error(detail)
+  }
+  return res.json()
+}
+
+export async function revogarPermissaoConexao(token, conexaoId, operadorId) {
+  const res = await fetch(`${BASE}/conexoes/${conexaoId}/permissoes/${operadorId}`, {
+    method: 'DELETE', headers: _authHeader(token),
+  })
+  if (!res.ok) throw new Error(`Erro HTTP ${res.status}`)
+  return res.json()
+}
+
 export async function toggleUsuarioAtivo(token, id, ativo) {
   const res = await fetch(`${BASE}/auth/usuarios/${id}/ativo`, {
     method: 'PATCH', headers: _authHeader(token), body: JSON.stringify({ ativo }),

@@ -127,9 +127,11 @@ def criar_usuario(email: str, nome: str, senha: str, role: str = "operador", emp
     db.table("usuarios").insert(novo).execute()
     return _sem_hash(novo)
 
-def listar_usuarios() -> list:
-    res = _db().table("usuarios").select("id, email, nome, role, ativo, created_at").order("created_at").execute()
-    return res.data
+def listar_usuarios(empresa_id: str = "") -> list:
+    q = _db().table("usuarios").select("id, email, nome, role, ativo, empresa_id, created_at").order("created_at")
+    if empresa_id:
+        q = q.eq("empresa_id", empresa_id)
+    return q.execute().data
 
 def alterar_senha(email: str, senha_atual: str, nova_senha: str) -> bool:
     db = _db()

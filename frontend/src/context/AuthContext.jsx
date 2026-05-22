@@ -44,11 +44,12 @@ export function AuthProvider({ children }) {
     setUsuario(null)
   }
 
-  const isAdmin   = usuario?.role === 'admin'
-  const isComando = usuario?.role === 'comando'
+  const isAdmin    = usuario?.role === 'admin'
+  const isComando  = usuario?.role === 'comando'
+  const isOperador = usuario?.role === 'operador'
 
   return (
-    <AuthContext.Provider value={{ token, usuario, login, logout, loading, erro, isAdmin, isComando, autenticado: !!token }}>
+    <AuthContext.Provider value={{ token, usuario, login, logout, loading, erro, isAdmin, isComando, isOperador, autenticado: !!token }}>
       {children}
     </AuthContext.Provider>
   )

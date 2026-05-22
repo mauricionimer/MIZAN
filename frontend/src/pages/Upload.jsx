@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { UploadCloud, FileText, AlertCircle, Loader2, History, FolderOpen, Database, RefreshCw, CheckCircle2, XCircle, ChevronRight, Plug, X } from 'lucide-react'
 import { useAnalysis } from '../context/AnalysisContext'
+import { useAuth } from '../context/AuthContext'
 import { analisarCarteira, analisarDB, testarDB, listarTabelas, listarCarteiras, carregarCarteira, getDBSyncConfig, saveDBSyncConfig, executarDBSync, listarConexoes, salvarConexao, deletarConexao, sincronizarConexao, atualizarConexao } from '../api'
 
 const API_TOKEN = import.meta.env.VITE_API_TOKEN ?? ''
@@ -218,7 +219,7 @@ function inp(cls = '') {
   return `w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition bg-white ${cls}`
 }
 
-function FormDB({ onResult }) {
+function FormDB({ onResult, isOperador = false }) {
   const [etapa, setEtapa]       = useState('conexao')   // 'conexao' | 'mapeamento' | 'analisando'
   const [form, setForm]         = useState({
     tipo: 'postgres', host: '', porta: '', banco: '',
@@ -502,9 +503,11 @@ function FormDB({ onResult }) {
                 : <p className="text-xs text-slate-400 mt-1">Nunca sincronizado</p>
               }
             </div>
-            <button onClick={(e) => removerConexaoSalva(c.id, e)} className="text-slate-300 hover:text-red-400 transition-colors shrink-0">
-              <X className="h-4 w-4" />
-            </button>
+            {!isOperador && (
+              <button onClick={(e) => removerConexaoSalva(c.id, e)} className="text-slate-300 hover:text-red-400 transition-colors shrink-0">
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
           <div className="px-4 pb-4 flex gap-2">
             <button
@@ -518,12 +521,14 @@ function FormDB({ onResult }) {
               <RefreshCw className={`h-4 w-4 ${sincronizandoId === c.id ? 'animate-spin' : ''}`} />
               {sincronizandoId === c.id ? 'Sincronizando...' : 'Sincronizar com o banco de dados'}
             </button>
-            <button
-              onClick={() => carregarConexaoSalva(c)}
-              className="px-3 py-2.5 rounded-lg text-xs text-slate-500 border border-slate-200 hover:bg-slate-50 transition-colors whitespace-nowrap"
-            >
-              Editar
-            </button>
+            {!isOperador && (
+              <button
+                onClick={() => carregarConexaoSalva(c)}
+                className="px-3 py-2.5 rounded-lg text-xs text-slate-500 border border-slate-200 hover:bg-slate-50 transition-colors whitespace-nowrap"
+              >
+                Editar
+              </button>
+            )}
           </div>
         </div>
       ))}
@@ -537,22 +542,38 @@ function FormDB({ onResult }) {
         </div>
       )}
 
-      <button
-        onClick={() => {
-          setModo('nova')
-          setConexaoSalvaId(null)
-          setForm({ tipo: 'postgres', host: '', porta: '', banco: '', usuario: '', senha: '', query: 'SELECT * FROM devedores', nome_fonte: '' })
-          setErro(null)
-        }}
-        className="w-full py-3 rounded-2xl border-2 border-dashed border-slate-200 text-sm text-slate-500 hover:border-blue-300 hover:text-blue-600 flex items-center justify-center gap-2 transition-colors"
-      >
-        <Plug className="h-4 w-4" />
-        Conectar um novo banco de dados
-      </button>
+      {!isOperador && (
+        <button
+          onClick={() => {
+            setModo('nova')
+            setConexaoSalvaId(null)
+            setForm({ tipo: 'postgres', host: '', porta: '', banco: '', usuario: '', senha: '', query: 'SELECT * FROM devedores', nome_fonte: '' })
+            setErro(null)
+          }}
+          className="w-full py-3 rounded-2xl border-2 border-dashed border-slate-200 text-sm text-slate-500 hover:border-blue-300 hover:text-blue-600 flex items-center justify-center gap-2 transition-colors"
+        >
+          <Plug className="h-4 w-4" />
+          Conectar um novo banco de dados
+        </button>
+      )}
+
+      {isOperador && conexoes.length === 0 && !carregandoConexoes && (
+        <p className="text-sm text-slate-400 text-center py-4">Nenhuma conexão disponível para você ainda. Solicite acesso ao administrador.</p>
+      )}
     </div>
   )
 
-  // ── Etapa 1 — formulário de nova conexão ou edição ────────────
+  // ── Etapa 1 — formulário de nova conexão ou edição (apenas admin/comando) ──
+  if (etapa === 'conexao' && isOperador) return (
+    <div className="space-y-3">
+      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Bancos de dados conectados</p>
+      {carregandoConexoes && <div className="flex items-center gap-2 text-sm text-slate-400 py-4 justify-center"><Loader2 className="h-4 w-4 animate-spin" /> Carregando...</div>}
+      {!carregandoConexoes && conexoes.length === 0 && (
+        <p className="text-sm text-slate-400 text-center py-4">Nenhuma conexão disponível. Solicite acesso ao administrador.</p>
+      )}
+    </div>
+  )
+
   if (etapa === 'conexao') return (
     <div className="space-y-4">
       {conexoes.length > 0 && (
@@ -900,6 +921,7 @@ export default function Upload() {
   const inputRef = useRef()
   const navigate = useNavigate()
   const { setResult } = useAnalysis()
+  const { isOperador } = useAuth()
 
   useEffect(() => {
     listarCarteiras()
@@ -1084,7 +1106,7 @@ export default function Upload() {
           </>
         )}
 
-        {aba === 'db' && <FormDB onResult={handleDBResult} />}
+        {aba === 'db' && <FormDB onResult={handleDBResult} isOperador={isOperador} />}
       </div>
 
       {/* Sincronização automática de pagamentos */}
