@@ -120,6 +120,12 @@ function PainelPermissoes({ conexao, operadores, token }) {
 function CardEmpresa({ empresa, token, onAtualizar }) {
   const [membros, setMembros] = useState(empresa.usuarios)
   const [emailInput, setEmailInput] = useState('')
+
+  // Sincroniza quando o servidor atualiza a lista (ex: após adicionar usuário).
+  // Usa join de IDs como chave estável para não disparar em re-renders do pai.
+  const usuariosKey = empresa.usuarios.map(u => u.id).sort().join(',')
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { setMembros(empresa.usuarios) }, [usuariosKey])
   const [adicionando, setAdicionando] = useState(false)
   const [showInput, setShowInput] = useState(false)
   const [erro, setErro] = useState('')
