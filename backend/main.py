@@ -1524,11 +1524,15 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
     devedores = []
     for rank, (_, row) in enumerate(resultado_sorted.iterrows(), start=1):
         score_val = float(row["score_recuperabilidade"])
-        devedor = {"rank": rank,
-                   "score_recuperabilidade": score_val,
-                   "perfil_cluster": row["perfil_cluster"],
-                   "valor_esperado_recuperacao": float(row["valor_esperado_recuperacao"]),
-                   **_calcular_oferta(score_val, row.get("valor_divida", 0))}
+        devedor = {
+            "rank": rank,
+            "score_recuperabilidade": score_val,
+            "perfil_cluster": row["perfil_cluster"],
+            "valor_esperado_recuperacao": float(row["valor_esperado_recuperacao"]),
+            "dados_incompletos": bool(row.get("dados_incompletos", False)),
+            "aviso_dados": str(row.get("aviso_dados") or ""),
+            **_calcular_oferta(score_val, row.get("valor_divida", 0)),
+        }
         for col in df.columns:
             val = row[col]
             devedor[col] = None if pd.isna(val) else val
@@ -1547,12 +1551,14 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
         .agg(total_devedores=("valor_divida","count"), valor_total=("valor_divida","sum"), score_medio=("score_recuperabilidade","mean"))
         .round(2).reset_index().to_dict(orient="records"))
 
+    n_incompletos = int(resultado["dados_incompletos"].sum()) if "dados_incompletos" in resultado.columns else 0
     resumo = {
         "total_devedores": len(resultado),
         "total_em_risco": round(total_em_risco, 2),
         "score_medio": media_score,
         "valor_esperado_recuperacao_total": round(ver_total, 2),
         "taxa_recuperacao_esperada": round(ver_total / total_em_risco * 100, 1) if total_em_risco else 0,
+        "devedores_dados_incompletos": n_incompletos,
     }
 
     try:

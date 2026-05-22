@@ -109,9 +109,43 @@ def _preprocessar_para_score(df: pd.DataFrame, meta: dict) -> pd.DataFrame:
     return pd.concat([df[features_numericas], df_enc], axis=1)
 
 
+# Features críticas: ausência ou valor zero degradam significativamente o score
+_FEATURES_CRITICAS = ["valor_divida", "dias_em_atraso"]
+_FEATURES_IMPORTANTE = ["renda_estimada"]
+
+
+def _avaliar_qualidade_dados(df_original: pd.DataFrame) -> pd.Series:
+    """
+    Para cada linha, detecta features críticas ausentes ou zeradas.
+    Retorna uma Series de strings descrevendo os problemas (vazia = sem problemas).
+    """
+    problemas = pd.Series([""] * len(df_original), index=df_original.index)
+
+    for col in _FEATURES_CRITICAS:
+        if col not in df_original.columns:
+            problemas = problemas + f"{col} ausente; "
+        else:
+            col_num = pd.to_numeric(df_original[col], errors="coerce")
+            mascara  = col_num.isna() | (col_num == 0)
+            problemas[mascara] = problemas[mascara] + f"{col} zerado/nulo; "
+
+    for col in _FEATURES_IMPORTANTE:
+        if col not in df_original.columns:
+            problemas = problemas + f"{col} ausente; "
+        else:
+            col_num = pd.to_numeric(df_original[col], errors="coerce")
+            mascara  = col_num.isna() | (col_num == 0)
+            problemas[mascara] = problemas[mascara] + f"{col} zerado/nulo; "
+
+    return problemas.str.strip("; ")
+
+
 def score_carteira(df: pd.DataFrame) -> pd.DataFrame:
     clf, kmeans, meta = _carregar_modelos()
     scaler = meta["scaler"]
+
+    # Avalia qualidade dos dados ANTES de imputar — assim a flag reflete o CSV original
+    avisos_qualidade = _avaliar_qualidade_dados(df)
 
     X        = _preprocessar_para_score(df, meta)
     X_scaled = scaler.transform(X)
@@ -121,11 +155,15 @@ def score_carteira(df: pd.DataFrame) -> pd.DataFrame:
     prob_pagamento   = clf.predict_proba(X_clf)[:, 1]
     score            = (prob_pagamento * 100).round(1)
 
-    resultado                          = df.copy()
+    resultado                           = df.copy()
     resultado["score_recuperabilidade"] = score
     resultado["cluster_id"]             = clusters
     cluster_labels                      = meta.get("cluster_labels", {})
     resultado["perfil_cluster"]         = [
         cluster_labels.get(int(c), f"Cluster {c}") for c in clusters
     ]
+    # Flag de qualidade: True quando há features críticas ausentes/zeradas
+    resultado["dados_incompletos"] = avisos_qualidade != ""
+    resultado["aviso_dados"]       = avisos_qualidade
+
     return resultado
