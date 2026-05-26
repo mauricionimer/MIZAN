@@ -158,6 +158,14 @@ async def lifespan(app: FastAPI):
     print("[Scheduler] Encerrado")
 
 
+def _read_csv_auto(raw: bytes) -> pd.DataFrame:
+    """Lê CSV tentando UTF-8 primeiro, depois Latin-1 (ISO-8859-1 / CP-1252)."""
+    try:
+        return pd.read_csv(io.BytesIO(raw), encoding="utf-8")
+    except UnicodeDecodeError:
+        return pd.read_csv(io.BytesIO(raw), encoding="latin-1")
+
+
 def _get_versao_ativa() -> str:
     """Lê a versão ativa do modelo em versions.json. Retorna 'v1_inicial' se não existir."""
     try:
@@ -1361,7 +1369,7 @@ async def upload_csv(file: UploadFile = File(...)):
 
     contents = await file.read()
     try:
-        df = pd.read_csv(io.BytesIO(contents))
+        df = _read_csv_auto(contents)
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"Erro ao processar CSV: {e}")
 
@@ -1384,7 +1392,7 @@ async def analisar(
     contents = await file.read()
     try:
         if nome.endswith(".csv"):
-            df = pd.read_csv(io.BytesIO(contents))
+            df = _read_csv_auto(contents)
         else:
             df = pd.read_excel(io.BytesIO(contents))
     except Exception as e:
@@ -1830,7 +1838,7 @@ async def receber_feedback(
     # Busca a predição mais recente para este CPF
     pred_res = (
         db.table("predicoes")
-        .select("id, score_recuperabilidade")
+        .select("id, score_recuperabilidade, valor_divida, renda_estimada, dias_em_atraso, produto, uf")
         .eq("cpf", payload.cpf)
         .order("created_at", desc=True)
         .limit(1)
@@ -1922,7 +1930,7 @@ async def feedback_lote(
     contents = await file.read()
     try:
         if nome.endswith(".csv"):
-            df = pd.read_csv(io.BytesIO(contents))
+            df = _read_csv_auto(contents)
         elif nome.endswith((".xlsx", ".xls")):
             df = pd.read_excel(io.BytesIO(contents))
         else:
@@ -2185,6 +2193,52 @@ async def performance_pagamentos(credentials=Security(bearer_opcional)):
             "data_pagamento":    fb.get("data_pagamento") or fb.get("created_at", "")[:10],
         })
     return result
+
+
+@app.get("/feedbacks/status")
+async def feedbacks_status(credentials=Security(bearer_opcional)):
+    """Retorna mapa cpf → {pagou, valor_recuperado, data_pagamento} com o feedback mais recente por CPF da empresa."""
+    _, _, empresa_id = _usuario_do_token(credentials)
+    db = get_db()
+
+    empresa_pred_ids: set | None = None
+    if empresa_id:
+        try:
+            cart_res = db.table("carteiras").select("id").eq("empresa_id", empresa_id).execute()
+            cart_ids = [c["id"] for c in (cart_res.data or [])]
+            if cart_ids:
+                pred_res_all: list = []
+                for i in range(0, len(cart_ids), 100):
+                    pr = db.table("predicoes").select("id").in_("carteira_id", cart_ids[i:i+100]).execute()
+                    pred_res_all.extend(pr.data or [])
+                empresa_pred_ids = {p["id"] for p in pred_res_all}
+        except Exception:
+            empresa_pred_ids = None
+
+    fb_res = (
+        db.table("feedbacks")
+        .select("cpf, pagou, valor_recuperado, data_pagamento, predicao_id, created_at")
+        .order("created_at", desc=True)
+        .limit(5000)
+        .execute()
+    )
+    feedbacks = fb_res.data or []
+
+    if empresa_pred_ids is not None:
+        feedbacks = [f for f in feedbacks if f.get("predicao_id") in empresa_pred_ids]
+
+    status_map: dict = {}
+    for fb in feedbacks:
+        cpf = str(fb.get("cpf") or "").strip()
+        if not cpf or cpf in status_map:
+            continue
+        status_map[cpf] = {
+            "pagou":            fb.get("pagou"),
+            "valor_recuperado": fb.get("valor_recuperado"),
+            "data_pagamento":   fb.get("data_pagamento") or (fb.get("created_at") or "")[:10],
+        }
+
+    return status_map
 
 
 @app.get("/admin/drift")

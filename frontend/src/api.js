@@ -238,6 +238,14 @@ export async function buscarPagamentos() {
   return res.json()
 }
 
+export async function buscarStatusFeedbacks() {
+  const token = _getToken()
+  const headers = token ? { Authorization: `Bearer ${token}` } : {}
+  const res = await fetch(`${BASE}/feedbacks/status`, { headers })
+  if (!res.ok) return {}
+  return res.json()
+}
+
 export async function sincronizarConexao(id) {
   const token = _getToken()
   const res = await fetch(`${BASE}/conexoes/${id}/sincronizar`, {

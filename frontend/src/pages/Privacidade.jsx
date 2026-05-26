@@ -29,6 +29,14 @@ export default function Privacidade() {
             </div>
           </div>
 
+          <div className="rounded-xl bg-blue-50 border border-blue-200 px-5 py-4 flex gap-3 items-start">
+            <span className="text-blue-600 text-lg mt-0.5">🔒</span>
+            <div>
+              <p className="text-sm font-semibold text-blue-800">Dados armazenados em servidores no Brasil, em conformidade com a LGPD.</p>
+              <p className="text-xs text-blue-600 mt-1">O banco de dados do Mizan opera na região AWS São Paulo (sa-east-1). Os arquivos enviados são processados exclusivamente para geração da análise e não são retidos após a conclusão.</p>
+            </div>
+          </div>
+
           <div className="border-t border-slate-100" />
 
           {[

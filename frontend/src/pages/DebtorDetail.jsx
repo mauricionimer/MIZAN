@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Phone, Tag, Zap, MessageSquare, Brain, Plus, ClipboardList } from 'lucide-react'
+import { ArrowLeft, Phone, Tag, Zap, MessageSquare, Brain, Plus, ClipboardList, CheckCircle2, XCircle, Clock } from 'lucide-react'
 import { useAnalysis } from '../context/AnalysisContext'
 import PriorityBadge from '../components/PriorityBadge'
-import { buscarRecomendacao, registrarContato, listarContatos } from '../api'
+import { buscarRecomendacao, registrarContato, listarContatos, buscarStatusFeedbacks } from '../api'
 
 const fmtBRL = (v) => v != null
   ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
@@ -303,6 +303,7 @@ export default function DebtorDetail() {
   const [rec, setRec]               = useState(null)
   const [recLoading, setRecLoading] = useState(true)
   const [recErro, setRecErro]       = useState(null)
+  const [statusPag, setStatusPag]   = useState(null)
 
   useEffect(() => {
     if (!result) { navigate('/'); return }
@@ -316,6 +317,9 @@ export default function DebtorDetail() {
       .then(setRec)
       .catch(e => setRecErro(e.message))
       .finally(() => setRecLoading(false))
+    buscarStatusFeedbacks()
+      .then(map => setStatusPag(map[String(d.cpf)] ?? null))
+      .catch(() => {})
   }, [d?.cpf])
 
   if (!result || !d) return null
@@ -348,6 +352,38 @@ export default function DebtorDetail() {
             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{d.nome}</h1>
             <p className="text-slate-400 font-mono text-sm mt-1">{d.cpf}</p>
             <p className="text-slate-500 text-sm mt-1 capitalize">{d.produto} · {d.uf} · Rank #{d.rank}</p>
+            <div className="mt-3">
+              {statusPag === null && (
+                <span className="inline-flex items-center gap-1.5 text-slate-400 text-sm font-medium bg-slate-100 border border-slate-200 px-3 py-1 rounded-full">
+                  <Clock className="h-3.5 w-3.5" /> Pendente
+                </span>
+              )}
+              {statusPag?.pagou === true && (
+                <span className="inline-flex items-center gap-1.5 text-emerald-700 text-sm font-semibold bg-emerald-50 border border-emerald-300 px-3 py-1 rounded-full">
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Pago
+                  {statusPag.data_pagamento && (
+                    <span className="font-normal text-emerald-500 text-xs">
+                      · {new Intl.DateTimeFormat('pt-BR').format(new Date(statusPag.data_pagamento + 'T12:00:00'))}
+                    </span>
+                  )}
+                  {statusPag.valor_recuperado > 0 && (
+                    <span className="font-normal text-emerald-500 text-xs">
+                      · {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(statusPag.valor_recuperado)}
+                    </span>
+                  )}
+                </span>
+              )}
+              {statusPag?.pagou === false && (
+                <span className="inline-flex items-center gap-1.5 text-red-600 text-sm font-semibold bg-red-50 border border-red-300 px-3 py-1 rounded-full">
+                  <XCircle className="h-3.5 w-3.5" /> Não pago
+                  {statusPag.data_pagamento && (
+                    <span className="font-normal text-red-400 text-xs">
+                      · atualizado em {new Intl.DateTimeFormat('pt-BR').format(new Date(statusPag.data_pagamento + 'T12:00:00'))}
+                    </span>
+                  )}
+                </span>
+              )}
+            </div>
           </div>
           <PriorityBadge score={score} large />
         </div>

@@ -4,7 +4,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   PieChart, Pie, Cell,
 } from 'recharts'
-import { buscarPagamentos } from '../api'
+import { buscarPagamentos, buscarStatusFeedbacks } from '../api'
 import {
   Users, TrendingDown, BarChart2, Star,
   Download, RefreshCw, Search, Loader2,
@@ -33,6 +33,29 @@ function prioLabel(score) {
   if (score >= 70) return 'Alta'
   if (score >= 40) return 'Média'
   return 'Baixa'
+}
+
+function getStatus(cpf, statusMap) {
+  const fb = statusMap[String(cpf ?? '')]
+  if (!fb) return 'pendente'
+  return fb.pagou ? 'pago' : 'nao_pago'
+}
+
+function StatusBadge({ cpf, statusMap }) {
+  const s = getStatus(cpf, statusMap)
+  if (s === 'pago') return (
+    <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold text-xs bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full whitespace-nowrap">
+      <CheckCircle2 className="h-3 w-3" /> Pago
+    </span>
+  )
+  if (s === 'nao_pago') return (
+    <span className="inline-flex items-center gap-1 text-red-600 font-semibold text-xs bg-red-50 border border-red-200 px-2 py-0.5 rounded-full whitespace-nowrap">
+      <XCircle className="h-3 w-3" /> Não pago
+    </span>
+  )
+  return (
+    <span className="text-slate-300 text-xs whitespace-nowrap">Pendente</span>
+  )
 }
 
 function exportCSV(ranking) {
@@ -194,6 +217,8 @@ export default function Dashboard() {
   const [loadingPerf, setLoadingPerf]     = useState(true)
   const [pagamentos, setPagamentos]       = useState([])
   const [searchPag, setSearchPag]         = useState('')
+  const [statusMap, setStatusMap]         = useState({})
+  const [filtroStatus, setFiltroStatus]   = useState('todos')
 
   useEffect(() => {
     if (!token) return
@@ -203,6 +228,7 @@ export default function Dashboard() {
       .catch(() => {})
       .finally(() => setLoadingPerf(false))
     buscarPagamentos().then(setPagamentos).catch(() => {})
+    buscarStatusFeedbacks().then(setStatusMap).catch(() => {})
   }, [token])
 
   useEffect(() => {
@@ -233,10 +259,12 @@ export default function Dashboard() {
       list = list.filter(d => d.produto === filtroProduto)
     if (filtroUF !== 'todas')
       list = list.filter(d => d.uf === filtroUF)
+    if (filtroStatus !== 'todos')
+      list = list.filter(d => getStatus(d.cpf, statusMap) === filtroStatus)
     return list
-  }, [result, search, filtroPrio, filtroProduto, filtroUF])
+  }, [result, search, filtroPrio, filtroProduto, filtroUF, filtroStatus, statusMap])
 
-  useEffect(() => { setPage(1) }, [search, filtroPrio, filtroProduto, filtroUF])
+  useEffect(() => { setPage(1) }, [search, filtroPrio, filtroProduto, filtroUF, filtroStatus])
 
   if (!result) return null
 
@@ -699,8 +727,23 @@ export default function Dashboard() {
                   {ufs.map(u => <option key={u} value={u}>{u}</option>)}
                 </select>
               )}
-              {(filtroPrio !== 'todos' || filtroProduto !== 'todos' || filtroUF !== 'todas' || search) && (
-                <button onClick={() => { setFiltroPrio('todos'); setFiltroProduto('todos'); setFiltroUF('todas'); setSearch('') }}
+              <div className="flex gap-1.5">
+                {[
+                  { k: 'todos',    label: 'Todos',     cls: 'bg-slate-200 text-slate-700'      },
+                  { k: 'pendente', label: 'Pendente',  cls: 'bg-slate-200 text-slate-600'      },
+                  { k: 'pago',     label: 'Pago',      cls: 'bg-emerald-100 text-emerald-700'  },
+                  { k: 'nao_pago', label: 'Não pago',  cls: 'bg-red-100 text-red-600'          },
+                ].map(({ k, label, cls }) => (
+                  <button key={k} onClick={() => setFiltroStatus(k)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                      filtroStatus === k ? cls : 'bg-slate-50 text-slate-400 hover:bg-slate-100 border border-slate-200'
+                    }`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {(filtroPrio !== 'todos' || filtroProduto !== 'todos' || filtroUF !== 'todas' || filtroStatus !== 'todos' || search) && (
+                <button onClick={() => { setFiltroPrio('todos'); setFiltroProduto('todos'); setFiltroUF('todas'); setFiltroStatus('todos'); setSearch('') }}
                   className="text-xs text-slate-400 hover:text-slate-600 underline">
                   Limpar filtros
                 </button>
@@ -722,6 +765,7 @@ export default function Dashboard() {
                     { label: 'Dias Atraso',    align: 'right'  },
                     { label: 'Score',          align: 'right'  },
                     { label: 'Prioridade',     align: 'center' },
+                    { label: 'Status',         align: 'center' },
                   ].map(({ label, align }) => (
                     <th key={label} className={`px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap text-${align}`}>
                       {label}
@@ -757,6 +801,9 @@ export default function Dashboard() {
                     </td>
                     <td className="px-4 py-3 text-center">
                       <PriorityBadge score={d.score_recuperabilidade} />
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <StatusBadge cpf={d.cpf} statusMap={statusMap} />
                     </td>
                   </tr>
                 ))}
