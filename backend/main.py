@@ -133,14 +133,6 @@ async def lifespan(app: FastAPI):
 
     garantir_admin()
 
-    # Restaura o modelo mais recente do Supabase Storage (sobrevive a deploys do Render)
-    try:
-        from storage_ml import download_modelos
-        download_modelos()
-        _score_cache.clear()  # força recarga após download
-    except Exception as _se:
-        print(f"[Storage] Fallback para modelo local: {_se}")
-
     # Garante que o modelo existe e é compatível; gera com dados sintéticos se necessário
     try:
         from model.score import _carregar_modelos
@@ -152,6 +144,20 @@ async def lifespan(app: FastAPI):
         from model.train import treinar_sintetico
         treinar_sintetico()
         print("[Model] Modelo inicial gerado.")
+
+    # Restaura modelo do Supabase Storage em background (não bloqueia o startup)
+    import threading
+    def _restaurar_modelo_bg():
+        try:
+            from storage_ml import download_modelos
+            if download_modelos():
+                _score_cache.clear()
+                from model.score import _carregar_modelos
+                _carregar_modelos()
+                print("[Model] Modelo atualizado do Supabase Storage.")
+        except Exception as _se:
+            print(f"[Storage] Download em background falhou: {_se}")
+    threading.Thread(target=_restaurar_modelo_bg, daemon=True).start()
 
     job = _scheduler.get_job("auto_retrain")
     if job and job.next_run_time:
