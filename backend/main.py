@@ -1527,24 +1527,29 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
         resultado["score_recuperabilidade"] / 100 * resultado["valor_divida"]
     ).round(2)
 
-    resultado_sorted = resultado.sort_values("score_recuperabilidade", ascending=False)
+    resultado_sorted = resultado.sort_values("score_recuperabilidade", ascending=False).reset_index(drop=True)
+    resultado_sorted.insert(0, "rank", range(1, len(resultado_sorted) + 1))
 
-    devedores = []
-    for rank, (_, row) in enumerate(resultado_sorted.iterrows(), start=1):
-        score_val = float(row["score_recuperabilidade"])
-        devedor = {
-            "rank": rank,
-            "score_recuperabilidade": score_val,
-            "perfil_cluster": row["perfil_cluster"],
-            "valor_esperado_recuperacao": float(row["valor_esperado_recuperacao"]),
-            "dados_incompletos": bool(row.get("dados_incompletos", False)),
-            "aviso_dados": str(row.get("aviso_dados") or ""),
-            **_calcular_oferta(score_val, row.get("valor_divida", 0)),
-        }
-        for col in df.columns:
-            val = row[col]
-            devedor[col] = None if pd.isna(val) else val
-        devedores.append(devedor)
+    # Oferta vetorizada (substitui iterrows — ~100× mais rápido em carteiras grandes)
+    _s = resultado_sorted["score_recuperabilidade"].fillna(0).astype(float)
+    _v = resultado_sorted["valor_divida"].fillna(0).astype(float) if "valor_divida" in resultado_sorted.columns else 0.0
+    _desc = np.select([_s >= 75, _s >= 50, _s >= 30], [0, 15, 35], default=55)
+    resultado_sorted["desconto_sugerido_pct"] = _desc.astype(int)
+    resultado_sorted["valor_proposta"]        = (_v * (1 - _desc / 100)).round(2)
+    resultado_sorted["parcelas_max"]          = np.select(
+        [_s >= 75, _s >= 50, _s >= 30], [3, 6, 12], default=24
+    ).astype(int)
+    resultado_sorted["estrategia_oferta"] = np.select(
+        [_s >= 75, _s >= 50, _s >= 30],
+        ["Cobrança padrão — sem desconto necessário",
+         "Desconto de 15% + parcelamento em até 6x",
+         "Desconto de 35% + parcelamento em até 12x"],
+        default="Proposta de quitação com 55% de desconto",
+    )
+    resultado_sorted["dados_incompletos"] = resultado_sorted.get("dados_incompletos", False).fillna(False).astype(bool)
+    resultado_sorted["aviso_dados"]       = resultado_sorted.get("aviso_dados", "").fillna("").astype(str)
+
+    devedores = resultado_sorted.where(resultado_sorted.notna(), other=None).to_dict(orient="records")
 
     total_em_risco = float(resultado["valor_divida"].sum())
     ver_total      = float(resultado["valor_esperado_recuperacao"].sum())
@@ -1627,8 +1632,8 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
             for d in devedores
         ]
         pred_id_map: dict[str, str] = {}
-        for i in range(0, len(predicoes_rows), 100):
-            res_pred = db.table("predicoes").insert(predicoes_rows[i:i+100]).execute()
+        for i in range(0, len(predicoes_rows), 500):
+            res_pred = db.table("predicoes").insert(predicoes_rows[i:i+500]).execute()
             for row in (res_pred.data or []):
                 if row.get("cpf") and row.get("id"):
                     pred_id_map[str(row["cpf"])] = row["id"]
