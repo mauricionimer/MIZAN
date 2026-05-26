@@ -328,6 +328,11 @@ def promover_versao(versao: str) -> None:
     versoes["versao_ativa"] = versao
     _salvar_versoes(versoes)
     print(f"Modelo {versao} promovido com sucesso.")
+    try:
+        from storage_ml import upload_modelos
+        upload_modelos()
+    except Exception as _ue:
+        print(f"[Storage] Aviso: upload pós-promoção falhou: {_ue}")
 
 
 # ---------------------------------------------------------------------------
@@ -516,7 +521,7 @@ def retreinar(
     }
 
     if auto_promover and melhorou:
-        _promover(versao, clf, kmeans, meta)
+        _promover(versao, clf_to_save, kmeans, meta)
         entrada["promovido"]    = True
         entrada["promovido_em"] = datetime.now(timezone.utc).isoformat()
         versoes["versao_ativa"] = versao
@@ -528,6 +533,14 @@ def retreinar(
 
     versoes["versoes"].append(entrada)
     _salvar_versoes(versoes)
+
+    if entrada["promovido"]:
+        try:
+            from storage_ml import upload_modelos
+            upload_modelos()
+        except Exception as _ue:
+            print(f"[Storage] Aviso: upload pós-promoção falhou: {_ue}")
+
     print(f"\nConcluído. Arquivos salvos em: {MODEL_DIR}")
     print("=" * 60)
 

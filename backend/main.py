@@ -101,7 +101,7 @@ async def lifespan(app: FastAPI):
     from scheduler import verificar_e_retreinar, estado as sched_estado
 
     intervalo = int(os.getenv("SCHEDULER_INTERVALO_HORAS", 24))
-    min_fb    = int(os.getenv("SCHEDULER_MIN_FEEDBACKS", 30))
+    min_fb    = int(os.getenv("SCHEDULER_MIN_FEEDBACKS", 10))
 
     sched_estado["ativo"]                     = True
     sched_estado["intervalo_horas"]           = intervalo
@@ -133,6 +133,14 @@ async def lifespan(app: FastAPI):
 
     garantir_admin()
 
+    # Restaura o modelo mais recente do Supabase Storage (sobrevive a deploys do Render)
+    try:
+        from storage_ml import download_modelos
+        download_modelos()
+        _score_cache.clear()  # força recarga após download
+    except Exception as _se:
+        print(f"[Storage] Fallback para modelo local: {_se}")
+
     # Garante que o modelo existe e é compatível; gera com dados sintéticos se necessário
     try:
         from model.score import _carregar_modelos
@@ -140,7 +148,6 @@ async def lifespan(app: FastAPI):
         print("[Model] Modelos carregados com sucesso")
     except FileNotFoundError:
         print("[Model] Modelos não encontrados — gerando modelo inicial com dados sintéticos...")
-        from model.score import _cache as _score_cache
         _score_cache.clear()
         from model.train import treinar_sintetico
         treinar_sintetico()
