@@ -1,8 +1,30 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Component } from 'react'
 import { Loader2 } from 'lucide-react'
 import { AnalysisProvider } from './context/AnalysisContext'
 import { AuthProvider, useAuth } from './context/AuthContext'
+
+class ErrorBoundary extends Component {
+  state = { error: null }
+  static getDerivedStateFromError(e) { return { error: e } }
+  render() {
+    if (!this.state.error) return this.props.children
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-8 text-center">
+        <p className="text-white text-lg font-semibold">Algo deu errado nesta página.</p>
+        <p className="text-blue-200 text-sm font-mono bg-black/30 px-4 py-2 rounded-xl max-w-lg break-all">
+          {this.state.error?.message || String(this.state.error)}
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-2 px-5 py-2 bg-white text-blue-900 font-semibold rounded-xl hover:bg-blue-50 transition-colors"
+        >
+          Recarregar página
+        </button>
+      </div>
+    )
+  }
+}
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
 
@@ -51,6 +73,7 @@ function RotaProtegida({ children, roles }) {
 
 export default function App() {
   return (
+    <ErrorBoundary>
     <AuthProvider>
       <AnalysisProvider>
         <ServerWarmupBanner />
@@ -75,5 +98,6 @@ export default function App() {
         </BrowserRouter>
       </AnalysisProvider>
     </AuthProvider>
+    </ErrorBoundary>
   )
 }
