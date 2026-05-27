@@ -1,13 +1,13 @@
 const BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
 
 function _getToken() {
-  return localStorage.getItem('mizan_token') || ''
+  return sessionStorage.getItem('mizan_token') || ''
 }
 
 function _handle401(res) {
   if (res.status === 401) {
-    localStorage.removeItem('mizan_token')
-    localStorage.removeItem('mizan_user')
+    sessionStorage.removeItem('mizan_token')
+    sessionStorage.removeItem('mizan_user')
     window.location.href = '/login?expired=1'
   }
 }

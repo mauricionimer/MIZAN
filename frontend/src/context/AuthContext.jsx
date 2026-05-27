@@ -17,12 +17,12 @@ async function _fetchEmpresaConfig(token) {
 }
 
 export function AuthProvider({ children }) {
-  const [token,        setToken]        = useState(() => localStorage.getItem(TOKEN_KEY) ?? null)
+  const [token,        setToken]        = useState(() => sessionStorage.getItem(TOKEN_KEY) ?? null)
   const [usuario,      setUsuario]      = useState(() => {
-    try { return JSON.parse(localStorage.getItem(USER_KEY)) } catch { return null }
+    try { return JSON.parse(sessionStorage.getItem(USER_KEY)) } catch { return null }
   })
   const [empresaConfig, setEmpresaConfig] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(BRAND_KEY)) } catch { return null }
+    try { return JSON.parse(sessionStorage.getItem(BRAND_KEY)) } catch { return null }
   })
   const [loading, setLoading] = useState(false)
   const [erro,    setErro]    = useState('')
@@ -31,13 +31,13 @@ export function AuthProvider({ children }) {
     const cfg = await _fetchEmpresaConfig(tok)
     if (cfg) {
       setEmpresaConfig(cfg)
-      localStorage.setItem(BRAND_KEY, JSON.stringify(cfg))
+      sessionStorage.setItem(BRAND_KEY, JSON.stringify(cfg))
     }
   }, [])
 
   // Atualiza silenciosamente o token, dados do usuário e branding da empresa.
   useEffect(() => {
-    const t = localStorage.getItem(TOKEN_KEY)
+    const t = sessionStorage.getItem(TOKEN_KEY)
     if (!t) return
     fetch(`${BASE}/auth/refresh`, {
       method: 'POST',
@@ -46,8 +46,8 @@ export function AuthProvider({ children }) {
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (!data) return
-        localStorage.setItem(TOKEN_KEY, data.token)
-        localStorage.setItem(USER_KEY, JSON.stringify(data.usuario))
+        sessionStorage.setItem(TOKEN_KEY, data.token)
+        sessionStorage.setItem(USER_KEY, JSON.stringify(data.usuario))
         setToken(data.token)
         setUsuario(data.usuario)
         _loadEmpresaConfig(data.token)
@@ -65,8 +65,8 @@ export function AuthProvider({ children }) {
       })
       const data = await res.json()
       if (!res.ok) { setErro(data.detail ?? 'Erro ao fazer login'); return null }
-      localStorage.setItem(TOKEN_KEY, data.token)
-      localStorage.setItem(USER_KEY, JSON.stringify(data.usuario))
+      sessionStorage.setItem(TOKEN_KEY, data.token)
+      sessionStorage.setItem(USER_KEY, JSON.stringify(data.usuario))
       setToken(data.token)
       setUsuario(data.usuario)
       _loadEmpresaConfig(data.token)
@@ -80,16 +80,16 @@ export function AuthProvider({ children }) {
   }
 
   function logout() {
-    localStorage.removeItem(TOKEN_KEY)
-    localStorage.removeItem(USER_KEY)
-    localStorage.removeItem(BRAND_KEY)
+    sessionStorage.removeItem(TOKEN_KEY)
+    sessionStorage.removeItem(USER_KEY)
+    sessionStorage.removeItem(BRAND_KEY)
     setToken(null)
     setUsuario(null)
     setEmpresaConfig(null)
   }
 
   function refreshEmpresaConfig() {
-    const t = localStorage.getItem(TOKEN_KEY)
+    const t = sessionStorage.getItem(TOKEN_KEY)
     if (t) _loadEmpresaConfig(t)
   }
 
