@@ -1123,6 +1123,116 @@ def remover_usuario_empresa(empresa_id: str, usuario_id: str, credentials: HTTPA
     return {"ok": True}
 
 
+# ── Branding / configuração visual por empresa ────────────────────────────────
+
+class EmpresaConfigIn(BaseModel):
+    nome_exibicao: Optional[str] = None
+    cor_primaria: Optional[str] = None
+
+
+def _get_empresa_config(empresa_id: str) -> dict:
+    """Retorna a config de branding de uma empresa, com fallback."""
+    if not empresa_id:
+        return {"nome_exibicao": "Mizan", "foto_url": None, "cor_primaria": None, "empresa_id": None}
+    db = get_db()
+    cfg_res = db.table("empresa_config").select("*").eq("empresa_id", empresa_id).limit(1).execute()
+    if cfg_res.data:
+        c = cfg_res.data[0]
+        return {
+            "empresa_id": empresa_id,
+            "nome_exibicao": c.get("nome_exibicao") or empresa_id,
+            "foto_url": c.get("foto_url"),
+            "cor_primaria": c.get("cor_primaria") or "#1d4ed8",
+        }
+    return {"empresa_id": empresa_id, "nome_exibicao": empresa_id, "foto_url": None, "cor_primaria": "#1d4ed8"}
+
+
+@app.get("/empresa/config-publica")
+def get_empresa_config_publica(email: Optional[str] = None, empresa_id: Optional[str] = None):
+    """Retorna branding público de uma empresa (sem autenticação).
+    Usado pela tela de login para mostrar logo/nome da empresa antes do login."""
+    eid = empresa_id
+    if not eid and email:
+        db = get_db()
+        u_res = db.table("usuarios").select("empresa_id").eq("email", email.lower().strip()).limit(1).execute()
+        if u_res.data:
+            eid = u_res.data[0].get("empresa_id") or ""
+    return _get_empresa_config(eid or "")
+
+
+@app.get("/empresa/config")
+def get_empresa_config(credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    payload = _usuario_autenticado(credentials)
+    return _get_empresa_config(payload.get("empresa_id", ""))
+
+
+@app.put("/empresa/config")
+def put_empresa_config(body: EmpresaConfigIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    payload = _usuario_autenticado(credentials)
+    role = payload.get("role", "operador")
+    if role not in ("admin", "comando"):
+        raise HTTPException(status_code=403, detail="Apenas admin e comando podem editar configurações da empresa.")
+    empresa_id = payload.get("empresa_id", "")
+    if not empresa_id:
+        raise HTTPException(status_code=400, detail="Usuário sem empresa associada.")
+    db = get_db()
+    updates: dict = {"updated_by": payload.get("email", ""), "updated_at": datetime.utcnow().isoformat()}
+    if body.nome_exibicao is not None:
+        updates["nome_exibicao"] = body.nome_exibicao.strip()
+    if body.cor_primaria is not None:
+        updates["cor_primaria"] = body.cor_primaria.strip()
+
+    existing = db.table("empresa_config").select("id").eq("empresa_id", empresa_id).limit(1).execute()
+    if existing.data:
+        db.table("empresa_config").update(updates).eq("empresa_id", empresa_id).execute()
+    else:
+        db.table("empresa_config").insert({"empresa_id": empresa_id, **updates}).execute()
+
+    _registrar_auditoria("config_empresa_atualizada", "empresa", empresa_id,
+                         payload.get("email"), empresa_id, updates, payload["sub"])
+    return _get_empresa_config(empresa_id)
+
+
+@app.post("/empresa/foto")
+async def upload_empresa_foto(file: UploadFile = File(...), credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    payload = _usuario_autenticado(credentials)
+    role = payload.get("role", "operador")
+    if role not in ("admin", "comando"):
+        raise HTTPException(status_code=403, detail="Apenas admin e comando podem alterar a foto da empresa.")
+    empresa_id = payload.get("empresa_id", "")
+    if not empresa_id:
+        raise HTTPException(status_code=400, detail="Usuário sem empresa associada.")
+
+    conteudo = await file.read()
+    if len(conteudo) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Foto muito grande. Máximo: 5 MB.")
+    ext = (file.filename or "").rsplit(".", 1)[-1].lower()
+    if ext not in ("jpg", "jpeg", "png", "webp", "gif"):
+        raise HTTPException(status_code=400, detail="Formato não suportado. Use JPG, PNG ou WebP.")
+
+    db = get_db()
+    caminho = f"empresa-fotos/{empresa_id}.{ext}"
+    try:
+        db.storage.from_("mizan-public").upload(
+            caminho, conteudo,
+            {"content-type": file.content_type or f"image/{ext}", "upsert": "true"},
+        )
+        foto_url = db.storage.from_("mizan-public").get_public_url(caminho)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao salvar foto: {e}")
+
+    updates = {"foto_url": foto_url, "updated_by": payload.get("email", ""), "updated_at": datetime.utcnow().isoformat()}
+    existing = db.table("empresa_config").select("id").eq("empresa_id", empresa_id).limit(1).execute()
+    if existing.data:
+        db.table("empresa_config").update(updates).eq("empresa_id", empresa_id).execute()
+    else:
+        db.table("empresa_config").insert({"empresa_id": empresa_id, **updates}).execute()
+
+    _registrar_auditoria("foto_empresa_atualizada", "empresa", empresa_id,
+                         payload.get("email"), empresa_id, {"foto_url": foto_url}, payload["sub"])
+    return {"ok": True, "foto_url": foto_url}
+
+
 @app.get("/conexoes/{conexao_id}/permissoes")
 def listar_permissoes_conexao(conexao_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     _exigir_admin_ou_comando(credentials)
@@ -1901,7 +2011,7 @@ async def testar_db(conn: ConexaoDB):
 
 
 @app.post("/analisar/db")
-async def analisar_db(conn: ConexaoDB, credentials=Security(bearer_opcional)):
+async def analisar_db(conn: ConexaoDB, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """Analisa uma carteira carregada diretamente de um banco de dados externo."""
     _resolver_credenciais(conn)
     _bloquear_autoconexao(conn)
@@ -1936,7 +2046,8 @@ async def analisar_db(conn: ConexaoDB, credentials=Security(bearer_opcional)):
         rename = {col_banco: campo for campo, col_banco in conn.mapeamento.items() if col_banco in df.columns}
         df = df.rename(columns=rename)
 
-    uid, uemail, eid = _usuario_do_token(credentials)
+    _payload = _usuario_autenticado(credentials)
+    uid, uemail, eid = _payload["sub"], _payload.get("email", ""), _payload.get("empresa_id", "")
     nome = conn.nome_fonte or "consulta_db"
     resultado = _analisar_df(df, nome, _usuario_id=uid, _usuario_email=uemail, _empresa_id=eid)
 

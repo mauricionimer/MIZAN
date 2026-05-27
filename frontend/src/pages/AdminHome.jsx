@@ -42,7 +42,7 @@ function ActionCard({ icon: Icon, label, desc, onClick, accent = 'blue', full = 
 }
 
 export default function AdminHome() {
-  const { token, usuario, logout } = useAuth()
+  const { token, usuario, logout, empresaConfig } = useAuth()
   const navigate = useNavigate()
   const [stats, setStats] = useState({ operadores: 0, conexoes: 0 })
 
@@ -55,17 +55,19 @@ export default function AdminHome() {
       .catch(() => {})
   }, [])
 
-  const empresa = usuario?.empresa_id || 'Minha empresa'
+  const empresa = empresaConfig?.nome_exibicao || usuario?.empresa_id || 'Minha empresa'
+  const fotoEmpresa = empresaConfig?.foto_url
   const primeiroNome = usuario?.nome?.split(' ')[0] ?? usuario?.nome ?? ''
 
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="navbar-glass px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <Logo />
-          <span className="font-bold text-slate-800 text-sm">Mizan</span>
-          <span className="text-slate-200 text-sm">/</span>
-          <span className="text-slate-500 text-sm truncate max-w-[160px]">{empresa}</span>
+          {fotoEmpresa
+            ? <img src={fotoEmpresa} alt={empresa} className="w-7 h-7 rounded-lg object-cover border border-slate-100" />
+            : <Logo />}
+          <span className="font-bold text-slate-800 text-sm">{empresa}</span>
+          <span className="text-slate-200 text-sm">·</span>
           <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-violet-50 text-violet-700 ring-1 ring-violet-200/60 flex items-center gap-1 shrink-0">
             <Shield className="w-3 h-3" /> Admin
           </span>

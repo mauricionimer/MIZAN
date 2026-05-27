@@ -1,16 +1,16 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import {
   listarUsuarios, registrarUsuario, toggleUsuarioAtivo, alterarRoleUsuario,
   listarConexoes, listarPermissoesConexao, concederPermissaoConexao, revogarPermissaoConexao,
   listarEmpresas, adicionarUsuarioEmpresa, removerUsuarioEmpresa, deletarEmpresa,
-  buscarAuditoria,
+  buscarAuditoria, putEmpresaConfig, uploadEmpresaFoto,
 } from '../api'
 import {
   Users, UserPlus, LogOut, ShieldCheck, ShieldOff, ToggleLeft, ToggleRight,
   ArrowLeft, Database, Lock, Unlock, ChevronDown, ChevronUp,
-  Building2, Plus, X, UserMinus, Mail, Trash2, Clock,
+  Building2, Plus, X, UserMinus, Mail, Trash2, Clock, Camera, Pencil, Check,
 } from 'lucide-react'
 
 const ACAO_LABEL = {
@@ -273,7 +273,7 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
 
 // ── Componente principal ─────────────────────────────────────────────────────
 export default function AdminUsuarios() {
-  const { token, usuario, logout, isAdmin, isComando } = useAuth()
+  const { token, usuario, logout, isAdmin, isComando, empresaConfig, refreshEmpresaConfig } = useAuth()
   const navigate = useNavigate()
 
   const [usuarios, setUsuarios] = useState([])
@@ -291,6 +291,13 @@ export default function AdminUsuarios() {
   const [auditoria, setAuditoria] = useState([])
   const [formErro, setFormErro] = useState('')
   const [salvando, setSalvando] = useState(false)
+
+  // Branding da empresa
+  const [editandoBrand, setEditandoBrand] = useState(false)
+  const [nomeEmpresaEdit, setNomeEmpresaEdit] = useState('')
+  const [salvandoBrand, setSalvandoBrand] = useState(false)
+  const [msgBrand, setMsgBrand] = useState('')
+  const fotoInputRef = useRef(null)
 
   useEffect(() => {
     if (!isAdmin && !isComando) { navigate('/'); return }
@@ -342,6 +349,33 @@ export default function AdminUsuarios() {
   }
 
   function flash(texto) { setMsg(texto); setTimeout(() => setMsg(''), 3500) }
+  function flashBrand(texto) { setMsgBrand(texto); setTimeout(() => setMsgBrand(''), 4000) }
+
+  function abrirEdicaoBrand() {
+    setNomeEmpresaEdit(empresaConfig?.nome_exibicao || usuario?.empresa_id || '')
+    setEditandoBrand(true)
+  }
+
+  async function handleSalvarNome() {
+    setSalvandoBrand(true)
+    try {
+      await putEmpresaConfig(token, { nome_exibicao: nomeEmpresaEdit })
+      refreshEmpresaConfig()
+      setEditandoBrand(false)
+      flashBrand('Nome atualizado.')
+    } catch (e) { flashBrand(e.message) } finally { setSalvandoBrand(false) }
+  }
+
+  async function handleFotoChange(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setSalvandoBrand(true)
+    try {
+      await uploadEmpresaFoto(token, file)
+      refreshEmpresaConfig()
+      flashBrand('Foto atualizada.')
+    } catch (e) { flashBrand(e.message) } finally { setSalvandoBrand(false) }
+  }
 
   async function handleToggleAtivo(u) {
     try {
@@ -421,6 +455,88 @@ export default function AdminUsuarios() {
         {/* ── ABA USUÁRIOS ── */}
         {aba === 'usuarios' && (
           <>
+            {/* Perfil da empresa (admin/comando) */}
+            {(isAdmin || isComando) && usuario?.empresa_id && (
+              <div className="mb-8 bg-white rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.06)] p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
+                    <Building2 className="h-3.5 w-3.5" /> Perfil da empresa
+                  </p>
+                  {!editandoBrand ? (
+                    <button onClick={abrirEdicaoBrand} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 transition-colors font-semibold">
+                      <Pencil className="w-3 h-3" /> Editar
+                    </button>
+                  ) : (
+                    <button onClick={() => setEditandoBrand(false)} className="text-xs text-slate-400 hover:text-slate-600 transition-colors">
+                      Cancelar
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-4">
+                  {/* Foto */}
+                  <div className="relative shrink-0">
+                    <div className="w-16 h-16 rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center">
+                      {empresaConfig?.foto_url
+                        ? <img src={empresaConfig.foto_url} alt="Logo" className="w-full h-full object-cover" />
+                        : <Building2 className="w-6 h-6 text-slate-400" />}
+                    </div>
+                    {editandoBrand && (
+                      <label
+                        className="absolute -bottom-1.5 -right-1.5 w-7 h-7 bg-blue-600 hover:bg-blue-700 rounded-full flex items-center justify-center cursor-pointer transition-colors shadow-md"
+                        title="Trocar foto"
+                      >
+                        <Camera className="w-3.5 h-3.5 text-white" />
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          className="hidden"
+                          ref={fotoInputRef}
+                          onChange={handleFotoChange}
+                        />
+                      </label>
+                    )}
+                  </div>
+
+                  {/* Nome */}
+                  <div className="flex-1 min-w-0">
+                    {editandoBrand ? (
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={nomeEmpresaEdit}
+                          onChange={e => setNomeEmpresaEdit(e.target.value)}
+                          placeholder="Nome de exibição"
+                          className="flex-1 text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-blue-400"
+                        />
+                        <button
+                          onClick={handleSalvarNome}
+                          disabled={salvandoBrand}
+                          className="flex items-center gap-1 px-3 py-2 bg-blue-600 text-white text-xs font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          {salvandoBrand ? 'Salvando...' : 'Salvar nome'}
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="font-bold text-slate-900 text-base truncate">
+                          {empresaConfig?.nome_exibicao || usuario?.empresa_id}
+                        </p>
+                        <p className="text-xs text-slate-400 mt-0.5">ID: {usuario?.empresa_id}</p>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {msgBrand && (
+                  <p className="mt-3 text-xs text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">
+                    {msgBrand}
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="flex items-center justify-between mb-8">
               <div>
                 <h1 className="text-xl font-bold text-slate-900 tracking-tight">Usuários do sistema</h1>

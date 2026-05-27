@@ -1,7 +1,10 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Loader2, Eye, EyeOff } from 'lucide-react'
+import { Loader2, Eye, EyeOff, Building2 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { getEmpresaConfigPublica } from '../api'
+
+const BASE_API = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -11,6 +14,23 @@ export default function Login() {
   const [email, setEmail]       = useState('')
   const [senha, setSenha]       = useState('')
   const [mostrarSenha, setMostrarSenha] = useState(false)
+  const [empresaBrand, setEmpresaBrand] = useState(null) // {nome_exibicao, foto_url, cor_primaria}
+  const [buscandoBrand, setBuscandoBrand] = useState(false)
+  const emailRef = useRef('')
+
+  async function handleEmailBlur() {
+    const e = email.trim()
+    if (!e || !e.includes('@')) return
+    if (e === emailRef.current) return
+    emailRef.current = e
+    setBuscandoBrand(true)
+    try {
+      const cfg = await getEmpresaConfigPublica(e)
+      if (cfg && cfg.empresa_id) setEmpresaBrand(cfg)
+      else setEmpresaBrand(null)
+    } catch { setEmpresaBrand(null) }
+    finally { setBuscandoBrand(false) }
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -21,33 +41,58 @@ export default function Login() {
     else navigate('/operador')
   }
 
+  const cor = empresaBrand?.cor_primaria || '#1d4ed8'
+  const nomEmpresa = empresaBrand?.nome_exibicao
+  const fotoEmpresa = empresaBrand?.foto_url
+
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden p-4"
-      style={{ background: 'linear-gradient(150deg,#020b1f 0%,#0f2559 35%,#1a3a9e 65%,#1d4ed8 100%)' }}>
+      style={{ background: fotoEmpresa
+        ? `linear-gradient(150deg,rgba(2,11,31,0.92) 0%,rgba(15,37,89,0.85) 40%,rgba(29,78,216,0.7) 100%)`
+        : 'linear-gradient(150deg,#020b1f 0%,#0f2559 35%,#1a3a9e 65%,#1d4ed8 100%)' }}>
 
-      {/* ── Decorações de fundo ── */}
-      <div className="absolute inset-0 opacity-[0.035]"
-        style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.8) 1px, transparent 0)', backgroundSize: '28px 28px' }} />
-      <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full blur-3xl opacity-20"
-        style={{ background: 'radial-gradient(circle,#60a5fa,transparent 70%)' }} />
-      <div className="absolute bottom-[-15%] right-[-5%] w-[500px] h-[500px] rounded-full blur-3xl opacity-15"
-        style={{ background: 'radial-gradient(circle,#818cf8,transparent 70%)' }} />
-      <div className="absolute top-[40%] right-[20%] w-64 h-64 rounded-full blur-3xl opacity-10"
-        style={{ background: 'radial-gradient(circle,#34d399,transparent 70%)' }} />
+      {/* Foto de capa da empresa */}
+      {fotoEmpresa && (
+        <div className="absolute inset-0 z-0">
+          <img src={fotoEmpresa} alt="" className="w-full h-full object-cover" />
+          <div className="absolute inset-0"
+            style={{ background: 'linear-gradient(150deg,rgba(2,11,31,0.88) 0%,rgba(15,37,89,0.82) 40%,rgba(29,78,216,0.65) 100%)' }} />
+        </div>
+      )}
 
-      {/* ── Layout split ── */}
-      <div className="relative w-full max-w-5xl flex items-center gap-16">
+      {/* Decorações de fundo (só sem foto) */}
+      {!fotoEmpresa && <>
+        <div className="absolute inset-0 opacity-[0.035]"
+          style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.8) 1px, transparent 0)', backgroundSize: '28px 28px' }} />
+        <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full blur-3xl opacity-20"
+          style={{ background: 'radial-gradient(circle,#60a5fa,transparent 70%)' }} />
+        <div className="absolute bottom-[-15%] right-[-5%] w-[500px] h-[500px] rounded-full blur-3xl opacity-15"
+          style={{ background: 'radial-gradient(circle,#818cf8,transparent 70%)' }} />
+      </>}
 
-        {/* ── Lado esquerdo — conteúdo marketing ── */}
+      {/* Layout split */}
+      <div className="relative z-10 w-full max-w-5xl flex items-center gap-16">
+
+        {/* Lado esquerdo */}
         <div className="hidden lg:flex flex-1 flex-col gap-8">
 
-          {/* Logo */}
+          {/* Logo / marca */}
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
-              style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.2)', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
-              <span className="text-white text-xl font-bold">⚖</span>
-            </div>
-            <span className="text-white text-2xl font-extrabold tracking-tight">Mizan</span>
+            {fotoEmpresa ? (
+              <img src={fotoEmpresa} alt={nomEmpresa}
+                className="w-12 h-12 rounded-2xl object-cover border-2 border-white/30 shadow-xl" />
+            ) : (
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
+                style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.2)', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
+                <span className="text-white text-xl font-bold">⚖</span>
+              </div>
+            )}
+            <span className="text-white text-2xl font-extrabold tracking-tight">
+              {nomEmpresa || 'Mizan'}
+            </span>
+            {nomEmpresa && (
+              <span className="text-white/40 text-sm font-medium">· via Mizan</span>
+            )}
           </div>
 
           {/* Tagline */}
@@ -56,46 +101,63 @@ export default function Login() {
               Recuperação de crédito com IA
             </p>
             <h2 className="text-5xl font-extrabold text-white leading-[1.1] tracking-tight mb-5">
-              Recupere mais.<br />
-              <span className="text-blue-300">Aprenda com</span><br />
-              cada resultado.
+              {nomEmpresa ? (
+                <>Bem-vindo à<br /><span style={{ color: cor === '#1d4ed8' ? '#93c5fd' : cor }}>{nomEmpresa}</span></>
+              ) : (
+                <>Recupere mais.<br /><span className="text-blue-300">Aprenda com</span><br />cada resultado.</>
+              )}
             </h2>
             <p className="text-blue-200/70 text-base leading-relaxed max-w-sm">
               Analise carteiras, priorize devedores e receba recomendações que evoluem com cada contato registrado.
             </p>
           </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-3">
-            {[
-              { n: '98%', l: 'Precisão ML',  icon: '🎯' },
-              { n: '<1s',  l: 'Por devedor', icon: '⚡' },
-              { n: '12',   l: 'Estratégias', icon: '🧠' },
-            ].map(({ n, l, icon }) => (
-              <div key={l} className="rounded-2xl p-4"
-                style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(8px)' }}>
-                <p className="text-xl mb-2">{icon}</p>
-                <p className="text-2xl font-extrabold text-white tracking-tight">{n}</p>
-                <p className="text-blue-300 text-xs mt-1 font-semibold">{l}</p>
-              </div>
-            ))}
-          </div>
+          {/* Stats (só sem empresa) */}
+          {!nomEmpresa && (
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { n: '98%', l: 'Precisão ML',  icon: '🎯' },
+                { n: '<1s',  l: 'Por devedor', icon: '⚡' },
+                { n: '12',   l: 'Estratégias', icon: '🧠' },
+              ].map(({ n, l, icon }) => (
+                <div key={l} className="rounded-2xl p-4"
+                  style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(8px)' }}>
+                  <p className="text-xl mb-2">{icon}</p>
+                  <p className="text-2xl font-extrabold text-white tracking-tight">{n}</p>
+                  <p className="text-blue-300 text-xs mt-1 font-semibold">{l}</p>
+                </div>
+              ))}
+            </div>
+          )}
 
           <p className="text-blue-400/50 text-xs">© 2026 Mizan · Todos os direitos reservados</p>
         </div>
 
-        {/* ── Lado direito — card do formulário ── */}
+        {/* Lado direito — card do formulário */}
         <div className="w-full lg:w-[400px] shrink-0">
           <div className="bg-white rounded-3xl p-8"
             style={{ boxShadow: '0 32px 80px rgba(0,0,0,0.5), 0 8px 24px rgba(0,0,0,0.3)' }}>
 
-            {/* Mobile logo */}
-            <div className="lg:hidden flex items-center gap-2.5 mb-8">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/25 shrink-0"
-                style={{ background: 'linear-gradient(135deg,#1d4ed8,#2563eb)' }}>
-                <span className="text-white font-bold text-sm">⚖</span>
+            {/* Cabeçalho mobile / empresa */}
+            <div className="flex items-center gap-2.5 mb-8">
+              {fotoEmpresa ? (
+                <img src={fotoEmpresa} alt={nomEmpresa}
+                  className="w-9 h-9 rounded-xl object-cover border border-slate-100 shrink-0" />
+              ) : (
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center shadow-lg shrink-0"
+                  style={{ background: `linear-gradient(135deg,${cor},${cor}cc)` }}>
+                  <span className="text-white font-bold text-sm">⚖</span>
+                </div>
+              )}
+              <div>
+                <span className="text-slate-800 text-base font-bold tracking-tight leading-none block">
+                  {nomEmpresa || 'Mizan'}
+                </span>
+                {nomEmpresa && (
+                  <span className="text-slate-400 text-xs">via Mizan</span>
+                )}
               </div>
-              <span className="text-slate-800 text-xl font-bold tracking-tight">Mizan</span>
+              {buscandoBrand && <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-300 ml-auto" />}
             </div>
 
             <div className="mb-7">
@@ -116,6 +178,7 @@ export default function Login() {
                   type="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
+                  onBlur={handleEmailBlur}
                   placeholder="seu@email.com"
                   required
                   autoFocus
@@ -158,7 +221,9 @@ export default function Login() {
               <button
                 type="submit"
                 disabled={loading}
-                className="btn-primary w-full py-3 disabled:opacity-50 text-base"
+                className="w-full py-3 rounded-xl font-bold text-white text-base disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                style={{ background: `linear-gradient(135deg,${cor},${cor}cc)`,
+                  boxShadow: `0 4px 16px ${cor}40` }}
               >
                 {loading
                   ? <><Loader2 className="h-4 w-4 animate-spin" /> Entrando...</>

@@ -377,3 +377,42 @@ export async function deletarEmpresa(token, empresaId) {
   }
   return res.json()
 }
+
+export async function getEmpresaConfigPublica(email) {
+  const params = email ? `?email=${encodeURIComponent(email)}` : ''
+  const res = await fetch(`${BASE}/empresa/config-publica${params}`)
+  if (!res.ok) return null
+  return res.json()
+}
+
+export async function getEmpresaConfig(token) {
+  const res = await fetch(`${BASE}/empresa/config`, { headers: _authHeader(token) })
+  if (!res.ok) return null
+  return res.json()
+}
+
+export async function putEmpresaConfig(token, dados) {
+  const res = await fetch(`${BASE}/empresa/config`, {
+    method: 'PUT', headers: _authHeader(token), body: JSON.stringify(dados),
+  })
+  if (!res.ok) {
+    const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
+    throw new Error(detail)
+  }
+  return res.json()
+}
+
+export async function uploadEmpresaFoto(token, file) {
+  const fd = new FormData()
+  fd.append('file', file)
+  const res = await fetch(`${BASE}/empresa/foto`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: fd,
+  })
+  if (!res.ok) {
+    const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
+    throw new Error(detail)
+  }
+  return res.json()
+}
