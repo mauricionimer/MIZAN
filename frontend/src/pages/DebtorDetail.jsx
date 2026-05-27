@@ -69,16 +69,30 @@ function HistoricoContatos({ cpf, rec }) {
 
   async function salvar() {
     setSalvando(true); setErro(null)
-    try {
-      const payload = { cpf, canal: form.canal, resultado: form.resultado, data_contato: form.data_contato, observacao: form.observacao }
-      if (rec?.acao_id != null) payload.acao_bandit_id = rec.acao_id
-      if (form.valor_recuperado) payload.valor_recuperado = parseFloat(form.valor_recuperado)
-      if (form.desconto_oferecido_pct) payload.desconto_oferecido_pct = parseFloat(form.desconto_oferecido_pct)
-      const res = await registrarContato(payload)
-      setContatos(prev => [res.contato, ...prev])
-      setFormAberto(false)
-      setForm({ canal: 'whatsapp', resultado: 'contactado', data_contato: new Date().toISOString().slice(0, 10), observacao: '', valor_recuperado: '', desconto_oferecido_pct: '' })
-    } catch (e) { setErro(traduzirErroRede(e)) }
+    const payload = { cpf, canal: form.canal, resultado: form.resultado, data_contato: form.data_contato, observacao: form.observacao }
+    if (rec?.acao_id != null) payload.acao_bandit_id = rec.acao_id
+    if (form.valor_recuperado) payload.valor_recuperado = parseFloat(form.valor_recuperado)
+    if (form.desconto_oferecido_pct) payload.desconto_oferecido_pct = parseFloat(form.desconto_oferecido_pct)
+
+    const _tentar = async (tentativa) => {
+      try {
+        const res = await registrarContato(payload)
+        setContatos(prev => [res.contato, ...prev])
+        setFormAberto(false)
+        setForm({ canal: 'whatsapp', resultado: 'contactado', data_contato: new Date().toISOString().slice(0, 10), observacao: '', valor_recuperado: '', desconto_oferecido_pct: '' })
+      } catch (e) {
+        const isRede = e?.message === 'Failed to fetch' || e?.message?.includes('Failed to fetch')
+        if (isRede && tentativa < 2) {
+          setErro('Servidor acordando... tentando novamente em 5s')
+          await new Promise(r => setTimeout(r, 5000))
+          setErro(null)
+          return _tentar(tentativa + 1)
+        }
+        setErro(traduzirErroRede(e))
+      }
+    }
+
+    try { await _tentar(1) }
     finally { setSalvando(false) }
   }
 

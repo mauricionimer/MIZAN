@@ -291,8 +291,11 @@ export async function registrarContato(dados) {
   const res = await fetch(`${BASE}/contatos`, {
     method: 'POST', headers: _authHeader(token), body: JSON.stringify(dados),
   })
+  _handle401(res)
   if (!res.ok) {
-    const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
+    const body = await res.json().catch(() => null)
+    const detail = body?.detail || body?.message || `Erro HTTP ${res.status}`
+    console.error('[registrarContato] erro', res.status, body)
     throw new Error(detail)
   }
   return res.json()
