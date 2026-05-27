@@ -325,6 +325,17 @@ class FeedbackIn(BaseModel):
     empresa: Optional[str] = None
 
 
+class ConfirmarPagamentoIn(BaseModel):
+    valor_recuperado: Optional[float] = 0.0
+    data_pagamento: Optional[date] = None
+
+
+_confirmacoes_em_andamento: set[str] = set()
+_rate_confirmacoes: dict[str, list[float]] = defaultdict(list)
+_RATE_CONFIRM_MAX = 30
+_RATE_CONFIRM_JANELA = 3600
+
+
 class ConexaoDB(BaseModel):
     tipo: str   # postgres | mysql | mariadb | sqlserver | oracle | sqlite | sheets
     host: Optional[str] = None
@@ -2334,6 +2345,142 @@ async def receber_feedback(
     return {"ok": True, "feedback_id": feedback_id, "predicao_id": predicao_id, "writeback": writeback_info}
 
 
+@app.post("/devedores/{cpf}/confirmar-pagamento")
+async def confirmar_pagamento(
+    cpf: str,
+    body: ConfirmarPagamentoIn,
+    credentials: HTTPAuthorizationCredentials = Security(bearer),
+):
+    """Confirma pagamento manualmente. Apenas admin/comando. Idempotente — bloqueia duplo registro."""
+    payload = _usuario_autenticado(credentials)
+    role = payload.get("role", "")
+    if role not in ("admin", "comando"):
+        raise HTTPException(status_code=403, detail="Apenas administradores podem confirmar pagamentos.")
+
+    empresa_id = payload.get("empresa_id", "")
+    usuario_nome = payload.get("nome") or payload.get("email") or "admin"
+    usuario_id = payload.get("sub", "")
+
+    # Rate limiting por usuário: 30 confirmações/hora
+    rate_key = f"{usuario_id}:confirmar"
+    agora = _time.time()
+    _rate_confirmacoes[rate_key] = [t for t in _rate_confirmacoes[rate_key] if agora - t < _RATE_CONFIRM_JANELA]
+    if len(_rate_confirmacoes[rate_key]) >= _RATE_CONFIRM_MAX:
+        raise HTTPException(status_code=429, detail="Limite de confirmações atingido. Aguarde 1 hora.")
+    _rate_confirmacoes[rate_key].append(agora)
+
+    # Trava contra confirmações simultâneas do mesmo CPF
+    lock_key = f"{empresa_id}:{cpf}"
+    if lock_key in _confirmacoes_em_andamento:
+        raise HTTPException(status_code=409, detail="Já existe uma confirmação em andamento para este devedor.")
+    _confirmacoes_em_andamento.add(lock_key)
+
+    print(f"[Confirmar] Tentativa — CPF: {cpf}, usuário: {usuario_nome}, role: {role}")
+
+    try:
+        db = get_db()
+
+        # Idempotência: verifica se já foi confirmado para este CPF + empresa
+        existing = (
+            db.table("feedbacks")
+            .select("id, created_at, registrado_por")
+            .eq("cpf", cpf)
+            .eq("pagou", True)
+            .eq("empresa", empresa_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if existing.data:
+            fb = existing.data[0]
+            ts = (fb.get("created_at") or "")[:16].replace("T", " ")
+            raise HTTPException(
+                status_code=409,
+                detail=f"Pagamento já confirmado por {fb.get('registrado_por', 'sistema')} em {ts}.",
+            )
+
+        # Busca predição mais recente para este CPF — escopo restrito à empresa
+        pred_res = None
+        predicao_id = None
+        try:
+            pred_query = db.table("predicoes").select("id, score_recuperabilidade, valor_divida").eq("cpf", cpf)
+            if empresa_id:
+                cart_res = db.table("carteiras").select("id").eq("empresa_id", empresa_id).limit(100).execute()
+                cart_ids = [c["id"] for c in (cart_res.data or [])]
+                if cart_ids:
+                    pred_query = pred_query.in_("carteira_id", cart_ids)
+            pred_res = pred_query.order("created_at", desc=True).limit(1).execute()
+            predicao_id = pred_res.data[0]["id"] if pred_res.data else None
+        except Exception as _pe:
+            print(f"[Confirmar] Aviso — não encontrou predicao para CPF {cpf}: {_pe}")
+
+        fb_row: dict = {
+            "cpf":             cpf,
+            "pagou":           True,
+            "valor_recuperado": body.valor_recuperado or 0,
+            "empresa":         empresa_id,
+            "registrado_por":  usuario_nome,
+        }
+        if body.data_pagamento:
+            fb_row["data_pagamento"] = body.data_pagamento.isoformat()
+        if predicao_id:
+            fb_row["predicao_id"] = predicao_id
+
+        print(f"[Confirmar] Gravando Supabase — CPF: {cpf}, empresa: {empresa_id}, predicao_id: {predicao_id}")
+        res = db.table("feedbacks").insert(fb_row).execute()
+        if not res.data:
+            raise Exception("Supabase insert retornou vazio — verifique permissões RLS ou coluna 'registrado_por' ausente na tabela feedbacks")
+        feedback_id = res.data[0]["id"]
+        registrado_em = res.data[0].get("created_at", "")
+        print(f"[Confirmar] Supabase gravado com sucesso — feedback_id: {feedback_id}")
+
+        _fechar_loop_bandit(
+            db, cpf, True,
+            float(body.valor_recuperado or 0),
+            pred_res.data[0] if (pred_res and pred_res.data) else None,
+        )
+
+        # Write-back para banco externo da empresa (non-blocking, 8s timeout)
+        writeback_info = None
+        if empresa_id:
+            import threading
+            _wb_result: list = [None]
+            def _wb():
+                _wb_result[0] = _writeback_pagamento(empresa_id, cpf, True)
+            t = threading.Thread(target=_wb, daemon=True)
+            t.start()
+            t.join(timeout=8)
+            writeback_info = _wb_result[0]
+
+        print(f"[Confirmar] SUCESSO — CPF: {cpf}, id: {feedback_id}, writeback: {writeback_info}")
+
+        _registrar_auditoria(
+            acao="confirmar_pagamento",
+            entidade="feedback",
+            entidade_id=feedback_id,
+            usuario_email=payload.get("email", ""),
+            empresa_id=empresa_id,
+            detalhes={"cpf": cpf, "valor_recuperado": body.valor_recuperado, "writeback": writeback_info},
+            usuario_id=usuario_id,
+        )
+
+        return {
+            "ok":            True,
+            "feedback_id":   feedback_id,
+            "registrado_por": usuario_nome,
+            "registrado_em": registrado_em,
+            "writeback":     writeback_info,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[Confirmar] ERRO — CPF: {cpf}, usuário: {usuario_nome}: {e}")
+        raise HTTPException(status_code=500, detail=f"Erro ao confirmar pagamento: {str(e)}")
+    finally:
+        _confirmacoes_em_andamento.discard(lock_key)
+
+
 @app.post("/webhook/pagamento")
 async def webhook_pagamento(body: WebhookPagamentoIn, request: Request):
     """
@@ -2642,7 +2789,10 @@ async def performance_pagamentos(credentials: HTTPAuthorizationCredentials = Sec
     feedbacks = fb_res.data or []
 
     if empresa_pred_ids is not None:
-        feedbacks = [f for f in feedbacks if f.get("predicao_id") in empresa_pred_ids]
+        feedbacks = [
+            f for f in feedbacks
+            if f.get("predicao_id") in empresa_pred_ids or f.get("empresa") == empresa_id
+        ]
 
     if not feedbacks:
         return []
@@ -2703,7 +2853,11 @@ async def feedbacks_status(credentials: HTTPAuthorizationCredentials = Security(
     feedbacks = fb_res.data or []
 
     if empresa_pred_ids is not None:
-        feedbacks = [f for f in feedbacks if f.get("predicao_id") in empresa_pred_ids]
+        # Inclui feedbacks pela predicao_id OU pelo campo empresa (para confirmações manuais)
+        feedbacks = [
+            f for f in feedbacks
+            if f.get("predicao_id") in empresa_pred_ids or f.get("empresa") == empresa_id
+        ]
 
     status_map: dict = {}
     for fb in feedbacks:

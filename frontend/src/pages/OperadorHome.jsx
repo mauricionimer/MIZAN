@@ -104,8 +104,8 @@ export default function OperadorHome() {
           />
           <ActionCard
             icon={ClipboardList}
-            label="Registrar pagamento"
-            desc="Informar resultado de contato ou confirmação de pagamento"
+            label="Histórico de pagamentos"
+            desc="Ver pagamentos registrados e status dos devedores da carteira"
             onClick={() => navigate('/feedback')}
             accent="amber"
           />

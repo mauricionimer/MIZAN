@@ -4,12 +4,12 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   PieChart, Pie, Cell,
 } from 'recharts'
-import { buscarPagamentos, buscarStatusFeedbacks } from '../api'
+import { buscarPagamentos, buscarStatusFeedbacks, confirmarPagamento } from '../api'
 import {
   Users, TrendingDown, BarChart2, Star,
   Download, RefreshCw, Search, Loader2,
   Tag, Percent, ArrowUpRight, Banknote, ClipboardList, FileSpreadsheet, Zap, LogOut, ShieldCheck, KeyRound,
-  CheckCircle2, XCircle, TrendingUp, Home, Clock,
+  CheckCircle2, XCircle, TrendingUp, Home, Clock, X,
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { gerarRelatorioPDF } from '../utils/gerarPDF'
@@ -230,6 +230,10 @@ export default function Dashboard() {
   const [searchPag, setSearchPag]         = useState('')
   const [statusMap, setStatusMap]         = useState({})
   const [filtroStatus, setFiltroStatus]   = useState('todos')
+  const [confirmarModal, setConfirmarModal] = useState(null)
+  const [confirmando, setConfirmando]       = useState(false)
+  const [confirmarForm, setConfirmarForm]   = useState({ valor_recuperado: '', data_pagamento: '' })
+  const [confirmarErro, setConfirmarErro]   = useState('')
 
   useEffect(() => {
     if (!token) return
@@ -277,6 +281,40 @@ export default function Dashboard() {
 
   useEffect(() => { setPage(1) }, [search, filtroPrio, filtroProduto, filtroUF, filtroStatus])
 
+  async function handleConfirmarPagamento(e) {
+    e.preventDefault()
+    if (!confirmarModal || confirmando) return
+    setConfirmando(true)
+    setConfirmarErro('')
+    try {
+      const dados = {}
+      if (confirmarForm.valor_recuperado) dados.valor_recuperado = parseFloat(confirmarForm.valor_recuperado.replace(',', '.'))
+      if (confirmarForm.data_pagamento) dados.data_pagamento = confirmarForm.data_pagamento
+      const res = await confirmarPagamento(confirmarModal.cpf, dados)
+      const cpfKey = String(confirmarModal.cpf)
+      // Atualização local imediata — badge vira "Pago" sem esperar o servidor
+      setStatusMap(prev => ({
+        ...prev,
+        [cpfKey]: {
+          pagou: true,
+          valor_recuperado: dados.valor_recuperado || 0,
+          data_pagamento: confirmarForm.data_pagamento || null,
+          registrado_por: res.registrado_por || '',
+          registrado_em: res.registrado_em || new Date().toISOString(),
+        },
+      }))
+      setConfirmarModal(null)
+      setConfirmarForm({ valor_recuperado: '', data_pagamento: '' })
+      // Refetch do servidor para garantir consistência (não bloqueia a UI)
+      buscarStatusFeedbacks().then(setStatusMap).catch(() => {})
+      buscarPagamentos().then(setPagamentos).catch(() => {})
+    } catch (err) {
+      setConfirmarErro(err.message || 'Erro ao confirmar pagamento.')
+    } finally {
+      setConfirmando(false)
+    }
+  }
+
   if (!result) return null
 
   const { resumo, distribuicao_aging, distribuicao_cluster, ranking_completo } = result
@@ -301,6 +339,77 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen">
+
+      {/* Modal de confirmação de pagamento */}
+      {confirmarModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-md p-6 space-y-5">
+            <div className="flex items-start justify-between">
+              <div>
+                <h2 className="text-base font-bold text-slate-900">Confirmar pagamento</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  <span className="font-semibold text-slate-700">{confirmarModal.nome}</span>
+                  {' · '}<span className="font-mono">{confirmarModal.cpf}</span>
+                </p>
+              </div>
+              <button onClick={() => { setConfirmarModal(null); setConfirmarErro('') }}
+                className="text-slate-400 hover:text-slate-700 transition-colors p-1 rounded-lg hover:bg-slate-100">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmarPagamento} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                  Valor recuperado <span className="font-normal text-slate-400">(opcional)</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm">R$</span>
+                  <input
+                    type="number" min="0" step="0.01" placeholder="0,00"
+                    value={confirmarForm.valor_recuperado}
+                    onChange={e => setConfirmarForm(f => ({ ...f, valor_recuperado: e.target.value }))}
+                    className="input-base pl-9"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                  Data do pagamento <span className="font-normal text-slate-400">(opcional)</span>
+                </label>
+                <input
+                  type="date"
+                  max={new Date().toISOString().split('T')[0]}
+                  value={confirmarForm.data_pagamento}
+                  onChange={e => setConfirmarForm(f => ({ ...f, data_pagamento: e.target.value }))}
+                  className="input-base"
+                />
+              </div>
+
+              {confirmarErro && (
+                <div className="flex items-start gap-2 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+                  <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                  <p className="text-sm text-red-700">{confirmarErro}</p>
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-1">
+                <button type="button"
+                  onClick={() => { setConfirmarModal(null); setConfirmarErro('') }}
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
+                  Cancelar
+                </button>
+                <button type="submit" disabled={confirmando}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-colors disabled:opacity-60 flex items-center justify-center gap-2">
+                  {confirmando
+                    ? <><Loader2 className="h-4 w-4 animate-spin" /> Confirmando...</>
+                    : <><CheckCircle2 className="h-4 w-4" /> Confirmar pagamento</>}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Navbar */}
       <header className="navbar-glass px-6 py-3 flex items-center justify-between">
@@ -346,7 +455,7 @@ export default function Dashboard() {
             </button>
           )}
           <button onClick={() => navigate('/feedback')} className="nav-link">
-            <ClipboardList className="h-3.5 w-3.5" /> Registrar pagamento
+            <ClipboardList className="h-3.5 w-3.5" /> Pagamentos
           </button>
           <button onClick={() => navigate('/alterar-senha')} className="nav-link" title="Alterar senha">
             <KeyRound className="h-3.5 w-3.5" />
@@ -833,8 +942,22 @@ export default function Dashboard() {
                     <td className="px-4 py-3 text-center">
                       <PriorityBadge score={d.score_recuperabilidade} />
                     </td>
-                    <td className="px-4 py-3 text-center">
-                      <StatusBadge cpf={d.cpf} statusMap={statusMap} />
+                    <td className="px-4 py-3 text-center" onClick={e => e.stopPropagation()}>
+                      <div className="flex flex-col items-center gap-1">
+                        <StatusBadge cpf={d.cpf} statusMap={statusMap} />
+                        {(isAdmin || isComando) && getStatus(d.cpf, statusMap) !== 'pago' && (
+                          <button
+                            onClick={() => {
+                              setConfirmarModal({ cpf: d.cpf, nome: d.nome })
+                              setConfirmarForm({ valor_recuperado: '', data_pagamento: '' })
+                              setConfirmarErro('')
+                            }}
+                            className="text-[10px] font-semibold text-emerald-600 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full transition-colors whitespace-nowrap"
+                          >
+                            + Confirmar pagamento
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

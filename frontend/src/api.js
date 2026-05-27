@@ -228,6 +228,19 @@ export async function buscarPagamentos() {
   return res.json()
 }
 
+export async function confirmarPagamento(cpf, dados = {}) {
+  const token = _getToken()
+  const res = await fetch(`${BASE}/devedores/${encodeURIComponent(cpf)}/confirmar-pagamento`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(dados),
+  })
+  _handle401(res)
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.detail || `Erro HTTP ${res.status}`)
+  return data
+}
+
 export async function buscarStatusFeedbacks() {
   const token = _getToken()
   const res = await fetch(`${BASE}/feedbacks/status`, {
