@@ -1063,11 +1063,18 @@ def registrar_contato(body: ContatoIn, credentials: HTTPAuthorizationCredentials
     except ValueError as e:
         raise HTTPException(status_code=401, detail=str(e))
     db = get_db()
-    row = body.model_dump()
+    # Filtra None para não enviar colunas inexistentes ao Supabase
+    row = {k: v for k, v in body.model_dump().items() if v is not None}
     row["usuario_id"]   = payload["sub"]
     row["usuario_nome"] = payload.get("nome", "")
     row["empresa_id"]   = payload.get("empresa_id", "")
-    res = db.table("contatos").insert(row).execute()
+
+    try:
+        res = db.table("contatos").insert(row).execute()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao registrar contato: {e}")
+    if not res.data:
+        raise HTTPException(status_code=500, detail="Falha ao inserir contato — verifique o schema da tabela contatos no Supabase.")
 
     # Fecha o loop do bandit: aprende com o resultado real do contato
     if body.resultado in _CONTATO_RECOMPENSA:
