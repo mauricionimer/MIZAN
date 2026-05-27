@@ -173,13 +173,14 @@ function ImportacaoLote({ token }) {
 
 export default function Feedback() {
   const navigate = useNavigate()
-  const { token, usuario, logout, isComando, isAdmin } = useAuth()
-  const [aba, setAba]           = useState('manual')
-  const [form, setForm]         = useState(EMPTY)
-  const [loading, setLoading]   = useState(false)
+  const { token, usuario, logout, isComando, isAdmin, isOperador } = useAuth()
+  const podeRegistrar = isAdmin || isComando
+  const [aba, setAba]             = useState('manual')
+  const [form, setForm]           = useState(EMPTY)
+  const [loading, setLoading]     = useState(false)
   const [historico, setHistorico] = useState([])
-  const [erro, setErro]         = useState('')
-  const [sucesso, setSucesso]   = useState('')
+  const [erro, setErro]           = useState('')
+  const [sucesso, setSucesso]     = useState('')
 
   function set(field, value) {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -196,11 +197,11 @@ export default function Feedback() {
 
   async function enviar(e) {
     e.preventDefault()
+    if (!podeRegistrar) return
     const cpf = form.cpf.replace(/\D/g, '')
     if (cpf.length !== 11) { setErro('CPF inválido — informe 11 dígitos.'); return }
 
-    setLoading(true)
-    setErro('')
+    setLoading(true); setErro('')
     try {
       const body = {
         cpf,
@@ -210,39 +211,33 @@ export default function Feedback() {
       if (form.data_pagamento) body.data_pagamento = form.data_pagamento
 
       const res = await fetch(`${API_URL}/feedback`, {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body:    JSON.stringify(body),
+        body: JSON.stringify(body),
       })
       const data = await res.json()
 
+      const wb = data.writeback ? ` · banco externo atualizado (${data.writeback})` : ''
       setHistorico(prev => [{
-        cpf:              form.cpf,
-        pagou:            form.pagou === 'sim',
+        cpf: form.cpf, pagou: form.pagou === 'sim',
         valor_recuperado: body.valor_recuperado,
-        data_pagamento:   form.data_pagamento,
-        ok:               res.ok,
-        feedback_id:      data.feedback_id,
-        erro_msg:         res.ok ? null : (data.detail || 'Erro desconhecido'),
-        ts:               new Date().toLocaleTimeString('pt-BR'),
+        data_pagamento: form.data_pagamento,
+        ok: res.ok,
+        feedback_id: data.feedback_id,
+        writeback: data.writeback || null,
+        erro_msg: res.ok ? null : (data.detail || 'Erro desconhecido'),
+        ts: new Date().toLocaleTimeString('pt-BR'),
       }, ...prev])
 
       if (res.ok) {
-        const wb = data.writeback ? ` · banco externo atualizado (${data.writeback})` : ''
         setForm(EMPTY)
-        setSucesso(`Pagamento de ${form.cpf} registrado com sucesso.${wb}`)
+        setSucesso(`Pagamento registrado com sucesso.${wb}`)
         setTimeout(() => setSucesso(''), 6000)
       } else {
-        setErro(data.detail || 'Erro ao registrar feedback.')
+        setErro(data.detail || 'Erro ao registrar.')
       }
     } catch (err) {
-      setErro('Não foi possível conectar ao backend.')
-      setHistorico(prev => [{
-        cpf: form.cpf, pagou: form.pagou === 'sim',
-        valor_recuperado: 0, data_pagamento: form.data_pagamento,
-        ok: false, feedback_id: null, erro_msg: err.message,
-        ts: new Date().toLocaleTimeString('pt-BR'),
-      }, ...prev])
+      setErro('Não foi possível conectar ao servidor.')
     } finally {
       setLoading(false)
     }
@@ -252,13 +247,13 @@ export default function Feedback() {
     <div className="min-h-screen">
       <header className="navbar-glass px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="text-slate-400 hover:text-slate-700 transition-colors p-1 rounded-lg hover:bg-slate-100">
+          <button onClick={() => navigate('/dashboard')} className="text-slate-400 hover:text-slate-700 transition-colors p-1 rounded-lg hover:bg-slate-100">
             <ArrowLeft className="w-4 h-4" />
           </button>
           <Logo />
           <span className="font-bold text-slate-800 text-sm">Mizan</span>
           <span className="text-slate-200 text-sm">/</span>
-          <span className="text-slate-500 text-sm">Feedback de Pagamentos</span>
+          <span className="text-slate-500 text-sm">Pagamentos</span>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm text-slate-400 hidden sm:block">{usuario?.nome}</span>
@@ -270,179 +265,176 @@ export default function Feedback() {
 
       <main className="max-w-5xl mx-auto px-6 py-10 space-y-6">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Registrar Pagamentos</h1>
+          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Pagamentos</h1>
           <p className="text-sm text-slate-500 mt-1">
-            Informe quem pagou para o modelo aprender e melhorar as próximas recomendações.
+            Acompanhe e registre pagamentos da carteira.
           </p>
         </div>
 
-        <div className="flex gap-1 p-1 bg-slate-100 rounded-xl w-fit">
-          {[
-            { key: 'manual', label: 'Manual (um por vez)' },
-            { key: 'lote',   label: 'Importar em lote'   },
-          ].map(({ key, label }) => (
-            <button key={key} onClick={() => setAba(key)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                aba === key ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-              }`}>
-              {label}
+        {/* Operador: só visualiza, não registra */}
+        {isOperador && (
+          <div className="bg-blue-50 border border-blue-100 rounded-2xl px-6 py-8 flex flex-col items-center text-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-blue-100 flex items-center justify-center">
+              <ClipboardList className="h-6 w-6 text-blue-500" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-slate-800">Registro de pagamentos é feito pelo administrador</p>
+              <p className="text-xs text-slate-500 mt-1 max-w-md leading-relaxed">
+                Os pagamentos são atualizados automaticamente quando o banco de dados da empresa é sincronizado.
+                Qualquer alteração de status aparece aqui para toda a equipe em tempo real.
+              </p>
+            </div>
+            <button onClick={() => navigate('/dashboard')}
+              className="mt-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors">
+              Ver dashboard
             </button>
-          ))}
-        </div>
-
-        {aba === 'lote' && (
-          <div className="grid grid-cols-5 gap-6">
-            <ImportacaoLote token={token} />
           </div>
         )}
 
-        {aba === 'manual' && (
-          <div className="grid grid-cols-5 gap-6 items-start">
-            <form onSubmit={enviar} className="col-span-2 bg-white rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.06)] p-6 space-y-5">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">CPF do devedor</label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="000.000.000-00"
-                  value={form.cpf}
-                  onChange={e => set('cpf', formatarCPF(e.target.value))}
-                  required
-                  className="input-base font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-2">Realizou pagamento?</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { val: 'sim', label: 'Sim, pagou', active: 'bg-emerald-600 border-emerald-600 text-white' },
-                    { val: 'nao', label: 'Não pagou',  active: 'bg-red-500 border-red-500 text-white' },
-                  ].map(({ val, label, active }) => (
-                    <button
-                      key={val}
-                      type="button"
-                      onClick={() => set('pagou', val)}
-                      className={`py-2.5 rounded-xl border text-sm font-semibold transition-all ${
-                        form.pagou === val ? active : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {form.pagou === 'sim' && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                    Valor recuperado <span className="font-normal text-slate-400">(opcional)</span>
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm">R$</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder="0,00"
-                      value={form.valor_recuperado}
-                      onChange={e => set('valor_recuperado', e.target.value)}
-                      className="input-base pl-9"
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                  Data do pagamento <span className="font-normal text-slate-400">(opcional)</span>
-                </label>
-                <input
-                  type="date"
-                  value={form.data_pagamento}
-                  max={new Date().toISOString().split('T')[0]}
-                  onChange={e => set('data_pagamento', e.target.value)}
-                  className="input-base"
-                />
-              </div>
-
-              {sucesso && (
-                <div className="flex items-start gap-2 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
-                  <p className="text-sm text-emerald-700 font-medium">{sucesso}</p>
-                </div>
-              )}
-
-              {erro && (
-                <div className="flex items-start gap-2 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
-                  <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-                  <p className="text-sm text-red-700">{erro}</p>
-                </div>
-              )}
-
-              <button type="submit" disabled={loading} className="btn-primary w-full py-2.5 disabled:opacity-50">
-                {loading
-                  ? <><Loader2 className="h-4 w-4 animate-spin" /> Registrando...</>
-                  : <><Plus className="h-4 w-4" /> Registrar feedback</>}
-              </button>
-            </form>
-
-            <div className="col-span-3 bg-white rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.06)] overflow-hidden">
-              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <ClipboardList className="h-4 w-4 text-slate-400" />
-                  <span className="section-label">Registros desta sessão</span>
-                </div>
-                {historico.length > 0 && (
-                  <button
-                    onClick={() => setHistorico([])}
-                    className="flex items-center gap-1 text-xs text-slate-400 hover:text-red-500 transition-colors"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" /> Limpar
-                  </button>
-                )}
-              </div>
-
-              {historico.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16 text-center px-6">
-                  <ClipboardList className="h-10 w-10 text-slate-200 mb-3" />
-                  <p className="text-sm text-slate-400">Nenhum feedback registrado ainda.</p>
-                  <p className="text-xs text-slate-300 mt-1">Os registros aparecem aqui após o envio.</p>
-                </div>
-              ) : (
-                <div className="divide-y divide-slate-50">
-                  {historico.map((item, i) => (
-                    <div key={i} className="px-5 py-3.5 flex items-center gap-4">
-                      <StatusBadge ok={item.ok} />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3 flex-wrap">
-                          <span className="font-mono text-sm font-semibold text-slate-800">{item.cpf}</span>
-                          <span className={`text-xs font-semibold ${item.pagou ? 'text-emerald-600' : 'text-red-500'}`}>
-                            {item.pagou ? '✓ Pagou' : '✗ Não pagou'}
-                          </span>
-                          {item.pagou && item.valor_recuperado > 0 && (
-                            <span className="text-xs text-slate-500">{fmtBRL(item.valor_recuperado)}</span>
-                          )}
-                          {item.data_pagamento && (
-                            <span className="text-xs text-slate-400">
-                              {new Date(item.data_pagamento + 'T00:00:00').toLocaleDateString('pt-BR')}
-                            </span>
-                          )}
-                        </div>
-                        {item.erro_msg && (
-                          <p className="text-xs text-red-500 mt-0.5">{item.erro_msg}</p>
-                        )}
-                        {item.ok && item.feedback_id && (
-                          <p className="text-xs text-slate-300 mt-0.5 font-mono">id: {item.feedback_id}</p>
-                        )}
-                      </div>
-                      <span className="text-xs text-slate-300 shrink-0">{item.ts}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+        {/* Admin / Comando: pode registrar manualmente */}
+        {podeRegistrar && (
+          <>
+            <div className="flex gap-1 p-1 bg-slate-100 rounded-xl w-fit">
+              {[
+                { key: 'manual', label: 'Manual (um por vez)' },
+                { key: 'lote',   label: 'Importar em lote'   },
+              ].map(({ key, label }) => (
+                <button key={key} onClick={() => setAba(key)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    aba === key ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}>
+                  {label}
+                </button>
+              ))}
             </div>
-          </div>
+
+            {aba === 'lote' && (
+              <div className="grid grid-cols-5 gap-6">
+                <ImportacaoLote token={token} />
+              </div>
+            )}
+
+            {aba === 'manual' && (
+              <div className="grid grid-cols-5 gap-6 items-start">
+                <form onSubmit={enviar} className="col-span-2 bg-white rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.06)] p-6 space-y-5">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">CPF do devedor</label>
+                    <input type="text" inputMode="numeric" placeholder="000.000.000-00"
+                      value={form.cpf} onChange={e => set('cpf', formatarCPF(e.target.value))}
+                      required className="input-base font-mono" />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-2">Realizou pagamento?</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { val: 'sim', label: 'Sim, pagou', active: 'bg-emerald-600 border-emerald-600 text-white' },
+                        { val: 'nao', label: 'Não pagou',  active: 'bg-red-500 border-red-500 text-white' },
+                      ].map(({ val, label, active }) => (
+                        <button key={val} type="button" onClick={() => set('pagou', val)}
+                          className={`py-2.5 rounded-xl border text-sm font-semibold transition-all ${
+                            form.pagou === val ? active : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                          }`}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {form.pagou === 'sim' && (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                        Valor recuperado <span className="font-normal text-slate-400">(opcional)</span>
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm">R$</span>
+                        <input type="number" min="0" step="0.01" placeholder="0,00"
+                          value={form.valor_recuperado} onChange={e => set('valor_recuperado', e.target.value)}
+                          className="input-base pl-9" />
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                      Data do pagamento <span className="font-normal text-slate-400">(opcional)</span>
+                    </label>
+                    <input type="date" value={form.data_pagamento}
+                      max={new Date().toISOString().split('T')[0]}
+                      onChange={e => set('data_pagamento', e.target.value)} className="input-base" />
+                  </div>
+
+                  {sucesso && (
+                    <div className="flex items-start gap-2 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                      <p className="text-sm text-emerald-700 font-medium">{sucesso}</p>
+                    </div>
+                  )}
+                  {erro && (
+                    <div className="flex items-start gap-2 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+                      <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                      <p className="text-sm text-red-700">{erro}</p>
+                    </div>
+                  )}
+
+                  <button type="submit" disabled={loading} className="btn-primary w-full py-2.5 disabled:opacity-50">
+                    {loading
+                      ? <><Loader2 className="h-4 w-4 animate-spin" /> Registrando...</>
+                      : <><Plus className="h-4 w-4" /> Registrar pagamento</>}
+                  </button>
+                </form>
+
+                <div className="col-span-3 bg-white rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.06)] overflow-hidden">
+                  <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <ClipboardList className="h-4 w-4 text-slate-400" />
+                      <span className="section-label">Registros desta sessão</span>
+                    </div>
+                    {historico.length > 0 && (
+                      <button onClick={() => setHistorico([])}
+                        className="flex items-center gap-1 text-xs text-slate-400 hover:text-red-500 transition-colors">
+                        <Trash2 className="h-3.5 w-3.5" /> Limpar
+                      </button>
+                    )}
+                  </div>
+
+                  {historico.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-16 text-center px-6">
+                      <ClipboardList className="h-10 w-10 text-slate-200 mb-3" />
+                      <p className="text-sm text-slate-400">Nenhum pagamento registrado ainda.</p>
+                      <p className="text-xs text-slate-300 mt-1">Os registros aparecem aqui após o envio.</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-slate-50">
+                      {historico.map((item, i) => (
+                        <div key={i} className="px-5 py-3.5 flex items-center gap-4">
+                          <StatusBadge ok={item.ok} />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <span className="font-mono text-sm font-semibold text-slate-800">{item.cpf}</span>
+                              <span className={`text-xs font-semibold ${item.pagou ? 'text-emerald-600' : 'text-red-500'}`}>
+                                {item.pagou ? '✓ Pagou' : '✗ Não pagou'}
+                              </span>
+                              {item.pagou && item.valor_recuperado > 0 && (
+                                <span className="text-xs text-slate-500">{fmtBRL(item.valor_recuperado)}</span>
+                              )}
+                            </div>
+                            {item.writeback && (
+                              <p className="text-xs text-blue-500 mt-0.5">↳ banco externo atualizado: {item.writeback}</p>
+                            )}
+                            {item.erro_msg && (
+                              <p className="text-xs text-red-500 mt-0.5">{item.erro_msg}</p>
+                            )}
+                          </div>
+                          <span className="text-xs text-slate-300 shrink-0">{item.ts}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         <div className="bg-blue-50 border border-blue-100 rounded-2xl px-5 py-4 flex gap-3">

@@ -2269,8 +2269,12 @@ async def receber_feedback(
     payload: FeedbackIn,
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
-    """Endpoint para empresas parceiras enviarem resultados reais de pagamento."""
+    """Registra pagamento manualmente. Apenas admin/comando podem usar este endpoint."""
     empresa_info = _validar_api_key(credentials)
+
+    jwt_check = empresa_info.get("jwt") or {}
+    if jwt_check.get("role") == "operador":
+        raise HTTPException(status_code=403, detail="Operadores não podem registrar pagamentos manualmente. Os pagamentos são atualizados automaticamente via sincronização com o banco de dados.")
 
     db = get_db()
 
