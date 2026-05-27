@@ -863,6 +863,9 @@ class ConexaoSalvarIn(BaseModel):
     mapeamento: Optional[dict] = None
     empresa_id: Optional[str] = None  # COMANDO pode especificar a empresa destino
     intervalo_sync_horas: Optional[float] = 1.0  # intervalo de auto-sync em horas
+    coluna_writeback: Optional[str] = None   # coluna a atualizar no banco externo ao registrar pagamento
+    valor_pago: Optional[str] = 'pago'       # valor a gravar quando pagou=True
+    valor_nao_pago: Optional[str] = None     # valor a gravar quando pagou=False (None = não atualiza)
 
 
 class ConexaoUpdateIn(BaseModel):
@@ -871,6 +874,9 @@ class ConexaoUpdateIn(BaseModel):
     mapeamento: Optional[dict] = None
     carteira_id: Optional[str] = None
     intervalo_sync_horas: Optional[float] = None
+    coluna_writeback: Optional[str] = None
+    valor_pago: Optional[str] = None
+    valor_nao_pago: Optional[str] = None
 
 class WebhookPagamentoIn(BaseModel):
     cpf: str
@@ -2195,6 +2201,69 @@ async def analisar_db(conn: ConexaoDB, credentials: HTTPAuthorizationCredentials
     return resultado
 
 
+def _writeback_pagamento(empresa_id: str, cpf: str, pagou: bool) -> str | None:
+    """Atualiza a coluna de status no banco externo da empresa quando um pagamento é registrado."""
+    import re as _re
+    db = get_db()
+    try:
+        rows = db.table("conexoes_db").select("*").eq("empresa_id", empresa_id).execute().data
+    except Exception:
+        return None
+    # Usa a conexão mais recente que tenha coluna_writeback configurada
+    conn_row = next((r for r in sorted(rows, key=lambda x: x.get("created_at", ""), reverse=True)
+                     if r.get("coluna_writeback")), None)
+    if not conn_row:
+        return None
+
+    coluna = conn_row["coluna_writeback"]
+    valor_pago = conn_row.get("valor_pago") or "pago"
+    valor_nao_pago = conn_row.get("valor_nao_pago")
+
+    novo_valor = valor_pago if pagou else valor_nao_pago
+    if novo_valor is None:
+        return None  # não atualiza para "não pagou" se não configurado
+
+    # Extrai o nome da tabela da query SELECT
+    query = conn_row.get("query") or ""
+    m = _re.search(r'\bFROM\b\s+([\w\."]+)', query, _re.IGNORECASE)
+    if not m:
+        return None
+    tabela = m.group(1).strip('"')
+
+    # Descobre o nome real da coluna CPF no banco externo (via mapeamento)
+    mapeamento = conn_row.get("mapeamento") or {}
+    coluna_cpf = mapeamento.get("cpf", "cpf")
+
+    senha_dec = _decrypt(conn_row.get("senha"))
+    conn = ConexaoDB(
+        tipo=conn_row["tipo"], host=conn_row.get("host"), porta=conn_row.get("porta"),
+        banco=conn_row.get("banco"), usuario=conn_row.get("usuario"), senha=senha_dec,
+        instance_name=conn_row.get("instance_name"), service_name=conn_row.get("service_name"),
+        query=query,
+    )
+    try:
+        if conn.tipo == "sqlserver":
+            with _sqlserver_connect(conn) as tds_conn:
+                cur = tds_conn.cursor()
+                cur.execute(f"UPDATE {tabela} SET {coluna} = ? WHERE {coluna_cpf} = ?", (novo_valor, cpf))
+                tds_conn.commit()
+        else:
+            from sqlalchemy import create_engine, text
+            url = _construir_url_db(conn)
+            engine = create_engine(url, connect_args={"connect_timeout": 10})
+            with engine.begin() as connection:
+                connection.execute(
+                    text(f"UPDATE {tabela} SET {coluna} = :val WHERE {coluna_cpf} = :cpf"),
+                    {"val": novo_valor, "cpf": cpf},
+                )
+            engine.dispose()
+        print(f"[Writeback] CPF {cpf} → {tabela}.{coluna} = '{novo_valor}'")
+        return f"{tabela}.{coluna} = '{novo_valor}'"
+    except Exception as e:
+        print(f"[Writeback] Erro ao atualizar banco externo: {e}")
+        return None
+
+
 @app.post("/feedback")
 async def receber_feedback(
     payload: FeedbackIn,
@@ -2243,7 +2312,19 @@ async def receber_feedback(
         pred_res.data[0] if pred_res.data else None,
     )
 
-    return {"ok": True, "feedback_id": feedback_id, "predicao_id": predicao_id}
+    # Write-back assíncrono: atualiza o banco externo da empresa se configurado
+    empresa_id_jwt = jwt_payload.get("empresa_id", "")
+    writeback_info = None
+    if empresa_id_jwt:
+        import threading
+        def _wb():
+            nonlocal writeback_info
+            writeback_info = _writeback_pagamento(empresa_id_jwt, payload.cpf, payload.pagou)
+        t = threading.Thread(target=_wb, daemon=True)
+        t.start()
+        t.join(timeout=8)  # aguarda até 8s; não bloqueia indefinidamente
+
+    return {"ok": True, "feedback_id": feedback_id, "predicao_id": predicao_id, "writeback": writeback_info}
 
 
 @app.post("/webhook/pagamento")

@@ -228,9 +228,10 @@ export default function Feedback() {
       }, ...prev])
 
       if (res.ok) {
+        const wb = data.writeback ? ` · banco externo atualizado (${data.writeback})` : ''
         setForm(EMPTY)
-        setSucesso(`Pagamento de ${form.cpf} registrado com sucesso.`)
-        setTimeout(() => setSucesso(''), 4000)
+        setSucesso(`Pagamento de ${form.cpf} registrado com sucesso.${wb}`)
+        setTimeout(() => setSucesso(''), 6000)
       } else {
         setErro(data.detail || 'Erro ao registrar feedback.')
       }

@@ -37,6 +37,9 @@ ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS ultimo_sync_por      TEXT;
 ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS empresa_id           TEXT;
 ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS carteira_id          UUID;
 ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS intervalo_sync_horas NUMERIC DEFAULT 1;
+ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS coluna_writeback     TEXT;
+ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS valor_pago           TEXT DEFAULT 'pago';
+ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS valor_nao_pago       TEXT;
 
 -- Índices
 CREATE INDEX IF NOT EXISTS idx_conexoes_usuario ON conexoes_db(usuario_id);

@@ -61,7 +61,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
   const [form, setForm]         = useState({
     tipo: 'postgres', host: '', porta: '', banco: '',
     usuario: '', senha: '', query: 'SELECT * FROM devedores', nome_fonte: '',
-    intervalo_sync_horas: 1,
+    intervalo_sync_horas: 1, coluna_writeback: '', valor_pago: 'pago', valor_nao_pago: '',
   })
   const [teste, setTeste]       = useState(null)
   const [mapa, setMapa]         = useState({})
@@ -135,6 +135,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
       instance_name: c.instance_name || '', service_name: c.service_name || '',
       sheets_id: c.sheets_id || '', sheets_aba: c.sheets_aba || '', sheets_credenciais: '',
       intervalo_sync_horas: c.intervalo_sync_horas ?? 1,
+      coluna_writeback: c.coluna_writeback || '', valor_pago: c.valor_pago || 'pago', valor_nao_pago: c.valor_nao_pago || '',
     })
     setConexaoSalvaId(c.id)
     setEtapa('conexao')
@@ -163,6 +164,9 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
         mapeamento: Object.keys(mapa).length > 0 ? mapa : undefined,
         empresa_id: empresaAlvo || undefined,
         intervalo_sync_horas: Number(form.intervalo_sync_horas) || 1,
+        coluna_writeback: form.coluna_writeback || null,
+        valor_pago: form.valor_pago || 'pago',
+        valor_nao_pago: form.valor_nao_pago || null,
       }
       const res = await salvarConexao(dados)
       setConexoes(prev => [res.conexao, ...prev])
@@ -285,6 +289,9 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
           query: isSheets ? null : (form.query || null),
           mapeamento: mapa,
           intervalo_sync_horas: Number(form.intervalo_sync_horas) || 1,
+          coluna_writeback: form.coluna_writeback || null,
+          valor_pago: form.valor_pago || 'pago',
+          valor_nao_pago: form.valor_nao_pago || null,
         })
         savedId = res.conexao.id
         setConexoes(prev => [res.conexao, ...prev])
@@ -307,6 +314,9 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
           query: form.query,
           carteira_id: data.resumo?.carteira_id || undefined,
           intervalo_sync_horas: Number(form.intervalo_sync_horas) || 1,
+          coluna_writeback: form.coluna_writeback || null,
+          valor_pago: form.valor_pago || 'pago',
+          valor_nao_pago: form.valor_nao_pago || null,
         }).catch(() => {})
       }
       onResult(data)
@@ -401,7 +411,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
           onClick={() => {
             setModo('nova')
             setConexaoSalvaId(null)
-            setForm({ tipo: 'postgres', host: '', porta: '', banco: '', usuario: '', senha: '', query: 'SELECT * FROM devedores', nome_fonte: '', intervalo_sync_horas: 1 })
+            setForm({ tipo: 'postgres', host: '', porta: '', banco: '', usuario: '', senha: '', query: 'SELECT * FROM devedores', nome_fonte: '', intervalo_sync_horas: 1, coluna_writeback: '', valor_pago: 'pago', valor_nao_pago: '' })
             setErro(null)
           }}
           className="w-full py-3 rounded-2xl border-2 border-dashed border-slate-200 text-sm text-slate-500 hover:border-blue-300 hover:text-blue-600 flex items-center justify-center gap-2 transition-colors"
@@ -568,6 +578,42 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
         <p className="text-xs text-slate-400 mt-1">
           O sistema relê seu banco automaticamente neste intervalo — qualquer pagamento ou alteração reflete sem intervenção manual.
         </p>
+      </div>
+
+      <div className="border border-dashed border-slate-200 rounded-xl p-4 space-y-3">
+        <p className="text-xs font-semibold text-slate-600">Gravar pagamentos de volta no banco (opcional)</p>
+        <p className="text-xs text-slate-400 leading-relaxed">
+          Quando alguém registrar um pagamento manualmente no Mizan, o sistema atualiza automaticamente a coluna correspondente no seu banco externo.
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Coluna de status</label>
+            <input
+              value={form.coluna_writeback || ''}
+              onChange={e => set('coluna_writeback', e.target.value)}
+              placeholder="ex: status, situacao, pagou"
+              className={inp()}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Valor quando pago</label>
+            <input
+              value={form.valor_pago || ''}
+              onChange={e => set('valor_pago', e.target.value)}
+              placeholder="ex: pago, sim, 1"
+              className={inp()}
+            />
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-500 mb-1">Valor quando não pago <span className="text-slate-300">(opcional — deixe vazio para não alterar)</span></label>
+          <input
+            value={form.valor_nao_pago || ''}
+            onChange={e => set('valor_nao_pago', e.target.value)}
+            placeholder="ex: inadimplente, nao, 0"
+            className={inp()}
+          />
+        </div>
       </div>
 
       {erro && (
