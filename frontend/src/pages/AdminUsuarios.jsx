@@ -5,12 +5,43 @@ import {
   listarUsuarios, registrarUsuario, toggleUsuarioAtivo, alterarRoleUsuario,
   listarConexoes, listarPermissoesConexao, concederPermissaoConexao, revogarPermissaoConexao,
   listarEmpresas, adicionarUsuarioEmpresa, removerUsuarioEmpresa, deletarEmpresa,
+  buscarAuditoria,
 } from '../api'
 import {
   Users, UserPlus, LogOut, ShieldCheck, ShieldOff, ToggleLeft, ToggleRight,
   ArrowLeft, Database, Lock, Unlock, ChevronDown, ChevronUp,
-  Building2, Plus, X, UserMinus, Mail, Trash2,
+  Building2, Plus, X, UserMinus, Mail, Trash2, Clock,
 } from 'lucide-react'
+
+const ACAO_LABEL = {
+  carteira_criada:      'Carteira criada',
+  carteira_sincronizada:'Carteira atualizada',
+  banco_sincronizado:   'Banco sincronizado',
+  feedback_importado:   'Feedbacks importados',
+  usuario_criado:       'Usuário criado',
+  usuario_ativado:      'Usuário ativado',
+  usuario_desativado:   'Usuário desativado',
+  role_alterado:        'Permissão alterada',
+  senha_alterada:       'Senha alterada',
+  conexao_criada:       'Conexão criada',
+}
+
+const ACAO_COR = {
+  carteira_criada:      'bg-blue-400',
+  carteira_sincronizada:'bg-blue-400',
+  banco_sincronizado:   'bg-emerald-400',
+  feedback_importado:   'bg-violet-400',
+  usuario_criado:       'bg-indigo-400',
+  usuario_ativado:      'bg-emerald-400',
+  usuario_desativado:   'bg-red-400',
+  role_alterado:        'bg-amber-400',
+  senha_alterada:       'bg-slate-400',
+}
+
+function fmtAuditDate(iso) {
+  if (!iso) return '—'
+  return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(iso))
+}
 
 function Logo() {
   return (
@@ -257,6 +288,7 @@ export default function AdminUsuarios() {
 
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ email: '', nome: '', senha: '', role: 'operador', empresa_id: '' })
+  const [auditoria, setAuditoria] = useState([])
   const [formErro, setFormErro] = useState('')
   const [salvando, setSalvando] = useState(false)
 
@@ -268,14 +300,16 @@ export default function AdminUsuarios() {
   async function carregar() {
     setCarregando(true); setErro('')
     try {
-      const [lista, conxs, emps] = await Promise.all([
+      const [lista, conxs, emps, audit] = await Promise.all([
         listarUsuarios(token),
         isAdmin || isComando ? listarConexoes() : Promise.resolve([]),
         isComando ? listarEmpresas(token) : Promise.resolve({ empresas: [], sem_empresa: [] }),
+        buscarAuditoria({ limit: 10 }),
       ])
       setUsuarios(lista)
       setConexoes(conxs)
       setEmpresas(emps)
+      setAuditoria(audit)
     } catch (e) {
       setErro(e.message)
     } finally {
@@ -499,6 +533,47 @@ export default function AdminUsuarios() {
             <p className="mt-4 text-xs text-slate-400">
               Total: {usuariosExibidos.length} usuário{usuariosExibidos.length !== 1 ? 's' : ''} · Ativos: {usuariosExibidos.filter(u => u.ativo).length}
             </p>
+
+            {/* ── Atividade Recente ── */}
+            {auditoria.length > 0 && (
+              <div className="mt-10">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                  <Clock className="h-3 w-3" /> Atividade Recente
+                </p>
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.06)] divide-y divide-slate-50 overflow-hidden">
+                  {auditoria.map((a, i) => (
+                    <div key={i} className="flex items-start gap-3 px-5 py-3.5">
+                      <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${ACAO_COR[a.acao] ?? 'bg-slate-300'}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-slate-800 font-medium leading-snug">
+                          {ACAO_LABEL[a.acao] || a.acao}
+                          {a.detalhes?.email_novo && (
+                            <span className="font-normal text-slate-500"> — {a.detalhes.email_novo}</span>
+                          )}
+                          {a.detalhes?.email_alvo && (
+                            <span className="font-normal text-slate-500"> — {a.detalhes.email_alvo}</span>
+                          )}
+                          {a.detalhes?.nome_arquivo && (
+                            <span className="font-normal text-slate-500"> — {a.detalhes.nome_arquivo}</span>
+                          )}
+                          {a.detalhes?.n_devedores != null && (
+                            <span className="font-normal text-slate-500"> · {a.detalhes.n_devedores} devedores</span>
+                          )}
+                          {a.detalhes?.importados != null && (
+                            <span className="font-normal text-slate-500"> · {a.detalhes.importados} importados</span>
+                          )}
+                        </p>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          por <span className="font-medium">{a.usuario_email || '—'}</span>
+                          {a.empresa_id && <span className="text-slate-300"> · {a.empresa_id}</span>}
+                          <span className="ml-1">· {fmtAuditDate(a.created_at)}</span>
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
 

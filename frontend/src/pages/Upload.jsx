@@ -498,10 +498,16 @@ function FormDB({ onResult, isOperador = false }) {
               <p className="text-xs text-slate-400 mt-0.5">
                 {c.tipo?.toUpperCase()}{c.host ? ` · ${c.host}` : ''}
               </p>
-              {c.ultimo_sync
-                ? <p className="text-xs text-emerald-600 mt-1">Último sync: {fmtDate(c.ultimo_sync)}</p>
-                : <p className="text-xs text-slate-400 mt-1">Nunca sincronizado</p>
-              }
+              {c.ultimo_sync ? (
+                <p className="text-xs text-emerald-600 mt-1">
+                  Último acesso: {fmtDate(c.ultimo_sync)}
+                  {c.ultimo_sync_por && (
+                    <> · <span className="font-medium">{c.ultimo_sync_por}</span></>
+                  )}
+                </p>
+              ) : (
+                <p className="text-xs text-slate-400 mt-1">Nunca sincronizado</p>
+              )}
             </div>
             {!isOperador && (
               <button onClick={(e) => removerConexaoSalva(c.id, e)} className="text-slate-300 hover:text-red-400 transition-colors shrink-0">

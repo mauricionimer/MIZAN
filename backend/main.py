@@ -288,6 +288,33 @@ def _usuario_autenticado(credentials: HTTPAuthorizationCredentials) -> dict:
     return payload
 
 
+def _registrar_auditoria(
+    acao: str,
+    entidade: str | None = None,
+    entidade_id: str | None = None,
+    usuario_email: str | None = None,
+    empresa_id: str | None = None,
+    detalhes: dict | None = None,
+    usuario_id: str | None = None,
+) -> None:
+    """Registra evento de auditoria em background — não bloqueia a resposta."""
+    import threading
+    def _bg():
+        try:
+            get_db().table("auditoria").insert({
+                "acao":          acao,
+                "entidade":      entidade,
+                "entidade_id":   str(entidade_id) if entidade_id else None,
+                "usuario_id":    usuario_id,
+                "usuario_email": usuario_email or "",
+                "empresa_id":    empresa_id or "",
+                "detalhes":      detalhes,
+            }).execute()
+        except Exception as _ae:
+            print(f"[Auditoria] Erro ao registrar '{acao}': {_ae}")
+    threading.Thread(target=_bg, daemon=True).start()
+
+
 class FeedbackIn(BaseModel):
     cpf: str
     pagou: bool
@@ -711,9 +738,18 @@ def auth_registrar(body: RegistrarIn, credentials: HTTPAuthorizationCredentials 
     empresa_id = body.empresa_id or ""
     try:
         novo = criar_usuario(body.email, body.nome, body.senha, body.role, empresa_id)
-        return {"ok": True, "usuario": novo}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    _registrar_auditoria(
+        acao="usuario_criado",
+        entidade="usuario",
+        entidade_id=novo["id"],
+        usuario_email=payload.get("email"),
+        empresa_id=empresa_id,
+        detalhes={"email_novo": body.email, "role": body.role},
+        usuario_id=payload.get("sub"),
+    )
+    return {"ok": True, "usuario": novo}
 
 @app.post("/auth/alterar-senha")
 def auth_alterar_senha(body: AlterarSenhaIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
@@ -723,6 +759,14 @@ def auth_alterar_senha(body: AlterarSenhaIn, credentials: HTTPAuthorizationCrede
         raise HTTPException(status_code=401, detail=str(e))
     if not alterar_senha(payload["email"], body.senha_atual, body.nova_senha):
         raise HTTPException(status_code=400, detail="Senha atual incorreta.")
+    _registrar_auditoria(
+        acao="senha_alterada",
+        entidade="usuario",
+        entidade_id=payload["sub"],
+        usuario_email=payload["email"],
+        empresa_id=payload.get("empresa_id", ""),
+        usuario_id=payload["sub"],
+    )
     return {"ok": True}
 
 
@@ -783,6 +827,15 @@ def auth_toggle_ativo(usuario_id: str, body: AtivoIn, credentials: HTTPAuthoriza
     resultado = toggle_usuario_ativo(usuario_id, body.ativo)
     if not resultado:
         raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+    _registrar_auditoria(
+        acao="usuario_ativado" if body.ativo else "usuario_desativado",
+        entidade="usuario",
+        entidade_id=usuario_id,
+        usuario_email=payload.get("email"),
+        empresa_id=payload.get("empresa_id", ""),
+        detalhes={"email_alvo": resultado.get("email"), "ativo": body.ativo},
+        usuario_id=payload.get("sub"),
+    )
     return {"ok": True, "usuario": resultado}
 
 @app.patch("/auth/usuarios/{usuario_id}/role")
@@ -796,6 +849,15 @@ def auth_alterar_role(usuario_id: str, body: RoleIn, credentials: HTTPAuthorizat
         raise HTTPException(status_code=400, detail=str(e))
     if not resultado:
         raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+    _registrar_auditoria(
+        acao="role_alterado",
+        entidade="usuario",
+        entidade_id=usuario_id,
+        usuario_email=payload.get("email"),
+        empresa_id=payload.get("empresa_id", ""),
+        detalhes={"email_alvo": resultado.get("email"), "nova_role": body.role},
+        usuario_id=payload.get("sub"),
+    )
     return {"ok": True, "usuario": resultado}
 
 
@@ -1163,12 +1225,20 @@ def _sincronizar_conexao_row(row: dict, uemail: str, uid: str, eid: str) -> dict
 
     nova_carteira_id = resultado.get("resumo", {}).get("carteira_id")
     try:
-        updates = {"ultimo_sync": datetime.utcnow().isoformat()}
+        updates = {"ultimo_sync": datetime.utcnow().isoformat(), "ultimo_sync_por": uemail or ""}
         if nova_carteira_id and not carteira_id_existente:
             updates["carteira_id"] = nova_carteira_id
         db.table("conexoes_db").update(updates).eq("id", conexao_id).execute()
     except Exception:
         pass
+    _registrar_auditoria(
+        acao="banco_sincronizado",
+        entidade="conexao",
+        entidade_id=conexao_id,
+        usuario_email=uemail,
+        empresa_id=eid,
+        detalhes={"n_devedores": resultado.get("resumo", {}).get("total_devedores", 0)},
+    )
 
     if uemail:
         try:
@@ -1345,12 +1415,15 @@ def carregar_carteira(carteira_id: str, credentials: HTTPAuthorizationCredential
     total_face = sum((d.get("valor_divida") or 0) for d in ranking)
     total_ver  = sum((d.get("valor_esperado_recuperacao") or 0) for d in ranking)
     scores     = [d["score_recuperabilidade"] for d in ranking if d.get("score_recuperabilidade") is not None]
+    _cart_row  = cart_res.data[0]
     resumo = {
         "total_devedores": len(ranking),
         "total_em_risco": round(total_face, 2),
         "score_medio": round(sum(scores) / len(scores), 1) if scores else 0,
         "valor_esperado_recuperacao_total": round(total_ver, 2),
         "taxa_recuperacao_esperada": round(total_ver / total_face * 100, 1) if total_face else 0,
+        "criado_por": _cart_row.get("usuario_email") or "",
+        "criado_em":  _cart_row.get("created_at") or "",
     }
 
     # Distribuição aging
@@ -1604,6 +1677,8 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
         "valor_esperado_recuperacao_total": round(ver_total, 2),
         "taxa_recuperacao_esperada": round(ver_total / total_em_risco * 100, 1) if total_em_risco else 0,
         "devedores_dados_incompletos": n_incompletos,
+        "criado_por": _usuario_email or "",
+        "criado_em":  datetime.utcnow().isoformat(),
     }
 
     try:
@@ -1672,6 +1747,16 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
     except Exception as _e:
         print(f"[Supabase] Erro ao salvar: {_e}")
         pred_id_map = {}
+    else:
+        _registrar_auditoria(
+            acao="carteira_sincronizada" if _carteira_id_existente else "carteira_criada",
+            entidade="carteira",
+            entidade_id=carteira_id,
+            usuario_email=_usuario_email,
+            empresa_id=_empresa_id,
+            detalhes={"total_devedores": resumo["total_devedores"], "nome_arquivo": nome_fonte},
+            usuario_id=_usuario_id,
+        )
 
     # Se o arquivo trouxer coluna 'pagou', registra feedbacks automaticamente linkados às predições
     n_feedbacks_auto = 0
@@ -2073,6 +2158,14 @@ async def feedback_lote(
             detalhes.append({"linha": linha, "cpf": cpf, "ok": False, "erro": str(e)})
             n_erro += 1
 
+    if n_ok > 0:
+        _registrar_auditoria(
+            acao="feedback_importado",
+            entidade="feedback",
+            usuario_email=empresa_info.get("email") or empresa_info.get("jwt", {}).get("email"),
+            empresa_id=empresa_info.get("empresa_id") or empresa_info.get("jwt", {}).get("empresa_id"),
+            detalhes={"importados": n_ok, "erros": n_erro},
+        )
     return {"total": n_ok + n_erro, "importados": n_ok, "erros": n_erro, "detalhes": detalhes}
 
 
@@ -2791,6 +2884,29 @@ async def db_sync_status(
         "n_sincronizacoes": cfg["n_sincronizacoes"],
         "ultimo_resultado": cfg["ultimo_resultado"],
     }
+
+
+@app.get("/auditoria")
+async def listar_auditoria(
+    entidade: Optional[str] = None,
+    entidade_id: Optional[str] = None,
+    limit: int = 20,
+    credentials: HTTPAuthorizationCredentials = Security(bearer),
+):
+    """Histórico de ações auditadas — filtrado pela empresa do token (ou tudo para COMANDO)."""
+    payload = _usuario_autenticado(credentials)
+    empresa_id = payload.get("empresa_id", "")
+    role       = payload.get("role", "operador")
+    db = get_db()
+    q  = db.table("auditoria").select("*")
+    if role != "comando":
+        q = q.eq("empresa_id", empresa_id)
+    if entidade:
+        q = q.eq("entidade", entidade)
+    if entidade_id:
+        q = q.eq("entidade_id", str(entidade_id))
+    res = q.order("created_at", desc=True).limit(min(limit, 100)).execute()
+    return res.data or []
 
 
 if __name__ == "__main__":

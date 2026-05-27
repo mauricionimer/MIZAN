@@ -350,6 +350,19 @@ export async function refreshToken(token) {
   return res.json()
 }
 
+export async function buscarAuditoria({ entidade, entidade_id, limit = 20 } = {}) {
+  const token = _getToken()
+  const params = new URLSearchParams({ limit })
+  if (entidade) params.set('entidade', entidade)
+  if (entidade_id) params.set('entidade_id', entidade_id)
+  const res = await fetch(`${BASE}/auditoria?${params}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  _handle401(res)
+  if (!res.ok) return []
+  return res.json()
+}
+
 export async function deletarEmpresa(token, empresaId) {
   const res = await fetch(`${BASE}/empresas/${encodeURIComponent(empresaId)}`, {
     method: 'DELETE', headers: _authHeader(token),

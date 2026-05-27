@@ -9,7 +9,7 @@ import {
   Users, TrendingDown, BarChart2, Star,
   Download, RefreshCw, Search, Loader2,
   Tag, Percent, ArrowUpRight, Banknote, ClipboardList, FileSpreadsheet, Zap, LogOut, ShieldCheck, KeyRound,
-  CheckCircle2, XCircle, TrendingUp, Home,
+  CheckCircle2, XCircle, TrendingUp, Home, Clock,
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { gerarRelatorioPDF } from '../utils/gerarPDF'
@@ -371,6 +371,22 @@ export default function Dashboard() {
           </button>
         </div>
       </header>
+
+      {/* ── Audit trail ── */}
+      {resumo?.criado_por && (
+        <div className="max-w-7xl mx-auto px-6 pt-4 pb-0">
+          <div className="flex items-center gap-1.5 text-xs text-slate-400">
+            <Clock className="h-3 w-3 shrink-0" />
+            <span>
+              Análise por{' '}
+              <span className="font-medium text-slate-500">{resumo.criado_por}</span>
+              {resumo.criado_em && (
+                <> · {new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(resumo.criado_em))}</>
+              )}
+            </span>
+          </div>
+        </div>
+      )}
 
       <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
 
