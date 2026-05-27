@@ -13,6 +13,23 @@ const fmtDate = (iso) => {
   if (!iso) return '—'
   return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(iso))
 }
+const fmtRelativo = (iso) => {
+  if (!iso) return null
+  const diff = Date.now() - new Date(iso).getTime()
+  const min = Math.floor(diff / 60000)
+  if (min < 1) return 'agora mesmo'
+  if (min < 60) return `há ${min} min`
+  const h = Math.floor(min / 60)
+  if (h < 24) return `há ${h}h`
+  return `há ${Math.floor(h / 24)}d`
+}
+
+const INTERVALOS_SYNC = [
+  { value: 0.25,  label: 'A cada 15 min' },
+  { value: 1,     label: 'A cada 1h' },
+  { value: 4,     label: 'A cada 4h' },
+  { value: 24,    label: 'A cada 24h' },
+]
 
 const DB_TIPOS = [
   { value: 'postgres',  label: 'PostgreSQL',            portaPadrao: 5432 },
@@ -44,6 +61,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
   const [form, setForm]         = useState({
     tipo: 'postgres', host: '', porta: '', banco: '',
     usuario: '', senha: '', query: 'SELECT * FROM devedores', nome_fonte: '',
+    intervalo_sync_horas: 1,
   })
   const [teste, setTeste]       = useState(null)
   const [mapa, setMapa]         = useState({})
@@ -116,6 +134,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
       query: c.query || 'SELECT * FROM devedores', nome_fonte: c.nome || '',
       instance_name: c.instance_name || '', service_name: c.service_name || '',
       sheets_id: c.sheets_id || '', sheets_aba: c.sheets_aba || '', sheets_credenciais: '',
+      intervalo_sync_horas: c.intervalo_sync_horas ?? 1,
     })
     setConexaoSalvaId(c.id)
     setEtapa('conexao')
@@ -143,6 +162,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
         query: isSheets ? null : (form.query || null),
         mapeamento: Object.keys(mapa).length > 0 ? mapa : undefined,
         empresa_id: empresaAlvo || undefined,
+        intervalo_sync_horas: Number(form.intervalo_sync_horas) || 1,
       }
       const res = await salvarConexao(dados)
       setConexoes(prev => [res.conexao, ...prev])
@@ -170,6 +190,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
     try {
       const r = await sincronizarConexao(id)
       setSyncMsg({ tipo: 'ok', texto: `Sincronizado: ${r.n_devedores} devedores importados.` })
+      setConexoes(prev => prev.map(c => c.id === id ? { ...c, ultimo_sync: new Date().toISOString() } : c))
       onResult(r.carteira)
     } catch (err) {
       setSyncMsg({ tipo: 'erro', texto: err.message })
@@ -263,6 +284,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
           sheets_aba: form.sheets_aba || null,
           query: isSheets ? null : (form.query || null),
           mapeamento: mapa,
+          intervalo_sync_horas: Number(form.intervalo_sync_horas) || 1,
         })
         savedId = res.conexao.id
         setConexoes(prev => [res.conexao, ...prev])
@@ -284,6 +306,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
           mapeamento: mapa,
           query: form.query,
           carteira_id: data.resumo?.carteira_id || undefined,
+          intervalo_sync_horas: Number(form.intervalo_sync_horas) || 1,
         }).catch(() => {})
       }
       onResult(data)
@@ -319,16 +342,20 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
               <p className="text-xs text-slate-400 mt-0.5">
                 {c.tipo?.toUpperCase()}{c.host ? ` · ${c.host}` : ''}
               </p>
-              {c.ultimo_sync ? (
-                <p className="text-xs text-emerald-600 mt-1">
-                  Último acesso: {fmtDate(c.ultimo_sync)}
-                  {c.ultimo_sync_por && (
-                    <> · <span className="font-medium">{c.ultimo_sync_por}</span></>
-                  )}
-                </p>
-              ) : (
-                <p className="text-xs text-slate-400 mt-1">Nunca sincronizado</p>
-              )}
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                {c.ultimo_sync ? (
+                  <span className="text-xs text-emerald-600 font-medium">
+                    Sync {fmtRelativo(c.ultimo_sync)}
+                  </span>
+                ) : (
+                  <span className="text-xs text-slate-400">Nunca sincronizado</span>
+                )}
+                {c.intervalo_sync_horas && (
+                  <span className="text-xs text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded-full">
+                    {INTERVALOS_SYNC.find(o => o.value === Number(c.intervalo_sync_horas))?.label ?? `${c.intervalo_sync_horas}h`}
+                  </span>
+                )}
+              </div>
             </div>
             {!isOperador && (
               <button onClick={(e) => removerConexaoSalva(c.id, e)} className="text-slate-300 hover:text-red-400 transition-colors shrink-0">
@@ -374,7 +401,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
           onClick={() => {
             setModo('nova')
             setConexaoSalvaId(null)
-            setForm({ tipo: 'postgres', host: '', porta: '', banco: '', usuario: '', senha: '', query: 'SELECT * FROM devedores', nome_fonte: '' })
+            setForm({ tipo: 'postgres', host: '', porta: '', banco: '', usuario: '', senha: '', query: 'SELECT * FROM devedores', nome_fonte: '', intervalo_sync_horas: 1 })
             setErro(null)
           }}
           className="w-full py-3 rounded-2xl border-2 border-dashed border-slate-200 text-sm text-slate-500 hover:border-blue-300 hover:text-blue-600 flex items-center justify-center gap-2 transition-colors"
@@ -526,6 +553,22 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
           <p className="text-xs text-slate-400 mt-1">Apenas SELECT. O sistema detecta as colunas automaticamente.</p>
         </div>
       )}
+
+      <div>
+        <label className="block text-xs font-medium text-slate-500 mb-1">Atualização automática</label>
+        <select
+          value={form.intervalo_sync_horas}
+          onChange={e => set('intervalo_sync_horas', Number(e.target.value))}
+          className={inp()}
+        >
+          {INTERVALOS_SYNC.map(o => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+        <p className="text-xs text-slate-400 mt-1">
+          O sistema relê seu banco automaticamente neste intervalo — qualquer pagamento ou alteração reflete sem intervenção manual.
+        </p>
+      </div>
 
       {erro && (
         <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm">

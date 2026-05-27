@@ -103,6 +103,7 @@ async def lifespan(app: FastAPI):
 
     intervalo = int(os.getenv("SCHEDULER_INTERVALO_HORAS", 24))
     min_fb    = int(os.getenv("SCHEDULER_MIN_FEEDBACKS", 10))
+    sync_min  = int(os.getenv("SYNC_CONEXOES_INTERVALO_MIN", 60))  # default 1h
 
     sched_estado["ativo"]                     = True
     sched_estado["intervalo_horas"]           = intervalo
@@ -126,7 +127,7 @@ async def lifespan(app: FastAPI):
     )
     _scheduler.add_job(
         _auto_sync_todas_conexoes,
-        IntervalTrigger(hours=intervalo),
+        IntervalTrigger(minutes=sync_min),
         id="auto_sync_conexoes",
         replace_existing=True,
     )
@@ -861,6 +862,7 @@ class ConexaoSalvarIn(BaseModel):
     query: Optional[str] = None
     mapeamento: Optional[dict] = None
     empresa_id: Optional[str] = None  # COMANDO pode especificar a empresa destino
+    intervalo_sync_horas: Optional[float] = 1.0  # intervalo de auto-sync em horas
 
 
 class ConexaoUpdateIn(BaseModel):
@@ -868,6 +870,7 @@ class ConexaoUpdateIn(BaseModel):
     query: Optional[str] = None
     mapeamento: Optional[dict] = None
     carteira_id: Optional[str] = None
+    intervalo_sync_horas: Optional[float] = None
 
 class WebhookPagamentoIn(BaseModel):
     cpf: str
@@ -1466,7 +1469,7 @@ def _sincronizar_conexao_row(row: dict, uemail: str, uid: str, eid: str) -> dict
 
 
 def _auto_sync_todas_conexoes() -> None:
-    """Job do scheduler: sincroniza todas as conexões com mapeamento configurado e envia email se mudou."""
+    """Job do scheduler: sincroniza todas as conexões cujo intervalo configurado já passou."""
     from datetime import timezone
     agora = datetime.now(timezone.utc).isoformat()
     _auto_sync_estado["ultima_execucao"] = agora
@@ -1480,7 +1483,25 @@ def _auto_sync_todas_conexoes() -> None:
         _auto_sync_estado["ultimo_resultado"] = {"erro": str(e), "executado_em": agora}
         return
 
-    ativas = [r for r in rows if r.get("mapeamento") and (r.get("query") or r.get("tipo") == "sheets")]
+    from datetime import timedelta
+    agora_dt = datetime.now(timezone.utc)
+
+    def _deve_sincronizar(r: dict) -> bool:
+        if not (r.get("query") or r.get("tipo") == "sheets"):
+            return False
+        intervalo_h = float(r.get("intervalo_sync_horas") or 1.0)
+        ultimo = r.get("ultimo_sync")
+        if not ultimo:
+            return True
+        try:
+            ultimo_dt = datetime.fromisoformat(ultimo.replace("Z", "+00:00"))
+            if ultimo_dt.tzinfo is None:
+                ultimo_dt = ultimo_dt.replace(tzinfo=timezone.utc)
+            return (agora_dt - ultimo_dt) >= timedelta(hours=intervalo_h)
+        except Exception:
+            return True
+
+    ativas = [r for r in rows if _deve_sincronizar(r)]
     print(f"[AutoSync] {len(ativas)} conexões para sincronizar automaticamente")
 
     resultados = []

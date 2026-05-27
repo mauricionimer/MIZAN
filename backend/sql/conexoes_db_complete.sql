@@ -27,14 +27,16 @@ CREATE TABLE IF NOT EXISTS conexoes_db (
 );
 
 -- Colunas adicionadas ao longo do desenvolvimento (seguro repetir):
-ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS instance_name TEXT;
-ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS service_name  TEXT;
-ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS sheets_id     TEXT;
-ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS sheets_aba    TEXT;
-ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS mapeamento    JSONB;
-ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS ultimo_sync   TIMESTAMPTZ;
-ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS empresa_id    TEXT;
-ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS carteira_id   UUID;
+ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS instance_name        TEXT;
+ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS service_name         TEXT;
+ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS sheets_id            TEXT;
+ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS sheets_aba           TEXT;
+ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS mapeamento           JSONB;
+ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS ultimo_sync          TIMESTAMPTZ;
+ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS ultimo_sync_por      TEXT;
+ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS empresa_id           TEXT;
+ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS carteira_id          UUID;
+ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS intervalo_sync_horas NUMERIC DEFAULT 1;
 
 -- Índices
 CREATE INDEX IF NOT EXISTS idx_conexoes_usuario ON conexoes_db(usuario_id);
