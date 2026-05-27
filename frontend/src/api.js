@@ -12,9 +12,10 @@ function _handle401(res) {
   }
 }
 
-export async function analisarCarteira(file) {
+export async function analisarCarteira(file, empresaId = null) {
   const fd = new FormData()
   fd.append('file', file)
+  if (empresaId) fd.append('empresa_id', empresaId)
   const token = _getToken()
   const res = await fetch(`${BASE}/analisar`, {
     method: 'POST',

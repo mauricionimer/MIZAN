@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { UploadCloud, FileText, AlertCircle, Loader2, History, FolderOpen, Database, RefreshCw, CheckCircle2, XCircle, ChevronRight, Plug, X, ArrowLeft } from 'lucide-react'
 import { useAnalysis } from '../context/AnalysisContext'
 import { useAuth } from '../context/AuthContext'
-import { analisarCarteira, analisarDB, testarDB, listarTabelas, listarCarteiras, carregarCarteira, getDBSyncConfig, saveDBSyncConfig, executarDBSync, listarConexoes, salvarConexao, deletarConexao, sincronizarConexao, atualizarConexao } from '../api'
+import { analisarCarteira, analisarDB, testarDB, listarTabelas, listarCarteiras, carregarCarteira, getDBSyncConfig, saveDBSyncConfig, executarDBSync, listarConexoes, salvarConexao, deletarConexao, sincronizarConexao, atualizarConexao, listarEmpresas } from '../api'
 
 const API_TOKEN = import.meta.env.VITE_API_TOKEN ?? ''
 
@@ -219,7 +219,7 @@ function inp(cls = '') {
   return `w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition bg-white ${cls}`
 }
 
-function FormDB({ onResult, isOperador = false }) {
+function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
   const [etapa, setEtapa]       = useState('conexao')   // 'conexao' | 'mapeamento' | 'analisando'
   const [form, setForm]         = useState({
     tipo: 'postgres', host: '', porta: '', banco: '',
@@ -322,6 +322,7 @@ function FormDB({ onResult, isOperador = false }) {
         sheets_aba: form.sheets_aba || null,
         query: isSheets ? null : (form.query || null),
         mapeamento: Object.keys(mapa).length > 0 ? mapa : undefined,
+        empresa_id: empresaAlvo || undefined,
       }
       const res = await salvarConexao(dados)
       setConexoes(prev => [res.conexao, ...prev])
@@ -457,7 +458,7 @@ function FormDB({ onResult, isOperador = false }) {
 
     // 2. Analisa com o banco
     try {
-      const data = await analisarDB({ ...paramsConexao(), mapeamento: mapa, conexao_id: savedId })
+      const data = await analisarDB({ ...paramsConexao(), mapeamento: mapa, conexao_id: savedId, empresa_id_alvo: empresaAlvo || undefined })
       if (savedId) {
         atualizarConexao(savedId, {
           mapeamento: mapa,
@@ -924,10 +925,12 @@ export default function Upload() {
   const [histLoading, setHistLoading] = useState(true)
   const [histLimit, setHistLimit] = useState(10)
   const [abrindo, setAbrindo]   = useState(null)
+  const [empresaAlvo, setEmpresaAlvo] = useState('')
+  const [listaEmpresas, setListaEmpresas] = useState([])
   const inputRef = useRef()
   const navigate = useNavigate()
   const { setResult } = useAnalysis()
-  const { isOperador, isAdmin, isComando } = useAuth()
+  const { token, isOperador, isAdmin, isComando } = useAuth()
 
   useEffect(() => {
     listarCarteiras()
@@ -935,6 +938,13 @@ export default function Upload() {
       .catch(() => {})
       .finally(() => setHistLoading(false))
   }, [])
+
+  useEffect(() => {
+    if (!isComando) return
+    listarEmpresas(token)
+      .then(d => setListaEmpresas(d.empresas || []))
+      .catch(() => {})
+  }, [isComando, token])
 
   const abrirCarteira = async (id) => {
     if (abrindo) return
@@ -971,10 +981,11 @@ export default function Upload() {
 
   const analisar = async () => {
     if (!file || loading) return
+    if (isComando && !empresaAlvo) { setError('Selecione a empresa cliente antes de analisar.'); return }
     setLoading(true)
     setError(null)
     try {
-      const data = await analisarCarteira(file)
+      const data = await analisarCarteira(file, isComando ? empresaAlvo : null)
       setResult(data)
       navigate('/dashboard')
     } catch (e) {
@@ -1025,6 +1036,29 @@ export default function Upload() {
         <p className="text-sm text-slate-500 mb-5">
           Importe os dados dos devedores via arquivo ou conexão direta com banco de dados.
         </p>
+
+        {/* Seletor de empresa (apenas COMANDO) */}
+        {isComando && (
+          <div className="mb-5">
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+              Empresa cliente <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={empresaAlvo}
+              onChange={e => setEmpresaAlvo(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
+            >
+              <option value="">Selecione a empresa cliente...</option>
+              {listaEmpresas.map(e => (
+                <option key={e.empresa_id} value={e.empresa_id}>
+                  {e.nome_exibicao && e.nome_exibicao !== e.empresa_id
+                    ? `${e.nome_exibicao} (${e.empresa_id})`
+                    : e.empresa_id}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Tabs */}
         <div className="flex gap-1 p-1 bg-slate-100 rounded-xl mb-6">
@@ -1120,7 +1154,7 @@ export default function Upload() {
           </>
         )}
 
-        {aba === 'db' && <FormDB onResult={handleDBResult} isOperador={isOperador} />}
+        {aba === 'db' && <FormDB onResult={handleDBResult} isOperador={isOperador} empresaAlvo={isComando ? empresaAlvo : ''} />}
       </div>
 
       {/* Sincronização automática de pagamentos */}

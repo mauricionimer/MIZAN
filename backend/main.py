@@ -339,6 +339,7 @@ class ConexaoDB(BaseModel):
     nome_fonte: Optional[str] = "consulta_db"
     mapeamento: Optional[dict] = None  # {campo_mizan: coluna_banco}
     conexao_id: Optional[str] = None  # ID de conexão salva — senha buscada no servidor
+    empresa_id_alvo: Optional[str] = None  # COMANDO pode especificar a empresa destino
 
 
 def _resolver_credenciais(conn: ConexaoDB) -> None:
@@ -541,6 +542,9 @@ def comando_visao_geral(credentials: HTTPAuthorizationCredentials = Security(bea
         })
 
     result.sort(key=lambda x: x["valor_face_total"], reverse=True)
+
+    # Remove entradas sem empresa real (carteiras órfãs sem empresa_id)
+    result = [r for r in result if r["empresa_id"] not in ("sem_empresa", "") and "@" not in r["empresa_id"]]
 
     totais = {
         "total_empresas":        len(result),
@@ -855,6 +859,7 @@ class ConexaoSalvarIn(BaseModel):
     sheets_aba: Optional[str] = None
     query: Optional[str] = None
     mapeamento: Optional[dict] = None
+    empresa_id: Optional[str] = None  # COMANDO pode especificar a empresa destino
 
 
 class ConexaoUpdateIn(BaseModel):
@@ -992,8 +997,13 @@ def salvar_conexao(body: ConexaoSalvarIn, credentials: HTTPAuthorizationCredenti
     db = get_db()
     # Filtra nulos para não enviar colunas que podem não existir na tabela
     row = {k: v for k, v in body.model_dump().items() if v is not None}
+    row.pop("empresa_id", None)  # será definido abaixo
     row["usuario_id"] = payload["sub"]
-    row["empresa_id"] = payload.get("empresa_id") or None
+    # COMANDO pode especificar a empresa destino; outros usam o JWT
+    if payload.get("role") == "comando" and body.empresa_id:
+        row["empresa_id"] = body.empresa_id.strip().lower()
+    else:
+        row["empresa_id"] = payload.get("empresa_id") or None
     row["senha"] = _encrypt(body.senha)  # cifra antes de armazenar
     try:
         res = db.table("conexoes_db").insert(row).execute()
@@ -1147,8 +1157,17 @@ def listar_empresas(credentials: HTTPAuthorizationCredentials = Security(bearer)
             sem_empresa.append(u)
         else:
             if eid not in empresas:
-                empresas[eid] = {"empresa_id": eid, "usuarios": []}
+                empresas[eid] = {"empresa_id": eid, "usuarios": [], "nome_exibicao": eid}
             empresas[eid]["usuarios"].append(u)
+    # Enriquece com nome_exibicao da empresa_config
+    try:
+        cfg_res = db.table("empresa_config").select("empresa_id, nome_exibicao").execute()
+        for c in (cfg_res.data or []):
+            eid = (c.get("empresa_id") or "").strip()
+            if eid and eid in empresas and c.get("nome_exibicao"):
+                empresas[eid]["nome_exibicao"] = c["nome_exibicao"]
+    except Exception:
+        pass
     return {"empresas": list(empresas.values()), "sem_empresa": sem_empresa}
 
 
@@ -1683,12 +1702,16 @@ async def upload_csv(file: UploadFile = File(...)):
 @app.post("/analisar")
 async def analisar(
     file: UploadFile = File(...),
+    empresa_id: Optional[str] = Form(None),
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     payload = _usuario_autenticado(credentials)
     uid   = payload.get("sub")
     uemail = payload.get("email")
     eid   = payload.get("empresa_id", "")
+    # COMANDO pode especificar a empresa destino da análise
+    if payload.get("role") == "comando" and empresa_id:
+        eid = empresa_id.strip().lower()
 
     nome = (file.filename or "").lower()
     if not (nome.endswith(".csv") or nome.endswith(".xlsx") or nome.endswith(".xls")):
@@ -2133,6 +2156,9 @@ async def analisar_db(conn: ConexaoDB, credentials: HTTPAuthorizationCredentials
 
     _payload = _usuario_autenticado(credentials)
     uid, uemail, eid = _payload["sub"], _payload.get("email", ""), _payload.get("empresa_id", "")
+    # COMANDO pode especificar a empresa destino da análise
+    if _payload.get("role") == "comando" and conn.empresa_id_alvo:
+        eid = conn.empresa_id_alvo.strip().lower()
     nome = conn.nome_fonte or "consulta_db"
     resultado = _analisar_df(df, nome, _usuario_id=uid, _usuario_email=uemail, _empresa_id=eid)
 
