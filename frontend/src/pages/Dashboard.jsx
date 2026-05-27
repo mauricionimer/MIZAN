@@ -1,11 +1,10 @@
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   PieChart, Pie, Cell,
 } from 'recharts'
 import { buscarPagamentos, buscarStatusFeedbacks, confirmarPagamento } from '../api'
-import { supabase } from '../lib/supabase'
 import {
   Users, TrendingDown, BarChart2, Star,
   Download, RefreshCw, Search, Loader2,
@@ -235,9 +234,8 @@ export default function Dashboard() {
   const [confirmando, setConfirmando]       = useState(false)
   const [confirmarForm, setConfirmarForm]   = useState({ valor_recuperado: '', data_pagamento: '' })
   const [confirmarErro, setConfirmarErro]   = useState('')
-  const realtimeRef = useRef(null)
 
-  // Carrega dados iniciais + assina Supabase Realtime na tabela feedbacks
+  // Carrega dados iniciais + polling periódico de status a cada 15s
   useEffect(() => {
     if (!token) return
 
@@ -250,58 +248,14 @@ export default function Dashboard() {
     buscarPagamentos().then(setPagamentos).catch(() => {})
     buscarStatusFeedbacks().then(setStatusMap).catch(() => {})
 
-    // Supabase Realtime — filtrado por empresa para evitar vazamento multi-tenant
-    if (!supabase) return
-    const filterConfig = empresaId
-      ? { event: '*', schema: 'public', table: 'feedbacks', filter: `empresa=eq.${empresaId}` }
-      : { event: '*', schema: 'public', table: 'feedbacks' }
+    // Polling a cada 15s — garante atualização mesmo sem Realtime
+    const intervalo = setInterval(() => {
+      buscarStatusFeedbacks().then(setStatusMap).catch(() => {})
+      buscarPagamentos().then(setPagamentos).catch(() => {})
+    }, 15000)
 
-    const channel = supabase
-      .channel(`mizan-feedbacks-${empresaId || 'all'}`)
-      .on(
-        'postgres_changes',
-        filterConfig,
-        (payload) => {
-          console.log('[Realtime] Feedbacks:', payload.eventType, payload.new?.cpf)
-          // Ignora eventos de outras empresas (segunda linha de defesa)
-          if (empresaId && payload.new?.empresa && payload.new.empresa !== empresaId) return
-          // Atualiza statusMap com o novo registro
-          if (payload.new?.cpf) {
-            const cpf = String(payload.new.cpf).trim()
-            setStatusMap(prev => {
-              const existente = prev[cpf]
-              const novoTs = (payload.new.created_at || '')
-              const existenteTs = existente?.registrado_em || ''
-              if (existente && novoTs && existenteTs && novoTs <= existenteTs) return prev
-              return {
-                ...prev,
-                [cpf]: {
-                  pagou:            payload.new.pagou,
-                  valor_recuperado: payload.new.valor_recuperado,
-                  data_pagamento:   payload.new.data_pagamento,
-                  registrado_por:   payload.new.registrado_por || '',
-                  registrado_em:    (payload.new.created_at || '').slice(0, 16),
-                },
-              }
-            })
-          }
-          // Refetch da lista de pagamentos (precisa do join com predicoes)
-          buscarPagamentos().then(setPagamentos).catch(() => {})
-        }
-      )
-      .subscribe((status) => {
-        console.log('[Realtime] Status da conexão:', status)
-      })
-
-    realtimeRef.current = channel
-
-    return () => {
-      if (realtimeRef.current) {
-        supabase.removeChannel(realtimeRef.current)
-        realtimeRef.current = null
-      }
-    }
-  }, [token, empresaId])
+    return () => clearInterval(intervalo)
+  }, [token])
 
   useEffect(() => {
     if (!result) navigate('/')
@@ -349,7 +303,7 @@ export default function Dashboard() {
       if (confirmarForm.data_pagamento) dados.data_pagamento = confirmarForm.data_pagamento
       const res = await confirmarPagamento(confirmarModal.cpf, dados)
       const cpfKey = String(confirmarModal.cpf)
-      // Atualização local imediata — o Realtime vai confirmar quando o DB replicar
+      // Atualização local imediata para feedback visual instantâneo
       setStatusMap(prev => ({
         ...prev,
         [cpfKey]: {
@@ -362,11 +316,9 @@ export default function Dashboard() {
       }))
       setConfirmarModal(null)
       setConfirmarForm({ valor_recuperado: '', data_pagamento: '' })
-      // Fallback: refetch manual caso o Realtime demore (Render pode estar acordando)
-      setTimeout(() => {
-        buscarStatusFeedbacks().then(setStatusMap).catch(() => {})
-        buscarPagamentos().then(setPagamentos).catch(() => {})
-      }, 1500)
+      // Refetch imediato para confirmar com dados reais do servidor
+      buscarStatusFeedbacks().then(setStatusMap).catch(() => {})
+      buscarPagamentos().then(setPagamentos).catch(() => {})
     } catch (err) {
       if (err.status === 409) {
         // Pagamento já existe — fecha modal e sincroniza status real do servidor

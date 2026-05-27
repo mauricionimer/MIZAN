@@ -2855,7 +2855,7 @@ async def feedbacks_status(credentials: HTTPAuthorizationCredentials = Security(
 
     fb_res = (
         db.table("feedbacks")
-        .select("cpf, pagou, valor_recuperado, data_pagamento, predicao_id, created_at, registrado_por")
+        .select("cpf, pagou, valor_recuperado, data_pagamento, predicao_id, empresa, created_at, registrado_por")
         .order("created_at", desc=True)
         .limit(5000)
         .execute()
