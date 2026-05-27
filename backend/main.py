@@ -2434,11 +2434,15 @@ async def confirmar_pagamento(
         registrado_em = res.data[0].get("created_at", "")
         print(f"[Confirmar] Supabase gravado com sucesso — feedback_id: {feedback_id}")
 
-        _fechar_loop_bandit(
-            db, cpf, True,
-            float(body.valor_recuperado or 0),
-            pred_res.data[0] if (pred_res and pred_res.data) else None,
-        )
+        # Operações pós-INSERT: falhas aqui não revertem o INSERT já commitado
+        try:
+            _fechar_loop_bandit(
+                db, cpf, True,
+                float(body.valor_recuperado or 0),
+                pred_res.data[0] if (pred_res and pred_res.data) else None,
+            )
+        except Exception as _be:
+            print(f"[Confirmar] Aviso — _fechar_loop_bandit falhou (não crítico): {_be}")
 
         # Write-back para banco externo da empresa (non-blocking, 8s timeout)
         writeback_info = None
@@ -2446,7 +2450,10 @@ async def confirmar_pagamento(
             import threading
             _wb_result: list = [None]
             def _wb():
-                _wb_result[0] = _writeback_pagamento(empresa_id, cpf, True)
+                try:
+                    _wb_result[0] = _writeback_pagamento(empresa_id, cpf, True)
+                except Exception as _wbe:
+                    print(f"[Confirmar] Aviso — write-back falhou (não crítico): {_wbe}")
             t = threading.Thread(target=_wb, daemon=True)
             t.start()
             t.join(timeout=8)
@@ -2454,15 +2461,18 @@ async def confirmar_pagamento(
 
         print(f"[Confirmar] SUCESSO — CPF: {cpf}, id: {feedback_id}, writeback: {writeback_info}")
 
-        _registrar_auditoria(
-            acao="confirmar_pagamento",
-            entidade="feedback",
-            entidade_id=feedback_id,
-            usuario_email=payload.get("email", ""),
-            empresa_id=empresa_id,
-            detalhes={"cpf": cpf, "valor_recuperado": body.valor_recuperado, "writeback": writeback_info},
-            usuario_id=usuario_id,
-        )
+        try:
+            _registrar_auditoria(
+                acao="confirmar_pagamento",
+                entidade="feedback",
+                entidade_id=feedback_id,
+                usuario_email=payload.get("email", ""),
+                empresa_id=empresa_id,
+                detalhes={"cpf": cpf, "valor_recuperado": body.valor_recuperado, "writeback": writeback_info},
+                usuario_id=usuario_id,
+            )
+        except Exception as _ae:
+            print(f"[Confirmar] Aviso — auditoria falhou (não crítico): {_ae}")
 
         return {
             "ok":            True,

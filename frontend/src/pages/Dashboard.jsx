@@ -199,7 +199,7 @@ function PricingCard({ label, value, sub, highlight = false, icon: Icon }) {
 
 export default function Dashboard() {
   const { result } = useAnalysis()
-  const { token, usuario, logout, isAdmin, isComando, isOperador } = useAuth()
+  const { token, usuario, logout, isAdmin, isComando, isOperador, empresaId } = useAuth()
   const navigate    = useNavigate()
   const [search, setSearch]               = useState('')
   const [exporting, setExporting]         = useState(false)
@@ -250,15 +250,21 @@ export default function Dashboard() {
     buscarPagamentos().then(setPagamentos).catch(() => {})
     buscarStatusFeedbacks().then(setStatusMap).catch(() => {})
 
-    // Supabase Realtime — qualquer INSERT/UPDATE em feedbacks atualiza o dashboard
+    // Supabase Realtime — filtrado por empresa para evitar vazamento multi-tenant
     if (!supabase) return
+    const filterConfig = empresaId
+      ? { event: '*', schema: 'public', table: 'feedbacks', filter: `empresa=eq.${empresaId}` }
+      : { event: '*', schema: 'public', table: 'feedbacks' }
+
     const channel = supabase
-      .channel('mizan-feedbacks')
+      .channel(`mizan-feedbacks-${empresaId || 'all'}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'feedbacks' },
+        filterConfig,
         (payload) => {
           console.log('[Realtime] Feedbacks:', payload.eventType, payload.new?.cpf)
+          // Ignora eventos de outras empresas (segunda linha de defesa)
+          if (empresaId && payload.new?.empresa && payload.new.empresa !== empresaId) return
           // Atualiza statusMap com o novo registro
           if (payload.new?.cpf) {
             const cpf = String(payload.new.cpf).trim()
@@ -295,7 +301,7 @@ export default function Dashboard() {
         realtimeRef.current = null
       }
     }
-  }, [token])
+  }, [token, empresaId])
 
   useEffect(() => {
     if (!result) navigate('/')
@@ -362,7 +368,15 @@ export default function Dashboard() {
         buscarPagamentos().then(setPagamentos).catch(() => {})
       }, 1500)
     } catch (err) {
-      setConfirmarErro(err.message || 'Erro ao confirmar pagamento.')
+      if (err.status === 409) {
+        // Pagamento já existe — fecha modal e sincroniza status real do servidor
+        setConfirmarModal(null)
+        setConfirmarForm({ valor_recuperado: '', data_pagamento: '' })
+        buscarStatusFeedbacks().then(setStatusMap).catch(() => {})
+        buscarPagamentos().then(setPagamentos).catch(() => {})
+      } else {
+        setConfirmarErro(err.message || 'Erro ao confirmar pagamento.')
+      }
     } finally {
       setConfirmando(false)
     }

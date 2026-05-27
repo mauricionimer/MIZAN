@@ -237,7 +237,11 @@ export async function confirmarPagamento(cpf, dados = {}) {
   })
   _handle401(res)
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || `Erro HTTP ${res.status}`)
+  if (!res.ok) {
+    const err = new Error(data.detail || `Erro HTTP ${res.status}`)
+    err.status = res.status
+    throw err
+  }
   return data
 }
 
