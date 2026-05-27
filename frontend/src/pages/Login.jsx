@@ -1,10 +1,15 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Loader2, Eye, EyeOff, Building2 } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { getEmpresaConfigPublica } from '../api'
 
 const BASE_API = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
+const BRAND_KEY = 'mizan_empresa_config'
+
+function _brandCache() {
+  try { return JSON.parse(localStorage.getItem(BRAND_KEY)) } catch { return null }
+}
 
 export default function Login() {
   const navigate = useNavigate()
@@ -14,22 +19,35 @@ export default function Login() {
   const [email, setEmail]       = useState('')
   const [senha, setSenha]       = useState('')
   const [mostrarSenha, setMostrarSenha] = useState(false)
-  const [empresaBrand, setEmpresaBrand] = useState(null) // {nome_exibicao, foto_url, cor_primaria}
-  const [buscandoBrand, setBuscandoBrand] = useState(false)
+  // Inicializa com cache do último login — sem esperar rede
+  const [empresaBrand, setEmpresaBrand] = useState(() => _brandCache())
   const emailRef = useRef('')
 
+  useEffect(() => {
+    // Acorda o backend enquanto o usuário preenche o formulário
+    fetch(`${BASE_API}/health`).catch(() => {})
+    // URL param ?empresa=sicoob → pré-carrega branding mesmo sem email
+    const empresaParam = searchParams.get('empresa')
+    if (empresaParam) {
+      getEmpresaConfigPublica(null, empresaParam)
+        .then(cfg => { if (cfg?.empresa_id) setEmpresaBrand(cfg) })
+        .catch(() => {})
+    }
+  }, [])
+
   async function handleEmailBlur() {
-    const e = email.trim()
+    const e = email.trim().toLowerCase()
     if (!e || !e.includes('@')) return
     if (e === emailRef.current) return
     emailRef.current = e
-    setBuscandoBrand(true)
+    // Busca em segundo plano — sem spinner (a UI já mostra o cache)
     try {
       const cfg = await getEmpresaConfigPublica(e)
-      if (cfg && cfg.empresa_id) setEmpresaBrand(cfg)
-      else setEmpresaBrand(null)
-    } catch { setEmpresaBrand(null) }
-    finally { setBuscandoBrand(false) }
+      if (cfg?.empresa_id) {
+        setEmpresaBrand(cfg)
+        try { localStorage.setItem(BRAND_KEY, JSON.stringify(cfg)) } catch {}
+      }
+    } catch { /* silencioso */ }
   }
 
   async function handleSubmit(e) {
@@ -157,7 +175,6 @@ export default function Login() {
                   <span className="text-slate-400 text-xs">via Mizan</span>
                 )}
               </div>
-              {buscandoBrand && <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-300 ml-auto" />}
             </div>
 
             <div className="mb-7">
