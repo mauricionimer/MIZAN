@@ -39,6 +39,18 @@ function ServerWarmupBanner() {
     return () => { cancelled = true; clearTimeout(timer) }
   }, [])
 
+  // Keepalive: pinga /health a cada 8 min enquanto a aba está visível
+  // Impede que o Render (free tier) hiberne durante uso ativo da plataforma
+  useEffect(() => {
+    const INTERVALO = 8 * 60 * 1000
+    let id = null
+    function ping() {
+      if (!document.hidden) fetch(`${BASE}/health`).catch(() => {})
+    }
+    id = setInterval(ping, INTERVALO)
+    return () => clearInterval(id)
+  }, [])
+
   if (!show) return null
   return (
     <div className="fixed top-0 inset-x-0 z-50 bg-amber-50 border-b border-amber-100 px-4 py-2.5 flex items-center justify-center gap-3 text-sm text-amber-800 shadow-sm">

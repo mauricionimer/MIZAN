@@ -103,7 +103,7 @@ async def lifespan(app: FastAPI):
 
     intervalo = int(os.getenv("SCHEDULER_INTERVALO_HORAS", 24))
     min_fb    = int(os.getenv("SCHEDULER_MIN_FEEDBACKS", 10))
-    sync_min  = int(os.getenv("SYNC_CONEXOES_INTERVALO_MIN", 60))  # default 1h
+    sync_min  = int(os.getenv("SYNC_CONEXOES_INTERVALO_MIN", 15))  # default 15min
 
     sched_estado["ativo"]                     = True
     sched_estado["intervalo_horas"]           = intervalo
