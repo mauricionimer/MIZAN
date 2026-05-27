@@ -5,11 +5,6 @@ import { useAuth } from '../context/AuthContext'
 import { getEmpresaConfigPublica } from '../api'
 
 const BASE_API = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
-const BRAND_KEY = 'mizan_empresa_config'
-
-function _brandCache() {
-  try { return JSON.parse(localStorage.getItem(BRAND_KEY)) } catch { return null }
-}
 
 export default function Login() {
   const navigate = useNavigate()
@@ -19,14 +14,15 @@ export default function Login() {
   const [email, setEmail]       = useState('')
   const [senha, setSenha]       = useState('')
   const [mostrarSenha, setMostrarSenha] = useState(false)
-  // Inicializa com cache do último login — sem esperar rede
-  const [empresaBrand, setEmpresaBrand] = useState(() => _brandCache())
-  const emailRef = useRef('')
+  const [empresaBrand, setEmpresaBrand] = useState(null)
+  const debounceRef = useRef(null)
+  const lastFetchedRef = useRef('')
 
   useEffect(() => {
-    // Acorda o backend enquanto o usuário preenche o formulário
+    // Acorda o backend enquanto o usuário lê a página
     fetch(`${BASE_API}/health`).catch(() => {})
-    // URL param ?empresa=sicoob → pré-carrega branding mesmo sem email
+
+    // URL param ?empresa=sicoob → branding correto sem precisar do email
     const empresaParam = searchParams.get('empresa')
     if (empresaParam) {
       getEmpresaConfigPublica(null, empresaParam)
@@ -35,19 +31,35 @@ export default function Login() {
     }
   }, [])
 
-  async function handleEmailBlur() {
-    const e = email.trim().toLowerCase()
-    if (!e || !e.includes('@')) return
-    if (e === emailRef.current) return
-    emailRef.current = e
-    // Busca em segundo plano — sem spinner (a UI já mostra o cache)
-    try {
-      const cfg = await getEmpresaConfigPublica(e)
-      if (cfg?.empresa_id) {
-        setEmpresaBrand(cfg)
-        try { localStorage.setItem(BRAND_KEY, JSON.stringify(cfg)) } catch {}
-      }
-    } catch { /* silencioso */ }
+  function handleEmailChange(value) {
+    setEmail(value)
+    const e = value.trim().toLowerCase()
+
+    // Limpa o branding se o campo for apagado
+    if (!e || !e.includes('@')) {
+      setEmpresaBrand(null)
+      lastFetchedRef.current = ''
+      clearTimeout(debounceRef.current)
+      return
+    }
+
+    // Só busca quando há domínio completo (ex: user@gmail.com)
+    const [, domain = ''] = e.split('@')
+    if (!domain.includes('.')) return
+
+    // Debounce — espera 600ms após parar de digitar
+    clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(async () => {
+      if (e === lastFetchedRef.current) return
+      lastFetchedRef.current = e
+      try {
+        const cfg = await getEmpresaConfigPublica(e)
+        // Só aplica se o email ainda é o mesmo (usuário não mudou)
+        if (e === lastFetchedRef.current) {
+          setEmpresaBrand(cfg?.empresa_id ? cfg : null)
+        }
+      } catch { /* silencioso */ }
+    }, 600)
   }
 
   async function handleSubmit(e) {
@@ -194,8 +206,7 @@ export default function Login() {
                 <input
                   type="email"
                   value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  onBlur={handleEmailBlur}
+                  onChange={e => handleEmailChange(e.target.value)}
                   placeholder="seu@email.com"
                   required
                   autoFocus
