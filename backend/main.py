@@ -956,7 +956,7 @@ def listar_conexoes(credentials: HTTPAuthorizationCredentials = Security(bearer)
         r = db.table("conexoes_db").select("*").order("created_at", desc=True).execute()
         rows = r.data or []
     elif role == "admin":
-        # Admin vê conexões da sua empresa + as que criou
+        # Admin vê conexões da sua empresa + as que criou + as que recebeu permissão explícita
         seen: set = set()
         if eid:
             r1 = db.table("conexoes_db").select("*").eq("empresa_id", eid).order("created_at", desc=True).execute()
@@ -965,7 +965,14 @@ def listar_conexoes(credentials: HTTPAuthorizationCredentials = Security(bearer)
         r2 = db.table("conexoes_db").select("*").eq("usuario_id", uid).order("created_at", desc=True).execute()
         for r in (r2.data or []):
             if r["id"] not in seen:
-                rows.append(r)
+                seen.add(r["id"]); rows.append(r)
+        perm = db.table("conexao_permissoes").select("conexao_id").eq("operador_id", uid).execute()
+        ids_perm = [p["conexao_id"] for p in (perm.data or []) if p["conexao_id"] not in seen]
+        if ids_perm:
+            r3 = db.table("conexoes_db").select("*").in_("id", ids_perm).execute()
+            for r in (r3.data or []):
+                if r["id"] not in seen:
+                    seen.add(r["id"]); rows.append(r)
     else:
         # Operador vê apenas conexões com permissão explícita
         perm = db.table("conexao_permissoes").select("conexao_id").eq("operador_id", uid).execute()
@@ -1503,8 +1510,14 @@ async def sincronizar_conexao(conexao_id: str, credentials: HTTPAuthorizationCre
         raise HTTPException(status_code=404, detail="Conexão não encontrada.")
     r = res.data[0]
 
-    if role in ("admin", "comando"):
-        if not ((eid and r.get("empresa_id") == eid) or r.get("usuario_id") == uid):
+    if role == "comando":
+        pass  # comando vê tudo
+    elif role == "admin":
+        tem_acesso = (eid and r.get("empresa_id") == eid) or r.get("usuario_id") == uid
+        if not tem_acesso:
+            perm = db.table("conexao_permissoes").select("id").eq("conexao_id", conexao_id).eq("operador_id", uid).execute()
+            tem_acesso = bool(perm.data)
+        if not tem_acesso:
             raise HTTPException(status_code=403, detail="Acesso negado.")
     else:
         # Operador precisa de permissão explícita
