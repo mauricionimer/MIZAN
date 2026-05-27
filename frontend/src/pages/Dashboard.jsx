@@ -1,10 +1,11 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   PieChart, Pie, Cell,
 } from 'recharts'
 import { buscarPagamentos, buscarStatusFeedbacks, confirmarPagamento } from '../api'
+import { supabase } from '../lib/supabase'
 import {
   Users, TrendingDown, BarChart2, Star,
   Download, RefreshCw, Search, Loader2,
@@ -234,16 +235,66 @@ export default function Dashboard() {
   const [confirmando, setConfirmando]       = useState(false)
   const [confirmarForm, setConfirmarForm]   = useState({ valor_recuperado: '', data_pagamento: '' })
   const [confirmarErro, setConfirmarErro]   = useState('')
+  const realtimeRef = useRef(null)
 
+  // Carrega dados iniciais + assina Supabase Realtime na tabela feedbacks
   useEffect(() => {
     if (!token) return
+
     fetch(`${BASE}/performance`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : null)
       .then(setPerf)
       .catch(() => {})
       .finally(() => setLoadingPerf(false))
+
     buscarPagamentos().then(setPagamentos).catch(() => {})
     buscarStatusFeedbacks().then(setStatusMap).catch(() => {})
+
+    // Supabase Realtime — qualquer INSERT/UPDATE em feedbacks atualiza o dashboard
+    if (!supabase) return
+    const channel = supabase
+      .channel('mizan-feedbacks')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'feedbacks' },
+        (payload) => {
+          console.log('[Realtime] Feedbacks:', payload.eventType, payload.new?.cpf)
+          // Atualiza statusMap com o novo registro
+          if (payload.new?.cpf) {
+            const cpf = String(payload.new.cpf).trim()
+            setStatusMap(prev => {
+              const existente = prev[cpf]
+              const novoTs = (payload.new.created_at || '')
+              const existenteTs = existente?.registrado_em || ''
+              if (existente && novoTs && existenteTs && novoTs <= existenteTs) return prev
+              return {
+                ...prev,
+                [cpf]: {
+                  pagou:            payload.new.pagou,
+                  valor_recuperado: payload.new.valor_recuperado,
+                  data_pagamento:   payload.new.data_pagamento,
+                  registrado_por:   payload.new.registrado_por || '',
+                  registrado_em:    (payload.new.created_at || '').slice(0, 16),
+                },
+              }
+            })
+          }
+          // Refetch da lista de pagamentos (precisa do join com predicoes)
+          buscarPagamentos().then(setPagamentos).catch(() => {})
+        }
+      )
+      .subscribe((status) => {
+        console.log('[Realtime] Status da conexão:', status)
+      })
+
+    realtimeRef.current = channel
+
+    return () => {
+      if (realtimeRef.current) {
+        supabase.removeChannel(realtimeRef.current)
+        realtimeRef.current = null
+      }
+    }
   }, [token])
 
   useEffect(() => {
@@ -292,7 +343,7 @@ export default function Dashboard() {
       if (confirmarForm.data_pagamento) dados.data_pagamento = confirmarForm.data_pagamento
       const res = await confirmarPagamento(confirmarModal.cpf, dados)
       const cpfKey = String(confirmarModal.cpf)
-      // Atualização local imediata — badge vira "Pago" sem esperar o servidor
+      // Atualização local imediata — o Realtime vai confirmar quando o DB replicar
       setStatusMap(prev => ({
         ...prev,
         [cpfKey]: {
@@ -305,9 +356,11 @@ export default function Dashboard() {
       }))
       setConfirmarModal(null)
       setConfirmarForm({ valor_recuperado: '', data_pagamento: '' })
-      // Refetch do servidor para garantir consistência (não bloqueia a UI)
-      buscarStatusFeedbacks().then(setStatusMap).catch(() => {})
-      buscarPagamentos().then(setPagamentos).catch(() => {})
+      // Fallback: refetch manual caso o Realtime demore (Render pode estar acordando)
+      setTimeout(() => {
+        buscarStatusFeedbacks().then(setStatusMap).catch(() => {})
+        buscarPagamentos().then(setPagamentos).catch(() => {})
+      }, 1500)
     } catch (err) {
       setConfirmarErro(err.message || 'Erro ao confirmar pagamento.')
     } finally {
