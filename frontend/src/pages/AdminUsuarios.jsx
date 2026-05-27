@@ -576,9 +576,32 @@ export default function AdminUsuarios() {
                     </select>
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Empresa (ID ou nome)</label>
-                    <input type="text" required value={form.empresa_id} onChange={e => setForm(f => ({ ...f, empresa_id: e.target.value }))} className="input-base" placeholder="ex: sicoob, bradesco, empresa.com" />
-                    <p className="text-xs text-slate-400 mt-1">Usuários com o mesmo empresa_id compartilham os dados entre si.</p>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Empresa</label>
+                    <select
+                      required
+                      value={form.empresa_id}
+                      onChange={e => setForm(f => ({ ...f, empresa_id: e.target.value }))}
+                      className="input-base"
+                    >
+                      <option value="">— selecione uma empresa —</option>
+                      {(empresas.empresas || []).map(emp => (
+                        <option key={emp.empresa_id} value={emp.empresa_id}>
+                          {emp.empresa_id} ({emp.usuarios?.length ?? 0} membros)
+                        </option>
+                      ))}
+                      <option value="__nova__">+ Nova empresa...</option>
+                    </select>
+                    {form.empresa_id === '__nova__' && (
+                      <input
+                        type="text"
+                        required
+                        autoFocus
+                        className="input-base mt-2"
+                        placeholder="ID da nova empresa (ex: bradesco)"
+                        onChange={e => setForm(f => ({ ...f, empresa_id: e.target.value.trim().toLowerCase() }))}
+                      />
+                    )}
+                    <p className="text-xs text-slate-400 mt-1">Usuários da mesma empresa compartilham dados entre si.</p>
                   </div>
 
                   {formErro && <p className="col-span-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-2">{formErro}</p>}

@@ -735,7 +735,7 @@ def auth_registrar(body: RegistrarIn, credentials: HTTPAuthorizationCredentials 
     payload = _exigir_comando(credentials)
     if body.role not in ("admin", "operador"):
         raise HTTPException(status_code=400, detail="Role inválido. Use 'admin' ou 'operador'.")
-    empresa_id = body.empresa_id or ""
+    empresa_id = (body.empresa_id or "").strip().lower()
     try:
         novo = criar_usuario(body.email.strip().lower(), body.nome, body.senha, body.role, empresa_id)
     except ValueError as e:
