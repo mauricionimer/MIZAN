@@ -67,14 +67,24 @@ function BadgeRole({ role }) {
   )
 }
 
-// ── Painel de permissões de uma conexão ──────────────────────────────────────
-function PainelPermissoes({ conexao, operadores, token }) {
-  const [aberto, setAberto] = useState(false)
+// ── Card de permissões de uma conexão ────────────────────────────────────────
+const TIPO_COR = {
+  postgres:   'bg-sky-50 text-sky-700 ring-sky-200/60',
+  postgresql: 'bg-sky-50 text-sky-700 ring-sky-200/60',
+  mysql:      'bg-orange-50 text-orange-700 ring-orange-200/60',
+  mariadb:    'bg-orange-50 text-orange-700 ring-orange-200/60',
+  sqlserver:  'bg-blue-50 text-blue-700 ring-blue-200/60',
+  oracle:     'bg-red-50 text-red-700 ring-red-200/60',
+  sqlite:     'bg-slate-100 text-slate-600 ring-slate-200/60',
+  sheets:     'bg-emerald-50 text-emerald-700 ring-emerald-200/60',
+}
+
+function CardPermissoes({ conexao, operadores, token }) {
   const [permitidos, setPermitidos] = useState([])
-  const [carregando, setCarregando] = useState(false)
+  const [carregando, setCarregando] = useState(true)
+  const [salvando, setSalvando] = useState(null) // id do op em salvamento
 
   async function carregar() {
-    setCarregando(true)
     try {
       const data = await listarPermissoesConexao(token, conexao.id)
       setPermitidos(data.map(o => o.id))
@@ -83,63 +93,122 @@ function PainelPermissoes({ conexao, operadores, token }) {
     }
   }
 
-  useEffect(() => { if (aberto) carregar() }, [aberto])
+  useEffect(() => { carregar() }, [])
 
-  async function toggle(operadorId, temPermissao) {
-    if (temPermissao) {
-      await revogarPermissaoConexao(token, conexao.id, operadorId)
-    } else {
-      await concederPermissaoConexao(token, conexao.id, operadorId)
-    }
-    carregar()
+  async function conceder(op) {
+    setSalvando(op.id)
+    try {
+      await concederPermissaoConexao(token, conexao.id, op.id)
+      setPermitidos(p => [...p, op.id])
+    } finally { setSalvando(null) }
   }
 
-  const somenteOperadores = operadores.filter(o => o.role === 'operador' && o.ativo)
+  async function revogar(op) {
+    setSalvando(op.id)
+    try {
+      await revogarPermissaoConexao(token, conexao.id, op.id)
+      setPermitidos(p => p.filter(id => id !== op.id))
+    } finally { setSalvando(null) }
+  }
+
+  const somenteOperadores = operadores.filter(o => (o.role === 'operador' || o.role === 'admin') && o.ativo)
+  const comAcesso    = somenteOperadores.filter(o => permitidos.includes(o.id))
+  const semAcesso    = somenteOperadores.filter(o => !permitidos.includes(o.id))
+  const tipoCor      = TIPO_COR[conexao.tipo] ?? 'bg-slate-100 text-slate-500 ring-slate-200/60'
 
   return (
-    <div className="border border-slate-100 rounded-xl overflow-hidden">
-      <button
-        onClick={() => setAberto(o => !o)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors text-sm"
-      >
-        <div className="flex items-center gap-2 font-medium text-slate-700">
-          <Database className="w-4 h-4 text-slate-400" />
-          {conexao.nome}
-          <span className="text-xs text-slate-400 font-normal">({conexao.tipo})</span>
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.06)] overflow-hidden">
+      {/* Cabeçalho do banco */}
+      <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-50">
+        <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
+          <Database className="w-4 h-4 text-slate-500" />
         </div>
-        {aberto ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-      </button>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-bold text-slate-900 text-sm">{conexao.nome}</p>
+            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ring-1 ${tipoCor}`}>
+              {conexao.tipo}
+            </span>
+          </div>
+          {conexao.host && (
+            <p className="text-xs text-slate-400 mt-0.5 truncate">{conexao.host}{conexao.porta ? `:${conexao.porta}` : ''}{conexao.banco ? ` · ${conexao.banco}` : ''}</p>
+          )}
+        </div>
+        <span className="text-xs text-slate-400 shrink-0">
+          {comAcesso.length}/{somenteOperadores.length} com acesso
+        </span>
+      </div>
 
-      {aberto && (
-        <div className="px-4 py-3 space-y-2">
-          {carregando ? (
-            <p className="text-xs text-slate-400">Carregando...</p>
-          ) : somenteOperadores.length === 0 ? (
-            <p className="text-xs text-slate-400">Nenhum operador ativo nesta empresa.</p>
-          ) : (
-            somenteOperadores.map(op => {
-              const tem = permitidos.includes(op.id)
-              return (
-                <div key={op.id} className="flex items-center justify-between py-1">
-                  <div>
-                    <p className="text-sm font-medium text-slate-800">{op.nome}</p>
-                    <p className="text-xs text-slate-400">{op.email}</p>
+      {carregando ? (
+        <div className="px-5 py-6 text-xs text-slate-400">Carregando...</div>
+      ) : somenteOperadores.length === 0 ? (
+        <div className="px-5 py-6 text-xs text-slate-400">Nenhum operador ou admin ativo nesta empresa.</div>
+      ) : (
+        <div className="divide-y divide-slate-50">
+          {/* Com acesso */}
+          {comAcesso.length > 0 && (
+            <div className="px-5 py-3">
+              <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wide mb-2 flex items-center gap-1">
+                <Unlock className="w-3 h-3" /> Com acesso ({comAcesso.length})
+              </p>
+              <div className="space-y-1.5">
+                {comAcesso.map(op => (
+                  <div key={op.id} className="flex items-center justify-between py-1 px-3 rounded-xl bg-emerald-50/50">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center text-xs font-bold text-emerald-700 shrink-0">
+                        {(op.nome || op.email)[0].toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-slate-800 truncate">{op.nome}</p>
+                        <p className="text-xs text-slate-400 truncate">{op.email}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => revogar(op)}
+                      disabled={salvando === op.id}
+                      title="Revogar acesso"
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-40 shrink-0 ml-2"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      {salvando === op.id ? '...' : 'Remover'}
+                    </button>
                   </div>
-                  <button
-                    onClick={() => toggle(op.id, tem)}
-                    title={tem ? 'Revogar acesso' : 'Conceder acesso'}
-                    className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
-                      tem
-                        ? 'bg-emerald-50 text-emerald-700 hover:bg-red-50 hover:text-red-700'
-                        : 'bg-slate-100 text-slate-500 hover:bg-emerald-50 hover:text-emerald-700'
-                    }`}
-                  >
-                    {tem ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
-                    {tem ? 'Com acesso' : 'Sem acesso'}
-                  </button>
-                </div>
-              )
-            })
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Sem acesso */}
+          {semAcesso.length > 0 && (
+            <div className="px-5 py-3">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2 flex items-center gap-1">
+                <Lock className="w-3 h-3" /> Sem acesso ({semAcesso.length})
+              </p>
+              <div className="space-y-1.5">
+                {semAcesso.map(op => (
+                  <div key={op.id} className="flex items-center justify-between py-1 px-3 rounded-xl hover:bg-slate-50 transition-colors">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-500 shrink-0">
+                        {(op.nome || op.email)[0].toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-slate-600 truncate">{op.nome}</p>
+                        <p className="text-xs text-slate-400 truncate">{op.email}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => conceder(op)}
+                      disabled={salvando === op.id}
+                      title="Conceder acesso"
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-40 shrink-0 ml-2"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      {salvando === op.id ? '...' : 'Adicionar'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       )}
@@ -795,7 +864,7 @@ export default function AdminUsuarios() {
             ) : (
               <div className="space-y-3">
                 {conexoes.map(c => (
-                  <PainelPermissoes key={c.id} conexao={c} operadores={usuarios} token={token} />
+                  <CardPermissoes key={c.id} conexao={c} operadores={usuarios} token={token} />
                 ))}
               </div>
             )}
