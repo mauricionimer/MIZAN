@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import {
   Shield, AlertTriangle, TrendingUp, Users, DollarSign,
-  ChevronDown, ChevronRight, RefreshCw, Loader2, LogOut,
-  Building2, CheckCircle2, Activity, Eye, Upload, Zap, UserCog,
+  RefreshCw, Loader2, LogOut, Building2, CheckCircle2, Activity,
+  Eye, Upload, Zap, UserCog, X, Database, FileText, User,
+  ChevronRight,
 } from 'lucide-react'
 
 const BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001'
@@ -16,6 +17,9 @@ const fmtNum = v => v != null ? new Intl.NumberFormat('pt-BR').format(v) : '—'
 const fmtPct = v => v != null ? `${Number(v).toFixed(1)}%` : '—'
 const fmtData = iso => iso
   ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(iso))
+  : '—'
+const fmtDataCurta = iso => iso
+  ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' }).format(new Date(iso))
   : '—'
 
 function KpiCard({ label, value, sub, icon: Icon, accent = 'indigo' }) {
@@ -61,52 +65,197 @@ function StatusBadge({ suspeita, taxaFeedback }) {
   )
 }
 
-function CarteirasEmpresa({ carteiras, loading }) {
-  if (loading) {
-    return (
-      <tr>
-        <td colSpan={9} className="px-6 py-4 text-center">
-          <div className="flex items-center justify-center gap-2 text-slate-500 text-xs">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Carregando carteiras...
+function RoleBadge({ role }) {
+  const m = {
+    comando:  'bg-indigo-900/50 text-indigo-300 border-indigo-700/50',
+    admin:    'bg-amber-900/40 text-amber-300 border-amber-700/50',
+    operador: 'bg-slate-800 text-slate-400 border-slate-700',
+  }[role] || 'bg-slate-800 text-slate-400 border-slate-700'
+  return (
+    <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full border uppercase tracking-wide ${m}`}>
+      {role}
+    </span>
+  )
+}
+
+function EmpresaDetalhePanel({ empresa, token, onClose }) {
+  const [dados, setDados]     = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!empresa) return
+    setLoading(true)
+    fetch(`${BASE}/comando/empresa/${encodeURIComponent(empresa.empresa_id)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { setDados(d); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [empresa?.empresa_id])
+
+  const cfg       = dados?.config || {}
+  const usuarios  = dados?.usuarios || []
+  const conexoes  = dados?.conexoes || []
+  const carteiras = dados?.carteiras || []
+
+  const admins    = usuarios.filter(u => u.role === 'admin')
+  const operadores = usuarios.filter(u => u.role === 'operador')
+
+  const totalFace = carteiras.reduce((s, c) => s + (c.valor_face || 0), 0)
+  const totalDev  = carteiras.reduce((s, c) => s + (c.total_devedores || 0), 0)
+
+  return (
+    <div className="fixed inset-0 z-50 flex">
+      {/* Backdrop */}
+      <div className="flex-1 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+
+      {/* Panel */}
+      <div className="w-full max-w-xl bg-slate-900 border-l border-slate-800 flex flex-col h-full overflow-hidden shadow-2xl">
+        {/* Header */}
+        <div className="px-6 py-5 border-b border-slate-800 flex items-start gap-4 shrink-0">
+          {empresa?.foto_url
+            ? <img src={empresa.foto_url} alt={empresa.nome_exibicao} className="h-14 w-14 rounded-2xl object-cover border border-slate-700 shrink-0" />
+            : <div className="h-14 w-14 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
+                <Building2 className="h-7 w-7 text-slate-500" />
+              </div>
+          }
+          <div className="flex-1 min-w-0">
+            <h2 className="text-lg font-bold text-white leading-tight truncate">
+              {empresa?.nome_exibicao || empresa?.empresa_id}
+            </h2>
+            <p className="text-xs text-slate-500 font-mono mt-0.5">{empresa?.empresa_id}</p>
+            <div className="flex items-center gap-2 mt-2">
+              <StatusBadge suspeita={empresa?.flag_suspeita} taxaFeedback={empresa?.taxa_feedback || 0} />
+            </div>
           </div>
-        </td>
-      </tr>
-    )
-  }
-  if (!carteiras.length) {
-    return (
-      <tr>
-        <td colSpan={9} className="px-6 py-3 text-xs text-slate-600 text-center italic">
-          Nenhuma carteira encontrada.
-        </td>
-      </tr>
-    )
-  }
-  return carteiras.map(c => (
-    <tr key={c.id} className="bg-slate-900/50 border-t border-slate-800/30">
-      <td className="pl-14 pr-4 py-2.5 text-xs text-slate-500 font-mono">↳ {c.nome_arquivo || c.id.slice(0, 8)}</td>
-      <td className="px-4 py-2.5 text-xs text-slate-500 text-right">{fmtNum(c.total_devedores)}</td>
-      <td className="px-4 py-2.5 text-xs text-slate-500 text-right">{fmtBRL(c.valor_face)}</td>
-      <td className="px-4 py-2.5 text-xs text-slate-500 text-right">{fmtBRL(c.valor_esperado)}</td>
-      <td className="px-4 py-2.5 text-xs text-slate-500 text-right">{c.score_medio?.toFixed(1) ?? '—'}</td>
-      <td className="px-4 py-2.5" />
-      <td className="px-4 py-2.5" />
-      <td className="px-4 py-2.5 text-xs text-slate-600 text-right">{fmtData(c.created_at)}</td>
-      <td className="px-4 py-2.5" />
-    </tr>
-  ))
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-500 hover:text-white transition-colors">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+          {loading ? (
+            <div className="flex items-center justify-center py-16 gap-2 text-slate-500">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <span className="text-sm">Carregando...</span>
+            </div>
+          ) : (
+            <>
+              {/* KPIs */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-slate-800/60 rounded-xl p-3 text-center border border-slate-700/50">
+                  <p className="text-lg font-bold text-slate-100">{carteiras.length}</p>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">Carteiras</p>
+                </div>
+                <div className="bg-slate-800/60 rounded-xl p-3 text-center border border-slate-700/50">
+                  <p className="text-lg font-bold text-slate-100">{fmtNum(totalDev)}</p>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">Devedores</p>
+                </div>
+                <div className="bg-slate-800/60 rounded-xl p-3 text-center border border-slate-700/50">
+                  <p className="text-sm font-bold text-emerald-400">{fmtBRL(totalFace)}</p>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">Valor face</p>
+                </div>
+              </div>
+
+              {/* Usuários */}
+              <section>
+                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                  <User className="h-3.5 w-3.5" /> Equipe ({usuarios.length})
+                </h3>
+                {usuarios.length === 0 ? (
+                  <p className="text-xs text-slate-600 italic">Nenhum usuário cadastrado</p>
+                ) : (
+                  <div className="space-y-2">
+                    {[...admins, ...operadores].map(u => (
+                      <div key={u.id} className="flex items-center justify-between gap-3 bg-slate-800/40 rounded-xl px-3.5 py-2.5 border border-slate-700/30">
+                        <div className="min-w-0">
+                          <p className="text-sm text-slate-200 font-medium truncate">{u.nome}</p>
+                          <p className="text-xs text-slate-500 truncate">{u.email}</p>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {!u.ativo && (
+                            <span className="text-[10px] text-red-400 bg-red-900/30 px-1.5 py-0.5 rounded-full border border-red-800/40">inativo</span>
+                          )}
+                          <RoleBadge role={u.role} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              {/* Conexões */}
+              <section>
+                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                  <Database className="h-3.5 w-3.5" /> Bancos de dados ({conexoes.length})
+                </h3>
+                {conexoes.length === 0 ? (
+                  <p className="text-xs text-slate-600 italic">Nenhuma conexão configurada</p>
+                ) : (
+                  <div className="space-y-2">
+                    {conexoes.map(cx => (
+                      <div key={cx.id} className="bg-slate-800/40 rounded-xl px-3.5 py-2.5 border border-slate-700/30">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm text-slate-200 font-medium truncate">{cx.nome || cx.id}</p>
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-700 text-slate-400 uppercase shrink-0">
+                            {cx.tipo || 'DB'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 font-mono mt-0.5 truncate">
+                          {cx.host}{cx.database ? ` / ${cx.database}` : ''}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              {/* Carteiras */}
+              <section>
+                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                  <FileText className="h-3.5 w-3.5" /> Carteiras ({carteiras.length})
+                </h3>
+                {carteiras.length === 0 ? (
+                  <p className="text-xs text-slate-600 italic">Nenhuma carteira analisada ainda</p>
+                ) : (
+                  <div className="space-y-2">
+                    {carteiras.map(c => (
+                      <div key={c.id} className="bg-slate-800/40 rounded-xl px-3.5 py-2.5 border border-slate-700/30">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm text-slate-300 font-mono truncate">{c.nome_arquivo || c.id.slice(0, 16)}</p>
+                          <p className="text-xs text-slate-500 shrink-0">{fmtDataCurta(c.created_at)}</p>
+                        </div>
+                        <div className="flex items-center gap-3 mt-1 text-xs text-slate-500 font-mono">
+                          <span>{fmtNum(c.total_devedores)} dev.</span>
+                          <span>{fmtBRL(c.valor_face)}</span>
+                          {c.score_medio != null && (
+                            <span className={
+                              c.score_medio >= 60 ? 'text-emerald-500' :
+                              c.score_medio >= 40 ? 'text-amber-500' : 'text-red-500'
+                            }>score {c.score_medio.toFixed(1)}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export default function ComandoDashboard() {
   const navigate  = useNavigate()
-  const { token, usuario, logout, isComando } = useAuth()
+  const { token, usuario, logout } = useAuth()
 
-  const [dados,      setDados]      = useState(null)
-  const [carteiras,  setCarteiras]  = useState([])
-  const [expandido,  setExpandido]  = useState(null)
-  const [loadingMain, setLoadingMain] = useState(true)
-  const [loadingCart, setLoadingCart] = useState(false)
-  const [erro,       setErro]       = useState('')
+  const [dados,        setDados]        = useState(null)
+  const [loadingMain,  setLoadingMain]  = useState(true)
+  const [erro,         setErro]         = useState('')
+  const [empresaSel,   setEmpresaSel]   = useState(null)
 
   async function carregar() {
     setLoadingMain(true); setErro('')
@@ -123,26 +272,9 @@ export default function ComandoDashboard() {
     }
   }
 
-  async function expandirEmpresa(empresa_id) {
-    if (expandido === empresa_id) { setExpandido(null); return }
-    setExpandido(empresa_id)
-    setLoadingCart(true)
-    try {
-      const res = await fetch(
-        `${BASE}/comando/carteiras?empresa_id=${encodeURIComponent(empresa_id)}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      )
-      setCarteiras((await res.json()) || [])
-    } catch {
-      setCarteiras([])
-    } finally {
-      setLoadingCart(false)
-    }
-  }
-
   useEffect(() => { carregar() }, [])
 
-  const t = dados?.totais
+  const t        = dados?.totais
   const suspeitas = dados?.empresas?.filter(e => e.flag_suspeita) || []
 
   return (
@@ -251,9 +383,8 @@ export default function ComandoDashboard() {
                     {suspeitas.length} empresa{suspeitas.length > 1 ? 's' : ''} com comportamento suspeito
                   </p>
                   <p className="text-xs text-red-400/70 mt-1 leading-relaxed">
-                    Essas empresas analisaram mais de 50 devedores mas registraram menos de 5% de feedback —
-                    podem estar usando a plataforma sem reportar os resultados reais.
-                    {' '}<span className="font-medium">{suspeitas.map(e => e.usuario_email || e.empresa_id).join(', ')}</span>
+                    Essas empresas analisaram mais de 50 devedores mas registraram menos de 5% de feedback.
+                    {' '}<span className="font-medium">{suspeitas.map(e => e.nome_exibicao || e.empresa_id).join(', ')}</span>
                   </p>
                 </div>
               </div>
@@ -263,7 +394,7 @@ export default function ComandoDashboard() {
               <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
                 <div>
                   <h2 className="text-sm font-semibold text-slate-200">Empresas clientes</h2>
-                  <p className="text-xs text-slate-600 mt-0.5">Clique em uma linha para ver as carteiras individuais</p>
+                  <p className="text-xs text-slate-600 mt-0.5">Clique em uma linha para ver o dashboard da empresa</p>
                 </div>
                 <Eye className="h-4 w-4 text-slate-700" />
               </div>
@@ -273,7 +404,6 @@ export default function ComandoDashboard() {
                   <thead className="bg-slate-800/50">
                     <tr>
                       {[
-                        ['', 'w-8'],
                         ['Empresa', 'text-left'],
                         ['Devedores', 'text-right'],
                         ['Valor face', 'text-right'],
@@ -282,6 +412,7 @@ export default function ComandoDashboard() {
                         ['Feedbacks', 'text-right'],
                         ['Última atividade', 'text-right'],
                         ['Status', 'text-right'],
+                        ['', 'w-8'],
                       ].map(([h, cls = '']) => (
                         <th key={h} className={`px-4 py-3.5 text-[11px] font-semibold text-slate-500 uppercase tracking-widest whitespace-nowrap ${cls}`}>
                           {h}
@@ -291,29 +422,26 @@ export default function ComandoDashboard() {
                   </thead>
                   <tbody className="divide-y divide-slate-800/50">
                     {dados.empresas.map(e => {
-                      const isOpen = expandido === e.empresa_id
                       const isSusp = e.flag_suspeita
-                      return [
+                      const isSel  = empresaSel?.empresa_id === e.empresa_id
+                      return (
                         <tr
                           key={e.empresa_id}
-                          onClick={() => expandirEmpresa(e.empresa_id)}
+                          onClick={() => setEmpresaSel(isSel ? null : e)}
                           className={`cursor-pointer transition-colors ${
-                            isSusp
-                              ? 'bg-red-950/10 hover:bg-red-950/20'
-                              : 'hover:bg-slate-800/40'
+                            isSel
+                              ? 'bg-indigo-950/30 ring-1 ring-indigo-700/40 ring-inset'
+                              : isSusp
+                                ? 'bg-red-950/10 hover:bg-red-950/20'
+                                : 'hover:bg-slate-800/40'
                           }`}
                         >
-                          <td className="pl-4 pr-2 py-4 text-slate-600">
-                            {isOpen
-                              ? <ChevronDown className="h-3.5 w-3.5 text-indigo-400" />
-                              : <ChevronRight className="h-3.5 w-3.5" />
-                            }
-                          </td>
                           <td className="px-4 py-4">
                             <div className="flex items-center gap-2.5">
                               {e.foto_url
                                 ? <img src={e.foto_url} alt={e.nome_exibicao} className="h-7 w-7 rounded-lg object-cover border border-slate-700 shrink-0" />
-                                : <Building2 className={`h-3.5 w-3.5 shrink-0 ${isSusp ? 'text-red-500' : 'text-slate-600'}`} />}
+                                : <Building2 className={`h-3.5 w-3.5 shrink-0 ${isSusp ? 'text-red-500' : 'text-slate-600'}`} />
+                              }
                               <div>
                                 <p className={`text-sm font-medium leading-tight ${isSusp ? 'text-red-300' : 'text-slate-200'}`}>
                                   {e.nome_exibicao || e.empresa_id}
@@ -354,16 +482,11 @@ export default function ComandoDashboard() {
                           <td className="px-4 py-4 text-right">
                             <StatusBadge suspeita={e.flag_suspeita} taxaFeedback={e.taxa_feedback} />
                           </td>
-                        </tr>,
-
-                        isOpen && (
-                          <CarteirasEmpresa
-                            key={`${e.empresa_id}_cart`}
-                            carteiras={carteiras}
-                            loading={loadingCart}
-                          />
-                        ),
-                      ]
+                          <td className="px-4 py-4 text-slate-600">
+                            <ChevronRight className={`h-3.5 w-3.5 transition-transform ${isSel ? 'rotate-90 text-indigo-400' : ''}`} />
+                          </td>
+                        </tr>
+                      )
                     })}
                   </tbody>
                 </table>
@@ -371,7 +494,7 @@ export default function ComandoDashboard() {
 
               {dados.empresas.length === 0 && (
                 <div className="py-16 text-center text-slate-600 text-sm">
-                  Nenhuma empresa com análises registradas ainda.
+                  Nenhuma empresa registrada ainda.
                 </div>
               )}
             </div>
@@ -390,6 +513,14 @@ export default function ComandoDashboard() {
           </>
         )}
       </main>
+
+      {empresaSel && (
+        <EmpresaDetalhePanel
+          empresa={empresaSel}
+          token={token}
+          onClose={() => setEmpresaSel(null)}
+        />
+      )}
     </div>
   )
 }

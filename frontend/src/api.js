@@ -421,3 +421,11 @@ export async function uploadEmpresaFoto(token, file, empresaIdAlvo) {
   }
   return res.json()
 }
+
+export async function getEmpresaDetalhe(token, empresaId) {
+  const res = await fetch(`${BASE}/comando/empresa/${encodeURIComponent(empresaId)}`, {
+    headers: _authHeader(token),
+  })
+  if (!res.ok) throw new Error(`Erro HTTP ${res.status}`)
+  return res.json()
+}

@@ -423,9 +423,6 @@ def comando_visao_geral(credentials: HTTPAuthorizationCredentials = Security(bea
         except Exception:
             return _VAZIO
 
-    if not cart_res.data:
-        return _VAZIO
-
     empresas: dict = {}
     cart_id_to_empresa: dict = {}
 
@@ -553,6 +550,40 @@ def comando_visao_geral(credentials: HTTPAuthorizationCredentials = Security(bea
         "n_suspeitas":           sum(1 for r in result if r["flag_suspeita"]),
     }
     return {"empresas": result, "totais": totais}
+
+
+@app.get("/comando/empresa/{empresa_id}")
+def comando_empresa_detalhe(empresa_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    _exigir_comando(credentials)
+    db = get_db()
+
+    cfg = _get_empresa_config(empresa_id)
+
+    usuarios = listar_usuarios(empresa_id=empresa_id)
+
+    try:
+        cx_res = db.table("conexoes_db").select(
+            "id, nome, tipo, host, database, usuario_id, created_at"
+        ).eq("empresa_id", empresa_id).order("created_at", desc=True).execute()
+        conexoes = cx_res.data or []
+    except Exception:
+        conexoes = []
+
+    try:
+        cart_res = db.table("carteiras").select(
+            "id, nome_arquivo, total_devedores, valor_face, valor_esperado, score_medio, created_at"
+        ).eq("empresa_id", empresa_id).order("created_at", desc=True).execute()
+        carteiras = cart_res.data or []
+    except Exception:
+        carteiras = []
+
+    return {
+        "empresa_id": empresa_id,
+        "config": cfg,
+        "usuarios": usuarios,
+        "conexoes": conexoes,
+        "carteiras": carteiras,
+    }
 
 
 @app.get("/comando/carteiras")
