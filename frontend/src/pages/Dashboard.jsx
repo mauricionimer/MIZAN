@@ -43,15 +43,26 @@ function getStatus(cpf, statusMap) {
 
 function StatusBadge({ cpf, statusMap }) {
   const s = getStatus(cpf, statusMap)
+  const fb = statusMap[String(cpf ?? '')]
+  const quem = fb?.registrado_por ? `por ${fb.registrado_por}` : ''
+  const quando = fb?.registrado_em ? ` em ${new Date(fb.registrado_em).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}` : ''
+  const title = quem || quando ? `Registrado ${quem}${quando}` : undefined
+
   if (s === 'pago') return (
-    <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold text-xs bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full whitespace-nowrap">
-      <CheckCircle2 className="h-3 w-3" /> Pago
-    </span>
+    <div className="flex flex-col gap-0.5">
+      <span title={title} className="inline-flex items-center gap-1 text-emerald-700 font-semibold text-xs bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full whitespace-nowrap cursor-default">
+        <CheckCircle2 className="h-3 w-3" /> Pago
+      </span>
+      {quem && <span className="text-[10px] text-slate-400 pl-0.5">{quem}{quando}</span>}
+    </div>
   )
   if (s === 'nao_pago') return (
-    <span className="inline-flex items-center gap-1 text-red-600 font-semibold text-xs bg-red-50 border border-red-200 px-2 py-0.5 rounded-full whitespace-nowrap">
-      <XCircle className="h-3 w-3" /> Não pago
-    </span>
+    <div className="flex flex-col gap-0.5">
+      <span title={title} className="inline-flex items-center gap-1 text-red-600 font-semibold text-xs bg-red-50 border border-red-200 px-2 py-0.5 rounded-full whitespace-nowrap cursor-default">
+        <XCircle className="h-3 w-3" /> Não pago
+      </span>
+      {quem && <span className="text-[10px] text-slate-400 pl-0.5">{quem}{quando}</span>}
+    </div>
   )
   return (
     <span className="text-slate-300 text-xs whitespace-nowrap">Pendente</span>
@@ -635,7 +646,7 @@ export default function Dashboard() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50">
-                    {['Nome', 'CPF', 'Dívida', 'Score', 'Situação', 'Valor Recuperado', 'Data'].map(h => (
+                    {['Nome', 'CPF', 'Dívida', 'Score', 'Situação', 'Valor Recuperado', 'Data', 'Registrado por'].map(h => (
                       <th key={h} className="py-2.5 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wide text-left whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -670,6 +681,10 @@ export default function Dashboard() {
                         </td>
                         <td className="py-3 px-4 text-slate-400 text-xs whitespace-nowrap">
                           {p.data_pagamento ? new Intl.DateTimeFormat('pt-BR').format(new Date(p.data_pagamento + 'T12:00:00')) : '—'}
+                        </td>
+                        <td className="py-3 px-4 text-slate-500 text-xs">
+                          {p.registrado_por || <span className="text-slate-300">—</span>}
+                          {p.registrado_em && <div className="text-[10px] text-slate-300">{new Date(p.registrado_em).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}</div>}
                         </td>
                       </tr>
                     ))}

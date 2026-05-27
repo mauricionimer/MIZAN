@@ -66,6 +66,9 @@ CREATE TABLE IF NOT EXISTS reset_tokens (
 CREATE INDEX IF NOT EXISTS idx_reset_tokens_token ON reset_tokens(token);
 ALTER TABLE reset_tokens DISABLE ROW LEVEL SECURITY;
 
+-- Colunas adicionadas (seguro repetir):
+ALTER TABLE feedbacks ADD COLUMN IF NOT EXISTS registrado_por TEXT;
+
 -- Índices para buscas frequentes
 CREATE INDEX IF NOT EXISTS idx_predicoes_cpf        ON predicoes(cpf);
 CREATE INDEX IF NOT EXISTS idx_predicoes_carteira   ON predicoes(carteira_id);

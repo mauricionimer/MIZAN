@@ -2286,6 +2286,8 @@ async def receber_feedback(
     predicao_id = pred_res.data[0]["id"] if pred_res.data else None
 
     jwt_payload = empresa_info.get("jwt") or {}
+    usuario_role = jwt_payload.get("role", "operador")
+    usuario_nome = jwt_payload.get("nome") or jwt_payload.get("email") or empresa_info.get("empresa_nome", "")
     empresa_nome = (
         payload.empresa
         or jwt_payload.get("empresa_id")
@@ -2297,6 +2299,7 @@ async def receber_feedback(
         "pagou": payload.pagou,
         "valor_recuperado": payload.valor_recuperado or 0,
         "empresa": empresa_nome,
+        "registrado_por": usuario_nome,
     }
     if payload.data_pagamento:
         fb_row["data_pagamento"] = payload.data_pagamento.isoformat()
@@ -2312,17 +2315,17 @@ async def receber_feedback(
         pred_res.data[0] if pred_res.data else None,
     )
 
-    # Write-back assíncrono: atualiza o banco externo da empresa se configurado
+    # Write-back: só para admin/comando — operador não pode alterar banco externo diretamente
     empresa_id_jwt = jwt_payload.get("empresa_id", "")
     writeback_info = None
-    if empresa_id_jwt:
+    if empresa_id_jwt and usuario_role in ("admin", "comando"):
         import threading
         def _wb():
             nonlocal writeback_info
             writeback_info = _writeback_pagamento(empresa_id_jwt, payload.cpf, payload.pagou)
         t = threading.Thread(target=_wb, daemon=True)
         t.start()
-        t.join(timeout=8)  # aguarda até 8s; não bloqueia indefinidamente
+        t.join(timeout=8)
 
     return {"ok": True, "feedback_id": feedback_id, "predicao_id": predicao_id, "writeback": writeback_info}
 
@@ -2631,7 +2634,7 @@ async def performance_pagamentos(credentials: HTTPAuthorizationCredentials = Sec
         except Exception:
             empresa_pred_ids = None
 
-    fb_res = db.table("feedbacks").select("cpf, pagou, valor_recuperado, data_pagamento, predicao_id, created_at").order("created_at", desc=True).limit(500).execute()
+    fb_res = db.table("feedbacks").select("cpf, pagou, valor_recuperado, data_pagamento, predicao_id, created_at, registrado_por").order("created_at", desc=True).limit(500).execute()
     feedbacks = fb_res.data or []
 
     if empresa_pred_ids is not None:
@@ -2659,6 +2662,8 @@ async def performance_pagamentos(credentials: HTTPAuthorizationCredentials = Sec
             "pagou":             fb.get("pagou", False),
             "valor_recuperado":  fb.get("valor_recuperado") or 0,
             "data_pagamento":    fb.get("data_pagamento") or fb.get("created_at", "")[:10],
+            "registrado_por":    fb.get("registrado_por") or "",
+            "registrado_em":     (fb.get("created_at") or "")[:16],
         })
     return result
 
@@ -2686,7 +2691,7 @@ async def feedbacks_status(credentials: HTTPAuthorizationCredentials = Security(
 
     fb_res = (
         db.table("feedbacks")
-        .select("cpf, pagou, valor_recuperado, data_pagamento, predicao_id, created_at")
+        .select("cpf, pagou, valor_recuperado, data_pagamento, predicao_id, created_at, registrado_por")
         .order("created_at", desc=True)
         .limit(5000)
         .execute()
@@ -2705,6 +2710,8 @@ async def feedbacks_status(credentials: HTTPAuthorizationCredentials = Security(
             "pagou":            fb.get("pagou"),
             "valor_recuperado": fb.get("valor_recuperado"),
             "data_pagamento":   fb.get("data_pagamento") or (fb.get("created_at") or "")[:10],
+            "registrado_por":   fb.get("registrado_por") or "",
+            "registrado_em":    (fb.get("created_at") or "")[:16],
         }
 
     return status_map
