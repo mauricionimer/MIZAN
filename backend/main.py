@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from datetime import date, datetime
 from typing import Optional
 
+import numpy as np
 import pandas as pd
 import uvicorn
 from apscheduler.schedulers.background import BackgroundScheduler
