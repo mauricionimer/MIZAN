@@ -486,14 +486,48 @@ def comando_visao_geral(credentials: HTTPAuthorizationCredentials = Security(bea
                 e["n_pagamentos"] += 1
                 e["valor_recuperado_real"] += float(f.get("valor_recuperado") or 0)
 
+    # Adiciona empresas do cadastro de usuários que ainda não têm carteiras
+    try:
+        u_res = db.table("usuarios").select("empresa_id").neq("empresa_id", "").execute()
+        for u in (u_res.data or []):
+            eid = (u.get("empresa_id") or "").strip()
+            if eid and eid not in empresas:
+                empresas[eid] = {
+                    "empresa_id": eid, "usuario_email": "",
+                    "total_carteiras": 0, "total_devedores": 0,
+                    "valor_face_total": 0.0, "valor_esperado_total": 0.0,
+                    "_scores": [], "n_feedbacks": 0, "n_pagamentos": 0,
+                    "valor_recuperado_real": 0.0, "ultima_atividade": None,
+                }
+    except Exception:
+        pass
+
+    # Busca nomes de exibição da empresa_config
+    nome_exibicao_map: dict = {}
+    try:
+        cfg_res = db.table("empresa_config").select("empresa_id, nome_exibicao, foto_url").execute()
+        for c in (cfg_res.data or []):
+            eid = c.get("empresa_id") or ""
+            if eid:
+                nome_exibicao_map[eid] = {
+                    "nome_exibicao": c.get("nome_exibicao") or eid,
+                    "foto_url": c.get("foto_url"),
+                }
+    except Exception:
+        pass
+
     result = []
     for e in empresas.values():
         vf = e["valor_face_total"]
         vr = e["valor_recuperado_real"]
         td = e["total_devedores"]
         taxa_fb = round(e["n_feedbacks"] / td * 100, 1) if td > 0 else 0
+        eid = e["empresa_id"]
+        cfg = nome_exibicao_map.get(eid, {})
         result.append({
-            "empresa_id":            e["empresa_id"],
+            "empresa_id":            eid,
+            "nome_exibicao":         cfg.get("nome_exibicao") or eid,
+            "foto_url":              cfg.get("foto_url"),
             "usuario_email":         e["usuario_email"],
             "total_carteiras":       e["total_carteiras"],
             "total_devedores":       td,

@@ -310,13 +310,18 @@ export default function ComandoDashboard() {
                             }
                           </td>
                           <td className="px-4 py-4">
-                            <div className="flex items-center gap-2">
-                              <Building2 className={`h-3.5 w-3.5 shrink-0 ${isSusp ? 'text-red-500' : 'text-slate-600'}`} />
+                            <div className="flex items-center gap-2.5">
+                              {e.foto_url
+                                ? <img src={e.foto_url} alt={e.nome_exibicao} className="h-7 w-7 rounded-lg object-cover border border-slate-700 shrink-0" />
+                                : <Building2 className={`h-3.5 w-3.5 shrink-0 ${isSusp ? 'text-red-500' : 'text-slate-600'}`} />}
                               <div>
                                 <p className={`text-sm font-medium leading-tight ${isSusp ? 'text-red-300' : 'text-slate-200'}`}>
-                                  {e.usuario_email || e.empresa_id}
+                                  {e.nome_exibicao || e.empresa_id}
                                 </p>
-                                <p className="text-xs text-slate-600 font-mono">{e.total_carteiras} carteira{e.total_carteiras !== 1 ? 's' : ''}</p>
+                                <p className="text-xs text-slate-600 font-mono">
+                                  {e.empresa_id !== e.nome_exibicao && <span className="text-slate-700">{e.empresa_id} · </span>}
+                                  {e.total_carteiras} carteira{e.total_carteiras !== 1 ? 's' : ''}
+                                </p>
                               </div>
                             </div>
                           </td>
