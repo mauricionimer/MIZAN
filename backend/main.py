@@ -13,7 +13,7 @@ import uvicorn
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, UploadFile, File, Security, BackgroundTasks, Request
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Security, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
