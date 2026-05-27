@@ -124,33 +124,6 @@ export async function feedbackLote(file, token) {
 
 const _authHeader = (token) => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${token}` })
 
-export async function getDBSyncConfig(token) {
-  const res = await fetch(`${BASE}/admin/db-sync/config`, { headers: _authHeader(token) })
-  if (!res.ok) throw new Error(`Erro HTTP ${res.status}`)
-  return res.json()
-}
-
-export async function saveDBSyncConfig(token, params) {
-  const res = await fetch(`${BASE}/admin/db-sync/config`, {
-    method: 'POST', headers: _authHeader(token), body: JSON.stringify(params),
-  })
-  if (!res.ok) {
-    const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
-    throw new Error(detail)
-  }
-  return res.json()
-}
-
-export async function executarDBSync(token) {
-  const res = await fetch(`${BASE}/admin/db-sync/executar`, {
-    method: 'POST', headers: _authHeader(token),
-  })
-  if (!res.ok) {
-    const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
-    throw new Error(detail)
-  }
-  return res.json()
-}
 
 export async function listarUsuarios(token) {
   const res = await fetch(`${BASE}/auth/usuarios`, { headers: _authHeader(token) })

@@ -3,9 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { UploadCloud, FileText, AlertCircle, Loader2, History, FolderOpen, Database, RefreshCw, CheckCircle2, XCircle, ChevronRight, Plug, X, ArrowLeft } from 'lucide-react'
 import { useAnalysis } from '../context/AnalysisContext'
 import { useAuth } from '../context/AuthContext'
-import { analisarCarteira, analisarDB, testarDB, listarTabelas, listarCarteiras, carregarCarteira, getDBSyncConfig, saveDBSyncConfig, executarDBSync, listarConexoes, salvarConexao, deletarConexao, sincronizarConexao, atualizarConexao, listarEmpresas } from '../api'
-
-const API_TOKEN = import.meta.env.VITE_API_TOKEN ?? ''
+import { analisarCarteira, analisarDB, testarDB, listarTabelas, listarCarteiras, carregarCarteira, listarConexoes, salvarConexao, deletarConexao, sincronizarConexao, atualizarConexao, listarEmpresas } from '../api'
 
 const fmtBRL = (v) => v != null
   ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v)
@@ -14,184 +12,6 @@ const fmtNum = (v) => v != null ? new Intl.NumberFormat('pt-BR').format(v) : '�
 const fmtDate = (iso) => {
   if (!iso) return '—'
   return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(iso))
-}
-
-const SYNC_TIPOS = [
-  { value: 'postgres',  label: 'PostgreSQL', portaPadrao: 5432 },
-  { value: 'mysql',     label: 'MySQL',      portaPadrao: 3306 },
-  { value: 'mariadb',   label: 'MariaDB',    portaPadrao: 3306 },
-  { value: 'sqlserver', label: 'SQL Server', portaPadrao: 1433 },
-  { value: 'oracle',    label: 'Oracle',     portaPadrao: 1521 },
-  { value: 'sqlite',    label: 'SQLite',     portaPadrao: null },
-]
-
-function PainelSyncAuto() {
-  const [cfg, setCfg]         = useState(null)
-  const [salvando, setSalvando] = useState(false)
-  const [sincronizando, setSincronizando] = useState(false)
-  const [msg, setMsg]         = useState(null) // {tipo:'ok'|'erro', texto}
-  const [aberto, setAberto]   = useState(false)
-
-  useEffect(() => {
-    if (!API_TOKEN || !aberto) return
-    getDBSyncConfig(API_TOKEN).then(setCfg).catch(() => {})
-  }, [aberto])
-
-  const set = (k, v) => setCfg(c => ({ ...c, [k]: v }))
-  const isSQLite = cfg?.tipo === 'sqlite'
-
-  const salvar = async () => {
-    setSalvando(true); setMsg(null)
-    try {
-      await saveDBSyncConfig(API_TOKEN, cfg)
-      setMsg({ tipo: 'ok', texto: 'Configuração salva.' })
-    } catch (e) {
-      setMsg({ tipo: 'erro', texto: e.message })
-    } finally { setSalvando(false) }
-  }
-
-  const sincronizar = async () => {
-    setSincronizando(true); setMsg(null)
-    try {
-      const r = await executarDBSync(API_TOKEN)
-      const txt = r.acao === 'sincronizou'
-        ? `${r.n_registros} pagamentos sincronizados.`
-        : r.acao === 'sem_novos' ? 'Nenhum registro novo.' : r.erro ?? r.acao
-      setMsg({ tipo: r.sincronizou || r.acao === 'sem_novos' ? 'ok' : 'erro', texto: txt })
-      getDBSyncConfig(API_TOKEN).then(setCfg).catch(() => {})
-    } catch (e) {
-      setMsg({ tipo: 'erro', texto: e.message })
-    } finally { setSincronizando(false) }
-  }
-
-  if (!API_TOKEN) return null
-
-  return (
-    <div className="w-full max-w-lg mt-4">
-      <button
-        onClick={() => setAberto(o => !o)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-white rounded-2xl border border-slate-100 shadow-[0_8px_32px_rgba(2,11,31,0.30),0_2px_6px_rgba(2,11,31,0.15)] hover:bg-slate-50 transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          <RefreshCw className="h-4 w-4 text-slate-400" />
-          <span className="text-sm font-semibold text-slate-700">Sincronização Automática de Pagamentos</span>
-          {cfg?.ativo && <span className="text-xs bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/60 px-2 py-0.5 rounded-full font-semibold">Ativo</span>}
-        </div>
-        <span className="text-slate-400 text-xs">{aberto ? '▲' : '▼'}</span>
-      </button>
-
-      {aberto && cfg && (
-        <div className="bg-white border border-slate-100 border-t-0 rounded-b-2xl px-6 py-5 space-y-4 shadow-[0_2px_8px_rgba(15,23,42,0.05)]">
-          <p className="text-xs text-slate-500">
-            Conecte ao seu banco de dados de cobrança. O sistema vai buscar automaticamente quem pagou a cada 24h e registrar os feedbacks.
-          </p>
-
-          {/* Toggle ativo */}
-          <label className="flex items-center gap-3 cursor-pointer">
-            <div
-              onClick={() => set('ativo', !cfg.ativo)}
-              className={`w-10 h-5 rounded-full transition-colors relative ${cfg.ativo ? 'bg-emerald-500' : 'bg-slate-200'}`}
-            >
-              <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${cfg.ativo ? 'translate-x-5' : 'translate-x-0.5'}`} />
-            </div>
-            <span className="text-sm font-medium text-slate-700">{cfg.ativo ? 'Sincronização ativada' : 'Sincronização desativada'}</span>
-          </label>
-
-          {/* Tipo */}
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">Tipo de banco</label>
-            <select value={cfg.tipo} onChange={e => set('tipo', e.target.value)}
-              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400 transition-all bg-white text-slate-800">
-              {SYNC_TIPOS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-            </select>
-          </div>
-
-          {!isSQLite && (
-            <div className="grid grid-cols-3 gap-3">
-              <div className="col-span-2">
-                <label className="block text-xs font-medium text-slate-500 mb-1">Host</label>
-                <input value={cfg.host ?? ''} onChange={e => set('host', e.target.value)} placeholder="localhost"
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400 transition-all bg-white text-slate-800" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Porta</label>
-                <input value={cfg.porta ?? ''} onChange={e => set('porta', e.target.value ? Number(e.target.value) : null)} type="number"
-                  placeholder={String(SYNC_TIPOS.find(t => t.value === cfg.tipo)?.portaPadrao ?? '')}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400 transition-all bg-white text-slate-800" />
-              </div>
-            </div>
-          )}
-
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">
-              {isSQLite ? 'Caminho do arquivo' : 'Nome do banco'}
-            </label>
-            <input value={cfg.banco ?? ''} onChange={e => set('banco', e.target.value)}
-              placeholder={isSQLite ? '/caminho/banco.db' : 'nome_do_banco'}
-              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400 transition-all bg-white text-slate-800" />
-          </div>
-
-          {!isSQLite && (
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Usuário</label>
-                <input value={cfg.usuario ?? ''} onChange={e => set('usuario', e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400 transition-all bg-white text-slate-800" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Senha</label>
-                <input type="password" value={cfg.senha === '***' ? '' : (cfg.senha ?? '')} onChange={e => set('senha', e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400 transition-all bg-white text-slate-800" />
-              </div>
-            </div>
-          )}
-
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">Query SQL</label>
-            <textarea value={cfg.query ?? ''} onChange={e => set('query', e.target.value)} rows={3}
-              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-mono focus:outline-none focus:border-blue-400 transition-all bg-white text-slate-800 resize-none" />
-            <p className="text-xs text-slate-400 mt-1">Use <code className="bg-slate-100 px-1 rounded">:ultimo_sync</code> para filtrar apenas registros novos.</p>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3">
-            {[['coluna_cpf','Coluna CPF'],['coluna_pagou','Coluna Pagou'],['coluna_valor','Coluna Valor']].map(([k,l]) => (
-              <div key={k}>
-                <label className="block text-xs font-medium text-slate-500 mb-1">{l}</label>
-                <input value={cfg[k] ?? ''} onChange={e => set(k, e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400 transition-all bg-white text-slate-800" />
-              </div>
-            ))}
-          </div>
-
-          {msg && (
-            <div className={`flex items-center gap-2 p-3 rounded-xl text-sm ${msg.tipo === 'ok' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-red-50 text-red-600 border border-red-100'}`}>
-              {msg.tipo === 'ok' ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <XCircle className="h-4 w-4 shrink-0" />}
-              {msg.texto}
-            </div>
-          )}
-
-          {cfg.ultimo_sync && (
-            <p className="text-xs text-slate-400">
-              Última sync: {new Intl.DateTimeFormat('pt-BR', {dateStyle:'short',timeStyle:'short'}).format(new Date(cfg.ultimo_sync))}
-              {' · '}{cfg.n_sincronizacoes} sincronizações realizadas
-            </p>
-          )}
-
-          <div className="flex gap-3">
-            <button onClick={salvar} disabled={salvando}
-              className="btn-primary flex-1 py-2 text-sm disabled:opacity-50">
-              {salvando ? 'Salvando...' : 'Salvar configuração'}
-            </button>
-            <button onClick={sincronizar} disabled={sincronizando}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">
-              <RefreshCw className={`h-3.5 w-3.5 ${sincronizando ? 'animate-spin' : ''}`} />
-              {sincronizando ? 'Sincronizando...' : 'Testar agora'}
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  )
 }
 
 const DB_TIPOS = [
@@ -1157,8 +977,6 @@ export default function Upload() {
         {aba === 'db' && <FormDB onResult={handleDBResult} isOperador={isOperador} empresaAlvo={isComando ? empresaAlvo : ''} />}
       </div>
 
-      {/* Sincronização automática de pagamentos */}
-      <PainelSyncAuto />
 
       {/* Histórico de análises */}
       <div className="w-full max-w-lg mt-6">
