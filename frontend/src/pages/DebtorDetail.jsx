@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Phone, Tag, Zap, MessageSquare, Brain, Plus, ClipboardList, CheckCircle2, XCircle, Clock } from 'lucide-react'
 import { useAnalysis } from '../context/AnalysisContext'
 import PriorityBadge from '../components/PriorityBadge'
-import { buscarRecomendacao, registrarContato, listarContatos, buscarStatusFeedbacks } from '../api'
+import { buscarRecomendacao, registrarContato, listarContatos, buscarStatusFeedbacks, traduzirErroRede } from '../api'
 
 const fmtBRL = (v) => v != null
   ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
@@ -78,7 +78,7 @@ function HistoricoContatos({ cpf, rec }) {
       setContatos(prev => [res.contato, ...prev])
       setFormAberto(false)
       setForm({ canal: 'whatsapp', resultado: 'contactado', data_contato: new Date().toISOString().slice(0, 10), observacao: '', valor_recuperado: '', desconto_oferecido_pct: '' })
-    } catch (e) { setErro(e.message) }
+    } catch (e) { setErro(traduzirErroRede(e)) }
     finally { setSalvando(false) }
   }
 

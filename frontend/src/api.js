@@ -12,6 +12,13 @@ function _handle401(res) {
   }
 }
 
+export function traduzirErroRede(e) {
+  if (e?.message === 'Failed to fetch' || e?.message?.includes('Failed to fetch')) {
+    return 'Servidor temporariamente indisponível. Aguarde 30 segundos e tente novamente.'
+  }
+  return e?.message || 'Erro desconhecido.'
+}
+
 export async function analisarCarteira(file, empresaId = null) {
   const fd = new FormData()
   fd.append('file', file)
