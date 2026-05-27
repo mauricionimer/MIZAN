@@ -174,12 +174,12 @@ function ImportacaoLote({ token }) {
 export default function Feedback() {
   const navigate = useNavigate()
   const { token, usuario, logout, isComando, isAdmin } = useAuth()
-  const homePath = isComando ? '/comando' : isAdmin ? '/admin' : '/operador'
   const [aba, setAba]           = useState('manual')
   const [form, setForm]         = useState(EMPTY)
   const [loading, setLoading]   = useState(false)
   const [historico, setHistorico] = useState([])
   const [erro, setErro]         = useState('')
+  const [sucesso, setSucesso]   = useState('')
 
   function set(field, value) {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -229,6 +229,8 @@ export default function Feedback() {
 
       if (res.ok) {
         setForm(EMPTY)
+        setSucesso(`Pagamento de ${form.cpf} registrado com sucesso.`)
+        setTimeout(() => setSucesso(''), 4000)
       } else {
         setErro(data.detail || 'Erro ao registrar feedback.')
       }
@@ -249,7 +251,7 @@ export default function Feedback() {
     <div className="min-h-screen">
       <header className="navbar-glass px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate(homePath)} className="text-slate-400 hover:text-slate-700 transition-colors p-1 rounded-lg hover:bg-slate-100">
+          <button onClick={() => navigate(-1)} className="text-slate-400 hover:text-slate-700 transition-colors p-1 rounded-lg hover:bg-slate-100">
             <ArrowLeft className="w-4 h-4" />
           </button>
           <Logo />
@@ -362,6 +364,13 @@ export default function Feedback() {
                   className="input-base"
                 />
               </div>
+
+              {sucesso && (
+                <div className="flex items-start gap-2 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                  <p className="text-sm text-emerald-700 font-medium">{sucesso}</p>
+                </div>
+              )}
 
               {erro && (
                 <div className="flex items-start gap-2 bg-red-50 border border-red-100 rounded-xl px-4 py-3">

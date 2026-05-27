@@ -2216,11 +2216,18 @@ async def receber_feedback(
     )
     predicao_id = pred_res.data[0]["id"] if pred_res.data else None
 
+    jwt_payload = empresa_info.get("jwt") or {}
+    empresa_nome = (
+        payload.empresa
+        or jwt_payload.get("empresa_id")
+        or empresa_info.get("empresa_nome")
+        or empresa_info.get("empresa_id")
+    )
     fb_row = {
         "cpf": payload.cpf,
         "pagou": payload.pagou,
         "valor_recuperado": payload.valor_recuperado or 0,
-        "empresa": payload.empresa or empresa_info.get("empresa_nome"),
+        "empresa": empresa_nome,
     }
     if payload.data_pagamento:
         fb_row["data_pagamento"] = payload.data_pagamento.isoformat()
