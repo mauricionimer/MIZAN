@@ -16,8 +16,12 @@ export async function analisarCarteira(file) {
   const fd = new FormData()
   fd.append('file', file)
   const token = _getToken()
-  const headers = token ? { Authorization: `Bearer ${token}` } : {}
-  const res = await fetch(`${BASE}/analisar`, { method: 'POST', headers, body: fd })
+  const res = await fetch(`${BASE}/analisar`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: fd,
+  })
+  _handle401(res)
   if (!res.ok) {
     const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
     throw new Error(detail)

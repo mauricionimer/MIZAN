@@ -1488,8 +1488,13 @@ async def upload_csv(file: UploadFile = File(...)):
 @app.post("/analisar")
 async def analisar(
     file: UploadFile = File(...),
-    credentials=Security(bearer_opcional),
+    credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
+    payload = _usuario_autenticado(credentials)
+    uid   = payload.get("sub")
+    uemail = payload.get("email")
+    eid   = payload.get("empresa_id", "")
+
     nome = (file.filename or "").lower()
     if not (nome.endswith(".csv") or nome.endswith(".xlsx") or nome.endswith(".xls")):
         raise HTTPException(status_code=400, detail="Arquivo deve ser CSV ou Excel (.xlsx / .xls).")
@@ -1503,7 +1508,6 @@ async def analisar(
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"Erro ao ler arquivo: {e}")
 
-    uid, uemail, eid = _usuario_do_token(credentials)
     return _analisar_df(df, file.filename, _usuario_id=uid, _usuario_email=uemail, _empresa_id=eid)
 
 
