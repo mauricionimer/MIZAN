@@ -74,6 +74,15 @@ function HistoricoContatos({ cpf, rec }) {
     if (form.valor_recuperado) payload.valor_recuperado = parseFloat(form.valor_recuperado)
     if (form.desconto_oferecido_pct) payload.desconto_oferecido_pct = parseFloat(form.desconto_oferecido_pct)
 
+    // Render free tier leva 30-50s para acordar; retenta com countdown
+    const _aguardar = async (segundos) => {
+      for (let s = segundos; s > 0; s--) {
+        setErro(`Servidor acordando... aguarde ${s}s`)
+        await new Promise(r => setTimeout(r, 1000))
+      }
+      setErro(null)
+    }
+
     const _tentar = async (tentativa) => {
       try {
         const res = await registrarContato(payload)
@@ -82,10 +91,9 @@ function HistoricoContatos({ cpf, rec }) {
         setForm({ canal: 'whatsapp', resultado: 'contactado', data_contato: new Date().toISOString().slice(0, 10), observacao: '', valor_recuperado: '', desconto_oferecido_pct: '' })
       } catch (e) {
         const isRede = e?.message === 'Failed to fetch' || e?.message?.includes('Failed to fetch')
-        if (isRede && tentativa < 2) {
-          setErro('Servidor acordando... tentando novamente em 5s')
-          await new Promise(r => setTimeout(r, 5000))
-          setErro(null)
+        const esperas = [35, 20]  // 1ª: 35s; 2ª: 20s
+        if (isRede && tentativa <= esperas.length) {
+          await _aguardar(esperas[tentativa - 1])
           return _tentar(tentativa + 1)
         }
         setErro(traduzirErroRede(e))
