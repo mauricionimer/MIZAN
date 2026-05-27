@@ -108,7 +108,7 @@ def garantir_admin():
         print(f"[Auth] Aviso: não foi possível verificar admin padrão: {e}")
 
 def buscar_usuario(email: str) -> dict | None:
-    res = _db().table("usuarios").select("*").eq("email", email).limit(1).execute()
+    res = _db().table("usuarios").select("*").eq("email", email.strip().lower()).limit(1).execute()
     return res.data[0] if res.data else None
 
 def buscar_usuario_por_id(usuario_id: str) -> dict | None:
@@ -116,6 +116,7 @@ def buscar_usuario_por_id(usuario_id: str) -> dict | None:
     return res.data[0] if res.data else None
 
 def criar_usuario(email: str, nome: str, senha: str, role: str = "operador", empresa_id: str = "") -> dict:
+    email = email.strip().lower()
     db = _db()
     if db.table("usuarios").select("id").eq("email", email).execute().data:
         raise ValueError("E-mail já cadastrado.")
