@@ -378,9 +378,12 @@ export async function deletarEmpresa(token, empresaId) {
   return res.json()
 }
 
-export async function getEmpresaConfigPublica(email) {
-  const params = email ? `?email=${encodeURIComponent(email)}` : ''
-  const res = await fetch(`${BASE}/empresa/config-publica${params}`)
+export async function getEmpresaConfigPublica(email, empresaId) {
+  const p = new URLSearchParams()
+  if (email) p.set('email', email)
+  if (empresaId) p.set('empresa_id', empresaId)
+  const qs = p.toString() ? `?${p}` : ''
+  const res = await fetch(`${BASE}/empresa/config-publica${qs}`)
   if (!res.ok) return null
   return res.json()
 }
@@ -391,8 +394,9 @@ export async function getEmpresaConfig(token) {
   return res.json()
 }
 
-export async function putEmpresaConfig(token, dados) {
-  const res = await fetch(`${BASE}/empresa/config`, {
+export async function putEmpresaConfig(token, dados, empresaIdAlvo) {
+  const qs = empresaIdAlvo ? `?empresa_id_alvo=${encodeURIComponent(empresaIdAlvo)}` : ''
+  const res = await fetch(`${BASE}/empresa/config${qs}`, {
     method: 'PUT', headers: _authHeader(token), body: JSON.stringify(dados),
   })
   if (!res.ok) {
@@ -402,10 +406,11 @@ export async function putEmpresaConfig(token, dados) {
   return res.json()
 }
 
-export async function uploadEmpresaFoto(token, file) {
+export async function uploadEmpresaFoto(token, file, empresaIdAlvo) {
   const fd = new FormData()
   fd.append('file', file)
-  const res = await fetch(`${BASE}/empresa/foto`, {
+  const qs = empresaIdAlvo ? `?empresa_id_alvo=${encodeURIComponent(empresaIdAlvo)}` : ''
+  const res = await fetch(`${BASE}/empresa/foto${qs}`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
     body: fd,

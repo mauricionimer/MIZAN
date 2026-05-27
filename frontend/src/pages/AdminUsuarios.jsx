@@ -5,7 +5,7 @@ import {
   listarUsuarios, registrarUsuario, toggleUsuarioAtivo, alterarRoleUsuario,
   listarConexoes, listarPermissoesConexao, concederPermissaoConexao, revogarPermissaoConexao,
   listarEmpresas, adicionarUsuarioEmpresa, removerUsuarioEmpresa, deletarEmpresa,
-  buscarAuditoria, putEmpresaConfig, uploadEmpresaFoto,
+  buscarAuditoria, putEmpresaConfig, uploadEmpresaFoto, getEmpresaConfigPublica,
 } from '../api'
 import {
   Users, UserPlus, LogOut, ShieldCheck, ShieldOff, ToggleLeft, ToggleRight,
@@ -220,15 +220,45 @@ function CardPermissoes({ conexao, operadores, token }) {
 function CardEmpresa({ empresa, token, onAtualizar }) {
   const [membros, setMembros] = useState(empresa.usuarios)
   const [emailInput, setEmailInput] = useState('')
-
-  // Sincroniza quando o servidor atualiza a lista (ex: após adicionar usuário).
-  // Usa join de IDs como chave estável para não disparar em re-renders do pai.
   const usuariosKey = empresa.usuarios.map(u => u.id).sort().join(',')
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { setMembros(empresa.usuarios) }, [usuariosKey])
   const [adicionando, setAdicionando] = useState(false)
   const [showInput, setShowInput] = useState(false)
   const [erro, setErro] = useState('')
+
+  // Branding
+  const [cfg, setCfg]           = useState(null)
+  const [editNome, setEditNome] = useState(false)
+  const [nomeEdit, setNomeEdit] = useState('')
+  const [salvandoNome, setSalvandoNome] = useState(false)
+  const [salvandoFoto, setSalvandoFoto] = useState(false)
+  const [msgBrand, setMsgBrand] = useState('')
+  const fotoRef = useRef(null)
+
+  useEffect(() => {
+    getEmpresaConfigPublica(null, empresa.empresa_id).then(c => { if (c) setCfg(c) }).catch(() => {})
+  }, [empresa.empresa_id])
+
+  function flashBrand(t) { setMsgBrand(t); setTimeout(() => setMsgBrand(''), 3500) }
+
+  async function handleSalvarNome() {
+    setSalvandoNome(true)
+    try {
+      const r = await putEmpresaConfig(token, { nome_exibicao: nomeEdit }, empresa.empresa_id)
+      setCfg(r); setEditNome(false); flashBrand('Nome atualizado.')
+    } catch (e) { flashBrand(e.message) } finally { setSalvandoNome(false) }
+  }
+
+  async function handleFoto(e) {
+    const file = e.target.files?.[0]; if (!file) return
+    setSalvandoFoto(true)
+    try {
+      await uploadEmpresaFoto(token, file, empresa.empresa_id)
+      const r = await getEmpresaConfigPublica(null, empresa.empresa_id)
+      if (r) setCfg(r); flashBrand('Foto atualizada.')
+    } catch (e) { flashBrand(e.message) } finally { setSalvandoFoto(false) }
+  }
 
   async function handleAdicionar(e) {
     e.preventDefault()
@@ -244,7 +274,6 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
   async function handleRemover(usuarioId) {
     try {
       await removerUsuarioEmpresa(token, empresa.empresa_id, usuarioId)
-      // Atualiza só o estado local — mantém o card visível mesmo com 0 membros
       setMembros(prev => prev.filter(u => u.id !== usuarioId))
     } catch (err) { setErro(err.message) }
   }
@@ -257,30 +286,72 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
     } catch (err) { setErro(err.message) }
   }
 
+  const nomeExibicao = cfg?.nome_exibicao || empresa.empresa_id
+
   return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.06)] overflow-hidden">
-      <div className="px-5 py-4 border-b border-slate-50 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0">
-            <Building2 className="w-4 h-4 text-indigo-500" />
+      <div className="px-5 py-4 border-b border-slate-50 flex items-center justify-between gap-3">
+        {/* Logo / foto */}
+        <div className="relative shrink-0">
+          <div className="w-10 h-10 rounded-xl overflow-hidden bg-indigo-50 flex items-center justify-center border border-slate-100">
+            {cfg?.foto_url
+              ? <img src={cfg.foto_url} alt={nomeExibicao} className="w-full h-full object-cover" />
+              : <Building2 className="w-4 h-4 text-indigo-500" />}
           </div>
-          <div>
-            <p className="font-bold text-slate-800 text-sm">{empresa.empresa_id}</p>
-            <p className="text-xs text-slate-400">{membros.length} membro{membros.length !== 1 ? 's' : ''}</p>
-          </div>
+          <label
+            className="absolute -bottom-1 -right-1 w-5 h-5 bg-slate-700 hover:bg-indigo-600 rounded-full flex items-center justify-center cursor-pointer transition-colors shadow"
+            title="Trocar foto"
+          >
+            {salvandoFoto
+              ? <span className="text-white text-[8px]">...</span>
+              : <Camera className="w-2.5 h-2.5 text-white" />}
+            <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" ref={fotoRef} onChange={handleFoto} />
+          </label>
         </div>
-        <div className="flex items-center gap-2">
+
+        {/* Nome */}
+        <div className="flex-1 min-w-0">
+          {editNome ? (
+            <div className="flex gap-1.5">
+              <input
+                autoFocus type="text" value={nomeEdit}
+                onChange={e => setNomeEdit(e.target.value)}
+                className="flex-1 text-sm border border-slate-200 rounded-lg px-2.5 py-1 focus:outline-none focus:border-indigo-400"
+                placeholder="Nome de exibição"
+              />
+              <button onClick={handleSalvarNome} disabled={salvandoNome}
+                className="px-2.5 py-1 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700 disabled:opacity-50">
+                <Check className="w-3.5 h-3.5" />
+              </button>
+              <button onClick={() => setEditNome(false)} className="px-2 py-1 text-slate-400 hover:text-slate-600">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <div>
+                <p className="font-bold text-slate-800 text-sm">{nomeExibicao}</p>
+                {cfg?.nome_exibicao && <p className="text-xs text-slate-400">ID: {empresa.empresa_id}</p>}
+                <p className="text-xs text-slate-400">{membros.length} membro{membros.length !== 1 ? 's' : ''}</p>
+              </div>
+              <button onClick={() => { setNomeEdit(nomeExibicao); setEditNome(true) }}
+                className="p-1 rounded text-slate-300 hover:text-indigo-500 transition-colors" title="Editar nome">
+                <Pencil className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+          {msgBrand && <p className="text-xs text-emerald-600 mt-0.5">{msgBrand}</p>}
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={() => { setShowInput(s => !s); setErro('') }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"
           >
             <Plus className="w-3.5 h-3.5" /> Adicionar usuário
           </button>
-          <button
-            onClick={handleDeletar}
-            title="Excluir empresa"
-            className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
-          >
+          <button onClick={handleDeletar} title="Excluir empresa"
+            className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors">
             <Trash2 className="w-4 h-4" />
           </button>
         </div>

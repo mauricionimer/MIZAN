@@ -1167,14 +1167,18 @@ def get_empresa_config(credentials: HTTPAuthorizationCredentials = Security(bear
 
 
 @app.put("/empresa/config")
-def put_empresa_config(body: EmpresaConfigIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+def put_empresa_config(body: EmpresaConfigIn, empresa_id_alvo: Optional[str] = None, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     payload = _usuario_autenticado(credentials)
     role = payload.get("role", "operador")
     if role not in ("admin", "comando"):
         raise HTTPException(status_code=403, detail="Apenas admin e comando podem editar configurações da empresa.")
-    empresa_id = payload.get("empresa_id", "")
+    # Comando pode editar qualquer empresa via ?empresa_id_alvo=xxx
+    if role == "comando" and empresa_id_alvo:
+        empresa_id = empresa_id_alvo.strip().lower()
+    else:
+        empresa_id = payload.get("empresa_id", "")
     if not empresa_id:
-        raise HTTPException(status_code=400, detail="Usuário sem empresa associada.")
+        raise HTTPException(status_code=400, detail="Informe a empresa a configurar.")
     db = get_db()
     updates: dict = {"updated_by": payload.get("email", ""), "updated_at": datetime.utcnow().isoformat()}
     if body.nome_exibicao is not None:
@@ -1194,14 +1198,17 @@ def put_empresa_config(body: EmpresaConfigIn, credentials: HTTPAuthorizationCred
 
 
 @app.post("/empresa/foto")
-async def upload_empresa_foto(file: UploadFile = File(...), credentials: HTTPAuthorizationCredentials = Security(bearer)):
+async def upload_empresa_foto(file: UploadFile = File(...), empresa_id_alvo: Optional[str] = None, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     payload = _usuario_autenticado(credentials)
     role = payload.get("role", "operador")
     if role not in ("admin", "comando"):
         raise HTTPException(status_code=403, detail="Apenas admin e comando podem alterar a foto da empresa.")
-    empresa_id = payload.get("empresa_id", "")
+    if role == "comando" and empresa_id_alvo:
+        empresa_id = empresa_id_alvo.strip().lower()
+    else:
+        empresa_id = payload.get("empresa_id", "")
     if not empresa_id:
-        raise HTTPException(status_code=400, detail="Usuário sem empresa associada.")
+        raise HTTPException(status_code=400, detail="Informe a empresa a configurar.")
 
     conteudo = await file.read()
     if len(conteudo) > 5 * 1024 * 1024:
