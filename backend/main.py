@@ -275,6 +275,19 @@ def _usuario_do_token(credentials) -> tuple:
         return None, None, None
 
 
+def _usuario_autenticado(credentials: HTTPAuthorizationCredentials) -> dict:
+    """Valida JWT e verifica que o usuário ainda está ativo no banco.
+    Levanta 401 para token inválido/expirado ou usuário desativado."""
+    try:
+        payload = validar_token(credentials.credentials)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+    user = buscar_usuario_por_id(payload["sub"])
+    if not user or not user.get("ativo"):
+        raise HTTPException(status_code=401, detail="Usuário inativo ou não encontrado.")
+    return payload
+
+
 class FeedbackIn(BaseModel):
     cpf: str
     pagou: bool
@@ -1274,8 +1287,10 @@ def health():
 
 
 @app.get("/carteiras")
-def listar_carteiras(credentials=Security(bearer_opcional)):
-    usuario_id, _, empresa_id = _usuario_do_token(credentials)
+def listar_carteiras(credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    payload = _usuario_autenticado(credentials)
+    usuario_id = payload.get("sub")
+    empresa_id = payload.get("empresa_id", "")
     try:
         db = get_db()
         q = db.table("carteiras").select("id, nome_arquivo, created_at, total_devedores, valor_face, valor_esperado, score_medio")
@@ -1290,13 +1305,17 @@ def listar_carteiras(credentials=Security(bearer_opcional)):
 
 
 @app.get("/carteiras/{carteira_id}")
-def carregar_carteira(carteira_id: str, credentials=Security(bearer_opcional)):
-    _, _, empresa_id = _usuario_do_token(credentials)
+def carregar_carteira(carteira_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    payload = _usuario_autenticado(credentials)
+    empresa_id = payload.get("empresa_id", "")
+    usuario_id = payload.get("sub")
     db = get_db()
 
     q = db.table("carteiras").select("*").eq("id", carteira_id)
     if empresa_id:
         q = q.eq("empresa_id", empresa_id)
+    elif usuario_id:
+        q = q.eq("usuario_id", usuario_id)
     cart_res = q.execute()
     if not cart_res.data:
         raise HTTPException(status_code=404, detail="Carteira não encontrada.")
@@ -2058,9 +2077,10 @@ async def feedback_lote(
 
 
 @app.get("/performance")
-async def performance(credentials=Security(bearer_opcional)):
+async def performance(credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """Métricas de acurácia do modelo baseadas nos feedbacks reais — filtrados por empresa."""
-    _, _, empresa_id = _usuario_do_token(credentials)
+    payload = _usuario_autenticado(credentials)
+    empresa_id = payload.get("empresa_id", "")
     db = get_db()
 
     # Filtra feedbacks pela empresa via carteira_id → empresa_id
@@ -2161,9 +2181,10 @@ async def performance(credentials=Security(bearer_opcional)):
 
 
 @app.get("/performance/pagamentos")
-async def performance_pagamentos(credentials=Security(bearer_opcional)):
+async def performance_pagamentos(credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """Lista individual de quem pagou, com nome, CPF e valor recuperado."""
-    _, _, empresa_id = _usuario_do_token(credentials)
+    payload = _usuario_autenticado(credentials)
+    empresa_id = payload.get("empresa_id", "")
     db = get_db()
 
     empresa_pred_ids: set | None = None
@@ -2214,9 +2235,10 @@ async def performance_pagamentos(credentials=Security(bearer_opcional)):
 
 
 @app.get("/feedbacks/status")
-async def feedbacks_status(credentials=Security(bearer_opcional)):
+async def feedbacks_status(credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """Retorna mapa cpf → {pagou, valor_recuperado, data_pagamento} com o feedback mais recente por CPF da empresa."""
-    _, _, empresa_id = _usuario_do_token(credentials)
+    payload = _usuario_autenticado(credentials)
+    empresa_id = payload.get("empresa_id", "")
     db = get_db()
 
     empresa_pred_ids: set | None = None
@@ -2307,22 +2329,28 @@ async def detectar_drift(credentials: HTTPAuthorizationCredentials = Security(be
 
 
 @app.get("/recomendacao/{cpf}")
-async def recomendacao_devedor(cpf: str):
+async def recomendacao_devedor(cpf: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """
     Retorna a melhor abordagem de cobrança para o CPF via LinUCB.
     Salva a recomendação no Supabase para fechar o loop de aprendizado via POST /feedback.
-    Não requer autenticação — acessível pelo frontend.
     """
+    payload = _usuario_autenticado(credentials)
+    empresa_id = payload.get("empresa_id", "")
     db = get_db()
 
-    pred_res = (
+    q = (
         db.table("predicoes")
-        .select("cpf, nome, produto, uf, valor_divida, renda_estimada, dias_em_atraso, score_recuperabilidade, perfil_cluster, cluster_id")
+        .select("cpf, nome, produto, uf, valor_divida, renda_estimada, dias_em_atraso, score_recuperabilidade, perfil_cluster, cluster_id, carteira_id")
         .eq("cpf", cpf)
         .order("created_at", desc=True)
-        .limit(1)
-        .execute()
     )
+    if empresa_id:
+        cart_res = db.table("carteiras").select("id").eq("empresa_id", empresa_id).execute()
+        cart_ids = [c["id"] for c in (cart_res.data or [])]
+        if not cart_ids:
+            raise HTTPException(status_code=404, detail=f"Nenhuma predição encontrada para CPF: {cpf}")
+        q = q.in_("carteira_id", cart_ids)
+    pred_res = q.limit(1).execute()
     if not pred_res.data:
         raise HTTPException(status_code=404, detail=f"Nenhuma predição encontrada para CPF: {cpf}")
 

@@ -85,6 +85,10 @@ def _normalizar_colunas(df: pd.DataFrame) -> pd.DataFrame:
 def _adicionar_derivadas(df: pd.DataFrame) -> pd.DataFrame:
     """Adiciona features derivadas quando as colunas base existem."""
     df = df.copy()
+    # Garante tipos numéricos — dados vindos de SQL podem ter tipos mistos (str, None, Decimal)
+    for col in ['valor_divida', 'renda_estimada', 'dias_em_atraso']:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
     if 'valor_divida' in df.columns and 'renda_estimada' in df.columns:
         df['comprometimento_renda'] = (
             df['valor_divida'] / df['renda_estimada'].replace(0, np.nan)

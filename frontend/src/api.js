@@ -27,14 +27,20 @@ export async function analisarCarteira(file) {
 
 export async function listarCarteiras() {
   const token = _getToken()
-  const headers = token ? { Authorization: `Bearer ${token}` } : {}
-  const res = await fetch(`${BASE}/carteiras`, { headers })
+  const res = await fetch(`${BASE}/carteiras`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  _handle401(res)
   if (!res.ok) throw new Error(`Erro HTTP ${res.status}`)
   return res.json()
 }
 
 export async function carregarCarteira(id) {
-  const res = await fetch(`${BASE}/carteiras/${id}`)
+  const token = _getToken()
+  const res = await fetch(`${BASE}/carteiras/${id}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  _handle401(res)
   if (!res.ok) {
     const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
     throw new Error(detail)
@@ -43,7 +49,11 @@ export async function carregarCarteira(id) {
 }
 
 export async function buscarRecomendacao(cpf) {
-  const res = await fetch(`${BASE}/recomendacao/${encodeURIComponent(cpf)}`)
+  const token = _getToken()
+  const res = await fetch(`${BASE}/recomendacao/${encodeURIComponent(cpf)}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  _handle401(res)
   if (!res.ok) {
     const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
     throw new Error(detail)
@@ -232,16 +242,20 @@ export async function deletarConexao(id) {
 
 export async function buscarPagamentos() {
   const token = _getToken()
-  const headers = token ? { Authorization: `Bearer ${token}` } : {}
-  const res = await fetch(`${BASE}/performance/pagamentos`, { headers })
+  const res = await fetch(`${BASE}/performance/pagamentos`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  _handle401(res)
   if (!res.ok) throw new Error(`Erro HTTP ${res.status}`)
   return res.json()
 }
 
 export async function buscarStatusFeedbacks() {
   const token = _getToken()
-  const headers = token ? { Authorization: `Bearer ${token}` } : {}
-  const res = await fetch(`${BASE}/feedbacks/status`, { headers })
+  const res = await fetch(`${BASE}/feedbacks/status`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  _handle401(res)
   if (!res.ok) return {}
   return res.json()
 }

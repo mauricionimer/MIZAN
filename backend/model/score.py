@@ -78,11 +78,12 @@ def _preprocessar_para_score(df: pd.DataFrame, meta: dict) -> pd.DataFrame:
     modes   = meta.get("modes", {})
     cat_cols = meta["cat_cols"]
 
-    # Retrocompatibilidade com modelos antigos
+    # Retrocompatibilidade com modelos antigos sem metadata de features
     if features_numericas is None:
         version = meta.get("model_version", 1)
-        features_numericas   = _FEATURES_V2 if version >= 2 else _FEATURES_V1
-        features_categoricas = _CATS_V2
+        features_numericas = _FEATURES_V2 if version >= 2 else _FEATURES_V1
+        # Prefere as chaves do dict de modos (salvas desde v1); cai para _CATS_V2 se ausente
+        features_categoricas = list(modes.keys()) if modes else _CATS_V2
 
     # Garante colunas numéricas: imputa com mediana de treino se ausente
     for col in features_numericas:

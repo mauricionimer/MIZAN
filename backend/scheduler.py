@@ -49,12 +49,16 @@ def verificar_e_retreinar(min_feedbacks: int = 30) -> dict:
                 ultimo_treino_em = v["criado_em"]
                 break
 
-        # Conta feedbacks novos desde o último treino
-        query = db.table("feedbacks").select("id", count="exact")
+        # Conta predicao_ids distintos com feedback desde o último treino
+        # (retrain deduplica por predicao_id — usar o mesmo critério evita disparar com
+        #  30 feedbacks de apenas 2 devedores únicos)
+        query = (db.table("feedbacks")
+                   .select("predicao_id")
+                   .not_.is_("predicao_id", "null"))
         if ultimo_treino_em:
             query = query.gt("created_at", ultimo_treino_em)
         res = query.execute()
-        n_novos = res.count if res.count is not None else len(res.data)
+        n_novos = len({r["predicao_id"] for r in (res.data or [])})
 
         base = {
             "verificado_em":    agora.isoformat(),
