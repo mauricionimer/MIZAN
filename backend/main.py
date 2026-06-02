@@ -1965,7 +1965,7 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
 
     # Oferta vetorizada (substitui iterrows — ~100× mais rápido em carteiras grandes)
     _s = resultado_sorted["score_recuperabilidade"].fillna(0).astype(float)
-    _v = resultado_sorted["valor_divida"].fillna(0).astype(float) if "valor_divida" in resultado_sorted.columns else 0.0
+    _v = resultado_sorted["valor_divida"].fillna(0).astype(float).clip(lower=0) if "valor_divida" in resultado_sorted.columns else 0.0
     _desc = np.select([_s >= 75, _s >= 50, _s >= 30], [0, 15, 35], default=55)
     resultado_sorted["desconto_sugerido_pct"] = _desc.astype(int)
     resultado_sorted["valor_proposta"]        = (_v * (1 - _desc / 100)).round(2)
@@ -2064,7 +2064,9 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
              "renda_estimada": _py(d.get("renda_estimada")), "dias_em_atraso": _py(d.get("dias_em_atraso")),
              "score_recuperabilidade": _py(d.get("score_recuperabilidade")),
              "valor_esperado_recuperacao": _py(d.get("valor_esperado_recuperacao")),
-             "perfil_cluster": d.get("perfil_cluster"), "cluster_id": _py(d.get("cluster_id"))}
+             "perfil_cluster": d.get("perfil_cluster"), "cluster_id": _py(d.get("cluster_id")),
+             "dados_incompletos": bool(d.get("dados_incompletos", False)),
+             "aviso_dados": str(d.get("aviso_dados") or "")}
             for d in devedores
         ]
         pred_id_map: dict[str, str] = {}
@@ -2239,16 +2241,23 @@ async def analisar_db(conn: ConexaoDB, credentials: HTTPAuthorizationCredentials
             q = (conn.query or "").strip()
             if not q.lower().startswith("select"):
                 raise HTTPException(status_code=400, detail="Apenas consultas SELECT são permitidas.")
+            # Protege contra queries sem LIMIT que podem carregar milhões de linhas
+            _MAX_ROWS = 50_000
             if conn.tipo == "sqlserver":
+                safe_q = f"SELECT TOP {_MAX_ROWS} * FROM ({q}) AS _mizan_safe"
                 with _sqlserver_connect(conn) as tds_conn:
-                    df = pd.read_sql(q, tds_conn)
+                    df = pd.read_sql(safe_q, tds_conn)
             else:
                 from sqlalchemy import create_engine, text
                 url = _construir_url_db(conn)
                 timeout_args = {"connect_timeout": 10} if conn.tipo in ("postgres", "postgresql", "mysql", "mariadb") else {}
                 engine = create_engine(url, connect_args=timeout_args)
                 with engine.connect() as connection:
-                    df = pd.read_sql(text(q), connection)
+                    if conn.tipo == "oracle":
+                        safe_q = f"SELECT * FROM ({q}) WHERE ROWNUM <= {_MAX_ROWS}"
+                    else:
+                        safe_q = f"SELECT * FROM ({q}) AS _mizan_safe LIMIT {_MAX_ROWS}"
+                    df = pd.read_sql(text(safe_q), connection)
                 engine.dispose()
     except HTTPException:
         raise

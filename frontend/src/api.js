@@ -74,11 +74,14 @@ export async function buscarRecomendacao(cpf) {
 }
 
 export async function testarDB(params) {
+  const token = _getToken()
+  const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }
   const res = await fetch(`${BASE}/testar-db`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(params),
   })
+  _handle401(res)
   if (!res.ok) {
     const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
     throw new Error(detail)
@@ -94,6 +97,7 @@ export async function analisarDB(params) {
     headers,
     body: JSON.stringify(params),
   })
+  _handle401(res)
   if (!res.ok) {
     const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
     throw new Error(detail)
@@ -107,6 +111,7 @@ export async function listarTabelas(params) {
   const res = await fetch(`${BASE}/listar-tabelas`, {
     method: 'POST', headers, body: JSON.stringify(params),
   })
+  _handle401(res)
   if (!res.ok) {
     const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
     throw new Error(detail)
@@ -122,6 +127,7 @@ export async function feedbackLote(file, token) {
     headers: { Authorization: `Bearer ${token}` },
     body: fd,
   })
+  _handle401(res)
   if (!res.ok) {
     const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
     throw new Error(detail)
