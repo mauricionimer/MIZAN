@@ -46,19 +46,29 @@ def salvar_config(cfg: dict):
 
 
 def _build_url(cfg: dict) -> str:
-    host  = cfg.get("host") or "localhost"
-    banco = cfg.get("banco") or ""
-    user  = cfg.get("usuario") or ""
-    senha = cfg.get("senha") or ""
+    from urllib.parse import quote_plus
     tipo  = cfg.get("tipo", "postgres")
+    host  = cfg.get("host") or ""
+    banco = cfg.get("banco") or ""
+    user  = quote_plus(cfg.get("usuario") or "")
+    senha = quote_plus(cfg.get("senha") or "")
+
+    if tipo == "sqlite":
+        if not banco:
+            raise ValueError("Caminho do arquivo SQLite não configurado.")
+        return f"sqlite:///{banco}"
+
+    if not host:
+        raise ValueError("Host não configurado.")
+    if not banco:
+        raise ValueError("Nome do banco de dados não configurado.")
+
     if tipo == "postgres":
         porta = cfg.get("porta") or 5432
         return f"postgresql+psycopg://{user}:{senha}@{host}:{porta}/{banco}"
     if tipo == "mysql":
         porta = cfg.get("porta") or 3306
         return f"mysql+pymysql://{user}:{senha}@{host}:{porta}/{banco}"
-    if tipo == "sqlite":
-        return f"sqlite:///{banco}"
     raise ValueError(f"Tipo não suportado: {tipo}")
 
 
@@ -108,21 +118,45 @@ def sincronizar() -> dict:
     col_pagou = cfg.get("coluna_pagou", "pagou")
     col_valor = cfg.get("coluna_valor", "valor_recuperado")
 
+    empresa_id = cfg.get("empresa_id") or cfg.get("empresa_nome") or ""
+
+    from db import get_db
+    db = get_db()
+
+    # Pré-busca predicao_ids para linkar feedbacks ao devedor correto
+    cpfs = [str(row[col_cpf]) for _, row in df.iterrows() if row.get(col_cpf)]
+    pred_map: dict[str, str] = {}
+    for i in range(0, len(cpfs), 100):
+        res = (
+            db.table("predicoes")
+            .select("cpf, id")
+            .in_("cpf", cpfs[i:i+100])
+            .order("created_at", desc=True)
+            .execute()
+        )
+        for p in (res.data or []):
+            if p["cpf"] not in pred_map:
+                pred_map[p["cpf"]] = p["id"]
+
     fb_rows = []
     for _, row in df.iterrows():
         p = row.get(col_pagou)
         if p is None or (isinstance(p, float) and pd.isna(p)):
             continue
+        cpf = str(row[col_cpf])
         vr = row.get(col_valor)
-        fb_rows.append({
-            "cpf": str(row[col_cpf]),
+        fb_row = {
+            "cpf": cpf,
             "pagou": _parsear_pagou(p),
             "valor_recuperado": float(vr) if vr is not None and not pd.isna(vr) else 0.0,
-        })
+        }
+        if empresa_id:
+            fb_row["empresa"] = empresa_id
+        if cpf in pred_map:
+            fb_row["predicao_id"] = pred_map[cpf]
+        fb_rows.append(fb_row)
 
     if fb_rows:
-        from db import get_db
-        db = get_db()
         for i in range(0, len(fb_rows), 100):
             db.table("feedbacks").insert(fb_rows[i:i+100]).execute()
 

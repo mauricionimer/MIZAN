@@ -808,7 +808,7 @@ export default function Dashboard() {
                           {p.pagou && p.valor_recuperado > 0 ? fmtBRL(p.valor_recuperado) : p.pagou ? '—' : <span className="text-slate-300">—</span>}
                         </td>
                         <td className="py-3 px-4 text-slate-400 text-xs whitespace-nowrap">
-                          {p.data_pagamento ? new Intl.DateTimeFormat('pt-BR').format(new Date(p.data_pagamento + 'T12:00:00')) : '—'}
+                          {p.data_pagamento ? new Intl.DateTimeFormat('pt-BR').format(new Date(p.data_pagamento.substring(0, 10) + 'T12:00:00')) : '—'}
                         </td>
                         <td className="py-3 px-4 text-slate-500 text-xs">
                           {p.registrado_por || <span className="text-slate-300">—</span>}

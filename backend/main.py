@@ -49,16 +49,63 @@ _RATE_MAX    = 5
 def _checar_rate_limit(chave: str) -> None:
     agora = _time.time()
     _tentativas_login[chave] = [t for t in _tentativas_login[chave] if agora - t < _RATE_JANELA]
+    # Complementa memória com registros persistidos (sobrevive a restart)
+    if len(_tentativas_login[chave]) < _RATE_MAX:
+        try:
+            res = get_db().table("rate_limit_login").select("tentativas").eq("chave", chave).limit(1).execute()
+            if res.data:
+                externas = [t for t in res.data[0].get("tentativas", []) if agora - t < _RATE_JANELA]
+                _tentativas_login[chave] = list(set(_tentativas_login[chave]) | set(externas))
+        except Exception:
+            pass
     if len(_tentativas_login[chave]) >= _RATE_MAX:
         raise HTTPException(status_code=429, detail="Muitas tentativas de login. Aguarde 15 minutos.")
 
 
 def _registrar_tentativa(chave: str) -> None:
-    _tentativas_login[chave].append(_time.time())
+    agora = _time.time()
+    _tentativas_login[chave].append(agora)
+    # Persiste apenas quando chega no limite (evita DB call em toda tentativa)
+    if len(_tentativas_login[chave]) >= _RATE_MAX:
+        import threading
+        def _persist():
+            try:
+                get_db().table("rate_limit_login").upsert(
+                    {"chave": chave, "tentativas": _tentativas_login[chave], "updated_at": agora}
+                ).execute()
+            except Exception:
+                pass
+        threading.Thread(target=_persist, daemon=True).start()
 
 
 def _limpar_tentativas(chave: str) -> None:
     _tentativas_login.pop(chave, None)
+    try:
+        get_db().table("rate_limit_login").delete().eq("chave", chave).execute()
+    except Exception:
+        pass
+
+# ---------------------------------------------------------------------------
+# Cache TTL simples em memória
+# ---------------------------------------------------------------------------
+_cache_store: dict[str, tuple[float, object]] = {}
+
+
+def _cache_get(key: str, ttl: float):
+    entry = _cache_store.get(key)
+    if entry and (_time.time() - entry[0]) < ttl:
+        return entry[1]
+    return None
+
+
+def _cache_set(key: str, val):
+    _cache_store[key] = (_time.time(), val)
+
+
+def _cache_del_prefix(prefix: str):
+    for k in list(_cache_store):
+        if k.startswith(prefix):
+            del _cache_store[k]
 
 # ---------------------------------------------------------------------------
 # Criptografia de senhas salvas
@@ -314,7 +361,7 @@ def _registrar_auditoria(
             }).execute()
         except Exception as _ae:
             print(f"[Auditoria] Erro ao registrar '{acao}': {_ae}")
-    threading.Thread(target=_bg, daemon=True).start()
+    threading.Thread(target=_bg, daemon=False).start()
 
 
 class FeedbackIn(BaseModel):
@@ -931,7 +978,7 @@ def auth_toggle_ativo(usuario_id: str, body: AtivoIn, credentials: HTTPAuthoriza
 
 @app.patch("/auth/usuarios/{usuario_id}/role")
 def auth_alterar_role(usuario_id: str, body: RoleIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
-    _exigir_comando(credentials)
+    payload = _exigir_comando(credentials)
     if body.role not in ("admin", "operador"):
         raise HTTPException(status_code=400, detail="Role inválido. Use 'admin' ou 'operador'.")
     try:
@@ -1764,6 +1811,8 @@ async def analisar(
         raise HTTPException(status_code=400, detail="Arquivo deve ser CSV ou Excel (.xlsx / .xls).")
 
     contents = await file.read()
+    if len(contents) > 25 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Arquivo muito grande. Limite: 25 MB.")
     try:
         if nome.endswith(".csv"):
             df = _read_csv_auto(contents)
@@ -1778,7 +1827,19 @@ async def analisar(
 def _construir_url_db(conn: ConexaoDB) -> str:
     """Monta a connection string do SQLAlchemy a partir dos parâmetros."""
     from urllib.parse import quote_plus
-    host  = conn.host or "localhost"
+
+    if conn.tipo == "sqlite":
+        if not conn.banco:
+            raise ValueError("Caminho do arquivo SQLite não configurado.")
+        return f"sqlite:///{conn.banco}"
+
+    host = conn.host or ""
+    if not host and conn.tipo not in ("sqlite",):
+        raise ValueError("Host não configurado para esta conexão.")
+    if not conn.banco and conn.tipo not in ("oracle",):
+        raise ValueError("Nome do banco de dados não configurado.")
+
+    host  = host or "localhost"
     banco = conn.banco or ""
     user  = quote_plus(conn.usuario or "")
     senha = quote_plus(conn.senha or "")
@@ -1796,10 +1857,9 @@ def _construir_url_db(conn: ConexaoDB) -> str:
     if conn.tipo == "oracle":
         porta = conn.porta or 1521
         dsn = conn.service_name or banco
+        if not dsn:
+            raise ValueError("Nome do serviço Oracle (service_name) ou banco não configurado.")
         return f"oracle+oracledb://{user}:{senha}@{host}:{porta}/?service_name={dsn}"
-
-    if conn.tipo == "sqlite":
-        return f"sqlite:///{conn.banco}"
 
     raise ValueError(f"Tipo de banco não suportado: {conn.tipo}")
 
@@ -1951,6 +2011,7 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
 
     try:
         db = get_db()
+        versao_modelo = _get_versao_ativa()  # captura uma vez para update e insert usarem a mesma versão
 
         def _py(val):
             if val is None: return None
@@ -1973,7 +2034,7 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
                 "valor_face":      resumo["total_em_risco"],
                 "valor_esperado":  resumo["valor_esperado_recuperacao_total"],
                 "score_medio":     resumo["score_medio"],
-                "modelo_versao":   _get_versao_ativa(),
+                "modelo_versao":   versao_modelo,
                 "updated_at":      datetime.utcnow().isoformat(),
             }).eq("id", carteira_id).execute()
         else:
@@ -1984,7 +2045,7 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
                 "valor_face":      resumo["total_em_risco"],
                 "valor_esperado":  resumo["valor_esperado_recuperacao_total"],
                 "score_medio":     resumo["score_medio"],
-                "modelo_versao":   _get_versao_ativa(),
+                "modelo_versao":   versao_modelo,
             }
             if _usuario_id:
                 cart_row["usuario_id"]    = _usuario_id
@@ -2252,6 +2313,17 @@ def _writeback_pagamento(empresa_id: str, cpf: str, pagou: bool) -> str | None:
     mapeamento = conn_row.get("mapeamento") or {}
     coluna_cpf = mapeamento.get("cpf", "cpf")
 
+    # Valida nomes para evitar injeção SQL via valores armazenados
+    if not _re.match(r'^[\w.]+$', tabela):
+        print(f"[Writeback] Nome de tabela inválido: {tabela!r}")
+        return None
+    if not _re.match(r'^\w+$', coluna):
+        print(f"[Writeback] Nome de coluna inválido: {coluna!r}")
+        return None
+    if not _re.match(r'^\w+$', coluna_cpf):
+        print(f"[Writeback] Nome de coluna CPF inválido: {coluna_cpf!r}")
+        return None
+
     senha_dec = _decrypt(conn_row.get("senha"))
     conn = ConexaoDB(
         tipo=conn_row["tipo"], host=conn_row.get("host"), porta=conn_row.get("porta"),
@@ -2311,10 +2383,10 @@ async def receber_feedback(
     usuario_role = jwt_payload.get("role", "operador")
     usuario_nome = jwt_payload.get("nome") or jwt_payload.get("email") or empresa_info.get("empresa_nome", "")
     empresa_nome = (
-        payload.empresa
-        or jwt_payload.get("empresa_id")
-        or empresa_info.get("empresa_nome")
+        jwt_payload.get("empresa_id")
         or empresa_info.get("empresa_id")
+        or payload.empresa
+        or empresa_info.get("empresa_nome")
     )
     fb_row = {
         "cpf": payload.cpf,
@@ -2468,6 +2540,10 @@ async def confirmar_pagamento(
 
         print(f"[Confirmar] SUCESSO — CPF: {cpf}, id: {feedback_id}, writeback: {writeback_info}")
 
+        _cache_del_prefix(f"fb_status:{empresa_id}")
+        _cache_del_prefix(f"pagamentos:{empresa_id}")
+        _cache_del_prefix(f"perf:{empresa_id}")
+
         try:
             _registrar_auditoria(
                 acao="confirmar_pagamento",
@@ -2514,7 +2590,11 @@ async def webhook_pagamento(body: WebhookPagamentoIn, request: Request):
     if not key_res.data:
         raise HTTPException(status_code=401, detail="API key inválida ou inativa.")
 
-    empresa = body.empresa or key_res.data[0].get("empresa_nome", "webhook")
+    empresa = (
+        body.empresa
+        or key_res.data[0].get("empresa_id")
+        or key_res.data[0].get("empresa_nome", "webhook")
+    )
 
     pred_res = (
         db.table("predicoes").select("id, score_recuperabilidade, valor_divida")
@@ -2681,6 +2761,12 @@ async def performance(credentials: HTTPAuthorizationCredentials = Security(beare
     """Métricas de acurácia do modelo baseadas nos feedbacks reais — filtrados por empresa."""
     payload = _usuario_autenticado(credentials)
     empresa_id = payload.get("empresa_id", "")
+
+    cache_key = f"perf:{empresa_id}"
+    cached = _cache_get(cache_key, ttl=300)
+    if cached is not None:
+        return cached
+
     db = get_db()
 
     # Filtra feedbacks pela empresa via carteira_id → empresa_id
@@ -2752,7 +2838,7 @@ async def performance(credentials: HTTPAuthorizationCredentials = Security(beare
 
         if score is not None:
             total_com_score += 1
-            acertou = (score >= 50 and pagou) or (score < 50 and not pagou)
+            acertou = (score >= 40 and pagou) or (score < 40 and not pagou)
             if acertou:
                 total_corretos += 1
 
@@ -2772,12 +2858,14 @@ async def performance(credentials: HTTPAuthorizationCredentials = Security(beare
         round(total_corretos / total_com_score * 100, 1) if total_com_score else None
     )
 
-    return {
+    result = {
         "total_feedbacks": len(feedbacks),
         "total_com_predicao_associada": len(pred_ids),
         "acuracia_geral": acuracia_geral,
         "metricas_por_faixa": metricas,
     }
+    _cache_set(cache_key, result)
+    return result
 
 
 @app.get("/performance/pagamentos")
@@ -2785,6 +2873,12 @@ async def performance_pagamentos(credentials: HTTPAuthorizationCredentials = Sec
     """Lista individual de quem pagou, com nome, CPF e valor recuperado."""
     payload = _usuario_autenticado(credentials)
     empresa_id = payload.get("empresa_id", "")
+
+    cache_key = f"pagamentos:{empresa_id}"
+    cached = _cache_get(cache_key, ttl=300)
+    if cached is not None:
+        return cached
+
     db = get_db()
 
     empresa_pred_ids: set | None = None
@@ -2802,7 +2896,7 @@ async def performance_pagamentos(credentials: HTTPAuthorizationCredentials = Sec
         except Exception:
             empresa_pred_ids = None
 
-    fb_res = db.table("feedbacks").select("cpf, pagou, valor_recuperado, data_pagamento, predicao_id, created_at, registrado_por").order("created_at", desc=True).limit(500).execute()
+    fb_res = db.table("feedbacks").select("cpf, pagou, valor_recuperado, data_pagamento, predicao_id, created_at, registrado_por").order("created_at", desc=True).limit(5000).execute()
     feedbacks = fb_res.data or []
 
     if empresa_pred_ids is not None:
@@ -2836,6 +2930,7 @@ async def performance_pagamentos(credentials: HTTPAuthorizationCredentials = Sec
             "registrado_por":    fb.get("registrado_por") or "",
             "registrado_em":     (fb.get("created_at") or "")[:16],
         })
+    _cache_set(cache_key, result)
     return result
 
 
@@ -2844,6 +2939,12 @@ async def feedbacks_status(credentials: HTTPAuthorizationCredentials = Security(
     """Retorna mapa cpf → {pagou, valor_recuperado, data_pagamento} com o feedback mais recente por CPF da empresa."""
     payload = _usuario_autenticado(credentials)
     empresa_id = payload.get("empresa_id", "")
+
+    cache_key = f"fb_status:{empresa_id}"
+    cached = _cache_get(cache_key, ttl=30)
+    if cached is not None:
+        return cached
+
     db = get_db()
 
     empresa_pred_ids: set | None = None
@@ -2889,6 +2990,7 @@ async def feedbacks_status(credentials: HTTPAuthorizationCredentials = Security(
             "registrado_em":    (fb.get("created_at") or "")[:16],
         }
 
+    _cache_set(cache_key, status_map)
     return status_map
 
 
@@ -3306,7 +3408,7 @@ async def scheduler_verificar_agora(
     Útil para testar ou forçar retreinamento fora do horário programado.
     """
     _exigir_comando(credentials)
-    min_fb = int(os.getenv("SCHEDULER_MIN_FEEDBACKS", 30))
+    min_fb = int(os.getenv("SCHEDULER_MIN_FEEDBACKS", 10))
     from scheduler import verificar_e_retreinar
     resultado = await asyncio.to_thread(verificar_e_retreinar, min_fb)
     return resultado

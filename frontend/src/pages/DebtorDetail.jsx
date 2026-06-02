@@ -385,7 +385,7 @@ export default function DebtorDetail() {
                   <CheckCircle2 className="h-3.5 w-3.5" /> Pago
                   {statusPag.data_pagamento && (
                     <span className="font-normal text-emerald-500 text-xs">
-                      · {new Intl.DateTimeFormat('pt-BR').format(new Date(statusPag.data_pagamento + 'T12:00:00'))}
+                      · {new Intl.DateTimeFormat('pt-BR').format(new Date(statusPag.data_pagamento.substring(0, 10) + 'T12:00:00'))}
                     </span>
                   )}
                   {statusPag.valor_recuperado > 0 && (
@@ -400,7 +400,7 @@ export default function DebtorDetail() {
                   <XCircle className="h-3.5 w-3.5" /> Não pago
                   {statusPag.data_pagamento && (
                     <span className="font-normal text-red-400 text-xs">
-                      · atualizado em {new Intl.DateTimeFormat('pt-BR').format(new Date(statusPag.data_pagamento + 'T12:00:00'))}
+                      · atualizado em {new Intl.DateTimeFormat('pt-BR').format(new Date(statusPag.data_pagamento.substring(0, 10) + 'T12:00:00'))}
                     </span>
                   )}
                 </span>

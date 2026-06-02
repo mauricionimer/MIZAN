@@ -315,11 +315,14 @@ def recomendar(devedor: dict) -> dict:
 
 def registrar_resultado(acao_id: int, contexto: list[float], recompensa: float) -> None:
     if not (0 <= acao_id < N_ACOES):
-        print(f"[Bandit] acao_id inválido: {acao_id}")
+        print(f"[Bandit] ERRO: acao_id inválido: {acao_id} (válidos: 0–{N_ACOES-1}). Feedback ignorado.")
         return
     ctx = np.array(contexto, dtype=float)
     if len(ctx) != D:
-        print(f"[Bandit] contexto com dimensão incorreta: {len(ctx)} (esperado {D})")
+        print(
+            f"[Bandit] ERRO: contexto com {len(ctx)} dimensões (esperado D={D}). "
+            "Feedback ignorado. Se D mudou, execute: DELETE FROM bandit_estado WHERE id = 1;"
+        )
         return
     bandit = carregar_bandit()
     bandit.atualizar(acao_id, ctx, float(np.clip(recompensa, 0.0, 1.0)))
