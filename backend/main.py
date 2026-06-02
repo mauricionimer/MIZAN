@@ -2761,6 +2761,10 @@ async def performance(credentials: HTTPAuthorizationCredentials = Security(beare
     """Métricas de acurácia do modelo baseadas nos feedbacks reais — filtrados por empresa."""
     payload = _usuario_autenticado(credentials)
     empresa_id = payload.get("empresa_id", "")
+    role       = payload.get("role", "")
+
+    if not empresa_id and role != "comando":
+        return {"mensagem": "Nenhum feedback recebido ainda.", "total_feedbacks": 0}
 
     cache_key = f"perf:{empresa_id}"
     cached = _cache_get(cache_key, ttl=300)
@@ -2785,7 +2789,7 @@ async def performance(credentials: HTTPAuthorizationCredentials = Security(beare
         except Exception:
             empresa_pred_ids = None
 
-    fb_res = db.table("feedbacks").select("pagou, predicao_id").execute()
+    fb_res = db.table("feedbacks").select("pagou, predicao_id").order("created_at", desc=True).limit(5000).execute()
     feedbacks = fb_res.data
 
     if empresa_pred_ids is not None:
@@ -2873,6 +2877,10 @@ async def performance_pagamentos(credentials: HTTPAuthorizationCredentials = Sec
     """Lista individual de quem pagou, com nome, CPF e valor recuperado."""
     payload = _usuario_autenticado(credentials)
     empresa_id = payload.get("empresa_id", "")
+    role       = payload.get("role", "")
+
+    if not empresa_id and role != "comando":
+        return []
 
     cache_key = f"pagamentos:{empresa_id}"
     cached = _cache_get(cache_key, ttl=300)
@@ -2939,6 +2947,10 @@ async def feedbacks_status(credentials: HTTPAuthorizationCredentials = Security(
     """Retorna mapa cpf → {pagou, valor_recuperado, data_pagamento} com o feedback mais recente por CPF da empresa."""
     payload = _usuario_autenticado(credentials)
     empresa_id = payload.get("empresa_id", "")
+    role       = payload.get("role", "")
+
+    if not empresa_id and role != "comando":
+        return {}
 
     cache_key = f"fb_status:{empresa_id}"
     cached = _cache_get(cache_key, ttl=30)
@@ -3050,6 +3062,10 @@ async def recomendacao_devedor(cpf: str, credentials: HTTPAuthorizationCredentia
     payload = _usuario_autenticado(credentials)
     empresa_id = payload.get("empresa_id", "")
     db = get_db()
+
+    role = payload.get("role", "")
+    if not empresa_id and role != "comando":
+        raise HTTPException(status_code=403, detail="Acesso negado: usuário sem empresa definida.")
 
     q = (
         db.table("predicoes")

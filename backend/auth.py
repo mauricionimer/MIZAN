@@ -133,7 +133,7 @@ def criar_usuario(email: str, nome: str, senha: str, role: str = "operador", emp
     return _sem_hash(novo)
 
 def listar_usuarios(empresa_id: str = "") -> list:
-    q = _db().table("usuarios").select("id, email, nome, role, ativo, empresa_id, created_at").order("created_at")
+    q = _db().table("usuarios").select("id, email, nome, role, ativo, empresa_id, created_at").order("created_at").limit(1000)
     if empresa_id:
         q = q.eq("empresa_id", empresa_id)
     return q.execute().data
