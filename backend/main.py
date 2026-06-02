@@ -2913,14 +2913,21 @@ async def performance_pagamentos(credentials: HTTPAuthorizationCredentials = Sec
         except Exception:
             empresa_pred_ids = None
 
-    fb_res = db.table("feedbacks").select("cpf, pagou, valor_recuperado, data_pagamento, predicao_id, created_at, registrado_por").order("created_at", desc=True).limit(5000).execute()
-    feedbacks = fb_res.data or []
-
+    _COLS = "cpf, pagou, valor_recuperado, data_pagamento, predicao_id, created_at, registrado_por"
     if empresa_pred_ids is not None:
-        feedbacks = [
-            f for f in feedbacks
-            if f.get("predicao_id") in empresa_pred_ids or f.get("empresa") == empresa_id
-        ]
+        # Filtra no banco por predicao_id para não trazer dados de outras empresas
+        feedbacks: list = []
+        ids = list(empresa_pred_ids)
+        for i in range(0, len(ids), 500):
+            r = db.table("feedbacks").select(_COLS).in_("predicao_id", ids[i:i+500]).order("created_at", desc=True).execute()
+            feedbacks.extend(r.data or [])
+        # Inclui feedbacks com campo empresa mas sem predicao_id (confirmações manuais)
+        if empresa_id:
+            r2 = db.table("feedbacks").select(_COLS).eq("empresa", empresa_id).is_("predicao_id", "null").order("created_at", desc=True).limit(500).execute()
+            feedbacks.extend(r2.data or [])
+        feedbacks = feedbacks[:5000]
+    else:
+        feedbacks = db.table("feedbacks").select(_COLS).order("created_at", desc=True).limit(5000).execute().data or []
 
     if not feedbacks:
         return []
@@ -2982,21 +2989,19 @@ async def feedbacks_status(credentials: HTTPAuthorizationCredentials = Security(
         except Exception:
             empresa_pred_ids = None
 
-    fb_res = (
-        db.table("feedbacks")
-        .select("cpf, pagou, valor_recuperado, data_pagamento, predicao_id, empresa, created_at, registrado_por")
-        .order("created_at", desc=True)
-        .limit(5000)
-        .execute()
-    )
-    feedbacks = fb_res.data or []
-
+    _COLS2 = "cpf, pagou, valor_recuperado, data_pagamento, predicao_id, empresa, created_at, registrado_por"
     if empresa_pred_ids is not None:
-        # Inclui feedbacks pela predicao_id OU pelo campo empresa (para confirmações manuais)
-        feedbacks = [
-            f for f in feedbacks
-            if f.get("predicao_id") in empresa_pred_ids or f.get("empresa") == empresa_id
-        ]
+        feedbacks: list = []
+        ids = list(empresa_pred_ids)
+        for i in range(0, len(ids), 500):
+            r = db.table("feedbacks").select(_COLS2).in_("predicao_id", ids[i:i+500]).order("created_at", desc=True).execute()
+            feedbacks.extend(r.data or [])
+        if empresa_id:
+            r2 = db.table("feedbacks").select(_COLS2).eq("empresa", empresa_id).is_("predicao_id", "null").order("created_at", desc=True).limit(500).execute()
+            feedbacks.extend(r2.data or [])
+        feedbacks = feedbacks[:5000]
+    else:
+        feedbacks = db.table("feedbacks").select(_COLS2).order("created_at", desc=True).limit(5000).execute().data or []
 
     status_map: dict = {}
     for fb in feedbacks:

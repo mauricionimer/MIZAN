@@ -248,10 +248,18 @@ export default function Dashboard() {
     buscarPagamentos().then(setPagamentos).catch(() => {})
     buscarStatusFeedbacks().then(setStatusMap).catch(() => {})
 
-    // Polling a cada 15s — garante atualização mesmo sem Realtime
+    // Polling a cada 15s — para após 3 erros consecutivos para não sobrecarregar servidor em outage
+    let errosConsecutivos = 0
     const intervalo = setInterval(() => {
-      buscarStatusFeedbacks().then(setStatusMap).catch(() => {})
-      buscarPagamentos().then(setPagamentos).catch(() => {})
+      Promise.all([
+        buscarStatusFeedbacks().then(setStatusMap),
+        buscarPagamentos().then(setPagamentos),
+      ])
+        .then(() => { errosConsecutivos = 0 })
+        .catch(() => {
+          errosConsecutivos++
+          if (errosConsecutivos >= 3) clearInterval(intervalo)
+        })
     }, 15000)
 
     return () => clearInterval(intervalo)

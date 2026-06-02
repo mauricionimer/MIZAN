@@ -86,6 +86,7 @@ export function AuthProvider({ children }) {
     setToken(null)
     setUsuario(null)
     setEmpresaConfig(null)
+    window.dispatchEvent(new Event('mizan:logout'))
   }
 
   function refreshEmpresaConfig() {

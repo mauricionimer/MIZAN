@@ -138,6 +138,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
       coluna_writeback: c.coluna_writeback || '', valor_pago: c.valor_pago || 'pago', valor_nao_pago: c.valor_nao_pago || '',
     })
     setConexaoSalvaId(c.id)
+    setNomeParaSalvar('')
     setEtapa('conexao')
     setModo('nova')
     setErro(null)
