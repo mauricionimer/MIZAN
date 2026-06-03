@@ -541,16 +541,27 @@ def retreinar(
         except Exception as _ue:
             print(f"[Storage] Aviso: upload pós-promoção falhou: {_ue}")
 
+    # Treina price model de regressão com os mesmos dados (independente de promoção)
+    print("\n[+] Treinando price model (regressão de taxa real de recuperação)...")
+    price_result: dict = {}
+    try:
+        from model.price_model import treinar as _treinar_price
+        price_result = _treinar_price(feedbacks, pred_map)
+    except Exception as _pe:
+        print(f"[PriceModel] Erro no treino: {_pe}")
+        price_result = {"ok": False, "motivo": str(_pe)}
+
     print(f"\nConcluído. Arquivos salvos em: {MODEL_DIR}")
     print("=" * 60)
 
     return {
-        "ok":         True,
-        "versao":     versao,
-        "n_amostras": n_amostras,
-        "metricas":   metricas,
-        "promovido":  entrada["promovido"],
-        "melhorou":   melhorou,
+        "ok":          True,
+        "versao":      versao,
+        "n_amostras":  n_amostras,
+        "metricas":    metricas,
+        "promovido":   entrada["promovido"],
+        "melhorou":    melhorou,
+        "price_model": price_result,
     }
 
 

@@ -612,7 +612,16 @@ export default function Dashboard() {
 
           {/* Formula explainer */}
           <div className="mt-5 pt-4 border-t border-slate-100 flex items-center gap-6 text-xs text-slate-400 flex-wrap">
-            <span><span className="font-medium text-slate-500">VER</span> = Σ (valor_dívida × score/100)</span>
+            {resumo?.precificacao_ml ? (
+              <>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-semibold text-xs">
+                  ✦ ML ativo
+                </span>
+                <span><span className="font-medium text-slate-500">VER</span> = Σ (valor_dívida × <span className="text-emerald-600 font-medium">taxa_ML</span>)</span>
+              </>
+            ) : (
+              <span><span className="font-medium text-slate-500">VER</span> = Σ (valor_dívida × score/100)</span>
+            )}
             <span className="text-slate-200">›</span>
             <span><span className="font-medium text-slate-500">Líquido</span> = VER × (1 − {custoCobranca}%)</span>
             <span className="text-slate-200">›</span>

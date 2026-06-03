@@ -1956,9 +1956,25 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro na análise: {e}")
 
-    resultado["valor_esperado_recuperacao"] = (
-        resultado["score_recuperabilidade"] / 100 * resultado["valor_divida"]
-    ).round(2)
+    # Tenta usar o price model de regressão para estimar a taxa de recuperação real.
+    # Fallback para score/100 se o modelo ainda não existir (poucos feedbacks).
+    _precificacao_ml = False
+    try:
+        from model.price_model import prever as _prever_taxa
+        _taxas = _prever_taxa(resultado.to_dict("records"))
+        if _taxas is not None:
+            resultado["taxa_recuperacao_prevista"] = _taxas
+            resultado["valor_esperado_recuperacao"] = (
+                resultado["valor_divida"].fillna(0).astype(float).clip(lower=0) * _taxas
+            ).round(2)
+            _precificacao_ml = True
+    except Exception:
+        pass
+    if not _precificacao_ml:
+        resultado["taxa_recuperacao_prevista"] = resultado["score_recuperabilidade"] / 100
+        resultado["valor_esperado_recuperacao"] = (
+            resultado["score_recuperabilidade"] / 100 * resultado["valor_divida"]
+        ).round(2)
 
     resultado_sorted = resultado.sort_values("score_recuperabilidade", ascending=False).reset_index(drop=True)
     resultado_sorted.insert(0, "rank", range(1, len(resultado_sorted) + 1))
@@ -2005,8 +2021,9 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
         "valor_esperado_recuperacao_total": round(ver_total, 2),
         "taxa_recuperacao_esperada": round(ver_total / total_em_risco * 100, 1) if total_em_risco else 0,
         "devedores_dados_incompletos": n_incompletos,
-        "criado_por": _usuario_email or "",
-        "criado_em":  datetime.utcnow().isoformat(),
+        "criado_por":       _usuario_email or "",
+        "criado_em":        datetime.utcnow().isoformat(),
+        "precificacao_ml":  _precificacao_ml,
     }
 
     try:
@@ -2066,7 +2083,8 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
              "valor_esperado_recuperacao": _py(d.get("valor_esperado_recuperacao")),
              "perfil_cluster": d.get("perfil_cluster"), "cluster_id": _py(d.get("cluster_id")),
              "dados_incompletos": bool(d.get("dados_incompletos", False)),
-             "aviso_dados": str(d.get("aviso_dados") or "")}
+             "aviso_dados": str(d.get("aviso_dados") or ""),
+             "taxa_recuperacao_prevista": _py(d.get("taxa_recuperacao_prevista"))}
             for d in devedores
         ]
         pred_id_map: dict[str, str] = {}
@@ -3018,6 +3036,24 @@ async def feedbacks_status(credentials: HTTPAuthorizationCredentials = Security(
 
     _cache_set(cache_key, status_map)
     return status_map
+
+
+@app.get("/admin/price-model")
+def admin_price_model_stats(credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Metadados e métricas do modelo de regressão de preço."""
+    _exigir_comando(credentials)
+    from model.price_model import stats as _price_stats
+    s = _price_stats()
+    if s is None:
+        return {
+            "disponivel": False,
+            "mensagem": (
+                "Price model ainda não treinado. É necessário ter pelo menos "
+                "15 feedbacks com predicao_id e 5 com pagamento confirmado. "
+                "Treina automaticamente no próximo retreinamento."
+            ),
+        }
+    return s
 
 
 @app.get("/admin/drift")

@@ -14,7 +14,7 @@ import os
 from pathlib import Path
 
 _BUCKET = "mizan-models"
-_MODEL_FILES = ["mizan_model.pkl", "kmeans.pkl", "scaler.pkl", "versions.json"]
+_MODEL_FILES = ["mizan_model.pkl", "kmeans.pkl", "scaler.pkl", "versions.json", "price_model.pkl"]
 
 _DATA_DIR_STR = os.getenv("MIZAN_DATA_DIR", "")
 _MODEL_DIR = (
