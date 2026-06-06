@@ -1,22 +1,22 @@
 export default function PriorityBadge({ score, large = false }) {
-  const base = large ? 'px-3 py-1 text-sm' : 'px-2.5 py-0.5 text-xs'
-  const cls = `${base} rounded-full font-semibold inline-flex items-center gap-1`
+  const base = large ? 'px-2.5 py-1 text-sm' : 'px-2 py-0.5 text-xs'
+  const cls = `${base} rounded-md font-medium inline-flex items-center gap-1.5 border`
 
   if (score >= 70) return (
-    <span className={`${cls} bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20`}>
-      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+    <span className={`${cls} bg-emerald-500/8 text-emerald-300 border-emerald-500/20`}>
+      <span className="w-1 h-1 rounded-full bg-emerald-400 inline-block shrink-0" />
       Alta
     </span>
   )
   if (score >= 40) return (
-    <span className={`${cls} bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/20`}>
-      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+    <span className={`${cls} bg-amber-500/8 text-amber-300 border-amber-500/20`}>
+      <span className="w-1 h-1 rounded-full bg-amber-400 inline-block shrink-0" />
       Média
     </span>
   )
   return (
-    <span className={`${cls} bg-white/5 text-[#8fa3c8] ring-1 ring-white/10`}>
-      <span className="w-1.5 h-1.5 rounded-full bg-[#5a7499] inline-block" />
+    <span className={`${cls} border-white/8`} style={{ background: 'rgba(255,255,255,0.03)', color: '#6b7280' }}>
+      <span className="w-1 h-1 rounded-full inline-block shrink-0" style={{ background: '#374151' }} />
       Baixa
     </span>
   )

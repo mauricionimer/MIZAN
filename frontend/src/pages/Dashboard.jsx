@@ -82,18 +82,28 @@ function StatusBadge({ cpf, statusMap }) {
   return <span className="text-xs text-slate-500 whitespace-nowrap">Pendente</span>
 }
 
-/* ───────────────────────── KPI card (dark) ───────────────────────── */
-function KpiCard({ label, value, sub, danger = false, icon: Icon }) {
+/* ───────────────────────── KPI card (chic minimal) ───────────────────────── */
+function KpiCard({ label, value, sub, danger = false, icon: Icon, accent }) {
+  const accentColor = { blue: '#3b82f6', amber: '#f59e0b', violet: '#8b5cf6', emerald: '#10b981' }[accent] ?? 'rgba(255,255,255,0.10)'
   return (
-    <div className="group relative rounded-xl border border-white/[0.07] bg-[#111827] p-5 transition-all duration-200 hover:border-blue-500/50 hover:shadow-[0_0_0_1px_rgba(59,130,246,0.25),0_8px_28px_-8px_rgba(59,130,246,0.35)]">
-      <div className="flex items-start justify-between">
-        <p className="text-[13px] font-light text-slate-400">{label}</p>
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/[0.04] text-slate-400 transition-colors group-hover:text-blue-400">
-          <Icon className="h-[18px] w-[18px]" />
-        </div>
+    <div className="px-6 py-5 flex flex-col gap-3 rounded-xl transition-colors"
+      style={{
+        background: 'rgba(255,255,255,0.02)',
+        border: '1px solid rgba(255,255,255,0.05)',
+        borderLeft: `2px solid ${accentColor}`,
+      }}>
+      <div className="flex items-center justify-between">
+        <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#4b5563' }}>
+          {label}
+        </p>
+        {Icon && <Icon className="h-3.5 w-3.5" style={{ color: '#374151' }} />}
       </div>
-      <p className={`mt-3 text-2xl font-bold tracking-tight ${danger ? 'text-red-400' : 'text-white'}`}>{value}</p>
-      {sub && <p className="mt-1 text-xs font-light text-slate-500">{sub}</p>}
+      <div>
+        <p className="text-[1.75rem] font-semibold tracking-tight leading-none" style={{ color: danger ? '#f87171' : '#f0f0f5' }}>
+          {value}
+        </p>
+        {sub && <p className="text-xs mt-1.5" style={{ color: '#374151' }}>{sub}</p>}
+      </div>
     </div>
   )
 }
@@ -580,10 +590,8 @@ export default function Dashboard() {
         <main className="flex-1 px-8 py-8">
 
           <div className="mb-7">
-            <h1 className="text-xl font-bold tracking-tight text-white">Dashboard</h1>
-            <p className="mt-1 text-sm font-light text-slate-400">
-              Resumo da carteira de crédito e recuperação no período atual
-            </p>
+            <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#374151' }}>Análise de Carteira</p>
+            <h1 className="text-2xl font-semibold tracking-tight mt-1" style={{ color: '#f0f0f5' }}>Dashboard</h1>
             {resumo?.criado_por && (
               <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
                 <Clock className="h-3 w-3 shrink-0" />
@@ -599,23 +607,21 @@ export default function Dashboard() {
 
           {/* ── KPIs ── */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <KpiCard label="Total de Devedores"     value={fmtNum(resumo.total_devedores)} icon={Users} />
-            <KpiCard label="Valor de Face"           value={fmtBRL(resumo.total_em_risco)} sub="valor nominal da carteira" danger icon={TrendingDown} />
-            <KpiCard label="Score Médio"             value={resumo.score_medio.toFixed(1)} sub="recuperabilidade (0–100)" icon={BarChart2} />
-            <KpiCard label="Devedores Prioritários" value={fmtNum(prioritarios)} sub="score ≥ 70" icon={Star} />
+            <KpiCard label="Total de Devedores"     value={fmtNum(resumo.total_devedores)}  icon={Users}       accent="blue"    />
+            <KpiCard label="Valor de Face"           value={fmtBRL(resumo.total_em_risco)}   sub="valor nominal da carteira"   icon={TrendingDown} accent="amber"   />
+            <KpiCard label="Score Médio"             value={resumo.score_medio.toFixed(1)}   sub="recuperabilidade (0–100)"    icon={BarChart2}    accent="violet"  />
+            <KpiCard label="Devedores Prioritários" value={fmtNum(prioritarios)}             sub="score ≥ 70"                  icon={Star}         accent="emerald" />
           </div>
 
           {/* ── Precificação ── */}
           {!isOperador && (
             <section className="mt-6 rounded-xl border border-white/[0.07] bg-[#111827] p-6">
-              <div className="mb-6 flex items-center gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-500/10">
-                  <Banknote className="h-[18px] w-[18px] text-blue-400" />
-                </div>
+              <div className="mb-6 flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-semibold text-white">Precificação da Carteira</h3>
-                  <p className="mt-0.5 text-xs font-light text-slate-400">Ajuste os parâmetros para simular cenários de compra</p>
+                  <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#4b5563' }}>Precificação</p>
+                  <h3 className="text-sm font-semibold mt-0.5" style={{ color: '#f0f0f5' }}>Carteira de Crédito</h3>
                 </div>
+                <p className="text-xs" style={{ color: '#4b5563' }}>Ajuste custo e retorno para simular cenários</p>
               </div>
 
               <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-5">
@@ -666,11 +672,9 @@ export default function Dashboard() {
 
             {/* Aging Bar Chart */}
             <div className="rounded-xl border border-white/[0.07] bg-[#111827] p-6 lg:col-span-3">
-              <div className="mb-5 flex items-center gap-2.5">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-500/10">
-                  <BarChart2 className="h-4 w-4 text-blue-400" />
-                </div>
-                <h3 className="text-sm font-semibold text-white">Distribuição por Aging</h3>
+              <div className="mb-5">
+                <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#4b5563' }}>Distribuição</p>
+                <h3 className="text-sm font-semibold mt-0.5" style={{ color: '#f0f0f5' }}>Aging da Carteira</h3>
               </div>
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={agingData} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
@@ -696,11 +700,9 @@ export default function Dashboard() {
 
             {/* Cluster Pie */}
             <div className="rounded-xl border border-white/[0.07] bg-[#111827] p-6 lg:col-span-2">
-              <div className="mb-5 flex items-center gap-2.5">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-500/10">
-                  <Users className="h-4 w-4 text-blue-400" />
-                </div>
-                <h3 className="text-sm font-semibold text-white">Perfis de Devedores</h3>
+              <div className="mb-5">
+                <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#4b5563' }}>Segmentação</p>
+                <h3 className="text-sm font-semibold mt-0.5" style={{ color: '#f0f0f5' }}>Perfis de Devedores</h3>
               </div>
               <ResponsiveContainer width="100%" height={220}>
                 <PieChart>
@@ -736,14 +738,10 @@ export default function Dashboard() {
           {!isOperador && !loadingPerf && perf && perf.total_feedbacks > 0 && (
             <section className="mt-6 overflow-hidden rounded-xl border border-white/[0.07] bg-[#111827]">
               <div className="flex items-center justify-between border-b border-white/[0.07] px-6 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10">
-                    <TrendingUp className="h-[18px] w-[18px] text-emerald-400" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-white">Resultados Reais — Quem Pagou</h3>
-                    <p className="mt-0.5 text-xs font-light text-slate-400">{perf.total_feedbacks} feedbacks registrados</p>
-                  </div>
+                <div>
+                  <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#4b5563' }}>Resultados Reais</p>
+                  <h3 className="text-sm font-semibold mt-0.5" style={{ color: '#f0f0f5' }}>Quem Pagou</h3>
+                  <p className="text-xs mt-0.5" style={{ color: '#4b5563' }}>{perf.total_feedbacks} feedbacks registrados</p>
                 </div>
                 {perf.acuracia_geral != null && (
                   <span className="rounded-md border border-blue-500/30 bg-blue-500/10 px-2.5 py-1 text-xs font-medium text-blue-300">
@@ -799,14 +797,10 @@ export default function Dashboard() {
           {pagamentos.length > 0 && (
             <section className="mt-6 overflow-hidden rounded-xl border border-white/[0.07] bg-[#111827]">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.07] px-6 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10">
-                    <Banknote className="h-[18px] w-[18px] text-emerald-400" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-white">Pagamentos Registrados</h3>
-                    <p className="mt-0.5 text-xs font-light text-slate-400">{pagamentos.filter(p => p.pagou).length} pagamentos · {pagamentos.filter(p => !p.pagou).length} não pagaram</p>
-                  </div>
+                <div>
+                  <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#4b5563' }}>Histórico</p>
+                  <h3 className="text-sm font-semibold mt-0.5" style={{ color: '#f0f0f5' }}>Pagamentos Registrados</h3>
+                  <p className="text-xs mt-0.5" style={{ color: '#4b5563' }}>{pagamentos.filter(p => p.pagou).length} pagamentos · {pagamentos.filter(p => !p.pagou).length} não pagaram</p>
                 </div>
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
@@ -881,17 +875,13 @@ export default function Dashboard() {
           <section className="mt-6 overflow-hidden rounded-xl border border-white/[0.07] bg-[#111827]">
             <div className="space-y-3 border-b border-white/[0.07] px-6 py-4">
               <div className="flex flex-wrap items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-500/10">
-                    <Star className="h-[18px] w-[18px] text-blue-400" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-white">Ranking de Recuperabilidade</h3>
-                    <p className="mt-0.5 text-xs font-light text-slate-400">
-                      {fmtNum(filtered.length)} devedores{search || filtroPrio !== 'todos' || filtroProduto !== 'todos' || filtroUF !== 'todas' ? ' filtrados' : ''}
-                      {totalPages > 1 && ` · página ${page} de ${totalPages}`}
-                    </p>
-                  </div>
+                <div>
+                  <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#4b5563' }}>Ranking</p>
+                  <h3 className="text-sm font-semibold mt-0.5" style={{ color: '#f0f0f5' }}>Recuperabilidade</h3>
+                  <p className="text-xs mt-0.5" style={{ color: '#4b5563' }}>
+                    {fmtNum(filtered.length)} devedores{search || filtroPrio !== 'todos' || filtroProduto !== 'todos' || filtroUF !== 'todas' ? ' filtrados' : ''}
+                    {totalPages > 1 && ` · página ${page} de ${totalPages}`}
+                  </p>
                 </div>
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
