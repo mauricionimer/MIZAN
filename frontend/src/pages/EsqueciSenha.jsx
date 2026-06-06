@@ -1,17 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Mail, Loader2 } from 'lucide-react'
+import { ArrowLeft, Mail, Loader2, CheckCircle2 } from 'lucide-react'
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
-
-function Logo() {
-  return (
-    <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/20"
-      style={{ background: 'linear-gradient(135deg,#1d4ed8,#2563eb)' }}>
-      <span className="text-white font-bold text-sm">⚖</span>
-    </div>
-  )
-}
 
 export default function EsqueciSenha() {
   const navigate = useNavigate()
@@ -46,41 +37,50 @@ export default function EsqueciSenha() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6">
       <div className="flex items-center gap-2.5 mb-10">
-        <Logo />
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+          style={{ background: 'linear-gradient(135deg,#1d6aff,#1557f0)', boxShadow: '0 4px 16px rgba(29,106,255,0.30)' }}>
+          <span className="text-white font-bold text-sm">⚖</span>
+        </div>
         <span className="text-white text-xl font-bold tracking-tight">Mizan</span>
       </div>
 
-      <div className="w-full max-w-sm bg-white rounded-2xl border border-white/10 shadow-[0_16px_48px_rgba(2,11,31,0.45),0_4px_12px_rgba(2,11,31,0.25)] p-8">
+      <div className="w-full max-w-sm rounded-2xl p-8"
+        style={{
+          background: '#0d1628',
+          border: '1px solid rgba(255,255,255,0.08)',
+          boxShadow: '0 16px 48px rgba(0,0,0,0.50), 0 4px 12px rgba(0,0,0,0.30)',
+        }}>
         <button onClick={() => navigate('/login')}
-          className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-700 mb-7 transition-colors font-medium">
+          className="flex items-center gap-1.5 text-sm mb-7 transition-colors font-medium"
+          style={{ color: '#8fa3c8' }}
+          onMouseOver={e => e.currentTarget.style.color = 'white'}
+          onMouseOut={e => e.currentTarget.style.color = '#8fa3c8'}>
           <ArrowLeft className="w-4 h-4" /> Voltar ao login
         </button>
 
         {enviado ? (
           <div className="text-center py-4">
-            <div className="w-14 h-14 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <Mail className="w-7 h-7 text-emerald-600" />
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+              style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.20)' }}>
+              <CheckCircle2 className="w-7 h-7 text-emerald-400" />
             </div>
-            <h2 className="text-lg font-bold text-slate-900 mb-2 tracking-tight">E-mail enviado!</h2>
-            <p className="text-sm text-slate-500 leading-relaxed">
+            <h2 className="text-lg font-bold text-white mb-2 tracking-tight">E-mail enviado!</h2>
+            <p className="text-sm leading-relaxed" style={{ color: '#8fa3c8' }}>
               Se o e-mail estiver cadastrado, você receberá as instruções em breve. Verifique também a caixa de spam.
             </p>
-            <button
-              onClick={() => navigate('/login')}
-              className="btn-primary mt-6 w-full py-2.5"
-            >
+            <button onClick={() => navigate('/login')} className="btn-primary mt-6 w-full py-2.5">
               Voltar ao login
             </button>
           </div>
         ) : (
           <>
-            <h2 className="text-lg font-bold text-slate-900 mb-1 tracking-tight">Esqueceu a senha?</h2>
-            <p className="text-sm text-slate-500 mb-7 leading-relaxed">
+            <h2 className="text-lg font-bold text-white mb-1 tracking-tight">Esqueceu a senha?</h2>
+            <p className="text-sm mb-7 leading-relaxed" style={{ color: '#8fa3c8' }}>
               Digite seu e-mail e enviaremos um link para redefinir a senha.
             </p>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">E-mail</label>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: '#8fa3c8' }}>E-mail</label>
                 <input
                   type="email"
                   required
@@ -91,15 +91,12 @@ export default function EsqueciSenha() {
                 />
               </div>
               {erro && (
-                <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+                <div className="text-sm text-red-400 rounded-xl px-4 py-3"
+                  style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.20)' }}>
                   {erro}
                 </div>
               )}
-              <button
-                type="submit"
-                disabled={carregando}
-                className="btn-primary w-full py-2.5 disabled:opacity-50"
-              >
+              <button type="submit" disabled={carregando} className="btn-primary w-full py-2.5 disabled:opacity-50">
                 {carregando
                   ? <><Loader2 className="h-4 w-4 animate-spin" /> Enviando...</>
                   : 'Enviar link de redefinição'}

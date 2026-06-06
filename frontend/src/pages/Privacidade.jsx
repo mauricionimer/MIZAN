@@ -1,43 +1,49 @@
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 
-function Logo() {
-  return (
-    <div className="w-8 h-8 rounded-xl flex items-center justify-center shadow-md shadow-blue-500/20"
-      style={{ background: 'linear-gradient(135deg,#1d4ed8,#2563eb)' }}>
-      <span className="text-white font-bold text-sm">⚖</span>
-    </div>
-  )
-}
-
 export default function Privacidade() {
   const navigate = useNavigate()
   return (
     <div className="min-h-screen py-12 px-6">
       <div className="max-w-2xl mx-auto">
         <button onClick={() => navigate(-1)}
-          className="flex items-center gap-1.5 text-sm text-blue-300 hover:text-white mb-8 transition-colors font-medium">
+          className="flex items-center gap-1.5 text-sm text-blue-400 hover:text-white mb-8 transition-colors font-medium">
           <ArrowLeft className="h-4 w-4" /> Voltar
         </button>
 
-        <div className="bg-white rounded-2xl border border-white/10 shadow-[0_8px_32px_rgba(2,11,31,0.35),0_2px_8px_rgba(2,11,31,0.20)] p-8 space-y-6">
+        <div className="rounded-2xl p-8 space-y-6"
+          style={{
+            background: '#0d1628',
+            border: '1px solid rgba(255,255,255,0.07)',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.50), 0 2px 8px rgba(0,0,0,0.30)',
+          }}>
           <div className="flex items-center gap-3 mb-1">
-            <Logo />
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center"
+              style={{ background: 'linear-gradient(135deg,#1d6aff,#1557f0)' }}>
+              <span className="text-white font-bold text-sm">⚖</span>
+            </div>
             <div>
-              <h1 className="text-lg font-bold text-slate-900 tracking-tight">Política de Privacidade</h1>
-              <p className="text-xs text-slate-400 mt-0.5">Última atualização: maio de 2026 · Em conformidade com a LGPD (Lei nº 13.709/2018)</p>
+              <h1 className="text-lg font-bold text-white tracking-tight">Política de Privacidade</h1>
+              <p className="text-xs mt-0.5" style={{ color: '#5a7499' }}>
+                Última atualização: maio de 2026 · Em conformidade com a LGPD (Lei nº 13.709/2018)
+              </p>
             </div>
           </div>
 
-          <div className="rounded-xl bg-blue-50 border border-blue-200 px-5 py-4 flex gap-3 items-start">
-            <span className="text-blue-600 text-lg mt-0.5">🔒</span>
+          <div className="rounded-xl px-5 py-4 flex gap-3 items-start"
+            style={{ background: 'rgba(29,106,255,0.08)', border: '1px solid rgba(29,106,255,0.20)' }}>
+            <span className="text-blue-400 text-lg mt-0.5">🔒</span>
             <div>
-              <p className="text-sm font-semibold text-blue-800">Dados armazenados em servidores no Brasil, em conformidade com a LGPD.</p>
-              <p className="text-xs text-blue-600 mt-1">O banco de dados do Mizan opera na região AWS São Paulo (sa-east-1). Os arquivos enviados são processados exclusivamente para geração da análise e não são retidos após a conclusão.</p>
+              <p className="text-sm font-semibold text-blue-300">
+                Dados armazenados em servidores no Brasil, em conformidade com a LGPD.
+              </p>
+              <p className="text-xs text-blue-400/70 mt-1">
+                O banco de dados do Mizan opera na região AWS São Paulo (sa-east-1). Os arquivos enviados são processados exclusivamente para geração da análise e não são retidos após a conclusão.
+              </p>
             </div>
           </div>
 
-          <div className="border-t border-slate-100" />
+          <div className="border-t" style={{ borderColor: 'rgba(255,255,255,0.07)' }} />
 
           {[
             {
@@ -78,8 +84,8 @@ export default function Privacidade() {
             },
           ].map(({ titulo, texto }) => (
             <div key={titulo}>
-              <h2 className="text-sm font-semibold text-slate-800 mb-1.5">{titulo}</h2>
-              <p className="text-sm text-slate-500 leading-relaxed">{texto}</p>
+              <h2 className="text-sm font-semibold text-white mb-1.5">{titulo}</h2>
+              <p className="text-sm leading-relaxed" style={{ color: '#8fa3c8' }}>{texto}</p>
             </div>
           ))}
         </div>

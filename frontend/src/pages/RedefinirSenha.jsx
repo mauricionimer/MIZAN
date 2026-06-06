@@ -4,15 +4,6 @@ import { KeyRound, Eye, EyeOff, Loader2, CheckCircle2 } from 'lucide-react'
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
 
-function Logo() {
-  return (
-    <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/20"
-      style={{ background: 'linear-gradient(135deg,#1d4ed8,#2563eb)' }}>
-      <span className="text-white font-bold text-sm">⚖</span>
-    </div>
-  )
-}
-
 export default function RedefinirSenha() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
@@ -26,16 +17,13 @@ export default function RedefinirSenha() {
   const [erro, setErro]             = useState('')
   const [sucesso, setSucesso]       = useState(false)
 
-  useEffect(() => {
-    if (!token) navigate('/login')
-  }, [token])
+  useEffect(() => { if (!token) navigate('/login') }, [token])
 
   async function handleSubmit(e) {
     e.preventDefault()
     setErro('')
     if (nova.length < 6) { setErro('A senha deve ter pelo menos 6 caracteres.'); return }
     if (nova !== confirmar) { setErro('As senhas não coincidem.'); return }
-
     setCarregando(true)
     try {
       const res = await fetch(`${BASE}/auth/redefinir-senha`, {
@@ -58,64 +46,73 @@ export default function RedefinirSenha() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6">
       <div className="flex items-center gap-2.5 mb-10">
-        <Logo />
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+          style={{ background: 'linear-gradient(135deg,#1d6aff,#1557f0)', boxShadow: '0 4px 16px rgba(29,106,255,0.30)' }}>
+          <span className="text-white font-bold text-sm">⚖</span>
+        </div>
         <span className="text-white text-xl font-bold tracking-tight">Mizan</span>
       </div>
 
-      <div className="w-full max-w-sm bg-white rounded-2xl border border-white/10 shadow-[0_16px_48px_rgba(2,11,31,0.45),0_4px_12px_rgba(2,11,31,0.25)] p-8">
+      <div className="w-full max-w-sm rounded-2xl p-8"
+        style={{
+          background: '#0d1628',
+          border: '1px solid rgba(255,255,255,0.08)',
+          boxShadow: '0 16px 48px rgba(0,0,0,0.50), 0 4px 12px rgba(0,0,0,0.30)',
+        }}>
         {sucesso ? (
           <div className="text-center py-4">
-            <div className="w-14 h-14 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <CheckCircle2 className="w-7 h-7 text-emerald-600" />
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+              style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.20)' }}>
+              <CheckCircle2 className="w-7 h-7 text-emerald-400" />
             </div>
-            <h2 className="text-lg font-bold text-slate-900 mb-2 tracking-tight">Senha redefinida!</h2>
-            <p className="text-sm text-slate-500 mb-7 leading-relaxed">Sua senha foi atualizada. Faça login com a nova senha.</p>
+            <h2 className="text-lg font-bold text-white mb-2 tracking-tight">Senha redefinida!</h2>
+            <p className="text-sm mb-7 leading-relaxed" style={{ color: '#8fa3c8' }}>
+              Sua senha foi atualizada. Faça login com a nova senha.
+            </p>
             <button onClick={() => navigate('/login')} className="btn-primary w-full py-2.5">
               Ir para o login
             </button>
           </div>
         ) : (
           <>
-            <div className="w-12 h-12 bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-center mb-5">
-              <KeyRound className="w-6 h-6 text-blue-600" />
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-5"
+              style={{ background: 'rgba(29,106,255,0.12)', border: '1px solid rgba(29,106,255,0.20)' }}>
+              <KeyRound className="w-6 h-6 text-blue-400" />
             </div>
-            <h2 className="text-lg font-bold text-slate-900 mb-1 tracking-tight">Nova senha</h2>
-            <p className="text-sm text-slate-500 mb-7">Escolha uma nova senha com pelo menos 6 caracteres.</p>
+            <h2 className="text-lg font-bold text-white mb-1 tracking-tight">Nova senha</h2>
+            <p className="text-sm mb-7" style={{ color: '#8fa3c8' }}>
+              Escolha uma nova senha com pelo menos 6 caracteres.
+            </p>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Nova senha</label>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: '#8fa3c8' }}>Nova senha</label>
                 <div className="relative">
-                  <input
-                    type={showNova ? 'text' : 'password'}
-                    required value={nova}
-                    onChange={e => setNova(e.target.value)}
-                    className="input-base pr-11"
-                    placeholder="mínimo 6 caracteres"
-                  />
+                  <input type={showNova ? 'text' : 'password'} required value={nova}
+                    onChange={e => setNova(e.target.value)} className="input-base pr-11"
+                    placeholder="mínimo 6 caracteres" />
                   <button type="button" onClick={() => setShowNova(s => !s)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors"
+                    style={{ color: '#5a7499' }}>
                     {showNova ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Confirmar nova senha</label>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: '#8fa3c8' }}>Confirmar nova senha</label>
                 <div className="relative">
-                  <input
-                    type={showConf ? 'text' : 'password'}
-                    required value={confirmar}
-                    onChange={e => setConfirmar(e.target.value)}
-                    className="input-base pr-11"
-                    placeholder="repita a nova senha"
-                  />
+                  <input type={showConf ? 'text' : 'password'} required value={confirmar}
+                    onChange={e => setConfirmar(e.target.value)} className="input-base pr-11"
+                    placeholder="repita a nova senha" />
                   <button type="button" onClick={() => setShowConf(s => !s)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors"
+                    style={{ color: '#5a7499' }}>
                     {showConf ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
               {erro && (
-                <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+                <div className="text-sm text-red-400 rounded-xl px-4 py-3"
+                  style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.20)' }}>
                   {erro}
                 </div>
               )}

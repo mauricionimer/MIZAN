@@ -53,9 +53,9 @@ function Logo() {
 }
 
 const ROLE_BADGE = {
-  comando:  'bg-rose-50 text-rose-700 ring-1 ring-rose-200/60',
-  admin:    'bg-violet-50 text-violet-700 ring-1 ring-violet-200/60',
-  operador: 'bg-blue-50 text-blue-700 ring-1 ring-blue-200/60',
+  comando:  'bg-rose-500/10 text-rose-400 ring-1 ring-rose-500/20',
+  admin:    'bg-violet-500/10 text-violet-400 ring-1 ring-violet-500/20',
+  operador: 'bg-blue-500/10 text-blue-400 ring-1 ring-blue-500/20',
 }
 
 function BadgeRole({ role }) {
@@ -69,14 +69,14 @@ function BadgeRole({ role }) {
 
 // ── Card de permissões de uma conexão ────────────────────────────────────────
 const TIPO_COR = {
-  postgres:   'bg-sky-50 text-sky-700 ring-sky-200/60',
-  postgresql: 'bg-sky-50 text-sky-700 ring-sky-200/60',
-  mysql:      'bg-orange-50 text-orange-700 ring-orange-200/60',
-  mariadb:    'bg-orange-50 text-orange-700 ring-orange-200/60',
-  sqlserver:  'bg-blue-50 text-blue-700 ring-blue-200/60',
-  oracle:     'bg-red-50 text-red-700 ring-red-200/60',
-  sqlite:     'bg-slate-100 text-slate-600 ring-slate-200/60',
-  sheets:     'bg-emerald-50 text-emerald-700 ring-emerald-200/60',
+  postgres:   'bg-sky-500/10 text-sky-400 ring-sky-500/20',
+  postgresql: 'bg-sky-500/10 text-sky-400 ring-sky-500/20',
+  mysql:      'bg-orange-500/10 text-orange-400 ring-orange-500/20',
+  mariadb:    'bg-orange-500/10 text-orange-400 ring-orange-500/20',
+  sqlserver:  'bg-blue-500/10 text-blue-400 ring-blue-500/20',
+  oracle:     'bg-red-500/10 text-red-400 ring-red-500/20',
+  sqlite:     'bg-white/5 text-[#8fa3c8] ring-white/10',
+  sheets:     'bg-emerald-500/10 text-emerald-400 ring-emerald-500/20',
 }
 
 function CardPermissoes({ conexao, operadores, token }) {
@@ -117,93 +117,79 @@ function CardPermissoes({ conexao, operadores, token }) {
   const tipoCor      = TIPO_COR[conexao.tipo] ?? 'bg-slate-100 text-slate-500 ring-slate-200/60'
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.06)] overflow-hidden">
-      {/* Cabeçalho do banco */}
-      <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-50">
-        <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
-          <Database className="w-4 h-4 text-slate-500" />
+    <div className="rounded-2xl overflow-hidden" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 2px 12px rgba(0,0,0,0.40)' }}>
+      <div className="flex items-center gap-3 px-5 py-4 border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.06)' }}>
+          <Database className="w-4 h-4" style={{ color: '#8fa3c8' }} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <p className="font-bold text-slate-900 text-sm">{conexao.nome}</p>
-            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ring-1 ${tipoCor}`}>
-              {conexao.tipo}
-            </span>
+            <p className="font-bold text-white text-sm">{conexao.nome}</p>
+            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ring-1 ${tipoCor}`}>{conexao.tipo}</span>
           </div>
-          {conexao.host && (
-            <p className="text-xs text-slate-400 mt-0.5 truncate">{conexao.host}{conexao.porta ? `:${conexao.porta}` : ''}{conexao.banco ? ` · ${conexao.banco}` : ''}</p>
-          )}
+          {conexao.host && <p className="text-xs mt-0.5 truncate" style={{ color: '#5a7499' }}>{conexao.host}{conexao.porta ? `:${conexao.porta}` : ''}{conexao.banco ? ` · ${conexao.banco}` : ''}</p>}
         </div>
-        <span className="text-xs text-slate-400 shrink-0">
-          {comAcesso.length}/{somenteOperadores.length} com acesso
-        </span>
+        <span className="text-xs shrink-0" style={{ color: '#5a7499' }}>{comAcesso.length}/{somenteOperadores.length} com acesso</span>
       </div>
-
       {carregando ? (
-        <div className="px-5 py-6 text-xs text-slate-400">Carregando...</div>
+        <div className="px-5 py-6 text-xs" style={{ color: '#5a7499' }}>Carregando...</div>
       ) : somenteOperadores.length === 0 ? (
-        <div className="px-5 py-6 text-xs text-slate-400">Nenhum operador ou admin ativo nesta empresa.</div>
+        <div className="px-5 py-6 text-xs" style={{ color: '#5a7499' }}>Nenhum operador ou admin ativo nesta empresa.</div>
       ) : (
-        <div className="divide-y divide-slate-50">
-          {/* Com acesso */}
+        <div>
           {comAcesso.length > 0 && (
             <div className="px-5 py-3">
-              <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wide mb-2 flex items-center gap-1">
+              <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wide mb-2 flex items-center gap-1">
                 <Unlock className="w-3 h-3" /> Com acesso ({comAcesso.length})
               </p>
               <div className="space-y-1.5">
                 {comAcesso.map(op => (
-                  <div key={op.id} className="flex items-center justify-between py-1 px-3 rounded-xl bg-emerald-50/50">
+                  <div key={op.id} className="flex items-center justify-between py-1 px-3 rounded-xl" style={{ background: 'rgba(16,185,129,0.06)' }}>
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center text-xs font-bold text-emerald-700 shrink-0">
+                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-emerald-400 shrink-0" style={{ background: 'rgba(16,185,129,0.15)' }}>
                         {(op.nome || op.email)[0].toUpperCase()}
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-slate-800 truncate">{op.nome}</p>
-                        <p className="text-xs text-slate-400 truncate">{op.email}</p>
+                        <p className="text-sm font-medium text-white truncate">{op.nome}</p>
+                        <p className="text-xs truncate" style={{ color: '#5a7499' }}>{op.email}</p>
                       </div>
                     </div>
-                    <button
-                      onClick={() => revogar(op)}
-                      disabled={salvando === op.id}
-                      title="Revogar acesso"
-                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-40 shrink-0 ml-2"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                      {salvando === op.id ? '...' : 'Remover'}
+                    <button onClick={() => revogar(op)} disabled={salvando === op.id} title="Revogar acesso"
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-40 shrink-0 ml-2"
+                      style={{ color: '#5a7499' }}
+                      onMouseOver={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; e.currentTarget.style.color = '#f87171' }}
+                      onMouseOut={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#5a7499' }}>
+                      <X className="w-3.5 h-3.5" />{salvando === op.id ? '...' : 'Remover'}
                     </button>
                   </div>
                 ))}
               </div>
             </div>
           )}
-
-          {/* Sem acesso */}
           {semAcesso.length > 0 && (
             <div className="px-5 py-3">
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2 flex items-center gap-1">
+              <p className="text-xs font-semibold uppercase tracking-wide mb-2 flex items-center gap-1" style={{ color: '#5a7499' }}>
                 <Lock className="w-3 h-3" /> Sem acesso ({semAcesso.length})
               </p>
               <div className="space-y-1.5">
                 {semAcesso.map(op => (
-                  <div key={op.id} className="flex items-center justify-between py-1 px-3 rounded-xl hover:bg-slate-50 transition-colors">
+                  <div key={op.id} className="flex items-center justify-between py-1 px-3 rounded-xl transition-colors"
+                    onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
+                    onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-500 shrink-0">
+                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{ background: 'rgba(255,255,255,0.08)', color: '#8fa3c8' }}>
                         {(op.nome || op.email)[0].toUpperCase()}
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-slate-600 truncate">{op.nome}</p>
-                        <p className="text-xs text-slate-400 truncate">{op.email}</p>
+                        <p className="text-sm font-medium truncate" style={{ color: '#8fa3c8' }}>{op.nome}</p>
+                        <p className="text-xs truncate" style={{ color: '#5a7499' }}>{op.email}</p>
                       </div>
                     </div>
-                    <button
-                      onClick={() => conceder(op)}
-                      disabled={salvando === op.id}
-                      title="Conceder acesso"
-                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-40 shrink-0 ml-2"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      {salvando === op.id ? '...' : 'Adicionar'}
+                    <button onClick={() => conceder(op)} disabled={salvando === op.id} title="Conceder acesso"
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-blue-400 transition-colors disabled:opacity-40 shrink-0 ml-2"
+                      onMouseOver={e => e.currentTarget.style.background = 'rgba(29,106,255,0.10)'}
+                      onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
+                      <Plus className="w-3.5 h-3.5" />{salvando === op.id ? '...' : 'Adicionar'}
                     </button>
                   </div>
                 ))}
@@ -289,19 +275,20 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
   const nomeExibicao = cfg?.nome_exibicao || empresa.empresa_id
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.06)] overflow-hidden">
-      <div className="px-5 py-4 border-b border-slate-50 flex items-center justify-between gap-3">
-        {/* Logo / foto */}
+    <div className="rounded-2xl overflow-hidden" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 2px 12px rgba(0,0,0,0.40)' }}>
+      <div className="px-5 py-4 border-b flex items-center justify-between gap-3" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
         <div className="relative shrink-0">
-          <div className="w-10 h-10 rounded-xl overflow-hidden bg-indigo-50 flex items-center justify-center border border-slate-100">
+          <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center" style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.20)' }}>
             {cfg?.foto_url
               ? <img src={cfg.foto_url} alt={nomeExibicao} className="w-full h-full object-cover" />
-              : <Building2 className="w-4 h-4 text-indigo-500" />}
+              : <Building2 className="w-4 h-4 text-indigo-400" />}
           </div>
           <label
-            className="absolute -bottom-1 -right-1 w-5 h-5 bg-slate-700 hover:bg-indigo-600 rounded-full flex items-center justify-center cursor-pointer transition-colors shadow"
+            className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center cursor-pointer transition-colors shadow"
+            style={{ background: '#475569' }}
             title="Trocar foto"
-          >
+            onMouseOver={e => e.currentTarget.style.background = '#6366f1'}
+            onMouseOut={e => e.currentTarget.style.background = '#475569'}>
             {salvandoFoto
               ? <span className="text-white text-[8px]">...</span>
               : <Camera className="w-2.5 h-2.5 text-white" />}
@@ -309,97 +296,95 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
           </label>
         </div>
 
-        {/* Nome */}
         <div className="flex-1 min-w-0">
           {editNome ? (
             <div className="flex gap-1.5">
-              <input
-                autoFocus type="text" value={nomeEdit}
-                onChange={e => setNomeEdit(e.target.value)}
-                className="flex-1 text-sm border border-slate-200 rounded-lg px-2.5 py-1 focus:outline-none focus:border-indigo-400"
-                placeholder="Nome de exibição"
-              />
+              <input autoFocus type="text" value={nomeEdit} onChange={e => setNomeEdit(e.target.value)}
+                className="flex-1 text-sm rounded-lg px-2.5 py-1 focus:outline-none"
+                style={{ background: '#0a1220', border: '1px solid rgba(99,102,241,0.30)', color: 'white' }}
+                placeholder="Nome de exibição" />
               <button onClick={handleSalvarNome} disabled={salvandoNome}
                 className="px-2.5 py-1 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700 disabled:opacity-50">
                 <Check className="w-3.5 h-3.5" />
               </button>
-              <button onClick={() => setEditNome(false)} className="px-2 py-1 text-slate-400 hover:text-slate-600">
+              <button onClick={() => setEditNome(false)} className="px-2 py-1 transition-colors" style={{ color: '#5a7499' }}>
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>
           ) : (
             <div className="flex items-center gap-1.5">
               <div>
-                <p className="font-bold text-slate-800 text-sm">{nomeExibicao}</p>
-                {cfg?.nome_exibicao && <p className="text-xs text-slate-400">ID: {empresa.empresa_id}</p>}
-                <p className="text-xs text-slate-400">{membros.length} membro{membros.length !== 1 ? 's' : ''}</p>
+                <p className="font-bold text-white text-sm">{nomeExibicao}</p>
+                {cfg?.nome_exibicao && <p className="text-xs" style={{ color: '#5a7499' }}>ID: {empresa.empresa_id}</p>}
+                <p className="text-xs" style={{ color: '#5a7499' }}>{membros.length} membro{membros.length !== 1 ? 's' : ''}</p>
               </div>
               <button onClick={() => { setNomeEdit(nomeExibicao); setEditNome(true) }}
-                className="p-1 rounded text-slate-300 hover:text-indigo-500 transition-colors" title="Editar nome">
+                className="p-1 rounded transition-colors" title="Editar nome" style={{ color: '#3d5270' }}
+                onMouseOver={e => e.currentTarget.style.color = '#a5b4fc'}
+                onMouseOut={e => e.currentTarget.style.color = '#3d5270'}>
                 <Pencil className="w-3 h-3" />
               </button>
             </div>
           )}
-          {msgBrand && <p className="text-xs text-emerald-600 mt-0.5">{msgBrand}</p>}
+          {msgBrand && <p className="text-xs text-emerald-400 mt-0.5">{msgBrand}</p>}
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={() => { setShowInput(s => !s); setErro('') }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"
-          >
+          <button onClick={() => { setShowInput(s => !s); setErro('') }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-indigo-400 transition-colors"
+            style={{ background: 'rgba(99,102,241,0.10)', border: '1px solid rgba(99,102,241,0.20)' }}
+            onMouseOver={e => e.currentTarget.style.background = 'rgba(99,102,241,0.18)'}
+            onMouseOut={e => e.currentTarget.style.background = 'rgba(99,102,241,0.10)'}>
             <Plus className="w-3.5 h-3.5" /> Adicionar usuário
           </button>
           <button onClick={handleDeletar} title="Excluir empresa"
-            className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+            className="p-1.5 rounded-lg transition-colors" style={{ color: '#3d5270' }}
+            onMouseOver={e => { e.currentTarget.style.color = '#f87171'; e.currentTarget.style.background = 'rgba(239,68,68,0.08)' }}
+            onMouseOut={e => { e.currentTarget.style.color = '#3d5270'; e.currentTarget.style.background = 'transparent' }}>
             <Trash2 className="w-4 h-4" />
           </button>
         </div>
       </div>
 
       {showInput && (
-        <form onSubmit={handleAdicionar} className="px-5 py-3 border-b border-slate-50 flex gap-2 items-center bg-slate-50/50">
-          <Mail className="w-4 h-4 text-slate-400 shrink-0" />
-          <input
-            type="email" required
-            value={emailInput}
-            onChange={e => { setEmailInput(e.target.value); setErro('') }}
+        <form onSubmit={handleAdicionar} className="px-5 py-3 border-b flex gap-2 items-center" style={{ borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
+          <Mail className="w-4 h-4 shrink-0" style={{ color: '#5a7499' }} />
+          <input type="email" required value={emailInput} onChange={e => { setEmailInput(e.target.value); setErro('') }}
             placeholder="email@dominio.com (já cadastrado no sistema)"
-            className="flex-1 text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-400 bg-white"
-          />
+            className="flex-1 text-sm rounded-xl px-3 py-2 focus:outline-none"
+            style={{ background: '#0a1220', border: '1px solid rgba(99,102,241,0.25)', color: 'white' }} />
           <button type="submit" disabled={adicionando} className="px-3 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors whitespace-nowrap">
             {adicionando ? 'Adicionando...' : 'Confirmar'}
           </button>
-          <button type="button" onClick={() => { setShowInput(false); setErro('') }} className="p-2 text-slate-400 hover:text-slate-600">
+          <button type="button" onClick={() => { setShowInput(false); setErro('') }} className="p-2 transition-colors" style={{ color: '#5a7499' }}>
             <X className="w-4 h-4" />
           </button>
         </form>
       )}
 
-      {erro && <p className="px-5 py-2 text-xs text-red-600 bg-red-50 border-b border-red-100">{erro}</p>}
+      {erro && <p className="px-5 py-2 text-xs text-red-400 border-b" style={{ background: 'rgba(239,68,68,0.08)', borderColor: 'rgba(239,68,68,0.15)' }}>{erro}</p>}
 
-      <div className="divide-y divide-slate-50">
+      <div>
         {membros.length === 0 ? (
-          <p className="px-5 py-4 text-sm text-slate-400 text-center">Nenhum usuário nesta empresa ainda.</p>
+          <p className="px-5 py-4 text-sm text-center" style={{ color: '#5a7499' }}>Nenhum usuário nesta empresa ainda.</p>
         ) : (
           membros.map(u => (
-            <div key={u.id} className={`flex items-center justify-between px-5 py-3 ${!u.ativo ? 'opacity-50' : ''}`}>
+            <div key={u.id} className={`flex items-center justify-between px-5 py-3 border-b ${!u.ativo ? 'opacity-50' : ''}`} style={{ borderColor: 'rgba(255,255,255,0.04)' }}>
               <div className="flex items-center gap-3">
-                <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-500">
+                <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: 'rgba(255,255,255,0.08)', color: '#8fa3c8' }}>
                   {(u.nome || u.email)[0].toUpperCase()}
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-slate-800">{u.nome}</p>
-                  <p className="text-xs text-slate-400">{u.email}</p>
+                  <p className="text-sm font-medium text-white">{u.nome}</p>
+                  <p className="text-xs" style={{ color: '#5a7499' }}>{u.email}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${ROLE_BADGE[u.role] ?? 'bg-slate-100 text-slate-500'}`}>{u.role}</span>
-                <button
-                  onClick={() => handleRemover(u.id)}
-                  title="Remover da empresa"
-                  className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
-                >
+                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${ROLE_BADGE[u.role] ?? 'bg-white/5 text-[#8fa3c8]'}`}>{u.role}</span>
+                <button onClick={() => handleRemover(u.id)} title="Remover da empresa"
+                  className="p-1.5 rounded-lg transition-colors" style={{ color: '#3d5270' }}
+                  onMouseOver={e => { e.currentTarget.style.color = '#f87171'; e.currentTarget.style.background = 'rgba(239,68,68,0.08)' }}
+                  onMouseOut={e => { e.currentTarget.style.color = '#3d5270'; e.currentTarget.style.background = 'transparent' }}>
                   <UserMinus className="w-4 h-4" />
                 </button>
               </div>
@@ -554,16 +539,16 @@ export default function AdminUsuarios() {
     <div className="min-h-screen">
       <header className="navbar-glass px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate(isComando ? '/comando' : '/admin')} className="text-slate-400 hover:text-slate-700 transition-colors p-1 rounded-lg hover:bg-slate-100">
+          <button onClick={() => navigate(isComando ? '/comando' : '/admin')} className="p-1 rounded-lg transition-colors hover:bg-white/5" style={{ color: '#5a7499' }}>
             <ArrowLeft className="w-4 h-4" />
           </button>
           <Logo />
-          <span className="font-bold text-slate-800 text-sm">Mizan</span>
-          <span className="text-slate-200 text-sm">/</span>
-          <span className="text-slate-500 text-sm">Usuários</span>
+          <span className="font-bold text-white text-sm">Mizan</span>
+          <span className="text-white/20 text-sm">/</span>
+          <span className="text-sm" style={{ color: '#8fa3c8' }}>Usuários</span>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-sm text-slate-400 hidden sm:block">{usuario?.nome}</span>
+          <span className="text-sm hidden sm:block" style={{ color: '#5a7499' }}>{usuario?.nome}</span>
           <button onClick={logout} className="nav-link-danger"><LogOut className="w-4 h-4" /> Sair</button>
         </div>
       </header>
@@ -572,105 +557,81 @@ export default function AdminUsuarios() {
 
         {/* Abas */}
         {(isAdmin || isComando) && (
-          <div className="flex gap-1 mb-8 bg-slate-100 p-1 rounded-xl w-fit">
+          <div className="flex gap-1 mb-8 p-1 rounded-xl w-fit" style={{ background: 'rgba(255,255,255,0.05)' }}>
             {[
               ['usuarios', <Users className="w-4 h-4" />, 'Usuários'],
               ...(isComando ? [['empresas', <Building2 className="w-4 h-4" />, 'Empresas']] : []),
               ['permissoes', <Database className="w-4 h-4" />, 'Permissões de Banco'],
             ].map(([id, icon, label]) => (
-              <button
-                key={id}
-                onClick={() => setAba(id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${aba === id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-              >
+              <button key={id} onClick={() => setAba(id)}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                style={aba === id ? { background: '#0d1628', color: 'white', boxShadow: '0 1px 4px rgba(0,0,0,0.30)' } : { color: '#5a7499' }}>
                 {icon}{label}
               </button>
             ))}
           </div>
         )}
 
-        {msg && <div className="mb-5 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-xl px-4 py-3 text-sm">{msg}</div>}
-        {erro && <div className="mb-5 bg-red-50 border border-red-100 text-red-700 rounded-xl px-4 py-3 text-sm">{erro}</div>}
+        {msg && <div className="mb-5 text-emerald-400 rounded-xl px-4 py-3 text-sm" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.20)' }}>{msg}</div>}
+        {erro && <div className="mb-5 text-red-400 rounded-xl px-4 py-3 text-sm" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)' }}>{erro}</div>}
 
         {/* ── ABA USUÁRIOS ── */}
         {aba === 'usuarios' && (
           <>
             {/* Perfil da empresa (admin/comando) */}
             {(isAdmin || isComando) && usuario?.empresa_id && (
-              <div className="mb-8 bg-white rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.06)] p-5">
+              <div className="mb-8 rounded-2xl p-5" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 2px 12px rgba(0,0,0,0.40)' }}>
                 <div className="flex items-center justify-between mb-4">
-                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
+                  <p className="text-xs font-semibold uppercase tracking-wide flex items-center gap-1.5" style={{ color: '#5a7499' }}>
                     <Building2 className="h-3.5 w-3.5" /> Perfil da empresa
                   </p>
                   {!editandoBrand ? (
-                    <button onClick={abrirEdicaoBrand} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 transition-colors font-semibold">
+                    <button onClick={abrirEdicaoBrand} className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors font-semibold">
                       <Pencil className="w-3 h-3" /> Editar
                     </button>
                   ) : (
-                    <button onClick={() => setEditandoBrand(false)} className="text-xs text-slate-400 hover:text-slate-600 transition-colors">
-                      Cancelar
-                    </button>
+                    <button onClick={() => setEditandoBrand(false)} className="text-xs transition-colors" style={{ color: '#5a7499' }}>Cancelar</button>
                   )}
                 </div>
 
                 <div className="flex items-center gap-4">
-                  {/* Foto */}
                   <div className="relative shrink-0">
-                    <div className="w-16 h-16 rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center">
+                    <div className="w-16 h-16 rounded-2xl overflow-hidden flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}>
                       {empresaConfig?.foto_url
                         ? <img src={empresaConfig.foto_url} alt="Logo" className="w-full h-full object-cover" />
-                        : <Building2 className="w-6 h-6 text-slate-400" />}
+                        : <Building2 className="w-6 h-6" style={{ color: '#5a7499' }} />}
                     </div>
                     {editandoBrand && (
-                      <label
-                        className="absolute -bottom-1.5 -right-1.5 w-7 h-7 bg-blue-600 hover:bg-blue-700 rounded-full flex items-center justify-center cursor-pointer transition-colors shadow-md"
-                        title="Trocar foto"
-                      >
+                      <label className="absolute -bottom-1.5 -right-1.5 w-7 h-7 bg-blue-600 hover:bg-blue-700 rounded-full flex items-center justify-center cursor-pointer transition-colors shadow-md" title="Trocar foto">
                         <Camera className="w-3.5 h-3.5 text-white" />
-                        <input
-                          type="file"
-                          accept="image/jpeg,image/png,image/webp"
-                          className="hidden"
-                          ref={fotoInputRef}
-                          onChange={handleFotoChange}
-                        />
+                        <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" ref={fotoInputRef} onChange={handleFotoChange} />
                       </label>
                     )}
                   </div>
 
-                  {/* Nome */}
                   <div className="flex-1 min-w-0">
                     {editandoBrand ? (
                       <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={nomeEmpresaEdit}
-                          onChange={e => setNomeEmpresaEdit(e.target.value)}
-                          placeholder="Nome de exibição"
-                          className="flex-1 text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-blue-400"
+                        <input type="text" value={nomeEmpresaEdit} onChange={e => setNomeEmpresaEdit(e.target.value)} placeholder="Nome de exibição"
+                          className="flex-1 text-sm rounded-xl px-3 py-2 focus:outline-none"
+                          style={{ background: '#0a1220', border: '1px solid rgba(29,106,255,0.30)', color: 'white' }}
                         />
-                        <button
-                          onClick={handleSalvarNome}
-                          disabled={salvandoBrand}
-                          className="flex items-center gap-1 px-3 py-2 bg-blue-600 text-white text-xs font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                          {salvandoBrand ? 'Salvando...' : 'Salvar nome'}
+                        <button onClick={handleSalvarNome} disabled={salvandoBrand}
+                          className="flex items-center gap-1 px-3 py-2 bg-blue-600 text-white text-xs font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                          <Check className="w-3.5 h-3.5" />{salvandoBrand ? 'Salvando...' : 'Salvar nome'}
                         </button>
                       </div>
                     ) : (
                       <>
-                        <p className="font-bold text-slate-900 text-base truncate">
-                          {empresaConfig?.nome_exibicao || usuario?.empresa_id}
-                        </p>
-                        <p className="text-xs text-slate-400 mt-0.5">ID: {usuario?.empresa_id}</p>
+                        <p className="font-bold text-white text-base truncate">{empresaConfig?.nome_exibicao || usuario?.empresa_id}</p>
+                        <p className="text-xs mt-0.5" style={{ color: '#5a7499' }}>ID: {usuario?.empresa_id}</p>
                       </>
                     )}
                   </div>
                 </div>
 
                 {msgBrand && (
-                  <p className="mt-3 text-xs text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">
+                  <p className="mt-3 text-xs text-emerald-400 rounded-lg px-3 py-2" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.15)' }}>
                     {msgBrand}
                   </p>
                 )}
@@ -679,8 +640,8 @@ export default function AdminUsuarios() {
 
             <div className="flex items-center justify-between mb-8">
               <div>
-                <h1 className="text-xl font-bold text-slate-900 tracking-tight">Usuários do sistema</h1>
-                <p className="text-sm text-slate-500 mt-1">
+                <h1 className="text-xl font-bold text-white tracking-tight">Usuários do sistema</h1>
+                <p className="text-sm mt-1" style={{ color: '#8fa3c8' }}>
                   {isComando ? 'Gerencie todos os usuários e empresas.' : 'Gerencie os operadores da sua empresa.'}
                 </p>
               </div>
@@ -691,94 +652,83 @@ export default function AdminUsuarios() {
               )}
             </div>
 
-            {/* Formulário de criação — apenas COMANDO */}
             {isComando && showForm && (
-              <div className="mb-6 bg-white rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.06)] p-6">
-                <h2 className="text-sm font-bold text-slate-800 mb-5">Criar novo usuário</h2>
+              <div className="mb-6 rounded-2xl p-6" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 2px 12px rgba(0,0,0,0.40)' }}>
+                <h2 className="text-sm font-bold text-white mb-5">Criar novo usuário</h2>
                 <form onSubmit={handleRegistrar} className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Nome completo</label>
+                    <label className="block text-xs font-semibold mb-1.5" style={{ color: '#8fa3c8' }}>Nome completo</label>
                     <input type="text" required value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} className="input-base" placeholder="João Silva" />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">E-mail</label>
+                    <label className="block text-xs font-semibold mb-1.5" style={{ color: '#8fa3c8' }}>E-mail</label>
                     <input type="email" required value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} className="input-base" placeholder="joao@empresa.com" />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Senha inicial</label>
+                    <label className="block text-xs font-semibold mb-1.5" style={{ color: '#8fa3c8' }}>Senha inicial</label>
                     <input type="password" required minLength={6} value={form.senha} onChange={e => setForm(f => ({ ...f, senha: e.target.value }))} className="input-base" placeholder="mínimo 6 caracteres" />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Permissão</label>
+                    <label className="block text-xs font-semibold mb-1.5" style={{ color: '#8fa3c8' }}>Permissão</label>
                     <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))} className="input-base">
                       <option value="operador">Operador</option>
                       <option value="admin">Administrador</option>
                     </select>
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Empresa</label>
-                    <select
-                      required
-                      value={form.empresa_id}
-                      onChange={e => setForm(f => ({ ...f, empresa_id: e.target.value }))}
-                      className="input-base"
-                    >
+                    <label className="block text-xs font-semibold mb-1.5" style={{ color: '#8fa3c8' }}>Empresa</label>
+                    <select required value={form.empresa_id} onChange={e => setForm(f => ({ ...f, empresa_id: e.target.value }))} className="input-base">
                       <option value="">— selecione uma empresa —</option>
                       {(empresas.empresas || []).map(emp => (
-                        <option key={emp.empresa_id} value={emp.empresa_id}>
-                          {emp.empresa_id} ({emp.usuarios?.length ?? 0} membros)
-                        </option>
+                        <option key={emp.empresa_id} value={emp.empresa_id}>{emp.empresa_id} ({emp.usuarios?.length ?? 0} membros)</option>
                       ))}
                       <option value="__nova__">+ Nova empresa...</option>
                     </select>
                     {form.empresa_id === '__nova__' && (
-                      <input
-                        type="text"
-                        required
-                        autoFocus
-                        className="input-base mt-2"
-                        placeholder="ID da nova empresa (ex: bradesco)"
-                        onChange={e => setForm(f => ({ ...f, empresa_id: e.target.value.trim().toLowerCase() }))}
-                      />
+                      <input type="text" required autoFocus className="input-base mt-2" placeholder="ID da nova empresa (ex: bradesco)"
+                        onChange={e => setForm(f => ({ ...f, empresa_id: e.target.value.trim().toLowerCase() }))} />
                     )}
-                    <p className="text-xs text-slate-400 mt-1">Usuários da mesma empresa compartilham dados entre si.</p>
+                    <p className="text-xs mt-1" style={{ color: '#5a7499' }}>Usuários da mesma empresa compartilham dados entre si.</p>
                   </div>
-
-                  {formErro && <p className="col-span-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-2">{formErro}</p>}
-
+                  {formErro && <p className="col-span-2 text-sm text-red-400 rounded-xl px-4 py-2" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)' }}>{formErro}</p>}
                   <div className="col-span-2 flex gap-3 justify-end pt-1">
-                    <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors">Cancelar</button>
+                    <button type="button" onClick={() => setShowForm(false)}
+                      className="px-4 py-2 text-sm rounded-xl transition-colors" style={{ color: '#8fa3c8' }}
+                      onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                      onMouseOut={e => e.currentTarget.style.background = 'transparent'}>Cancelar</button>
                     <button type="submit" disabled={salvando} className="btn-primary disabled:opacity-50">{salvando ? 'Criando...' : 'Criar usuário'}</button>
                   </div>
                 </form>
               </div>
             )}
 
-            {/* Tabela de usuários */}
             {carregando ? (
-              <div className="text-center py-16 text-slate-400 text-sm">Carregando...</div>
+              <div className="text-center py-16 text-sm" style={{ color: '#5a7499' }}>Carregando...</div>
             ) : (
-              <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.06)] overflow-hidden">
+              <div className="rounded-2xl overflow-hidden" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 2px 12px rgba(0,0,0,0.40)' }}>
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-100">
-                      <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Nome</th>
-                      <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">E-mail</th>
-                      {isComando && <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Empresa</th>}
-                      <th className="text-center px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Permissão</th>
-                      <th className="text-center px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
-                      <th className="text-center px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Ações</th>
+                    <tr className="border-b" style={{ background: '#111d34', borderColor: 'rgba(255,255,255,0.08)' }}>
+                      <th className="text-left px-5 py-3.5 text-xs font-semibold uppercase tracking-wide" style={{ color: '#5a7499' }}>Nome</th>
+                      <th className="text-left px-5 py-3.5 text-xs font-semibold uppercase tracking-wide" style={{ color: '#5a7499' }}>E-mail</th>
+                      {isComando && <th className="text-left px-5 py-3.5 text-xs font-semibold uppercase tracking-wide" style={{ color: '#5a7499' }}>Empresa</th>}
+                      <th className="text-center px-5 py-3.5 text-xs font-semibold uppercase tracking-wide" style={{ color: '#5a7499' }}>Permissão</th>
+                      <th className="text-center px-5 py-3.5 text-xs font-semibold uppercase tracking-wide" style={{ color: '#5a7499' }}>Status</th>
+                      <th className="text-center px-5 py-3.5 text-xs font-semibold uppercase tracking-wide" style={{ color: '#5a7499' }}>Ações</th>
                     </tr>
                   </thead>
                   <tbody>
                     {usuariosExibidos.map(u => (
-                      <tr key={u.id} className={`border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors ${!u.ativo ? 'opacity-50' : ''}`}>
-                        <td className="px-5 py-4 font-medium text-slate-900">{u.nome}</td>
-                        <td className="px-5 py-4 text-slate-500">{u.email}</td>
-                        {isComando && <td className="px-5 py-4 text-slate-400 text-xs">{u.empresa_id || '—'}</td>}
+                      <tr key={u.id} className={`border-b transition-colors ${!u.ativo ? 'opacity-50' : ''}`}
+                        style={{ borderColor: 'rgba(255,255,255,0.04)' }}
+                        onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
+                        onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
+                        <td className="px-5 py-4 font-medium text-white">{u.nome}</td>
+                        <td className="px-5 py-4" style={{ color: '#8fa3c8' }}>{u.email}</td>
+                        {isComando && <td className="px-5 py-4 text-xs" style={{ color: '#5a7499' }}>{u.empresa_id || '—'}</td>}
                         <td className="px-5 py-4 text-center"><BadgeRole role={u.role} /></td>
                         <td className="px-5 py-4 text-center">
-                          <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${u.ativo ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/60' : 'bg-slate-100 text-slate-400 ring-1 ring-slate-200/60'}`}>
+                          <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${u.ativo ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20' : 'bg-white/5 text-[#5a7499] ring-1 ring-white/10'}`}>
                             {u.ativo ? 'Ativo' : 'Inativo'}
                           </span>
                         </td>
@@ -786,17 +736,23 @@ export default function AdminUsuarios() {
                           <div className="flex items-center justify-center gap-1">
                             {u.email !== usuario?.email && u.role !== 'comando' ? (
                               <>
-                                <button onClick={() => handleToggleAtivo(u)} title={u.ativo ? 'Desativar' : 'Ativar'} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors">
-                                  {u.ativo ? <ToggleRight className="w-5 h-5 text-emerald-500" /> : <ToggleLeft className="w-5 h-5" />}
+                                <button onClick={() => handleToggleAtivo(u)} title={u.ativo ? 'Desativar' : 'Ativar'}
+                                  className="p-1.5 rounded-lg transition-colors" style={{ color: '#5a7499' }}
+                                  onMouseOver={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = 'white' }}
+                                  onMouseOut={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#5a7499' }}>
+                                  {u.ativo ? <ToggleRight className="w-5 h-5 text-emerald-400" /> : <ToggleLeft className="w-5 h-5" />}
                                 </button>
                                 {isComando && (
-                                  <button onClick={() => handleToggleRole(u)} title={u.role === 'admin' ? 'Rebaixar para operador' : 'Promover a admin'} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors">
-                                    {u.role === 'admin' ? <ShieldOff className="w-4 h-4 text-violet-500" /> : <ShieldCheck className="w-4 h-4" />}
+                                  <button onClick={() => handleToggleRole(u)} title={u.role === 'admin' ? 'Rebaixar para operador' : 'Promover a admin'}
+                                    className="p-1.5 rounded-lg transition-colors" style={{ color: '#5a7499' }}
+                                    onMouseOver={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = 'white' }}
+                                    onMouseOut={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#5a7499' }}>
+                                    {u.role === 'admin' ? <ShieldOff className="w-4 h-4 text-violet-400" /> : <ShieldCheck className="w-4 h-4" />}
                                   </button>
                                 )}
                               </>
                             ) : (
-                              <span className="text-xs text-slate-300 italic px-2">você</span>
+                              <span className="text-xs italic px-2" style={{ color: '#3d5270' }}>você</span>
                             )}
                           </div>
                         </td>
@@ -805,46 +761,35 @@ export default function AdminUsuarios() {
                   </tbody>
                 </table>
                 {usuariosExibidos.length === 0 && (
-                  <div className="text-center py-12 text-slate-400 text-sm">Nenhum usuário encontrado.</div>
+                  <div className="text-center py-12 text-sm" style={{ color: '#5a7499' }}>Nenhum usuário encontrado.</div>
                 )}
               </div>
             )}
-            <p className="mt-4 text-xs text-slate-400">
+            <p className="mt-4 text-xs" style={{ color: '#5a7499' }}>
               Total: {usuariosExibidos.length} usuário{usuariosExibidos.length !== 1 ? 's' : ''} · Ativos: {usuariosExibidos.filter(u => u.ativo).length}
             </p>
 
-            {/* ── Atividade Recente ── */}
             {auditoria.length > 0 && (
               <div className="mt-10">
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                <p className="text-xs font-semibold uppercase tracking-wide mb-3 flex items-center gap-1.5" style={{ color: '#5a7499' }}>
                   <Clock className="h-3 w-3" /> Atividade Recente
                 </p>
-                <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.06)] divide-y divide-slate-50 overflow-hidden">
+                <div className="rounded-2xl overflow-hidden" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 2px 12px rgba(0,0,0,0.40)' }}>
                   {auditoria.map((a, i) => (
-                    <div key={i} className="flex items-start gap-3 px-5 py-3.5">
-                      <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${ACAO_COR[a.acao] ?? 'bg-slate-300'}`} />
+                    <div key={i} className="flex items-start gap-3 px-5 py-3.5 border-b" style={{ borderColor: 'rgba(255,255,255,0.04)' }}>
+                      <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${ACAO_COR[a.acao] ?? 'bg-slate-500'}`} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm text-slate-800 font-medium leading-snug">
+                        <p className="text-sm text-white font-medium leading-snug">
                           {ACAO_LABEL[a.acao] || a.acao}
-                          {a.detalhes?.email_novo && (
-                            <span className="font-normal text-slate-500"> — {a.detalhes.email_novo}</span>
-                          )}
-                          {a.detalhes?.email_alvo && (
-                            <span className="font-normal text-slate-500"> — {a.detalhes.email_alvo}</span>
-                          )}
-                          {a.detalhes?.nome_arquivo && (
-                            <span className="font-normal text-slate-500"> — {a.detalhes.nome_arquivo}</span>
-                          )}
-                          {a.detalhes?.n_devedores != null && (
-                            <span className="font-normal text-slate-500"> · {a.detalhes.n_devedores} devedores</span>
-                          )}
-                          {a.detalhes?.importados != null && (
-                            <span className="font-normal text-slate-500"> · {a.detalhes.importados} importados</span>
-                          )}
+                          {a.detalhes?.email_novo && <span className="font-normal" style={{ color: '#8fa3c8' }}> — {a.detalhes.email_novo}</span>}
+                          {a.detalhes?.email_alvo && <span className="font-normal" style={{ color: '#8fa3c8' }}> — {a.detalhes.email_alvo}</span>}
+                          {a.detalhes?.nome_arquivo && <span className="font-normal" style={{ color: '#8fa3c8' }}> — {a.detalhes.nome_arquivo}</span>}
+                          {a.detalhes?.n_devedores != null && <span className="font-normal" style={{ color: '#8fa3c8' }}> · {a.detalhes.n_devedores} devedores</span>}
+                          {a.detalhes?.importados != null && <span className="font-normal" style={{ color: '#8fa3c8' }}> · {a.detalhes.importados} importados</span>}
                         </p>
-                        <p className="text-xs text-slate-400 mt-0.5">
+                        <p className="text-xs mt-0.5" style={{ color: '#5a7499' }}>
                           por <span className="font-medium">{a.usuario_email || '—'}</span>
-                          {a.empresa_id && <span className="text-slate-300"> · {a.empresa_id}</span>}
+                          {a.empresa_id && <span style={{ color: '#3d5270' }}> · {a.empresa_id}</span>}
                           <span className="ml-1">· {fmtAuditDate(a.created_at)}</span>
                         </p>
                       </div>
@@ -861,55 +806,47 @@ export default function AdminUsuarios() {
           <>
             <div className="flex items-center justify-between mb-8">
               <div>
-                <h1 className="text-xl font-bold text-slate-900 tracking-tight">Empresas parceiras</h1>
-                <p className="text-sm text-slate-500 mt-1">Agrupe usuários por empresa. Adicione pelo e-mail de contas já cadastradas.</p>
+                <h1 className="text-xl font-bold text-white tracking-tight">Empresas parceiras</h1>
+                <p className="text-sm mt-1" style={{ color: '#8fa3c8' }}>Agrupe usuários por empresa. Adicione pelo e-mail de contas já cadastradas.</p>
               </div>
             </div>
 
-            {/* Formulário nova empresa */}
             <form onSubmit={handleCriarEmpresa} className="mb-6 flex gap-3 items-center">
-              <Building2 className="w-4 h-4 text-slate-400 shrink-0" />
-              <input
-                type="text"
-                value={novaEmpresa}
-                onChange={e => setNovaEmpresa(e.target.value)}
+              <Building2 className="w-4 h-4 shrink-0" style={{ color: '#5a7499' }} />
+              <input type="text" value={novaEmpresa} onChange={e => setNovaEmpresa(e.target.value)}
                 placeholder="Nome/ID da nova empresa (ex: sicoob, bradesco)"
-                className="flex-1 text-sm border border-slate-200 rounded-xl px-4 py-2.5 focus:outline-none focus:border-indigo-400 bg-white shadow-sm"
-              />
-              <button
-                type="submit"
-                disabled={criandoEmpresa || !novaEmpresa.trim()}
-                className="flex items-center gap-1.5 px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-40 transition-colors whitespace-nowrap"
-              >
-                <Plus className="w-4 h-4" />
-                {criandoEmpresa ? 'Criando...' : 'Nova empresa'}
+                className="flex-1 text-sm rounded-xl px-4 py-2.5 focus:outline-none"
+                style={{ background: '#0a1220', border: '1px solid rgba(255,255,255,0.10)', color: 'white' }} />
+              <button type="submit" disabled={criandoEmpresa || !novaEmpresa.trim()}
+                className="flex items-center gap-1.5 px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-40 transition-colors whitespace-nowrap">
+                <Plus className="w-4 h-4" />{criandoEmpresa ? 'Criando...' : 'Nova empresa'}
               </button>
             </form>
 
             {carregando ? (
-              <div className="text-center py-16 text-slate-400 text-sm">Carregando...</div>
+              <div className="text-center py-16 text-sm" style={{ color: '#5a7499' }}>Carregando...</div>
             ) : (
               <div className="space-y-5">
                 {empresas.empresas.length === 0 && (
-                  <div className="text-center py-12 text-slate-400 text-sm">Nenhuma empresa cadastrada ainda. Crie uma acima.</div>
+                  <div className="text-center py-12 text-sm" style={{ color: '#5a7499' }}>Nenhuma empresa cadastrada ainda. Crie uma acima.</div>
                 )}
                 {empresas.empresas.map(emp => (
                   <CardEmpresa key={emp.empresa_id} empresa={emp} token={token} onAtualizar={carregarEmpresas} />
                 ))}
                 {empresas.sem_empresa?.length > 0 && (
                   <div className="mt-8">
-                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Sem empresa atribuída ({empresas.sem_empresa.length})</p>
-                    <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.06)] divide-y divide-slate-50 overflow-hidden">
+                    <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: '#5a7499' }}>Sem empresa atribuída ({empresas.sem_empresa.length})</p>
+                    <div className="rounded-2xl overflow-hidden" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }}>
                       {empresas.sem_empresa.map(u => (
-                        <div key={u.id} className="flex items-center gap-3 px-5 py-3">
-                          <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-500 shrink-0">
+                        <div key={u.id} className="flex items-center gap-3 px-5 py-3 border-b" style={{ borderColor: 'rgba(255,255,255,0.04)' }}>
+                          <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{ background: 'rgba(255,255,255,0.08)', color: '#8fa3c8' }}>
                             {(u.nome || u.email)[0].toUpperCase()}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-slate-800 truncate">{u.nome}</p>
-                            <p className="text-xs text-slate-400 truncate">{u.email}</p>
+                            <p className="text-sm font-medium text-white truncate">{u.nome}</p>
+                            <p className="text-xs truncate" style={{ color: '#5a7499' }}>{u.email}</p>
                           </div>
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold shrink-0 ${ROLE_BADGE[u.role] ?? 'bg-slate-100 text-slate-500'}`}>{u.role}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold shrink-0 ${ROLE_BADGE[u.role] ?? 'bg-white/5 text-[#8fa3c8]'}`}>{u.role}</span>
                         </div>
                       ))}
                     </div>
@@ -924,14 +861,14 @@ export default function AdminUsuarios() {
         {aba === 'permissoes' && (isAdmin || isComando) && (
           <>
             <div className="mb-8">
-              <h1 className="text-xl font-bold text-slate-900 tracking-tight">Permissões de banco de dados</h1>
-              <p className="text-sm text-slate-500 mt-1">Controle quais operadores podem sincronizar cada conexão cadastrada.</p>
+              <h1 className="text-xl font-bold text-white tracking-tight">Permissões de banco de dados</h1>
+              <p className="text-sm mt-1" style={{ color: '#8fa3c8' }}>Controle quais operadores podem sincronizar cada conexão cadastrada.</p>
             </div>
 
             {carregando ? (
-              <div className="text-center py-16 text-slate-400 text-sm">Carregando...</div>
+              <div className="text-center py-16 text-sm" style={{ color: '#5a7499' }}>Carregando...</div>
             ) : conexoes.length === 0 ? (
-              <div className="text-center py-16 text-slate-400 text-sm">Nenhuma conexão cadastrada ainda.</div>
+              <div className="text-center py-16 text-sm" style={{ color: '#5a7499' }}>Nenhuma conexão cadastrada ainda.</div>
             ) : (
               <div className="space-y-3">
                 {conexoes.map(c => (
