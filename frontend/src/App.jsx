@@ -74,6 +74,7 @@ import EsqueciSenha from './pages/EsqueciSenha'
 import RedefinirSenha from './pages/RedefinirSenha'
 import Login from './pages/Login'
 import Privacidade from './pages/Privacidade'
+import PainelCarteira from './pages/PainelCarteira'
 
 function RotaProtegida({ children, roles }) {
   const { autenticado, usuario } = useAuth()
@@ -96,6 +97,7 @@ export default function App() {
             <Route path="/redefinir-senha" element={<RedefinirSenha />} />
             <Route path="/" element={<RotaProtegida><Upload /></RotaProtegida>} />
             <Route path="/dashboard" element={<RotaProtegida><Dashboard /></RotaProtegida>} />
+            <Route path="/painel" element={<RotaProtegida><PainelCarteira /></RotaProtegida>} />
             <Route path="/devedor/:rank" element={<RotaProtegida><DebtorDetail /></RotaProtegida>} />
             <Route path="/feedback" element={<RotaProtegida><Feedback /></RotaProtegida>} />
             <Route path="/bandit" element={<RotaProtegida roles={['comando']}><BanditDashboard /></RotaProtegida>} />
