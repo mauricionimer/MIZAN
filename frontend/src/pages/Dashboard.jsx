@@ -10,7 +10,7 @@ import {
   Download, RefreshCw, Search, Loader2,
   Tag, Percent, ArrowUpRight, Banknote, ClipboardList, FileSpreadsheet, Zap, LogOut, ShieldCheck, KeyRound,
   CheckCircle2, XCircle, TrendingUp, Home, Clock, X,
-  LayoutDashboard, Settings, Bell,
+  LayoutDashboard,
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { gerarRelatorioPDF } from '../utils/gerarPDF'
@@ -567,11 +567,6 @@ export default function Dashboard() {
               {exporting
                 ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Exportando...</>
                 : <><Download className="h-3.5 w-3.5" /> PDF</>}
-            </button>
-
-            <button className="relative ml-2 flex h-9 w-9 items-center justify-center rounded-lg border border-white/[0.07] bg-[#111827] text-slate-400 transition-colors hover:text-white">
-              <Bell className="h-[18px] w-[18px]" />
-              <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-blue-500" />
             </button>
 
             <div className="ml-2 flex items-center gap-2.5 border-l border-white/[0.07] pl-4">

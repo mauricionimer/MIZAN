@@ -85,14 +85,18 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
   const [syncMsg,         setSyncMsg]         = useState(null)
   const [modo,            setModo]            = useState('lista')
   const [carregandoConexoes, setCarregandoConexoes] = useState(true)
+  const [erroCarregamento,   setErroCarregamento]   = useState(false)
 
-  useEffect(() => {
+  const carregarConexoes = () => {
     setCarregandoConexoes(true)
+    setErroCarregamento(false)
     listarConexoes()
       .then(data => { setConexoes(data); setModo(data.length === 0 ? 'nova' : 'lista') })
-      .catch(() => { setModo('nova') })
+      .catch(() => { setErroCarregamento(true) })
       .finally(() => setCarregandoConexoes(false))
-  }, [])
+  }
+
+  useEffect(() => { carregarConexoes() }, [])
 
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setErro(null) }
   const isSQLite    = form.tipo === 'sqlite'
@@ -206,6 +210,15 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
       {carregandoConexoes && (
         <div className="flex items-center gap-2 text-sm py-4 justify-center" style={{ color: '#5a7499' }}>
           <Loader2 className="h-4 w-4 animate-spin" /> Carregando conexões...
+        </div>
+      )}
+      {!carregandoConexoes && erroCarregamento && (
+        <div className="flex items-center justify-between p-3 rounded-xl text-sm text-amber-400"
+          style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.20)' }}>
+          <span>Não foi possível carregar as conexões.</span>
+          <button onClick={carregarConexoes} className="ml-3 text-xs font-semibold underline whitespace-nowrap">
+            Tentar novamente
+          </button>
         </div>
       )}
       {conexoes.map(c => (
