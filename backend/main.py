@@ -1146,6 +1146,15 @@ def registrar_contato(body: ContatoIn, credentials: HTTPAuthorizationCredentials
     except ValueError as e:
         raise HTTPException(status_code=401, detail=str(e))
     db = get_db()
+
+    if body.resultado == "pagou":
+        pred_check = db.table("predicoes").select("id").eq("cpf", body.cpf).limit(1).execute()
+        if not pred_check.data:
+            raise HTTPException(
+                status_code=404,
+                detail=f"CPF {body.cpf} não encontrado nas predições. Só é possível registrar pagamentos de devedores presentes na carteira analisada.",
+            )
+
     # Filtra None para não enviar colunas inexistentes ao Supabase
     row = {k: v for k, v in body.model_dump().items() if v is not None}
     row["usuario_id"]   = payload["sub"]
@@ -2557,6 +2566,12 @@ async def confirmar_pagamento(
         except Exception as _pe:
             print(f"[Confirmar] Aviso — não encontrou predicao para CPF {cpf}: {_pe}")
 
+        if not predicao_id:
+            raise HTTPException(
+                status_code=404,
+                detail=f"CPF {cpf} não encontrado na carteira ativa. Só é possível registrar pagamentos de devedores analisados pelo Mizan.",
+            )
+
         fb_row: dict = {
             "cpf":             cpf,
             "pagou":           True,
@@ -2976,13 +2991,14 @@ async def performance_pagamentos(credentials: HTTPAuthorizationCredentials = Sec
         for i in range(0, len(ids), 500):
             r = db.table("feedbacks").select(_COLS).in_("predicao_id", ids[i:i+500]).order("created_at", desc=True).execute()
             feedbacks.extend(r.data or [])
-        # Inclui feedbacks com campo empresa mas sem predicao_id (confirmações manuais)
-        if empresa_id:
-            r2 = db.table("feedbacks").select(_COLS).eq("empresa", empresa_id).is_("predicao_id", "null").order("created_at", desc=True).limit(500).execute()
-            feedbacks.extend(r2.data or [])
+        # Apenas pagamentos vinculados a predições reais — sem predicao_id são dados órfãos
         feedbacks = feedbacks[:5000]
     else:
-        feedbacks = db.table("feedbacks").select(_COLS).order("created_at", desc=True).limit(5000).execute().data or []
+        feedbacks = (
+            db.table("feedbacks").select(_COLS)
+            .not_.is_("predicao_id", "null")
+            .order("created_at", desc=True).limit(5000).execute().data or []
+        )
 
     if not feedbacks:
         return []
