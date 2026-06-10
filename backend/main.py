@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Security, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 from db import get_db
 from model.score import score_carteira, _cache as _score_cache
@@ -95,6 +95,7 @@ def _cache_get(key: str, ttl: float):
     entry = _cache_store.get(key)
     if entry and (_time.time() - entry[0]) < ttl:
         return entry[1]
+    _cache_store.pop(key, None)
     return None
 
 
@@ -181,6 +182,13 @@ async def lifespan(app: FastAPI):
     _scheduler.start()
 
     garantir_admin()
+
+    if _FERNET_KEY:
+        try:
+            from cryptography.fernet import Fernet as _Fernet
+            _Fernet(_FERNET_KEY.encode())
+        except Exception as _fe:
+            raise RuntimeError(f"MIZAN_ENCRYPTION_KEY inválida: {_fe}")
 
     # Garante que o modelo existe e é compatível; gera com dados sintéticos se necessário
     try:
@@ -1085,13 +1093,41 @@ def salvar_conexao(body: ConexaoSalvarIn, credentials: HTTPAuthorizationCredenti
 
 class ContatoIn(BaseModel):
     cpf: str
-    canal: str        # whatsapp | telefone | carta
-    resultado: str    # contactado | sem_resposta | prometeu_pagar | pagou | nao_quis
+    canal: str
+    resultado: str
     data_contato: Optional[str] = None
     observacao: Optional[str] = None
-    valor_recuperado: Optional[float] = None
-    desconto_oferecido_pct: Optional[float] = None
+    valor_recuperado: Optional[float] = Field(None, ge=0)
+    desconto_oferecido_pct: Optional[float] = Field(None, ge=0, le=100)
     acao_bandit_id: Optional[int] = None
+
+    @field_validator('canal')
+    @classmethod
+    def _val_canal(cls, v):
+        if v not in ('whatsapp', 'telefone', 'carta'):
+            raise ValueError('Canal inválido. Use: whatsapp, telefone ou carta.')
+        return v
+
+    @field_validator('resultado')
+    @classmethod
+    def _val_resultado(cls, v):
+        validos = ('contactado', 'sem_resposta', 'prometeu_pagar', 'pagou', 'nao_quis')
+        if v not in validos:
+            raise ValueError(f'Resultado inválido. Use: {", ".join(validos)}.')
+        return v
+
+    @field_validator('data_contato')
+    @classmethod
+    def _val_data(cls, v):
+        if v:
+            try:
+                from datetime import date as _date, datetime as _dt
+                d = _dt.fromisoformat(v).date()
+                if d > _date.today():
+                    raise ValueError('Data de contato não pode ser futura.')
+            except ValueError:
+                raise
+        return v
 
 
 _CONTATO_RECOMPENSA: dict = {
@@ -1118,10 +1154,11 @@ def registrar_contato(body: ContatoIn, credentials: HTTPAuthorizationCredentials
 
     try:
         res = db.table("contatos").insert(row).execute()
+        if not res.data:
+            raise RuntimeError("insert retornou vazio")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao registrar contato: {e}")
-    if not res.data:
-        raise HTTPException(status_code=500, detail="Falha ao inserir contato — verifique o schema da tabela contatos no Supabase.")
+        print(f"[Contato] Erro ao inserir: {e}")
+        raise HTTPException(status_code=500, detail="Erro ao registrar contato. Tente novamente.")
 
     # Fecha o loop do bandit: aprende com o resultado real do contato
     if body.resultado in _CONTATO_RECOMPENSA:
@@ -2790,7 +2827,7 @@ async def performance(credentials: HTTPAuthorizationCredentials = Security(beare
     empresa_id = payload.get("empresa_id", "")
     role       = payload.get("role", "")
 
-    if not empresa_id and role != "comando":
+    if not empresa_id and role not in ("comando", "admin"):
         return {"mensagem": "Nenhum feedback recebido ainda.", "total_feedbacks": 0}
 
     cache_key = f"perf:{empresa_id}"
@@ -2906,7 +2943,7 @@ async def performance_pagamentos(credentials: HTTPAuthorizationCredentials = Sec
     empresa_id = payload.get("empresa_id", "")
     role       = payload.get("role", "")
 
-    if not empresa_id and role != "comando":
+    if not empresa_id and role not in ("comando", "admin"):
         return []
 
     cache_key = f"pagamentos:{empresa_id}"
@@ -2983,7 +3020,7 @@ async def feedbacks_status(credentials: HTTPAuthorizationCredentials = Security(
     empresa_id = payload.get("empresa_id", "")
     role       = payload.get("role", "")
 
-    if not empresa_id and role != "comando":
+    if not empresa_id and role not in ("comando", "admin"):
         return {}
 
     cache_key = f"fb_status:{empresa_id}"

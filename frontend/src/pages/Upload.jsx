@@ -597,6 +597,7 @@ export default function Upload() {
     if (!f) return
     const nome = f.name.toLowerCase()
     if (!nome.endsWith('.csv') && !nome.endsWith('.xlsx') && !nome.endsWith('.xls')) { setError('Apenas arquivos .csv ou .xlsx são aceitos.'); return }
+    if (f.size > 100 * 1024 * 1024) { setError('Arquivo muito grande. O limite é 100 MB.'); return }
     setError(null); setFile(f)
   }
 
