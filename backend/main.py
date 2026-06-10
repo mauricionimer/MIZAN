@@ -3114,7 +3114,7 @@ async def recomendacao_devedor(cpf: str, credentials: HTTPAuthorizationCredentia
     db = get_db()
 
     role = payload.get("role", "")
-    if not empresa_id and role != "comando":
+    if not empresa_id and role not in ("comando", "admin"):
         raise HTTPException(status_code=403, detail="Acesso negado: usuário sem empresa definida.")
 
     q = (
