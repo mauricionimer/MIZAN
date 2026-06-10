@@ -231,9 +231,12 @@ export async function deletarConexao(id) {
   return res.json()
 }
 
-export async function buscarPagamentos() {
+export async function buscarPagamentos(carteiraId = null) {
   const token = _getToken()
-  const res = await fetch(`${BASE}/performance/pagamentos`, {
+  const url = carteiraId
+    ? `${BASE}/performance/pagamentos?carteira_id=${encodeURIComponent(carteiraId)}`
+    : `${BASE}/performance/pagamentos`
+  const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
   })
   _handle401(res)

@@ -2836,7 +2836,10 @@ async def feedback_lote(
 
 
 @app.get("/performance")
-async def performance(credentials: HTTPAuthorizationCredentials = Security(bearer)):
+async def performance(
+    credentials: HTTPAuthorizationCredentials = Security(bearer),
+    carteira_id: Optional[str] = None,
+):
     """Métricas de acurácia do modelo baseadas nos feedbacks reais — filtrados por empresa."""
     payload = _usuario_autenticado(credentials)
     empresa_id = payload.get("empresa_id", "")
@@ -2845,16 +2848,23 @@ async def performance(credentials: HTTPAuthorizationCredentials = Security(beare
     if not empresa_id and role not in ("comando", "admin"):
         return {"mensagem": "Nenhum feedback recebido ainda.", "total_feedbacks": 0}
 
-    cache_key = f"perf:{empresa_id}"
+    cache_key = f"perf:{carteira_id or empresa_id}"
     cached = _cache_get(cache_key, ttl=300)
     if cached is not None:
         return cached
 
     db = get_db()
 
-    # Filtra feedbacks pela empresa via carteira_id → empresa_id
+    # Quando carteira_id fornecido, filtra apenas por aquela carteira específica
     empresa_pred_ids: set | None = None
-    if empresa_id:
+    if carteira_id:
+        try:
+            pr = db.table("predicoes").select("id").eq("carteira_id", carteira_id).execute()
+            ids = {p["id"] for p in (pr.data or [])}
+            empresa_pred_ids = ids if ids else set()
+        except Exception:
+            empresa_pred_ids = None
+    elif empresa_id:
         try:
             cart_res = db.table("carteiras").select("id").eq("empresa_id", empresa_id).execute()
             cart_ids = [c["id"] for c in (cart_res.data or [])]
@@ -2952,7 +2962,10 @@ async def performance(credentials: HTTPAuthorizationCredentials = Security(beare
 
 
 @app.get("/performance/pagamentos")
-async def performance_pagamentos(credentials: HTTPAuthorizationCredentials = Security(bearer)):
+async def performance_pagamentos(
+    credentials: HTTPAuthorizationCredentials = Security(bearer),
+    carteira_id: Optional[str] = None,
+):
     """Lista individual de quem pagou, com nome, CPF e valor recuperado."""
     payload = _usuario_autenticado(credentials)
     empresa_id = payload.get("empresa_id", "")
@@ -2961,7 +2974,7 @@ async def performance_pagamentos(credentials: HTTPAuthorizationCredentials = Sec
     if not empresa_id and role not in ("comando", "admin"):
         return []
 
-    cache_key = f"pagamentos:{empresa_id}"
+    cache_key = f"pagamentos:{carteira_id or empresa_id}"
     cached = _cache_get(cache_key, ttl=300)
     if cached is not None:
         return cached
@@ -2969,7 +2982,14 @@ async def performance_pagamentos(credentials: HTTPAuthorizationCredentials = Sec
     db = get_db()
 
     empresa_pred_ids: set | None = None
-    if empresa_id:
+    if carteira_id:
+        try:
+            pr = db.table("predicoes").select("id").eq("carteira_id", carteira_id).execute()
+            ids = {p["id"] for p in (pr.data or [])}
+            empresa_pred_ids = ids if ids else set()
+        except Exception:
+            empresa_pred_ids = None
+    elif empresa_id:
         try:
             cart_res = db.table("carteiras").select("id").eq("empresa_id", empresa_id).execute()
             cart_ids = [c["id"] for c in (cart_res.data or [])]

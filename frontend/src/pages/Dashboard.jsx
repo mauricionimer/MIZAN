@@ -277,13 +277,16 @@ export default function Dashboard() {
   useEffect(() => {
     if (!token) return
 
-    fetch(`${BASE}/performance`, { headers: { Authorization: `Bearer ${token}` } })
+    const perfUrl = result?.carteira_id
+      ? `${BASE}/performance?carteira_id=${encodeURIComponent(result.carteira_id)}`
+      : `${BASE}/performance`
+    fetch(perfUrl, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : null)
       .then(setPerf)
       .catch(() => {})
       .finally(() => setLoadingPerf(false))
 
-    buscarPagamentos().then(setPagamentos).catch(() => {})
+    buscarPagamentos(result?.carteira_id ?? null).then(setPagamentos).catch(() => {})
     buscarStatusFeedbacks().then(setStatusMap).catch(() => {})
 
     // Polling a cada 15s — para após 3 erros consecutivos para não sobrecarregar servidor em outage
@@ -291,7 +294,7 @@ export default function Dashboard() {
     const intervalo = setInterval(() => {
       Promise.all([
         buscarStatusFeedbacks().then(setStatusMap),
-        buscarPagamentos().then(setPagamentos),
+        buscarPagamentos(result?.carteira_id ?? null).then(setPagamentos),
       ])
         .then(() => { errosConsecutivos = 0 })
         .catch(() => {
