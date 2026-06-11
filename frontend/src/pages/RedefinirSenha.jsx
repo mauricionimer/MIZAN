@@ -22,7 +22,9 @@ export default function RedefinirSenha() {
   async function handleSubmit(e) {
     e.preventDefault()
     setErro('')
-    if (nova.length < 6) { setErro('A senha deve ter pelo menos 6 caracteres.'); return }
+    if (nova.length < 8 || /^\d+$/.test(nova) || /^[a-zA-Z]+$/.test(nova)) {
+      setErro('A senha deve ter no mínimo 8 caracteres e combinar letras e números.'); return
+    }
     if (nova !== confirmar) { setErro('As senhas não coincidem.'); return }
     setCarregando(true)
     try {
@@ -81,7 +83,7 @@ export default function RedefinirSenha() {
             </div>
             <h2 className="text-lg font-bold text-white mb-1 tracking-tight">Nova senha</h2>
             <p className="text-sm mb-7" style={{ color: '#8fa3c8' }}>
-              Escolha uma nova senha com pelo menos 6 caracteres.
+              Escolha uma nova senha com no mínimo 8 caracteres, combinando letras e números.
             </p>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
@@ -89,7 +91,7 @@ export default function RedefinirSenha() {
                 <div className="relative">
                   <input type={showNova ? 'text' : 'password'} required value={nova}
                     onChange={e => setNova(e.target.value)} className="input-base pr-11"
-                    placeholder="mínimo 6 caracteres" />
+                    placeholder="mínimo 8 caracteres, letras e números" />
                   <button type="button" onClick={() => setShowNova(s => !s)}
                     className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors"
                     style={{ color: '#5a7499' }}>

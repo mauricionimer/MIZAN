@@ -56,6 +56,14 @@ def validar_token(token: str) -> dict:
 
 # ── Senha ────────────────────────────────────────────────────────────────
 
+def validar_forca_senha(senha: str) -> None:
+    """Garante uma política mínima de senha. Lança ValueError se fraca."""
+    if not senha or len(senha) < 8:
+        raise ValueError("A senha deve ter pelo menos 8 caracteres.")
+    if senha.isdigit() or senha.isalpha():
+        raise ValueError("A senha deve combinar letras e números.")
+
+
 def hash_senha(senha: str) -> str:
     salt = secrets.token_hex(16)
     h = hashlib.pbkdf2_hmac("sha256", senha.encode(), salt.encode(), 100_000)
@@ -117,6 +125,7 @@ def buscar_usuario_por_id(usuario_id: str) -> dict | None:
 
 def criar_usuario(email: str, nome: str, senha: str, role: str = "operador", empresa_id: str = "") -> dict:
     email = email.strip().lower()
+    validar_forca_senha(senha)
     db = _db()
     if db.table("usuarios").select("id").eq("email", email).execute().data:
         raise ValueError("E-mail já cadastrado.")
@@ -145,6 +154,7 @@ def alterar_senha(email: str, senha_atual: str, nova_senha: str) -> bool:
         return False
     if not verificar_senha(senha_atual, res.data[0]["senha_hash"]):
         return False
+    validar_forca_senha(nova_senha)
     db.table("usuarios").update({"senha_hash": hash_senha(nova_senha)}).eq("email", email).execute()
     return True
 
@@ -169,6 +179,7 @@ def redefinir_senha_com_token(token: str, nova_senha: str) -> bool:
     rec = res.data[0]
     if datetime.fromisoformat(rec["expires_at"]) < datetime.now(timezone.utc):
         return False
+    validar_forca_senha(nova_senha)
     db.table("usuarios").update({"senha_hash": hash_senha(nova_senha)}).eq("email", rec["email"]).execute()
     db.table("reset_tokens").update({"usado": True}).eq("token", token).execute()
     return True

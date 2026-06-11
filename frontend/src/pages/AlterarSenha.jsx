@@ -31,7 +31,9 @@ export default function AlterarSenha() {
   async function handleSubmit(e) {
     e.preventDefault()
     setErro('')
-    if (form.nova_senha.length < 6) { setErro('A nova senha deve ter pelo menos 6 caracteres.'); return }
+    if (form.nova_senha.length < 8 || /^\d+$/.test(form.nova_senha) || /^[a-zA-Z]+$/.test(form.nova_senha)) {
+      setErro('A nova senha deve ter no mínimo 8 caracteres e combinar letras e números.'); return
+    }
     if (form.nova_senha !== form.confirmar) { setErro('A nova senha e a confirmação não coincidem.'); return }
     if (form.nova_senha === form.senha_atual) { setErro('A nova senha deve ser diferente da senha atual.'); return }
     setCarregando(true)
@@ -112,7 +114,7 @@ export default function AlterarSenha() {
             </div>
             <div>
               <h1 className="text-lg font-bold text-white tracking-tight">Alterar senha</h1>
-              <p className="text-xs" style={{ color: '#5a7499' }}>Mínimo 6 caracteres</p>
+              <p className="text-xs" style={{ color: '#5a7499' }}>Mínimo 8 caracteres, letras e números</p>
             </div>
           </div>
 

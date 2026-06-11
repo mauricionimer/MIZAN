@@ -183,6 +183,13 @@ async def lifespan(app: FastAPI):
 
     garantir_admin()
 
+    # Em produção (Supabase real configurado), recusa subir com segredos default.
+    _is_prod = bool(os.getenv("SUPABASE_URL"))
+    if _is_prod:
+        from auth import SECRET_KEY as _JWT_SECRET
+        if _JWT_SECRET == "mizan_jwt_secret_mude_em_producao_2026":
+            raise RuntimeError("JWT_SECRET não configurado em produção. Defina a variável de ambiente JWT_SECRET.")
+
     if _FERNET_KEY:
         try:
             from cryptography.fernet import Fernet as _Fernet
@@ -894,7 +901,11 @@ def auth_alterar_senha(body: AlterarSenhaIn, credentials: HTTPAuthorizationCrede
         payload = validar_token(credentials.credentials)
     except ValueError as e:
         raise HTTPException(status_code=401, detail=str(e))
-    if not alterar_senha(payload["email"], body.senha_atual, body.nova_senha):
+    try:
+        ok = alterar_senha(payload["email"], body.senha_atual, body.nova_senha)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not ok:
         raise HTTPException(status_code=400, detail="Senha atual incorreta.")
     _registrar_auditoria(
         acao="senha_alterada",
@@ -1707,9 +1718,11 @@ async def sincronizar_conexao(conexao_id: str, credentials: HTTPAuthorizationCre
 
 @app.post("/auth/redefinir-senha")
 def auth_redefinir_senha(body: RedefinirSenhaIn):
-    if len(body.nova_senha) < 6:
-        raise HTTPException(status_code=400, detail="A senha deve ter pelo menos 6 caracteres.")
-    if not redefinir_senha_com_token(body.token, body.nova_senha):
+    try:
+        ok = redefinir_senha_com_token(body.token, body.nova_senha)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not ok:
         raise HTTPException(status_code=400, detail="Link inválido ou expirado. Solicite um novo.")
     return {"ok": True}
 
@@ -2206,8 +2219,9 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
 
 
 @app.post("/listar-tabelas")
-async def listar_tabelas(conn: ConexaoDB):
+async def listar_tabelas(conn: ConexaoDB, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """Lista as tabelas disponíveis no banco externo — sem precisar escrever SQL."""
+    _usuario_autenticado(credentials)
     _resolver_credenciais(conn)
     _bloquear_autoconexao(conn)
     if conn.tipo == "sheets":
@@ -2245,8 +2259,9 @@ async def listar_tabelas(conn: ConexaoDB):
 
 
 @app.post("/testar-db")
-async def testar_db(conn: ConexaoDB):
+async def testar_db(conn: ConexaoDB, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """Testa conexão, executa query limitada e retorna colunas + preview + mapeamento sugerido."""
+    _usuario_autenticado(credentials)
     _resolver_credenciais(conn)
     _bloquear_autoconexao(conn)
     try:
@@ -2305,6 +2320,7 @@ async def testar_db(conn: ConexaoDB):
 @app.post("/analisar/db")
 async def analisar_db(conn: ConexaoDB, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """Analisa uma carteira carregada diretamente de um banco de dados externo."""
+    _payload = _usuario_autenticado(credentials)  # valida o token ANTES de conectar
     _resolver_credenciais(conn)
     _bloquear_autoconexao(conn)
     try:
@@ -2345,7 +2361,6 @@ async def analisar_db(conn: ConexaoDB, credentials: HTTPAuthorizationCredentials
         rename = {col_banco: campo for campo, col_banco in conn.mapeamento.items() if col_banco in df.columns}
         df = df.rename(columns=rename)
 
-    _payload = _usuario_autenticado(credentials)
     uid, uemail, eid = _payload["sub"], _payload.get("email", ""), _payload.get("empresa_id", "")
     # COMANDO pode especificar a empresa destino da análise
     if _payload.get("role") == "comando" and conn.empresa_id_alvo:
