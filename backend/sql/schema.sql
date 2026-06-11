@@ -99,6 +99,7 @@ CREATE TABLE IF NOT EXISTS conexoes_db (
   ultimo_sync_por       TEXT,
   carteira_id           UUID,
   intervalo_sync_horas  NUMERIC DEFAULT 1,
+  writeback_habilitado  BOOLEAN DEFAULT FALSE,
   coluna_writeback      TEXT,
   valor_pago            TEXT DEFAULT 'pago',
   valor_nao_pago        TEXT
@@ -114,6 +115,7 @@ ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS ultimo_sync_por      TEXT;
 ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS empresa_id           TEXT DEFAULT '';
 ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS carteira_id          UUID;
 ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS intervalo_sync_horas NUMERIC DEFAULT 1;
+ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS writeback_habilitado BOOLEAN DEFAULT FALSE;
 ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS coluna_writeback     TEXT;
 ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS valor_pago           TEXT DEFAULT 'pago';
 ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS valor_nao_pago       TEXT;

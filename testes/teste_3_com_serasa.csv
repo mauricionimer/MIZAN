@@ -1,0 +1,9 @@
+cpf,nome,produto,uf,valor_divida,renda_estimada,dias_em_atraso,score_serasa,negativacoes,valor_negativado,tentativas_contato,promessa_quebrada
+11122233344,Beatriz Santos,pessoal,SP,19000,3800,90,450,3,19000,5,true
+22233344455,Gustavo Lima,veiculo,PR,55000,7200,35,700,0,0,1,false
+33344455566,Leticia Carmo,cartao,RJ,7200,1900,250,280,7,12000,8,true
+44455566677,Felipe Araujo,consignado,MG,24000,5100,20,800,0,0,0,false
+55566677788,Renata Vieira,pessoal,BA,13500,2600,160,380,4,13500,6,true
+66677788899,Bruno Souza,cartao,SP,4100,1100,420,150,9,8500,10,true
+77788899900,Isabela Melo,veiculo,SC,47000,8500,15,750,0,0,1,false
+88899900011,Caio Ribeiro,pessoal,CE,9600,2300,195,320,5,9600,4,true

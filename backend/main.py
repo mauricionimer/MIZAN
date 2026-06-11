@@ -940,6 +940,7 @@ class ConexaoSalvarIn(BaseModel):
     mapeamento: Optional[dict] = None
     empresa_id: Optional[str] = None  # COMANDO pode especificar a empresa destino
     intervalo_sync_horas: Optional[float] = 1.0  # intervalo de auto-sync em horas
+    writeback_habilitado: Optional[bool] = False  # OPT-IN: por padrão a conexão é SOMENTE-LEITURA
     coluna_writeback: Optional[str] = None   # coluna a atualizar no banco externo ao registrar pagamento
     valor_pago: Optional[str] = 'pago'       # valor a gravar quando pagou=True
     valor_nao_pago: Optional[str] = None     # valor a gravar quando pagou=False (None = não atualiza)
@@ -951,6 +952,7 @@ class ConexaoUpdateIn(BaseModel):
     mapeamento: Optional[dict] = None
     carteira_id: Optional[str] = None
     intervalo_sync_horas: Optional[float] = None
+    writeback_habilitado: Optional[bool] = None
     coluna_writeback: Optional[str] = None
     valor_pago: Optional[str] = None
     valor_nao_pago: Optional[str] = None
@@ -1546,8 +1548,7 @@ def _sincronizar_conexao_row(row: dict, uemail: str, uid: str, eid: str) -> dict
         else:
             from sqlalchemy import create_engine, text
             url = _construir_url_db(conn)
-            timeout_args = {"connect_timeout": 10} if conn.tipo in ("postgres", "postgresql", "mysql", "mariadb") else {}
-            engine = create_engine(url, connect_args=timeout_args)
+            engine = create_engine(url, connect_args=_external_connect_args(conn))
             with engine.connect() as connection:
                 df = pd.read_sql(text(q), connection)
             engine.dispose()
@@ -1894,6 +1895,25 @@ async def analisar(
     return _analisar_df(df, file.filename, _usuario_id=uid, _usuario_email=uemail, _empresa_id=eid)
 
 
+def _external_connect_args(conn: ConexaoDB) -> dict:
+    """connect_args para bancos externos: timeout + TLS obrigatório em conexões remotas.
+
+    Evita que credenciais e dados de devedores trafeguem em texto claro pela rede.
+    - Postgres: TLS é forçado via sslmode=require na própria URL (ver _construir_url_db).
+    - MySQL/MariaDB: pymysql ativa TLS quando 'ssl' é um dict não-vazio.
+    Conexões a localhost são isentas (o tráfego não sai da máquina).
+    """
+    args: dict = {}
+    tipo = conn.tipo
+    host = (conn.host or "").lower()
+    local = host in ("localhost", "127.0.0.1", "::1", "")
+    if tipo in ("postgres", "postgresql", "mysql", "mariadb"):
+        args["connect_timeout"] = 10
+    if not local and tipo in ("mysql", "mariadb"):
+        args["ssl"] = {"check_hostname": False}
+    return args
+
+
 def _construir_url_db(conn: ConexaoDB) -> str:
     """Monta a connection string do SQLAlchemy a partir dos parâmetros."""
     from urllib.parse import quote_plus
@@ -2235,8 +2255,7 @@ async def listar_tabelas(conn: ConexaoDB, credentials: HTTPAuthorizationCredenti
         else:
             from sqlalchemy import create_engine, text
             url = _construir_url_db(conn)
-            timeout_args = {"connect_timeout": 10} if conn.tipo in ("postgres", "postgresql", "mysql", "mariadb") else {}
-            engine = create_engine(url, connect_args=timeout_args)
+            engine = create_engine(url, connect_args=_external_connect_args(conn))
             with engine.connect() as connection:
                 if conn.tipo in ("postgres", "postgresql"):
                     q = "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name"
@@ -2283,8 +2302,7 @@ async def testar_db(conn: ConexaoDB, credentials: HTTPAuthorizationCredentials =
             else:
                 from sqlalchemy import create_engine, text
                 url = _construir_url_db(conn)
-                timeout_args = {"connect_timeout": 10} if conn.tipo in ("postgres", "postgresql", "mysql", "mariadb") else {}
-                engine = create_engine(url, connect_args=timeout_args)
+                engine = create_engine(url, connect_args=_external_connect_args(conn))
                 with engine.connect() as connection:
                     if conn.tipo == "oracle":
                         preview_q = f"SELECT * FROM ({q}) WHERE ROWNUM <= 5"
@@ -2341,8 +2359,7 @@ async def analisar_db(conn: ConexaoDB, credentials: HTTPAuthorizationCredentials
             else:
                 from sqlalchemy import create_engine, text
                 url = _construir_url_db(conn)
-                timeout_args = {"connect_timeout": 10} if conn.tipo in ("postgres", "postgresql", "mysql", "mariadb") else {}
-                engine = create_engine(url, connect_args=timeout_args)
+                engine = create_engine(url, connect_args=_external_connect_args(conn))
                 with engine.connect() as connection:
                     if conn.tipo == "oracle":
                         safe_q = f"SELECT * FROM ({q}) WHERE ROWNUM <= {_MAX_ROWS}"
@@ -2387,9 +2404,10 @@ def _writeback_pagamento(empresa_id: str, cpf: str, pagou: bool) -> str | None:
         rows = db.table("conexoes_db").select("*").eq("empresa_id", empresa_id).execute().data
     except Exception:
         return None
-    # Usa a conexão mais recente que tenha coluna_writeback configurada
+    # Write-back é OPT-IN: por padrão toda conexão é somente-leitura.
+    # Só grava no banco do cliente se o admin habilitou explicitamente E configurou a coluna.
     conn_row = next((r for r in sorted(rows, key=lambda x: x.get("created_at", ""), reverse=True)
-                     if r.get("coluna_writeback")), None)
+                     if r.get("writeback_habilitado") and r.get("coluna_writeback")), None)
     if not conn_row:
         return None
 
@@ -2439,7 +2457,7 @@ def _writeback_pagamento(empresa_id: str, cpf: str, pagou: bool) -> str | None:
         else:
             from sqlalchemy import create_engine, text
             url = _construir_url_db(conn)
-            engine = create_engine(url, connect_args={"connect_timeout": 10})
+            engine = create_engine(url, connect_args=_external_connect_args(conn))
             with engine.begin() as connection:
                 connection.execute(
                     text(f"UPDATE {tabela} SET {coluna} = :val WHERE {coluna_cpf} = :cpf"),

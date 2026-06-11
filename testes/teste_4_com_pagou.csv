@@ -1,0 +1,9 @@
+cpf,nome,produto,uf,valor_divida,renda_estimada,dias_em_atraso,pagou,valor_recuperado
+10020030040,Marina Castro,pessoal,SP,12000,3200,60,true,10200
+20030040050,Paulo Henrique,cartao,RJ,5500,1700,150,false,0
+30040050060,Aline Ferreira,veiculo,MG,38000,6300,25,true,38000
+40050060070,Sergio Neto,pessoal,BA,8700,2100,300,false,0
+50060070080,Tatiana Pires,consignado,PR,21000,4600,10,true,21000
+60070080090,Marcelo Ramos,cartao,GO,3400,1000,500,false,0
+70080090001,Priscila Fonseca,pessoal,RS,16000,3700,80,true,12000
+80090001002,Eduardo Campos,veiculo,SP,52000,9000,18,false,0

@@ -1,0 +1,9 @@
+documento,cliente,modalidade,situacao,estado,saldo_devedor,salario,dias_atraso
+12345678901,Bruna Almeida,credito pessoal,em atraso,SP,27000,4200,55
+98765432100,Thiago Barros,financiamento auto,em atraso,RJ,65000,8000,20
+45678912300,Silvia Moura,cartao credito,em atraso,SC,4300,1600,310
+32165498700,Anderson Gomes,emprestimo,em atraso,PE,11200,2900,140
+65432198700,Luciana Teixeira,cdc veiculo,em atraso,MG,38000,5500,75
+14725836900,Rafael Cunha,credito pessoal,em atraso,GO,8900,2100,220
+85236974100,Vanessa Lopes,cartao credito,em atraso,BA,2800,950,400
+96385274100,Rodrigo Dias,consignado,em atraso,DF,16000,3800,40

@@ -67,7 +67,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
   const [form, setForm]         = useState({
     tipo: 'postgres', host: '', porta: '', banco: '',
     usuario: '', senha: '', query: 'SELECT * FROM devedores', nome_fonte: '',
-    intervalo_sync_horas: 1, coluna_writeback: '', valor_pago: 'pago', valor_nao_pago: '',
+    intervalo_sync_horas: 1, writeback_habilitado: false, coluna_writeback: '', valor_pago: 'pago', valor_nao_pago: '',
   })
   const [teste, setTeste]       = useState(null)
   const [mapa, setMapa]         = useState({})
@@ -123,7 +123,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
   }
 
   function carregarConexaoSalva(c) {
-    setForm({ tipo: c.tipo, host: c.host || '', porta: c.porta || '', banco: c.banco || '', usuario: c.usuario || '', senha: c.senha || '', query: c.query || 'SELECT * FROM devedores', nome_fonte: c.nome || '', instance_name: c.instance_name || '', service_name: c.service_name || '', sheets_id: c.sheets_id || '', sheets_aba: c.sheets_aba || '', sheets_credenciais: '', intervalo_sync_horas: c.intervalo_sync_horas ?? 1, coluna_writeback: c.coluna_writeback || '', valor_pago: c.valor_pago || 'pago', valor_nao_pago: c.valor_nao_pago || '' })
+    setForm({ tipo: c.tipo, host: c.host || '', porta: c.porta || '', banco: c.banco || '', usuario: c.usuario || '', senha: c.senha || '', query: c.query || 'SELECT * FROM devedores', nome_fonte: c.nome || '', instance_name: c.instance_name || '', service_name: c.service_name || '', sheets_id: c.sheets_id || '', sheets_aba: c.sheets_aba || '', sheets_credenciais: '', intervalo_sync_horas: c.intervalo_sync_horas ?? 1, writeback_habilitado: !!c.writeback_habilitado, coluna_writeback: c.coluna_writeback || '', valor_pago: c.valor_pago || 'pago', valor_nao_pago: c.valor_nao_pago || '' })
     setConexaoSalvaId(c.id); setNomeParaSalvar(''); setEtapa('conexao'); setModo('nova'); setErro(null)
   }
 
@@ -132,7 +132,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
     if (!nome) return
     setSalvandoConexao(true)
     try {
-      const dados = { nome, tipo: form.tipo, host: form.host || null, porta: form.porta ? Number(form.porta) : null, banco: form.banco || null, usuario: form.usuario || null, senha: form.senha || null, instance_name: form.instance_name || null, service_name: form.service_name || null, sheets_id: form.sheets_id || null, sheets_aba: form.sheets_aba || null, query: isSheets ? null : (form.query || null), mapeamento: Object.keys(mapa).length > 0 ? mapa : undefined, empresa_id: empresaAlvo || undefined, intervalo_sync_horas: Number(form.intervalo_sync_horas) || 1, coluna_writeback: form.coluna_writeback || null, valor_pago: form.valor_pago || 'pago', valor_nao_pago: form.valor_nao_pago || null }
+      const dados = { nome, tipo: form.tipo, host: form.host || null, porta: form.porta ? Number(form.porta) : null, banco: form.banco || null, usuario: form.usuario || null, senha: form.senha || null, instance_name: form.instance_name || null, service_name: form.service_name || null, sheets_id: form.sheets_id || null, sheets_aba: form.sheets_aba || null, query: isSheets ? null : (form.query || null), mapeamento: Object.keys(mapa).length > 0 ? mapa : undefined, empresa_id: empresaAlvo || undefined, intervalo_sync_horas: Number(form.intervalo_sync_horas) || 1, writeback_habilitado: !!form.writeback_habilitado, coluna_writeback: form.coluna_writeback || null, valor_pago: form.valor_pago || 'pago', valor_nao_pago: form.valor_nao_pago || null }
       const res = await salvarConexao(dados)
       setConexoes(prev => [res.conexao, ...prev]); setConexaoSalvaId(res.conexao.id); setNomeParaSalvar('')
     } catch (e) { setErro(`Erro ao salvar conexão: ${e.message}`) } finally { setSalvandoConexao(false) }
@@ -196,7 +196,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
     }
     try {
       const data = await analisarDB({ ...paramsConexao(), mapeamento: mapa, conexao_id: savedId, empresa_id_alvo: empresaAlvo || undefined })
-      if (savedId) { atualizarConexao(savedId, { mapeamento: mapa, query: form.query, carteira_id: data.resumo?.carteira_id || undefined, intervalo_sync_horas: Number(form.intervalo_sync_horas) || 1, coluna_writeback: form.coluna_writeback || null, valor_pago: form.valor_pago || 'pago', valor_nao_pago: form.valor_nao_pago || null }).catch(() => {}) }
+      if (savedId) { atualizarConexao(savedId, { mapeamento: mapa, query: form.query, carteira_id: data.resumo?.carteira_id || undefined, intervalo_sync_horas: Number(form.intervalo_sync_horas) || 1, writeback_habilitado: !!form.writeback_habilitado, coluna_writeback: form.coluna_writeback || null, valor_pago: form.valor_pago || 'pago', valor_nao_pago: form.valor_nao_pago || null }).catch(() => {}) }
       onResult(data)
     } catch (e) { setErro(e.message); setEtapa('mapeamento') } finally { setLoadingAnalise(false) }
   }
@@ -276,7 +276,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
         </div>
       )}
       {!isOperador && (
-        <button onClick={() => { setModo('nova'); setConexaoSalvaId(null); setForm({ tipo: 'postgres', host: '', porta: '', banco: '', usuario: '', senha: '', query: 'SELECT * FROM devedores', nome_fonte: '', intervalo_sync_horas: 1, coluna_writeback: '', valor_pago: 'pago', valor_nao_pago: '' }); setErro(null) }}
+        <button onClick={() => { setModo('nova'); setConexaoSalvaId(null); setForm({ tipo: 'postgres', host: '', porta: '', banco: '', usuario: '', senha: '', query: 'SELECT * FROM devedores', nome_fonte: '', intervalo_sync_horas: 1, writeback_habilitado: false, coluna_writeback: '', valor_pago: 'pago', valor_nao_pago: '' }); setErro(null) }}
           className="w-full py-3 rounded-2xl border-2 border-dashed text-sm flex items-center justify-center gap-2 transition-colors"
           style={{ borderColor: 'rgba(255,255,255,0.10)', color: '#5a7499' }}
           onMouseOver={e => { e.currentTarget.style.borderColor = 'rgba(29,106,255,0.40)'; e.currentTarget.style.color = '#60a5fa' }}
@@ -399,22 +399,35 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
         <p className="text-xs mt-1" style={{ color: '#5a7499' }}>O sistema relê seu banco automaticamente neste intervalo — qualquer pagamento ou alteração reflete sem intervenção manual.</p>
       </div>
       <div className="rounded-xl p-4 space-y-3" style={{ border: '1px dashed rgba(255,255,255,0.10)' }}>
-        <p className="text-xs font-semibold text-white">Gravar pagamentos de volta no banco (opcional)</p>
-        <p className="text-xs leading-relaxed" style={{ color: '#5a7499' }}>Quando alguém registrar um pagamento manualmente no Mizan, o sistema atualiza automaticamente a coluna correspondente no seu banco externo.</p>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: '#8fa3c8' }}>Coluna de status</label>
-            <input value={form.coluna_writeback || ''} onChange={e => set('coluna_writeback', e.target.value)} placeholder="ex: status, situacao, pagou" className={inp()} style={INP_DARK} />
-          </div>
-          <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: '#8fa3c8' }}>Valor quando pago</label>
-            <input value={form.valor_pago || ''} onChange={e => set('valor_pago', e.target.value)} placeholder="ex: pago, sim, 1" className={inp()} style={INP_DARK} />
-          </div>
-        </div>
-        <div>
-          <label className="block text-xs font-medium mb-1" style={{ color: '#8fa3c8' }}>Valor quando não pago <span style={{ color: '#3d5270' }}>(opcional — deixe vazio para não alterar)</span></label>
-          <input value={form.valor_nao_pago || ''} onChange={e => set('valor_nao_pago', e.target.value)} placeholder="ex: inadimplente, nao, 0" className={inp()} style={INP_DARK} />
-        </div>
+        <label className="flex items-start gap-2.5 cursor-pointer">
+          <input type="checkbox" checked={!!form.writeback_habilitado}
+            onChange={e => set('writeback_habilitado', e.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0 accent-blue-500" />
+          <span>
+            <span className="text-xs font-semibold text-white">Gravar pagamentos de volta no banco (opcional)</span>
+            <span className="block text-xs leading-relaxed mt-0.5" style={{ color: '#5a7499' }}>
+              Por padrão a conexão é <strong style={{ color: '#8fa3c8' }}>somente-leitura</strong> — o Mizan nunca altera seu banco. Marque esta opção apenas se quiser que o sistema atualize a coluna de status quando um pagamento for registrado. Requer credencial com permissão de escrita.
+            </span>
+          </span>
+        </label>
+        {form.writeback_habilitado && (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: '#8fa3c8' }}>Coluna de status</label>
+                <input value={form.coluna_writeback || ''} onChange={e => set('coluna_writeback', e.target.value)} placeholder="ex: status, situacao, pagou" className={inp()} style={INP_DARK} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: '#8fa3c8' }}>Valor quando pago</label>
+                <input value={form.valor_pago || ''} onChange={e => set('valor_pago', e.target.value)} placeholder="ex: pago, sim, 1" className={inp()} style={INP_DARK} />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: '#8fa3c8' }}>Valor quando não pago <span style={{ color: '#3d5270' }}>(opcional — deixe vazio para não alterar)</span></label>
+              <input value={form.valor_nao_pago || ''} onChange={e => set('valor_nao_pago', e.target.value)} placeholder="ex: inadimplente, nao, 0" className={inp()} style={INP_DARK} />
+            </div>
+          </>
+        )}
       </div>
       {erro && (
         <div className="flex items-start gap-2 p-3 rounded-xl text-red-400 text-sm" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)' }}>

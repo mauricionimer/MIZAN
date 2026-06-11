@@ -1,0 +1,11 @@
+cpf,nome,produto,status,uf,valor_divida,renda_estimada,dias_em_atraso
+111.111.111-11,Ana Paula Souza,pessoal,inadimplente,SP,15000,3500,45
+222.222.222-22,Carlos Mendes,cartao,inadimplente,RJ,8500,2200,120
+333.333.333-33,Fernanda Lima,veiculo,inadimplente,MG,42000,6000,30
+444.444.444-44,Roberto Silva,pessoal,inadimplente,BA,5200,1800,200
+555.555.555-55,Juliana Costa,consignado,inadimplente,PR,22000,4500,15
+666.666.666-66,Marcos Oliveira,cartao,inadimplente,SP,3100,900,365
+777.777.777-77,Patricia Rocha,pessoal,inadimplente,RS,9800,2800,90
+888.888.888-88,Diego Ferreira,veiculo,inadimplente,GO,31000,5200,60
+999.999.999-99,Camila Nunes,cartao,inadimplente,CE,6700,1500,180
+000.000.000-00,Leonardo Pinto,consignado,inadimplente,AM,18500,4000,25
