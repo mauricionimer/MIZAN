@@ -261,9 +261,12 @@ export async function confirmarPagamento(cpf, dados = {}) {
   return data
 }
 
-export async function buscarStatusFeedbacks() {
+export async function buscarStatusFeedbacks(carteiraId = null) {
   const token = _getToken()
-  const res = await fetch(`${BASE}/feedbacks/status`, {
+  const url = carteiraId
+    ? `${BASE}/feedbacks/status?carteira_id=${encodeURIComponent(carteiraId)}`
+    : `${BASE}/feedbacks/status`
+  const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
   })
   _handle401(res)

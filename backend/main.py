@@ -1148,7 +1148,17 @@ def registrar_contato(body: ContatoIn, credentials: HTTPAuthorizationCredentials
     db = get_db()
 
     if body.resultado == "pagou":
-        pred_check = db.table("predicoes").select("id").eq("cpf", body.cpf).limit(1).execute()
+        pred_q = db.table("predicoes").select("id").eq("cpf", body.cpf)
+        _emp = payload.get("empresa_id", "")
+        if _emp:
+            try:
+                cart_res = db.table("carteiras").select("id").eq("empresa_id", _emp).limit(100).execute()
+                cart_ids = [c["id"] for c in (cart_res.data or [])]
+                if cart_ids:
+                    pred_q = pred_q.in_("carteira_id", cart_ids)
+            except Exception:
+                pass
+        pred_check = pred_q.limit(1).execute()
         if not pred_check.data:
             raise HTTPException(
                 status_code=404,
@@ -1770,6 +1780,7 @@ def carregar_carteira(carteira_id: str, credentials: HTTPAuthorizationCredential
     scores     = [d["score_recuperabilidade"] for d in ranking if d.get("score_recuperabilidade") is not None]
     _cart_row  = cart_res.data[0]
     resumo = {
+        "carteira_id": carteira_id,
         "total_devedores": len(ranking),
         "total_em_risco": round(total_face, 2),
         "score_medio": round(sum(scores) / len(scores), 1) if scores else 0,
@@ -2625,6 +2636,7 @@ async def confirmar_pagamento(
         _cache_del_prefix(f"pagamentos:{empresa_id}")
         _cache_del_prefix(f"perf:{empresa_id}")
         if _pred_cart_id:
+            _cache_del_prefix(f"fb_status:{_pred_cart_id}")
             _cache_del_prefix(f"pagamentos:{_pred_cart_id}")
             _cache_del_prefix(f"perf:{_pred_cart_id}")
 
@@ -2680,11 +2692,18 @@ async def webhook_pagamento(body: WebhookPagamentoIn, request: Request):
         or key_res.data[0].get("empresa_nome", "webhook")
     )
 
-    pred_res = (
-        db.table("predicoes").select("id, score_recuperabilidade, valor_divida")
-        .eq("cpf", body.cpf).order("created_at", desc=True).limit(1).execute()
-    )
-    predicao_id = pred_res.data[0]["id"] if pred_res.data else None
+    # Restringe a busca da predição às carteiras da empresa, se houver
+    pred_query = db.table("predicoes").select("id, carteira_id, score_recuperabilidade, valor_divida").eq("cpf", body.cpf)
+    try:
+        cart_res = db.table("carteiras").select("id").eq("empresa_id", empresa).limit(100).execute()
+        cart_ids = [c["id"] for c in (cart_res.data or [])]
+        if cart_ids:
+            pred_query = pred_query.in_("carteira_id", cart_ids)
+    except Exception:
+        pass
+    pred_res = pred_query.order("created_at", desc=True).limit(1).execute()
+    predicao_id   = pred_res.data[0]["id"]              if pred_res.data else None
+    _pred_cart_id = pred_res.data[0].get("carteira_id") if pred_res.data else None
 
     fb_row = {
         "cpf": body.cpf,
@@ -2705,6 +2724,14 @@ async def webhook_pagamento(body: WebhookPagamentoIn, request: Request):
         float(body.valor_recuperado or 0),
         pred_res.data[0] if pred_res.data else None,
     )
+
+    _cache_del_prefix(f"fb_status:{empresa}")
+    _cache_del_prefix(f"pagamentos:{empresa}")
+    _cache_del_prefix(f"perf:{empresa}")
+    if _pred_cart_id:
+        _cache_del_prefix(f"fb_status:{_pred_cart_id}")
+        _cache_del_prefix(f"pagamentos:{_pred_cart_id}")
+        _cache_del_prefix(f"perf:{_pred_cart_id}")
 
     print(f"[Webhook] Pagamento recebido — CPF: {body.cpf}, pagou: {body.pagou}, empresa: {empresa}")
     return {"ok": True, "feedback_id": feedback_id}
@@ -3059,7 +3086,10 @@ async def performance_pagamentos(
 
 
 @app.get("/feedbacks/status")
-async def feedbacks_status(credentials: HTTPAuthorizationCredentials = Security(bearer)):
+async def feedbacks_status(
+    credentials: HTTPAuthorizationCredentials = Security(bearer),
+    carteira_id: Optional[str] = None,
+):
     """Retorna mapa cpf → {pagou, valor_recuperado, data_pagamento} com o feedback mais recente por CPF da empresa."""
     payload = _usuario_autenticado(credentials)
     empresa_id = payload.get("empresa_id", "")
@@ -3068,7 +3098,7 @@ async def feedbacks_status(credentials: HTTPAuthorizationCredentials = Security(
     if not empresa_id and role not in ("comando", "admin"):
         return {}
 
-    cache_key = f"fb_status:{empresa_id}"
+    cache_key = f"fb_status:{carteira_id or empresa_id}"
     cached = _cache_get(cache_key, ttl=30)
     if cached is not None:
         return cached
@@ -3076,7 +3106,13 @@ async def feedbacks_status(credentials: HTTPAuthorizationCredentials = Security(
     db = get_db()
 
     empresa_pred_ids: set | None = None
-    if empresa_id:
+    if carteira_id:
+        try:
+            pr = db.table("predicoes").select("id").eq("carteira_id", carteira_id).execute()
+            empresa_pred_ids = {p["id"] for p in (pr.data or [])}
+        except Exception:
+            empresa_pred_ids = None
+    elif empresa_id:
         try:
             cart_res = db.table("carteiras").select("id").eq("empresa_id", empresa_id).execute()
             cart_ids = [c["id"] for c in (cart_res.data or [])]
@@ -3096,7 +3132,7 @@ async def feedbacks_status(credentials: HTTPAuthorizationCredentials = Security(
         for i in range(0, len(ids), 500):
             r = db.table("feedbacks").select(_COLS2).in_("predicao_id", ids[i:i+500]).order("created_at", desc=True).execute()
             feedbacks.extend(r.data or [])
-        if empresa_id:
+        if empresa_id and not carteira_id:
             r2 = db.table("feedbacks").select(_COLS2).eq("empresa", empresa_id).is_("predicao_id", "null").order("created_at", desc=True).limit(500).execute()
             feedbacks.extend(r2.data or [])
         feedbacks = feedbacks[:5000]

@@ -313,12 +313,14 @@ export default function DebtorDetail() {
     if (!d) navigate('/dashboard')
   }, [result, d, navigate])
 
+  const carteiraId = result?.resumo?.carteira_id ?? null
+
   useEffect(() => {
     if (!d?.cpf) return
     setRecLoading(true)
     buscarRecomendacao(d.cpf).then(setRec).catch(e => setRecErro(e.message)).finally(() => setRecLoading(false))
-    buscarStatusFeedbacks().then(map => setStatusPag(map[String(d.cpf)] ?? null)).catch(() => {})
-  }, [d?.cpf])
+    buscarStatusFeedbacks(carteiraId).then(map => setStatusPag(map[String(d.cpf)] ?? null)).catch(() => {})
+  }, [d?.cpf, carteiraId])
 
   if (!result || !d) return null
 

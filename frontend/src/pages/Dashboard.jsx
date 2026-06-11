@@ -273,12 +273,25 @@ export default function Dashboard() {
   const [confirmarErro, setConfirmarErro]   = useState('')
   const [navAtiva, setNavAtiva]             = useState('dashboard')
 
+  // carteira_id vem dentro de resumo na resposta do backend
+  const carteiraId = result?.resumo?.carteira_id ?? result?.carteira_id ?? null
+
+  function refetchPerf() {
+    const perfUrl = carteiraId
+      ? `${BASE}/performance?carteira_id=${encodeURIComponent(carteiraId)}`
+      : `${BASE}/performance`
+    fetch(perfUrl, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(p => { if (p) setPerf(p) })
+      .catch(() => {})
+  }
+
   // Carrega dados iniciais + polling periódico de status a cada 15s
   useEffect(() => {
     if (!token) return
 
-    const perfUrl = result?.carteira_id
-      ? `${BASE}/performance?carteira_id=${encodeURIComponent(result.carteira_id)}`
+    const perfUrl = carteiraId
+      ? `${BASE}/performance?carteira_id=${encodeURIComponent(carteiraId)}`
       : `${BASE}/performance`
     fetch(perfUrl, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : null)
@@ -286,15 +299,15 @@ export default function Dashboard() {
       .catch(() => {})
       .finally(() => setLoadingPerf(false))
 
-    buscarPagamentos(result?.carteira_id ?? null).then(setPagamentos).catch(() => {})
-    buscarStatusFeedbacks().then(setStatusMap).catch(() => {})
+    buscarPagamentos(carteiraId).then(setPagamentos).catch(() => {})
+    buscarStatusFeedbacks(carteiraId).then(setStatusMap).catch(() => {})
 
     // Polling a cada 15s — para após 3 erros consecutivos para não sobrecarregar servidor em outage
     let errosConsecutivos = 0
     const intervalo = setInterval(() => {
       Promise.all([
-        buscarStatusFeedbacks().then(setStatusMap),
-        buscarPagamentos(result?.carteira_id ?? null).then(setPagamentos),
+        buscarStatusFeedbacks(carteiraId).then(setStatusMap),
+        buscarPagamentos(carteiraId).then(setPagamentos),
       ])
         .then(() => { errosConsecutivos = 0 })
         .catch(() => {
@@ -304,7 +317,7 @@ export default function Dashboard() {
     }, 15000)
 
     return () => clearInterval(intervalo)
-  }, [token])
+  }, [token, carteiraId])
 
   useEffect(() => {
     if (!result) navigate('/')
@@ -366,15 +379,16 @@ export default function Dashboard() {
       setConfirmarModal(null)
       setConfirmarForm({ valor_recuperado: '', data_pagamento: '' })
       // Refetch imediato para confirmar com dados reais do servidor
-      buscarStatusFeedbacks().then(setStatusMap).catch(() => {})
-      buscarPagamentos().then(setPagamentos).catch(() => {})
+      buscarStatusFeedbacks(carteiraId).then(setStatusMap).catch(() => {})
+      buscarPagamentos(carteiraId).then(setPagamentos).catch(() => {})
+      refetchPerf()
     } catch (err) {
       if (err.status === 409) {
         // Pagamento já existe — fecha modal e sincroniza status real do servidor
         setConfirmarModal(null)
         setConfirmarForm({ valor_recuperado: '', data_pagamento: '' })
-        buscarStatusFeedbacks().then(setStatusMap).catch(() => {})
-        buscarPagamentos().then(setPagamentos).catch(() => {})
+        buscarStatusFeedbacks(carteiraId).then(setStatusMap).catch(() => {})
+        buscarPagamentos(carteiraId).then(setPagamentos).catch(() => {})
       } else {
         setConfirmarErro(err.message || 'Erro ao confirmar pagamento.')
       }
