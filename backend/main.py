@@ -2555,15 +2555,17 @@ async def confirmar_pagamento(
         pred_res = None
         predicao_id = None
         try:
-            pred_query = db.table("predicoes").select("id, score_recuperabilidade, valor_divida").eq("cpf", cpf)
+            pred_query = db.table("predicoes").select("id, carteira_id, score_recuperabilidade, valor_divida").eq("cpf", cpf)
             if empresa_id:
                 cart_res = db.table("carteiras").select("id").eq("empresa_id", empresa_id).limit(100).execute()
                 cart_ids = [c["id"] for c in (cart_res.data or [])]
                 if cart_ids:
                     pred_query = pred_query.in_("carteira_id", cart_ids)
             pred_res = pred_query.order("created_at", desc=True).limit(1).execute()
-            predicao_id = pred_res.data[0]["id"] if pred_res.data else None
+            predicao_id   = pred_res.data[0]["id"]                  if pred_res.data else None
+            _pred_cart_id = pred_res.data[0].get("carteira_id")     if pred_res.data else None
         except Exception as _pe:
+            _pred_cart_id = None
             print(f"[Confirmar] Aviso — não encontrou predicao para CPF {cpf}: {_pe}")
 
         if not predicao_id:
@@ -2622,6 +2624,9 @@ async def confirmar_pagamento(
         _cache_del_prefix(f"fb_status:{empresa_id}")
         _cache_del_prefix(f"pagamentos:{empresa_id}")
         _cache_del_prefix(f"perf:{empresa_id}")
+        if _pred_cart_id:
+            _cache_del_prefix(f"pagamentos:{_pred_cart_id}")
+            _cache_del_prefix(f"perf:{_pred_cart_id}")
 
         try:
             _registrar_auditoria(
@@ -2824,14 +2829,18 @@ async def feedback_lote(
             detalhes.append({"linha": linha, "cpf": cpf, "ok": False, "erro": str(e)})
             n_erro += 1
 
+    _eid = empresa_info.get("empresa_id") or (empresa_info.get("jwt") or {}).get("empresa_id") or ""
     if n_ok > 0:
         _registrar_auditoria(
             acao="feedback_importado",
             entidade="feedback",
-            usuario_email=empresa_info.get("email") or empresa_info.get("jwt", {}).get("email"),
-            empresa_id=empresa_info.get("empresa_id") or empresa_info.get("jwt", {}).get("empresa_id"),
+            usuario_email=empresa_info.get("email") or (empresa_info.get("jwt") or {}).get("email"),
+            empresa_id=_eid,
             detalhes={"importados": n_ok, "erros": n_erro},
         )
+        _cache_del_prefix(f"pagamentos:{_eid}")
+        _cache_del_prefix(f"perf:{_eid}")
+        _cache_del_prefix(f"fb_status:{_eid}")
     return {"total": n_ok + n_erro, "importados": n_ok, "erros": n_erro, "detalhes": detalhes}
 
 
