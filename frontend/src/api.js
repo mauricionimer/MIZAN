@@ -73,6 +73,19 @@ export async function buscarRecomendacao(cpf) {
   return res.json()
 }
 
+export async function buscarExplicacaoScore(cpf) {
+  const token = _getToken()
+  const res = await fetch(`${BASE}/predicoes/${encodeURIComponent(cpf)}/explicacao`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  _handle401(res)
+  if (!res.ok) {
+    const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
+    throw new Error(detail)
+  }
+  return res.json()
+}
+
 export async function testarDB(params) {
   const token = _getToken()
   const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }

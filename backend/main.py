@@ -3330,6 +3330,51 @@ async def recomendacao_devedor(cpf: str, credentials: HTTPAuthorizationCredentia
     return {**rec, "cpf": cpf, "nome": pred.get("nome")}
 
 
+@app.get("/predicoes/{cpf}/explicacao")
+async def explicar_score_devedor(cpf: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """
+    Explica por que ESSE CPF específico recebeu o score que recebeu: para cada variável,
+    mostra o quanto ela empurrou o score para cima ou para baixo em relação ao devedor
+    médio da base de treino. Atende ao direito à explicação de decisão automatizada (LGPD art. 20).
+    """
+    payload = _usuario_autenticado(credentials)
+    empresa_id = payload.get("empresa_id", "")
+    db = get_db()
+
+    role = payload.get("role", "")
+    if not empresa_id and role not in ("comando", "admin"):
+        raise HTTPException(status_code=403, detail="Acesso negado: usuário sem empresa definida.")
+
+    q = (
+        db.table("predicoes")
+        .select("cpf, nome, produto, uf, status, valor_divida, renda_estimada, dias_em_atraso, "
+                 "score_recuperabilidade, carteira_id")
+        .eq("cpf", cpf)
+        .order("created_at", desc=True)
+    )
+    if empresa_id:
+        cart_res = db.table("carteiras").select("id").eq("empresa_id", empresa_id).execute()
+        cart_ids = [c["id"] for c in (cart_res.data or [])]
+        if not cart_ids:
+            raise HTTPException(status_code=404, detail=f"Nenhuma predição encontrada para CPF: {cpf}")
+        q = q.in_("carteira_id", cart_ids)
+    pred_res = q.limit(1).execute()
+    if not pred_res.data:
+        raise HTTPException(status_code=404, detail=f"Nenhuma predição encontrada para CPF: {cpf}")
+
+    pred = pred_res.data[0]
+    from model.score import explicar_predicao
+    try:
+        explicacao = explicar_predicao(pred)
+    except FileNotFoundError:
+        raise HTTPException(status_code=503, detail="Modelo não encontrado.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao gerar explicação: {e}")
+
+    return {**explicacao, "cpf": cpf, "nome": pred.get("nome"),
+            "score_registrado": pred.get("score_recuperabilidade")}
+
+
 @app.get("/admin/bandit/stats")
 async def bandit_stats(
     credentials: HTTPAuthorizationCredentials = Security(bearer),

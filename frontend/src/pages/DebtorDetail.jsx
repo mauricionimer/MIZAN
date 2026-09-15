@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Phone, Tag, Zap, MessageSquare, Brain, Plus, ClipboardList, CheckCircle2, XCircle, Clock } from 'lucide-react'
 import { useAnalysis } from '../context/AnalysisContext'
 import PriorityBadge from '../components/PriorityBadge'
-import { buscarRecomendacao, registrarContato, listarContatos, buscarStatusFeedbacks, traduzirErroRede } from '../api'
+import { buscarRecomendacao, registrarContato, listarContatos, buscarStatusFeedbacks, buscarExplicacaoScore, traduzirErroRede } from '../api'
 
 const fmtBRL = (v) => v != null ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v) : '—'
 const fmtNum = (v) => v != null ? new Intl.NumberFormat('pt-BR').format(v) : '—'
@@ -31,6 +31,72 @@ function DataRow({ label, value }) {
     <div className="flex items-center justify-between py-2.5 border-b last:border-0" style={DIVIDER}>
       <span className="text-sm" style={{ color: '#8fa3c8' }}>{label}</span>
       <span className="text-sm font-semibold text-white">{value ?? '—'}</span>
+    </div>
+  )
+}
+
+const VARIAVEL_LABEL = {
+  valor_divida: 'Valor da dívida', renda_estimada: 'Renda estimada', dias_em_atraso: 'Dias em atraso',
+  score_bureau: 'Score de bureau', tentativas_contato: 'Tentativas de contato', promessa_quebrada: 'Promessa quebrada',
+  mes_analise: 'Mês da análise', produto: 'Produto', status: 'Status', uf: 'Estado (UF)',
+}
+function labelVariavel(v) {
+  return VARIAVEL_LABEL[v] || v.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())
+}
+function fmtValorExplicacao(v) {
+  if (v == null) return 'não informado'
+  if (typeof v === 'boolean') return v ? 'sim' : 'não'
+  if (typeof v === 'number') return Number.isInteger(v) ? fmtNum(v) : v.toFixed(1)
+  return String(v)
+}
+
+function ExplicacaoScore({ explicacao, loading, erro }) {
+  if (loading) {
+    return <p className="text-sm" style={{ color: '#7c93bd' }}>Calculando explicação do score...</p>
+  }
+  if (erro) {
+    return <p className="text-sm" style={{ color: '#7c93bd' }}>Explicação indisponível: {erro}</p>
+  }
+  if (!explicacao) return null
+
+  const relevantes = explicacao.contribuicoes.filter(c => Math.abs(c.impacto_pontos) >= 0.1).slice(0, 6)
+  const maiorImpacto = Math.max(1, ...relevantes.map(c => Math.abs(c.impacto_pontos)))
+
+  return (
+    <div>
+      <p className="text-xs mb-4 leading-relaxed" style={{ color: '#8fa3c8' }}>
+        Comparação com o devedor médio da base de treino — o que empurrou este score para cima ou para baixo.
+      </p>
+      {relevantes.length === 0 ? (
+        <p className="text-sm" style={{ color: '#7c93bd' }}>Nenhuma variável individual teve impacto relevante — este é um caso próximo da média da base.</p>
+      ) : (
+        <div className="space-y-3">
+          {relevantes.map(c => {
+            const positivo = c.impacto_pontos > 0
+            const largura = Math.min(Math.abs(c.impacto_pontos) / maiorImpacto * 100, 100)
+            return (
+              <div key={c.variavel}>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="font-semibold text-white">{labelVariavel(c.variavel)}</span>
+                  <span style={{ color: positivo ? '#34d399' : '#f87171' }} className="font-bold">
+                    {positivo ? '+' : ''}{c.impacto_pontos.toFixed(1)} pts
+                  </span>
+                </div>
+                <div className="h-1.5 rounded-full overflow-hidden flex" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                  <div className="h-full rounded-full" style={{
+                    width: `${largura}%`,
+                    backgroundColor: positivo ? '#10b981' : '#ef4444',
+                  }} />
+                </div>
+                <p className="text-[11px] mt-1" style={{ color: '#7c93bd' }}>
+                  Valor real: <strong>{fmtValorExplicacao(c.valor_real)}</strong> · Referência da base: {fmtValorExplicacao(c.valor_referencia)}
+                  {' — '}{positivo ? 'melhora' : 'piora'} o score em relação à média.
+                </p>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -307,6 +373,9 @@ export default function DebtorDetail() {
   const [recLoading, setRecLoading] = useState(true)
   const [recErro, setRecErro]       = useState(null)
   const [statusPag, setStatusPag]   = useState(null)
+  const [explicacao, setExplicacao]           = useState(null)
+  const [explicacaoLoading, setExplicacaoLoading] = useState(true)
+  const [explicacaoErro, setExplicacaoErro]       = useState(null)
 
   useEffect(() => {
     if (!result) { navigate('/'); return }
@@ -320,6 +389,8 @@ export default function DebtorDetail() {
     setRecLoading(true)
     buscarRecomendacao(d.cpf).then(setRec).catch(e => setRecErro(e.message)).finally(() => setRecLoading(false))
     buscarStatusFeedbacks(carteiraId).then(map => setStatusPag(map[String(d.cpf)] ?? null)).catch(() => {})
+    setExplicacaoLoading(true)
+    buscarExplicacaoScore(d.cpf).then(setExplicacao).catch(e => setExplicacaoErro(e.message)).finally(() => setExplicacaoLoading(false))
   }, [d?.cpf, carteiraId])
 
   if (!result || !d) return null
@@ -423,6 +494,10 @@ export default function DebtorDetail() {
               <DataRow label="Produto" value={d.produto} />
               <DataRow label="Status" value={d.status} />
               <DataRow label="UF" value={d.uf} />
+            </Section>
+
+            <Section title="Por que esse score?">
+              <ExplicacaoScore explicacao={explicacao} loading={explicacaoLoading} erro={explicacaoErro} />
             </Section>
 
             <Section title="Dados Financeiros">
