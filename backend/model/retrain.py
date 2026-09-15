@@ -26,6 +26,7 @@ import joblib
 import numpy as np
 import pandas as pd
 from sklearn.calibration import CalibratedClassifierCV
+from sklearn.frozen import FrozenEstimator
 from sklearn.cluster import KMeans
 from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.model_selection import StratifiedKFold, TimeSeriesSplit, cross_val_score, train_test_split
@@ -468,7 +469,7 @@ def retreinar(
                 class_weight="balanced", random_state=42,
             )
             clf_base.fit(X_tr, y_tr)
-            clf_to_save = CalibratedClassifierCV(clf_base, cv="prefit", method="sigmoid")
+            clf_to_save = CalibratedClassifierCV(FrozenEstimator(clf_base), method="sigmoid")
             clf_to_save.fit(X_cal, y_cal)
             print("      Calibração Platt aplicada.")
         except Exception as _ce:

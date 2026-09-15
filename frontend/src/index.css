@@ -5,6 +5,11 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --brand: #2563eb;
+    --brand-hover: color-mix(in srgb, var(--brand) 80%, white);
+  }
+
   * { box-sizing: border-box; }
 
   html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
@@ -68,7 +73,7 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.12em;
-    color: #4b5563;
+    color: #94a3b8;
   }
   .section-title {
     @apply text-sm font-semibold tracking-tight;
@@ -76,7 +81,7 @@
   }
   .section-sub {
     @apply text-xs mt-0.5;
-    color: #4b5563;
+    color: #94a3b8;
   }
 
   /* ── Section header ── */
@@ -90,7 +95,7 @@
     border: 1px solid rgba(255,255,255,0.08);
     color: #f0f0f5;
   }
-  .input-base::placeholder { color: #374151; }
+  .input-base::placeholder { color: #6d84ab; }
   .input-base:focus {
     border-color: rgba(59,130,246,0.50);
     background: rgba(255,255,255,0.05);
@@ -102,11 +107,11 @@
     @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg
            font-medium text-sm text-white transition-all duration-150
            active:scale-[0.98] focus:outline-none;
-    background: #2563eb;
+    background: var(--brand);
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.10);
   }
   .btn-primary:hover:not(:disabled) {
-    background: #3b82f6;
+    background: var(--brand-hover);
   }
   .btn-primary:disabled {
     @apply cursor-not-allowed;
@@ -116,13 +121,13 @@
   /* ── Nav links ── */
   .nav-link {
     @apply flex items-center gap-1.5 text-sm font-medium transition-colors px-2.5 py-1.5 rounded-lg;
-    color: #6b7280;
+    color: #94a3b8;
   }
   .nav-link:hover { color: #f0f0f5; background: rgba(255,255,255,0.05); }
 
   .nav-link-danger {
     @apply flex items-center gap-1.5 text-sm font-medium transition-colors px-2.5 py-1.5 rounded-lg;
-    color: #6b7280;
+    color: #94a3b8;
   }
   .nav-link-danger:hover { color: #f87171; background: rgba(239,68,68,0.06); }
 

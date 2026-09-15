@@ -1363,12 +1363,14 @@ def remover_usuario_empresa(empresa_id: str, usuario_id: str, credentials: HTTPA
 class EmpresaConfigIn(BaseModel):
     nome_exibicao: Optional[str] = None
     cor_primaria: Optional[str] = None
+    # Flags/preferências extras (ex: {"permitir_upload_db": true}). Mescladas, nunca substituídas por inteiro.
+    extra: Optional[dict] = None
 
 
 def _get_empresa_config(empresa_id: str) -> dict:
     """Retorna a config de branding de uma empresa, com fallback."""
     if not empresa_id:
-        return {"nome_exibicao": "Mizan", "foto_url": None, "cor_primaria": None, "empresa_id": None}
+        return {"nome_exibicao": "Mizan", "foto_url": None, "cor_primaria": None, "extra": {}, "empresa_id": None}
     db = get_db()
     cfg_res = db.table("empresa_config").select("*").eq("empresa_id", empresa_id).limit(1).execute()
     if cfg_res.data:
@@ -1378,8 +1380,9 @@ def _get_empresa_config(empresa_id: str) -> dict:
             "nome_exibicao": c.get("nome_exibicao") or empresa_id,
             "foto_url": c.get("foto_url"),
             "cor_primaria": c.get("cor_primaria") or "#1d4ed8",
+            "extra": c.get("extra") or {},
         }
-    return {"empresa_id": empresa_id, "nome_exibicao": empresa_id, "foto_url": None, "cor_primaria": "#1d4ed8"}
+    return {"empresa_id": empresa_id, "nome_exibicao": empresa_id, "foto_url": None, "cor_primaria": "#1d4ed8", "extra": {}}
 
 
 @app.get("/empresa/config-publica")
@@ -1420,6 +1423,9 @@ def put_empresa_config(body: EmpresaConfigIn, empresa_id_alvo: Optional[str] = N
         updates["nome_exibicao"] = body.nome_exibicao.strip()
     if body.cor_primaria is not None:
         updates["cor_primaria"] = body.cor_primaria.strip()
+    if body.extra is not None:
+        atual = _get_empresa_config(empresa_id).get("extra") or {}
+        updates["extra"] = {**atual, **body.extra}
 
     existing = db.table("empresa_config").select("id").eq("empresa_id", empresa_id).limit(1).execute()
     if existing.data:
@@ -3189,6 +3195,21 @@ async def feedbacks_status(
     return status_map
 
 
+@app.get("/admin/modelo/qualidade")
+def admin_modelo_qualidade(credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """
+    Diagnóstico de qualidade do modelo de crédito: overfitting (treino vs. validação
+    cruzada vs. holdout), calibração de probabilidade, matriz de confusão e se há
+    dados suficientes para a complexidade atual do modelo.
+    """
+    _exigir_comando(credentials)
+    from model.diagnostico import avaliar_qualidade
+    try:
+        return avaliar_qualidade()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao avaliar qualidade do modelo: {e}")
+
+
 @app.get("/admin/price-model")
 def admin_price_model_stats(credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """Metadados e métricas do modelo de regressão de preço."""
@@ -3307,6 +3328,51 @@ async def recomendacao_devedor(cpf: str, credentials: HTTPAuthorizationCredentia
         print(f"[Bandit] Erro ao salvar recomendacao: {_e}")
 
     return {**rec, "cpf": cpf, "nome": pred.get("nome")}
+
+
+@app.get("/predicoes/{cpf}/explicacao")
+async def explicar_score_devedor(cpf: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """
+    Explica por que ESSE CPF específico recebeu o score que recebeu: para cada variável,
+    mostra o quanto ela empurrou o score para cima ou para baixo em relação ao devedor
+    médio da base de treino. Atende ao direito à explicação de decisão automatizada (LGPD art. 20).
+    """
+    payload = _usuario_autenticado(credentials)
+    empresa_id = payload.get("empresa_id", "")
+    db = get_db()
+
+    role = payload.get("role", "")
+    if not empresa_id and role not in ("comando", "admin"):
+        raise HTTPException(status_code=403, detail="Acesso negado: usuário sem empresa definida.")
+
+    q = (
+        db.table("predicoes")
+        .select("cpf, nome, produto, uf, status, valor_divida, renda_estimada, dias_em_atraso, "
+                 "score_recuperabilidade, carteira_id")
+        .eq("cpf", cpf)
+        .order("created_at", desc=True)
+    )
+    if empresa_id:
+        cart_res = db.table("carteiras").select("id").eq("empresa_id", empresa_id).execute()
+        cart_ids = [c["id"] for c in (cart_res.data or [])]
+        if not cart_ids:
+            raise HTTPException(status_code=404, detail=f"Nenhuma predição encontrada para CPF: {cpf}")
+        q = q.in_("carteira_id", cart_ids)
+    pred_res = q.limit(1).execute()
+    if not pred_res.data:
+        raise HTTPException(status_code=404, detail=f"Nenhuma predição encontrada para CPF: {cpf}")
+
+    pred = pred_res.data[0]
+    from model.score import explicar_predicao
+    try:
+        explicacao = explicar_predicao(pred)
+    except FileNotFoundError:
+        raise HTTPException(status_code=503, detail="Modelo não encontrado.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao gerar explicação: {e}")
+
+    return {**explicacao, "cpf": cpf, "nome": pred.get("nome"),
+            "score_registrado": pred.get("score_recuperabilidade")}
 
 
 @app.get("/admin/bandit/stats")
@@ -3727,10 +3793,18 @@ async def db_sync_status(
 async def listar_auditoria(
     entidade: Optional[str] = None,
     entidade_id: Optional[str] = None,
+    usuario_email: Optional[str] = None,
+    acao: Optional[str] = None,
+    data_inicio: Optional[str] = None,
+    data_fim: Optional[str] = None,
     limit: int = 20,
+    offset: int = 0,
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
-    """Histórico de ações auditadas — filtrado pela empresa do token (ou tudo para COMANDO)."""
+    """
+    Histórico de ações auditadas — filtrado pela empresa do token (ou tudo para COMANDO).
+    Suporta filtro por período/usuário/ação e paginação, para telas de auditoria/compliance.
+    """
     payload = _usuario_autenticado(credentials)
     empresa_id = payload.get("empresa_id", "")
     role       = payload.get("role", "operador")
@@ -3742,7 +3816,17 @@ async def listar_auditoria(
         q = q.eq("entidade", entidade)
     if entidade_id:
         q = q.eq("entidade_id", str(entidade_id))
-    res = q.order("created_at", desc=True).limit(min(limit, 100)).execute()
+    if usuario_email:
+        q = q.eq("usuario_email", usuario_email.strip().lower())
+    if acao:
+        q = q.eq("acao", acao)
+    if data_inicio:
+        q = q.gte("created_at", data_inicio)
+    if data_fim:
+        q = q.lte("created_at", data_fim)
+    limit = min(max(limit, 1), 1000)
+    offset = max(offset, 0)
+    res = q.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
     return res.data or []
 
 

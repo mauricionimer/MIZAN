@@ -135,7 +135,7 @@ export default function Login() {
             </div>
           )}
 
-          <p className="text-[#3d5270] text-xs">© 2026 Mizan · Todos os direitos reservados</p>
+          <p className="text-[#6d84ab] text-xs">© 2026 Mizan · Todos os direitos reservados</p>
         </div>
 
         {/* Lado direito — card do formulário */}
@@ -161,7 +161,7 @@ export default function Login() {
                 <span className="text-white text-base font-bold tracking-tight leading-none block">
                   {nomEmpresa || 'Mizan'}
                 </span>
-                {nomEmpresa && <span className="text-[#5a7499] text-xs">via Mizan</span>}
+                {nomEmpresa && <span className="text-[#7c93bd] text-xs">via Mizan</span>}
               </div>
             </div>
 
@@ -206,7 +206,7 @@ export default function Login() {
                     type="button"
                     onClick={() => setMostrarSenha(v => !v)}
                     className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors"
-                    style={{ color: '#5a7499' }}
+                    style={{ color: '#7c93bd' }}
                   >
                     {mostrarSenha ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -240,7 +240,7 @@ export default function Login() {
               </button>
             </form>
 
-            <p className="mt-7 text-center text-xs" style={{ color: '#3d5270' }}>
+            <p className="mt-7 text-center text-xs" style={{ color: '#6d84ab' }}>
               Acesso restrito a usuários cadastrados.{' '}
               <a href="/privacidade" className="underline hover:text-[#8fa3c8] transition-colors">Privacidade</a>
             </p>

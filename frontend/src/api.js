@@ -73,6 +73,19 @@ export async function buscarRecomendacao(cpf) {
   return res.json()
 }
 
+export async function buscarExplicacaoScore(cpf) {
+  const token = _getToken()
+  const res = await fetch(`${BASE}/predicoes/${encodeURIComponent(cpf)}/explicacao`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  _handle401(res)
+  if (!res.ok) {
+    const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
+    throw new Error(detail)
+  }
+  return res.json()
+}
+
 export async function testarDB(params) {
   const token = _getToken()
   const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }
@@ -367,11 +380,17 @@ export async function refreshToken(token) {
   return res.json()
 }
 
-export async function buscarAuditoria({ entidade, entidade_id, limit = 20 } = {}) {
+export async function buscarAuditoria({
+  entidade, entidade_id, usuario_email, acao, data_inicio, data_fim, limit = 20, offset = 0,
+} = {}) {
   const token = _getToken()
-  const params = new URLSearchParams({ limit })
+  const params = new URLSearchParams({ limit, offset })
   if (entidade) params.set('entidade', entidade)
   if (entidade_id) params.set('entidade_id', entidade_id)
+  if (usuario_email) params.set('usuario_email', usuario_email)
+  if (acao) params.set('acao', acao)
+  if (data_inicio) params.set('data_inicio', data_inicio)
+  if (data_fim) params.set('data_fim', data_fim)
   const res = await fetch(`${BASE}/auditoria?${params}`, {
     headers: { Authorization: `Bearer ${token}` },
   })

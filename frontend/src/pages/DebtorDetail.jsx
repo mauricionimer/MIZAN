@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Phone, Tag, Zap, MessageSquare, Brain, Plus, ClipboardList, CheckCircle2, XCircle, Clock } from 'lucide-react'
 import { useAnalysis } from '../context/AnalysisContext'
 import PriorityBadge from '../components/PriorityBadge'
-import { buscarRecomendacao, registrarContato, listarContatos, buscarStatusFeedbacks, traduzirErroRede } from '../api'
+import { buscarRecomendacao, registrarContato, listarContatos, buscarStatusFeedbacks, buscarExplicacaoScore, traduzirErroRede } from '../api'
 
 const fmtBRL = (v) => v != null ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v) : '—'
 const fmtNum = (v) => v != null ? new Intl.NumberFormat('pt-BR').format(v) : '—'
@@ -31,6 +31,72 @@ function DataRow({ label, value }) {
     <div className="flex items-center justify-between py-2.5 border-b last:border-0" style={DIVIDER}>
       <span className="text-sm" style={{ color: '#8fa3c8' }}>{label}</span>
       <span className="text-sm font-semibold text-white">{value ?? '—'}</span>
+    </div>
+  )
+}
+
+const VARIAVEL_LABEL = {
+  valor_divida: 'Valor da dívida', renda_estimada: 'Renda estimada', dias_em_atraso: 'Dias em atraso',
+  score_bureau: 'Score de bureau', tentativas_contato: 'Tentativas de contato', promessa_quebrada: 'Promessa quebrada',
+  mes_analise: 'Mês da análise', produto: 'Produto', status: 'Status', uf: 'Estado (UF)',
+}
+function labelVariavel(v) {
+  return VARIAVEL_LABEL[v] || v.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())
+}
+function fmtValorExplicacao(v) {
+  if (v == null) return 'não informado'
+  if (typeof v === 'boolean') return v ? 'sim' : 'não'
+  if (typeof v === 'number') return Number.isInteger(v) ? fmtNum(v) : v.toFixed(1)
+  return String(v)
+}
+
+function ExplicacaoScore({ explicacao, loading, erro }) {
+  if (loading) {
+    return <p className="text-sm" style={{ color: '#7c93bd' }}>Calculando explicação do score...</p>
+  }
+  if (erro) {
+    return <p className="text-sm" style={{ color: '#7c93bd' }}>Explicação indisponível: {erro}</p>
+  }
+  if (!explicacao) return null
+
+  const relevantes = explicacao.contribuicoes.filter(c => Math.abs(c.impacto_pontos) >= 0.1).slice(0, 6)
+  const maiorImpacto = Math.max(1, ...relevantes.map(c => Math.abs(c.impacto_pontos)))
+
+  return (
+    <div>
+      <p className="text-xs mb-4 leading-relaxed" style={{ color: '#8fa3c8' }}>
+        Comparação com o devedor médio da base de treino — o que empurrou este score para cima ou para baixo.
+      </p>
+      {relevantes.length === 0 ? (
+        <p className="text-sm" style={{ color: '#7c93bd' }}>Nenhuma variável individual teve impacto relevante — este é um caso próximo da média da base.</p>
+      ) : (
+        <div className="space-y-3">
+          {relevantes.map(c => {
+            const positivo = c.impacto_pontos > 0
+            const largura = Math.min(Math.abs(c.impacto_pontos) / maiorImpacto * 100, 100)
+            return (
+              <div key={c.variavel}>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="font-semibold text-white">{labelVariavel(c.variavel)}</span>
+                  <span style={{ color: positivo ? '#34d399' : '#f87171' }} className="font-bold">
+                    {positivo ? '+' : ''}{c.impacto_pontos.toFixed(1)} pts
+                  </span>
+                </div>
+                <div className="h-1.5 rounded-full overflow-hidden flex" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                  <div className="h-full rounded-full" style={{
+                    width: `${largura}%`,
+                    backgroundColor: positivo ? '#10b981' : '#ef4444',
+                  }} />
+                </div>
+                <p className="text-[11px] mt-1" style={{ color: '#7c93bd' }}>
+                  Valor real: <strong>{fmtValorExplicacao(c.valor_real)}</strong> · Referência da base: {fmtValorExplicacao(c.valor_referencia)}
+                  {' — '}{positivo ? 'melhora' : 'piora'} o score em relação à média.
+                </p>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -114,7 +180,7 @@ function HistoricoContatos({ cpf, rec }) {
     <div className="rounded-2xl overflow-hidden" style={CARD}>
       <div className="px-5 py-4 border-b flex items-center justify-between" style={DIVIDER}>
         <div className="flex items-center gap-2">
-          <ClipboardList className="h-3.5 w-3.5" style={{ color: '#5a7499' }} />
+          <ClipboardList className="h-3.5 w-3.5" style={{ color: '#7c93bd' }} />
           <p className="section-label">Histórico de Contatos{contatos.length > 0 && ` (${contatos.length})`}</p>
         </div>
         <button onClick={() => setFormAberto(o => !o)}
@@ -188,13 +254,13 @@ function HistoricoContatos({ cpf, rec }) {
 
       <div>
         {loading && (
-          <div className="flex items-center justify-center py-8 text-xs gap-2" style={{ color: '#5a7499' }}>
+          <div className="flex items-center justify-center py-8 text-xs gap-2" style={{ color: '#7c93bd' }}>
             <div className="h-3.5 w-3.5 border-2 border-t-blue-400 rounded-full animate-spin" style={{ borderColor: 'rgba(255,255,255,0.10)', borderTopColor: '#1d6aff' }} />
             Carregando...
           </div>
         )}
         {!loading && contatos.length === 0 && (
-          <p className="text-xs text-center py-8" style={{ color: '#5a7499' }}>Nenhum contato registrado ainda.</p>
+          <p className="text-xs text-center py-8" style={{ color: '#7c93bd' }}>Nenhum contato registrado ainda.</p>
         )}
         {contatos.map(c => {
           const res = RESULTADO_CFG[c.resultado] ?? { label: c.resultado, color: 'text-[#8fa3c8]', bg: 'rgba(255,255,255,0.06)', border: 'rgba(255,255,255,0.12)' }
@@ -207,8 +273,8 @@ function HistoricoContatos({ cpf, rec }) {
                     style={{ background: res.bg, border: `1px solid ${res.border}` }}>
                     {res.label}
                   </span>
-                  <span className="text-xs" style={{ color: '#5a7499' }}>{fmtData(c.data_contato || c.created_at)}</span>
-                  {c.usuario_nome && <span className="text-xs" style={{ color: '#3d5270' }}>por {c.usuario_nome}</span>}
+                  <span className="text-xs" style={{ color: '#7c93bd' }}>{fmtData(c.data_contato || c.created_at)}</span>
+                  {c.usuario_nome && <span className="text-xs" style={{ color: '#6d84ab' }}>por {c.usuario_nome}</span>}
                 </div>
                 {c.observacao && <p className="text-xs mt-1 leading-relaxed" style={{ color: '#8fa3c8' }}>{c.observacao}</p>}
                 {c.valor_recuperado > 0 && <p className="text-xs text-emerald-400 font-semibold mt-0.5">{fmtBRL(c.valor_recuperado)} recuperados</p>}
@@ -252,7 +318,7 @@ function ApproachRecommendation({ devedor, rec, loading, erro }) {
       </div>
       <div className="p-5 space-y-4">
         {loading && (
-          <div className="flex items-center justify-center py-8 text-sm gap-2" style={{ color: '#5a7499' }}>
+          <div className="flex items-center justify-center py-8 text-sm gap-2" style={{ color: '#7c93bd' }}>
             <div className="h-4 w-4 border-2 rounded-full animate-spin" style={{ borderColor: 'rgba(255,255,255,0.10)', borderTopColor: '#1d6aff' }} />
             Consultando IA...
           </div>
@@ -281,11 +347,11 @@ function ApproachRecommendation({ devedor, rec, loading, erro }) {
               </div>
             </div>
             <div className="flex gap-3 p-4 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <MessageSquare className="h-4 w-4 mt-0.5 shrink-0" style={{ color: '#5a7499' }} />
+              <MessageSquare className="h-4 w-4 mt-0.5 shrink-0" style={{ color: '#7c93bd' }} />
               <p className="text-sm leading-relaxed" style={{ color: '#8fa3c8' }}>{rec.justificativa}</p>
             </div>
             {rec.total_interacoes > 0 && (
-              <p className="text-xs text-right" style={{ color: '#5a7499' }}>
+              <p className="text-xs text-right" style={{ color: '#7c93bd' }}>
                 {rec.total_interacoes} interações registradas · esta ação usada {rec.n_tentativas_acao}×
               </p>
             )}
@@ -307,6 +373,9 @@ export default function DebtorDetail() {
   const [recLoading, setRecLoading] = useState(true)
   const [recErro, setRecErro]       = useState(null)
   const [statusPag, setStatusPag]   = useState(null)
+  const [explicacao, setExplicacao]           = useState(null)
+  const [explicacaoLoading, setExplicacaoLoading] = useState(true)
+  const [explicacaoErro, setExplicacaoErro]       = useState(null)
 
   useEffect(() => {
     if (!result) { navigate('/'); return }
@@ -320,6 +389,8 @@ export default function DebtorDetail() {
     setRecLoading(true)
     buscarRecomendacao(d.cpf).then(setRec).catch(e => setRecErro(e.message)).finally(() => setRecLoading(false))
     buscarStatusFeedbacks(carteiraId).then(map => setStatusPag(map[String(d.cpf)] ?? null)).catch(() => {})
+    setExplicacaoLoading(true)
+    buscarExplicacaoScore(d.cpf).then(setExplicacao).catch(e => setExplicacaoErro(e.message)).finally(() => setExplicacaoLoading(false))
   }, [d?.cpf, carteiraId])
 
   if (!result || !d) return null
@@ -332,13 +403,13 @@ export default function DebtorDetail() {
   return (
     <div className="min-h-screen">
       <header className="navbar-glass px-6 py-3 flex items-center gap-3">
-        <button onClick={() => navigate('/dashboard')} className="p-1 rounded-lg transition-colors hover:bg-white/5" style={{ color: '#5a7499' }}>
+        <button onClick={() => navigate('/dashboard')} className="p-1 rounded-lg transition-colors hover:bg-white/5" style={{ color: '#7c93bd' }}>
           <ArrowLeft className="h-4 w-4" />
         </button>
         <Logo />
         <span className="font-bold text-white text-sm">Mizan</span>
         <span className="text-white/20 text-sm">/</span>
-        <button onClick={() => navigate('/dashboard')} className="text-sm transition-colors hover:text-white" style={{ color: '#5a7499' }}>Dashboard</button>
+        <button onClick={() => navigate('/dashboard')} className="text-sm transition-colors hover:text-white" style={{ color: '#7c93bd' }}>Dashboard</button>
         <span className="text-white/20 text-sm">/</span>
         <span className="text-sm font-medium text-white truncate max-w-xs">{d.nome}</span>
       </header>
@@ -347,7 +418,7 @@ export default function DebtorDetail() {
         <div className="flex items-start justify-between mb-7">
           <div>
             <h1 className="text-2xl font-bold text-white tracking-tight">{d.nome}</h1>
-            <p className="font-mono text-sm mt-1" style={{ color: '#5a7499' }}>{d.cpf}</p>
+            <p className="font-mono text-sm mt-1" style={{ color: '#7c93bd' }}>{d.cpf}</p>
             <p className="text-sm mt-1 capitalize" style={{ color: '#8fa3c8' }}>{d.produto} · {d.uf} · Rank #{d.rank}</p>
             <div className="mt-3">
               {statusPag === null && (
@@ -390,14 +461,14 @@ export default function DebtorDetail() {
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
                   <span className="text-3xl font-bold text-white">{score}</span>
-                  <span className="text-xs mt-0.5" style={{ color: '#5a7499' }}>/ 100</span>
+                  <span className="text-xs mt-0.5" style={{ color: '#7c93bd' }}>/ 100</span>
                 </div>
               </div>
               <div className="w-full mt-5">
                 <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.07)' }}>
                   <div className="h-full rounded-full transition-all duration-700" style={{ width: `${score}%`, backgroundColor: scoreColor }} />
                 </div>
-                <div className="flex justify-between text-xs mt-1.5" style={{ color: '#5a7499' }}>
+                <div className="flex justify-between text-xs mt-1.5" style={{ color: '#7c93bd' }}>
                   <span>0</span><span>100</span>
                 </div>
               </div>
@@ -410,7 +481,7 @@ export default function DebtorDetail() {
                 style={{ backgroundColor: `${scoreColor}18`, color: scoreColor }}>
                 {d.perfil_cluster}
               </div>
-              <p className="text-xs mt-3 text-center leading-relaxed" style={{ color: '#5a7499' }}>
+              <p className="text-xs mt-3 text-center leading-relaxed" style={{ color: '#7c93bd' }}>
                 Cluster #{d.cluster_id ?? '—'} identificado por machine learning
               </p>
             </div>
@@ -423,6 +494,10 @@ export default function DebtorDetail() {
               <DataRow label="Produto" value={d.produto} />
               <DataRow label="Status" value={d.status} />
               <DataRow label="UF" value={d.uf} />
+            </Section>
+
+            <Section title="Por que esse score?">
+              <ExplicacaoScore explicacao={explicacao} loading={explicacaoLoading} erro={explicacaoErro} />
             </Section>
 
             <Section title="Dados Financeiros">

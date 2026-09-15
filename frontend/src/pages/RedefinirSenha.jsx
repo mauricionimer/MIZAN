@@ -94,7 +94,7 @@ export default function RedefinirSenha() {
                     placeholder="mínimo 8 caracteres, letras e números" />
                   <button type="button" onClick={() => setShowNova(s => !s)}
                     className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors"
-                    style={{ color: '#5a7499' }}>
+                    style={{ color: '#7c93bd' }}>
                     {showNova ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
@@ -107,7 +107,7 @@ export default function RedefinirSenha() {
                     placeholder="repita a nova senha" />
                   <button type="button" onClick={() => setShowConf(s => !s)}
                     className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors"
-                    style={{ color: '#5a7499' }}>
+                    style={{ color: '#7c93bd' }}>
                     {showConf ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>

@@ -168,3 +168,86 @@ def score_carteira(df: pd.DataFrame) -> pd.DataFrame:
     resultado["aviso_dados"]       = avisos_qualidade
 
     return resultado
+
+
+def _pontuar_registro(registro: dict, meta: dict, scaler, clf, kmeans, cluster_fixo: "int | None" = None):
+    """Roda o pipeline de score para um único registro. Se cluster_fixo for dado,
+    usa-o em vez de recalcular — necessário para isolar o efeito de UMA variável por vez."""
+    df1 = pd.DataFrame([registro])
+    X1 = _preprocessar_para_score(df1, meta)
+    X1_scaled = scaler.transform(X1)
+    cluster = cluster_fixo if cluster_fixo is not None else int(kmeans.predict(X1_scaled)[0])
+    X_clf = np.concatenate([X1_scaled[0], [cluster]]).reshape(1, -1)
+    prob = float(clf.predict_proba(X_clf)[0, 1])
+    return round(prob * 100, 1), cluster
+
+
+# Colunas derivadas são recalculadas a partir das colunas base a cada preprocessamento
+# (ver _adicionar_derivadas) — "neutralizá-las" direto não tem efeito algum, porque o
+# pipeline as sobrescreve de volta. Seu impacto já aparece embutido na variável base.
+_FEATURES_DERIVADAS = {"comprometimento_renda", "log_valor_divida", "log_renda", "valor_por_dia"}
+
+
+def explicar_predicao(registro: dict) -> dict:
+    """
+    Explicação local do score de UM devedor: para cada variável do modelo, compara o
+    score real com o score que o registro teria se aquela variável, isoladamente, fosse
+    substituída pela referência da população de treino (mediana para numéricas, moda para
+    categóricas) — mantendo as demais variáveis e o cluster fixos. A diferença é o quanto
+    aquela variável específica empurrou o score deste CPF para cima ou para baixo.
+
+    Não usa nenhuma biblioteca de explicabilidade externa — é um "what-if" (ceteris
+    paribus) direto sobre o próprio modelo em produção.
+    """
+    clf, kmeans, meta = _carregar_modelos()
+    scaler = meta["scaler"]
+
+    features_numericas = meta.get("features_numericas") or _FEATURES_V2
+    features_categoricas = meta.get("features_categoricas") or _CATS_V2
+    medians = meta.get("medians", {})
+    modes = meta.get("modes", {})
+
+    reg_norm = _normalizar_colunas(pd.DataFrame([registro])).iloc[0].to_dict()
+
+    score_real, cluster_real = _pontuar_registro(reg_norm, meta, scaler, clf, kmeans)
+
+    contribuicoes = []
+    for col in features_numericas:
+        if col in _FEATURES_DERIVADAS:
+            continue
+        valor_real = reg_norm.get(col)
+        referencia = medians.get(col, 0.0)
+        reg_neutro = {**reg_norm, col: referencia}
+        score_neutro, _ = _pontuar_registro(reg_neutro, meta, scaler, clf, kmeans, cluster_fixo=cluster_real)
+        contribuicoes.append({
+            "variavel": col,
+            "tipo": "numerica",
+            "valor_real": valor_real,
+            "valor_referencia": referencia,
+            "impacto_pontos": round(score_real - score_neutro, 1),
+        })
+
+    for col in features_categoricas:
+        valor_real = str(reg_norm.get(col) or "")
+        referencia = modes.get(col, "outro")
+        if valor_real == referencia:
+            impacto = 0.0
+        else:
+            reg_neutro = {**reg_norm, col: referencia}
+            score_neutro, _ = _pontuar_registro(reg_neutro, meta, scaler, clf, kmeans, cluster_fixo=cluster_real)
+            impacto = round(score_real - score_neutro, 1)
+        contribuicoes.append({
+            "variavel": col,
+            "tipo": "categorica",
+            "valor_real": valor_real,
+            "valor_referencia": referencia,
+            "impacto_pontos": impacto,
+        })
+
+    contribuicoes.sort(key=lambda c: abs(c["impacto_pontos"]), reverse=True)
+
+    return {
+        "score": score_real,
+        "cluster_id": cluster_real,
+        "contribuicoes": contribuicoes,
+    }

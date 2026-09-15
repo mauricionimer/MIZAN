@@ -18,6 +18,7 @@ import joblib
 import numpy as np
 import pandas as pd
 from sklearn.calibration import CalibratedClassifierCV
+from sklearn.frozen import FrozenEstimator
 from sklearn.cluster import KMeans
 from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test_split
@@ -252,11 +253,12 @@ def _gerar_dados_sinteticos(n: int = 3000, seed: int = 42) -> pd.DataFrame:
         ["consignado", "veiculo", "pessoal", "cartao"], n,
         p=[0.20, 0.15, 0.40, 0.25],
     )
+    _p_uf = np.array([0.22,0.10,0.10,0.07,0.06,0.06,0.04,0.04,0.04,0.04,
+                       0.03,0.03,0.02,0.02,0.02,0.02,0.01,0.01,0.01,0.01])
     ufs = rng.choice(
         ["SP","RJ","MG","RS","PR","BA","SC","GO","PE","CE",
          "MA","PA","MT","MS","ES","DF","AL","PB","RN","PI"], n,
-        p=[0.22,0.10,0.10,0.07,0.06,0.06,0.04,0.04,0.04,0.04,
-           0.03,0.03,0.02,0.02,0.02,0.02,0.01,0.01,0.01,0.01],
+        p=_p_uf / _p_uf.sum(),  # normaliza — a lista original somava 0.95, não 1.0
     )
     status_vals = rng.choice(
         ["inadimplente", "em_atraso", "renegociado", "ativo"], n,
@@ -278,16 +280,40 @@ def _gerar_dados_sinteticos(n: int = 3000, seed: int = 42) -> pd.DataFrame:
         max(1, int(rng.exponential(dias_exp[s]))) for s in status_vals
     ]).clip(1, 720)
 
+    # Score de bureau (estilo Serasa, 0-1000): correlacionado negativamente com atraso e
+    # com o risco típico do produto, mas com ruído — na vida real, bureau e atraso da
+    # carteira específica nem sempre concordam (por isso o modelo precisa aprender os dois).
+    risco_produto = {"consignado": 0.05, "veiculo": 0.15, "pessoal": 0.30, "cartao": 0.40}
+    score_base = (
+        1000
+        - (dias_em_atraso / 720) * 500
+        - np.array([risco_produto[p] for p in produtos]) * 300
+    )
+    score_bureau = np.clip(score_base + rng.normal(0, 120, n), 0, 1000).round().astype(int)
+
+    # Tentativas de contato: dívidas crônicas acumulam mais tentativas de cobrança.
+    tentativas_lambda = {"inadimplente": 4.0, "em_atraso": 1.5, "renegociado": 2.5, "ativo": 0.3}
+    tentativas_contato = np.array([
+        rng.poisson(tentativas_lambda[s]) for s in status_vals
+    ]).clip(0, 15)
+
+    # Promessa quebrada: mais provável quanto mais vezes o devedor já foi contatado.
+    prob_quebra = np.clip(tentativas_contato / 10, 0, 0.6)
+    promessa_quebrada = rng.random(n) < prob_quebra
+
     return pd.DataFrame({
-        "cpf":            [f"{i:011d}" for i in range(n)],
-        "nome":           [f"Cliente {i}" for i in range(n)],
-        "produto":        produtos,
-        "status":         status_vals,
-        "uf":             ufs,
-        "valor_divida":   valor_divida.astype(float),
-        "renda_estimada": renda_estimada.astype(float),
-        "dias_em_atraso": dias_em_atraso.astype(int),
-        "mes_analise":    rng.integers(1, 13, n).astype(int),
+        "cpf":                [f"{i:011d}" for i in range(n)],
+        "nome":               [f"Cliente {i}" for i in range(n)],
+        "produto":            produtos,
+        "status":             status_vals,
+        "uf":                 ufs,
+        "valor_divida":       valor_divida.astype(float),
+        "renda_estimada":     renda_estimada.astype(float),
+        "dias_em_atraso":     dias_em_atraso.astype(int),
+        "mes_analise":        rng.integers(1, 13, n).astype(int),
+        "score_bureau":       score_bureau,
+        "tentativas_contato": tentativas_contato.astype(int),
+        "promessa_quebrada":  promessa_quebrada,
     })
 
 
@@ -351,7 +377,7 @@ def _treinar_com_df(df: pd.DataFrame) -> None:
                 class_weight="balanced", random_state=42,
             )
             clf_base.fit(X_tr, y_tr)
-            clf_to_save = CalibratedClassifierCV(clf_base, cv="prefit", method="sigmoid")
+            clf_to_save = CalibratedClassifierCV(FrozenEstimator(clf_base), method="sigmoid")
             clf_to_save.fit(X_cal, y_cal)
             print("      Calibração Platt aplicada.")
         except Exception as _ce:
