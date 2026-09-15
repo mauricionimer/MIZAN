@@ -93,16 +93,16 @@ function KpiCard({ label, value, sub, danger = false, icon: Icon, accent }) {
         borderLeft: `2px solid ${accentColor}`,
       }}>
       <div className="flex items-center justify-between">
-        <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#4b5563' }}>
+        <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#94a3b8' }}>
           {label}
         </p>
-        {Icon && <Icon className="h-3.5 w-3.5" style={{ color: '#374151' }} />}
+        {Icon && <Icon className="h-3.5 w-3.5" style={{ color: '#6d84ab' }} />}
       </div>
       <div>
         <p className="text-[1.75rem] font-semibold tracking-tight leading-none" style={{ color: danger ? '#f87171' : '#f0f0f5' }}>
           {value}
         </p>
-        {sub && <p className="text-xs mt-1.5" style={{ color: '#374151' }}>{sub}</p>}
+        {sub && <p className="text-xs mt-1.5" style={{ color: '#6d84ab' }}>{sub}</p>}
       </div>
     </div>
   )
@@ -602,7 +602,7 @@ export default function Dashboard() {
         <main className="flex-1 px-8 py-8">
 
           <div className="mb-7">
-            <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#374151' }}>Análise de Carteira</p>
+            <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#6d84ab' }}>Análise de Carteira</p>
             <h1 className="text-2xl font-semibold tracking-tight mt-1" style={{ color: '#f0f0f5' }}>Dashboard</h1>
             {resumo?.criado_por && (
               <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
@@ -630,10 +630,10 @@ export default function Dashboard() {
             <section className="mt-6 rounded-xl border border-white/[0.07] bg-[#111827] p-6">
               <div className="mb-6 flex items-center justify-between">
                 <div>
-                  <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#4b5563' }}>Precificação</p>
+                  <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#94a3b8' }}>Precificação</p>
                   <h3 className="text-sm font-semibold mt-0.5" style={{ color: '#f0f0f5' }}>Carteira de Crédito</h3>
                 </div>
-                <p className="text-xs" style={{ color: '#4b5563' }}>Ajuste custo e retorno para simular cenários</p>
+                <p className="text-xs" style={{ color: '#94a3b8' }}>Ajuste custo e retorno para simular cenários</p>
               </div>
 
               <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-5">
@@ -685,14 +685,14 @@ export default function Dashboard() {
             {/* Aging Bar Chart */}
             <div className="rounded-xl border border-white/[0.07] bg-[#111827] p-6 lg:col-span-3">
               <div className="mb-5">
-                <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#4b5563' }}>Distribuição</p>
+                <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#94a3b8' }}>Distribuição</p>
                 <h3 className="text-sm font-semibold mt-0.5" style={{ color: '#f0f0f5' }}>Aging da Carteira</h3>
               </div>
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={agingData} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                  <XAxis dataKey="aging" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <XAxis dataKey="aging" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                   <Tooltip content={<CustomBarTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
                   <Bar dataKey="total_devedores" radius={[4, 4, 0, 0]} maxBarSize={48}>
                     {agingData.map((_, i) => <Cell key={i} fill={AGING_COLORS[i % AGING_COLORS.length]} />)}
@@ -713,7 +713,7 @@ export default function Dashboard() {
             {/* Cluster Pie */}
             <div className="rounded-xl border border-white/[0.07] bg-[#111827] p-6 lg:col-span-2">
               <div className="mb-5">
-                <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#4b5563' }}>Segmentação</p>
+                <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#94a3b8' }}>Segmentação</p>
                 <h3 className="text-sm font-semibold mt-0.5" style={{ color: '#f0f0f5' }}>Perfis de Devedores</h3>
               </div>
               <ResponsiveContainer width="100%" height={220}>
@@ -751,9 +751,9 @@ export default function Dashboard() {
             <section className="mt-6 overflow-hidden rounded-xl border border-white/[0.07] bg-[#111827]">
               <div className="flex items-center justify-between border-b border-white/[0.07] px-6 py-4">
                 <div>
-                  <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#4b5563' }}>Resultados Reais</p>
+                  <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#94a3b8' }}>Resultados Reais</p>
                   <h3 className="text-sm font-semibold mt-0.5" style={{ color: '#f0f0f5' }}>Quem Pagou</h3>
-                  <p className="text-xs mt-0.5" style={{ color: '#4b5563' }}>{perf.total_feedbacks} feedbacks registrados</p>
+                  <p className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>{perf.total_feedbacks} feedbacks registrados</p>
                 </div>
                 {perf.acuracia_geral != null && (
                   <span className="rounded-md border border-blue-500/30 bg-blue-500/10 px-2.5 py-1 text-xs font-medium text-blue-300">
@@ -810,9 +810,9 @@ export default function Dashboard() {
             <section className="mt-6 overflow-hidden rounded-xl border border-white/[0.07] bg-[#111827]">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.07] px-6 py-4">
                 <div>
-                  <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#4b5563' }}>Histórico</p>
+                  <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#94a3b8' }}>Histórico</p>
                   <h3 className="text-sm font-semibold mt-0.5" style={{ color: '#f0f0f5' }}>Pagamentos Registrados</h3>
-                  <p className="text-xs mt-0.5" style={{ color: '#4b5563' }}>{pagamentos.filter(p => p.pagou).length} pagamentos · {pagamentos.filter(p => !p.pagou).length} não pagaram</p>
+                  <p className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>{pagamentos.filter(p => p.pagou).length} pagamentos · {pagamentos.filter(p => !p.pagou).length} não pagaram</p>
                 </div>
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
@@ -888,9 +888,9 @@ export default function Dashboard() {
             <div className="space-y-3 border-b border-white/[0.07] px-6 py-4">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#4b5563' }}>Ranking</p>
+                  <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#94a3b8' }}>Ranking</p>
                   <h3 className="text-sm font-semibold mt-0.5" style={{ color: '#f0f0f5' }}>Recuperabilidade</h3>
-                  <p className="text-xs mt-0.5" style={{ color: '#4b5563' }}>
+                  <p className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>
                     {fmtNum(filtered.length)} devedores{search || filtroPrio !== 'todos' || filtroProduto !== 'todos' || filtroUF !== 'todas' ? ' filtrados' : ''}
                     {totalPages > 1 && ` · página ${page} de ${totalPages}`}
                   </p>

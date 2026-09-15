@@ -15,8 +15,8 @@ export default function PriorityBadge({ score, large = false }) {
     </span>
   )
   return (
-    <span className={`${cls} border-white/8`} style={{ background: 'rgba(255,255,255,0.03)', color: '#6b7280' }}>
-      <span className="w-1 h-1 rounded-full inline-block shrink-0" style={{ background: '#374151' }} />
+    <span className={`${cls} border-white/8`} style={{ background: 'rgba(255,255,255,0.03)', color: '#94a3b8' }}>
+      <span className="w-1 h-1 rounded-full inline-block shrink-0" style={{ background: '#6d84ab' }} />
       Baixa
     </span>
   )

@@ -23,18 +23,18 @@ export default function StatCard({ label, value, sub, icon: Icon, accent = 'defa
           fontWeight: 600,
           textTransform: 'uppercase',
           letterSpacing: '0.12em',
-          color: '#4b5563',
+          color: '#94a3b8',
         }}>
           {label}
         </p>
-        {Icon && <Icon className="h-3.5 w-3.5" style={{ color: '#374151' }} />}
+        {Icon && <Icon className="h-3.5 w-3.5" style={{ color: '#6d84ab' }} />}
       </div>
       <div>
         <p className="text-[1.75rem] font-semibold tracking-tight leading-none" style={{ color: '#f0f0f5' }}>
           {value}
         </p>
         {sub && (
-          <p className="text-xs mt-1.5" style={{ color: '#374151' }}>{sub}</p>
+          <p className="text-xs mt-1.5" style={{ color: '#6d84ab' }}>{sub}</p>
         )}
       </div>
     </div>

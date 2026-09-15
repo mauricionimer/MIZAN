@@ -42,9 +42,9 @@ function ActionCard({ icon: Icon, label, desc, onClick, accent = 'blue', full = 
       </div>
       <div className="flex-1 min-w-0">
         <p className="font-bold text-white text-sm">{label}</p>
-        <p className="text-xs mt-0.5 leading-relaxed" style={{ color: '#5a7499' }}>{desc}</p>
+        <p className="text-xs mt-0.5 leading-relaxed" style={{ color: '#7c93bd' }}>{desc}</p>
       </div>
-      <ChevronRight className="w-4 h-4 shrink-0 transition-colors" style={{ color: '#3d5270' }} />
+      <ChevronRight className="w-4 h-4 shrink-0 transition-colors" style={{ color: '#6d84ab' }} />
     </button>
   )
 }
@@ -82,7 +82,7 @@ export default function AdminHome() {
           </span>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-sm hidden sm:block" style={{ color: '#5a7499' }}>{usuario?.nome}</span>
+          <span className="text-sm hidden sm:block" style={{ color: '#7c93bd' }}>{usuario?.nome}</span>
           <button onClick={() => { logout(); navigate('/login') }} className="nav-link-danger">
             <LogOut className="w-4 h-4" /> Sair
           </button>
@@ -91,7 +91,7 @@ export default function AdminHome() {
 
       <main className="max-w-3xl mx-auto px-6 py-14">
         <div className="mb-10">
-          <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: '#5a7499' }}>
+          <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: '#7c93bd' }}>
             Painel administrativo
           </p>
           <h1 className="text-3xl font-extrabold text-white tracking-tight">
@@ -117,9 +117,9 @@ export default function AdminHome() {
           <button
             onClick={() => navigate('/dashboard')}
             className="w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-colors text-sm"
-            style={{ border: '1px dashed rgba(255,255,255,0.10)', color: '#5a7499' }}
+            style={{ border: '1px dashed rgba(255,255,255,0.10)', color: '#7c93bd' }}
             onMouseOver={e => { e.currentTarget.style.borderColor = 'rgba(29,106,255,0.30)'; e.currentTarget.style.color = '#8fa3c8' }}
-            onMouseOut={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)'; e.currentTarget.style.color = '#5a7499' }}
+            onMouseOut={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)'; e.currentTarget.style.color = '#7c93bd' }}
           >
             <span className="flex items-center gap-2">
               <BarChart2 className="w-4 h-4" />

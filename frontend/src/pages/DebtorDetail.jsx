@@ -114,7 +114,7 @@ function HistoricoContatos({ cpf, rec }) {
     <div className="rounded-2xl overflow-hidden" style={CARD}>
       <div className="px-5 py-4 border-b flex items-center justify-between" style={DIVIDER}>
         <div className="flex items-center gap-2">
-          <ClipboardList className="h-3.5 w-3.5" style={{ color: '#5a7499' }} />
+          <ClipboardList className="h-3.5 w-3.5" style={{ color: '#7c93bd' }} />
           <p className="section-label">Histórico de Contatos{contatos.length > 0 && ` (${contatos.length})`}</p>
         </div>
         <button onClick={() => setFormAberto(o => !o)}
@@ -188,13 +188,13 @@ function HistoricoContatos({ cpf, rec }) {
 
       <div>
         {loading && (
-          <div className="flex items-center justify-center py-8 text-xs gap-2" style={{ color: '#5a7499' }}>
+          <div className="flex items-center justify-center py-8 text-xs gap-2" style={{ color: '#7c93bd' }}>
             <div className="h-3.5 w-3.5 border-2 border-t-blue-400 rounded-full animate-spin" style={{ borderColor: 'rgba(255,255,255,0.10)', borderTopColor: '#1d6aff' }} />
             Carregando...
           </div>
         )}
         {!loading && contatos.length === 0 && (
-          <p className="text-xs text-center py-8" style={{ color: '#5a7499' }}>Nenhum contato registrado ainda.</p>
+          <p className="text-xs text-center py-8" style={{ color: '#7c93bd' }}>Nenhum contato registrado ainda.</p>
         )}
         {contatos.map(c => {
           const res = RESULTADO_CFG[c.resultado] ?? { label: c.resultado, color: 'text-[#8fa3c8]', bg: 'rgba(255,255,255,0.06)', border: 'rgba(255,255,255,0.12)' }
@@ -207,8 +207,8 @@ function HistoricoContatos({ cpf, rec }) {
                     style={{ background: res.bg, border: `1px solid ${res.border}` }}>
                     {res.label}
                   </span>
-                  <span className="text-xs" style={{ color: '#5a7499' }}>{fmtData(c.data_contato || c.created_at)}</span>
-                  {c.usuario_nome && <span className="text-xs" style={{ color: '#3d5270' }}>por {c.usuario_nome}</span>}
+                  <span className="text-xs" style={{ color: '#7c93bd' }}>{fmtData(c.data_contato || c.created_at)}</span>
+                  {c.usuario_nome && <span className="text-xs" style={{ color: '#6d84ab' }}>por {c.usuario_nome}</span>}
                 </div>
                 {c.observacao && <p className="text-xs mt-1 leading-relaxed" style={{ color: '#8fa3c8' }}>{c.observacao}</p>}
                 {c.valor_recuperado > 0 && <p className="text-xs text-emerald-400 font-semibold mt-0.5">{fmtBRL(c.valor_recuperado)} recuperados</p>}
@@ -252,7 +252,7 @@ function ApproachRecommendation({ devedor, rec, loading, erro }) {
       </div>
       <div className="p-5 space-y-4">
         {loading && (
-          <div className="flex items-center justify-center py-8 text-sm gap-2" style={{ color: '#5a7499' }}>
+          <div className="flex items-center justify-center py-8 text-sm gap-2" style={{ color: '#7c93bd' }}>
             <div className="h-4 w-4 border-2 rounded-full animate-spin" style={{ borderColor: 'rgba(255,255,255,0.10)', borderTopColor: '#1d6aff' }} />
             Consultando IA...
           </div>
@@ -281,11 +281,11 @@ function ApproachRecommendation({ devedor, rec, loading, erro }) {
               </div>
             </div>
             <div className="flex gap-3 p-4 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <MessageSquare className="h-4 w-4 mt-0.5 shrink-0" style={{ color: '#5a7499' }} />
+              <MessageSquare className="h-4 w-4 mt-0.5 shrink-0" style={{ color: '#7c93bd' }} />
               <p className="text-sm leading-relaxed" style={{ color: '#8fa3c8' }}>{rec.justificativa}</p>
             </div>
             {rec.total_interacoes > 0 && (
-              <p className="text-xs text-right" style={{ color: '#5a7499' }}>
+              <p className="text-xs text-right" style={{ color: '#7c93bd' }}>
                 {rec.total_interacoes} interações registradas · esta ação usada {rec.n_tentativas_acao}×
               </p>
             )}
@@ -332,13 +332,13 @@ export default function DebtorDetail() {
   return (
     <div className="min-h-screen">
       <header className="navbar-glass px-6 py-3 flex items-center gap-3">
-        <button onClick={() => navigate('/dashboard')} className="p-1 rounded-lg transition-colors hover:bg-white/5" style={{ color: '#5a7499' }}>
+        <button onClick={() => navigate('/dashboard')} className="p-1 rounded-lg transition-colors hover:bg-white/5" style={{ color: '#7c93bd' }}>
           <ArrowLeft className="h-4 w-4" />
         </button>
         <Logo />
         <span className="font-bold text-white text-sm">Mizan</span>
         <span className="text-white/20 text-sm">/</span>
-        <button onClick={() => navigate('/dashboard')} className="text-sm transition-colors hover:text-white" style={{ color: '#5a7499' }}>Dashboard</button>
+        <button onClick={() => navigate('/dashboard')} className="text-sm transition-colors hover:text-white" style={{ color: '#7c93bd' }}>Dashboard</button>
         <span className="text-white/20 text-sm">/</span>
         <span className="text-sm font-medium text-white truncate max-w-xs">{d.nome}</span>
       </header>
@@ -347,7 +347,7 @@ export default function DebtorDetail() {
         <div className="flex items-start justify-between mb-7">
           <div>
             <h1 className="text-2xl font-bold text-white tracking-tight">{d.nome}</h1>
-            <p className="font-mono text-sm mt-1" style={{ color: '#5a7499' }}>{d.cpf}</p>
+            <p className="font-mono text-sm mt-1" style={{ color: '#7c93bd' }}>{d.cpf}</p>
             <p className="text-sm mt-1 capitalize" style={{ color: '#8fa3c8' }}>{d.produto} · {d.uf} · Rank #{d.rank}</p>
             <div className="mt-3">
               {statusPag === null && (
@@ -390,14 +390,14 @@ export default function DebtorDetail() {
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
                   <span className="text-3xl font-bold text-white">{score}</span>
-                  <span className="text-xs mt-0.5" style={{ color: '#5a7499' }}>/ 100</span>
+                  <span className="text-xs mt-0.5" style={{ color: '#7c93bd' }}>/ 100</span>
                 </div>
               </div>
               <div className="w-full mt-5">
                 <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.07)' }}>
                   <div className="h-full rounded-full transition-all duration-700" style={{ width: `${score}%`, backgroundColor: scoreColor }} />
                 </div>
-                <div className="flex justify-between text-xs mt-1.5" style={{ color: '#5a7499' }}>
+                <div className="flex justify-between text-xs mt-1.5" style={{ color: '#7c93bd' }}>
                   <span>0</span><span>100</span>
                 </div>
               </div>
@@ -410,7 +410,7 @@ export default function DebtorDetail() {
                 style={{ backgroundColor: `${scoreColor}18`, color: scoreColor }}>
                 {d.perfil_cluster}
               </div>
-              <p className="text-xs mt-3 text-center leading-relaxed" style={{ color: '#5a7499' }}>
+              <p className="text-xs mt-3 text-center leading-relaxed" style={{ color: '#7c93bd' }}>
                 Cluster #{d.cluster_id ?? '—'} identificado por machine learning
               </p>
             </div>

@@ -70,7 +70,7 @@ export default function AlterarSenha() {
           />
           <button type="button" onClick={() => setShow(s => !s)}
             className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors"
-            style={{ color: '#5a7499' }}>
+            style={{ color: '#7c93bd' }}>
             {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
           </button>
         </div>
@@ -84,7 +84,7 @@ export default function AlterarSenha() {
         <div className="flex items-center gap-3">
           <button onClick={() => navigate(homePath)}
             className="transition-colors p-1 rounded-lg hover:bg-white/5"
-            style={{ color: '#5a7499' }}>
+            style={{ color: '#7c93bd' }}>
             <ArrowLeft className="w-4 h-4" />
           </button>
           <Logo />
@@ -93,7 +93,7 @@ export default function AlterarSenha() {
           <span className="text-sm" style={{ color: '#8fa3c8' }}>Alterar senha</span>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-sm hidden sm:block" style={{ color: '#5a7499' }}>{usuario?.nome}</span>
+          <span className="text-sm hidden sm:block" style={{ color: '#7c93bd' }}>{usuario?.nome}</span>
           <button onClick={logout} className="nav-link-danger">
             <LogOut className="w-4 h-4" /> Sair
           </button>
@@ -114,7 +114,7 @@ export default function AlterarSenha() {
             </div>
             <div>
               <h1 className="text-lg font-bold text-white tracking-tight">Alterar senha</h1>
-              <p className="text-xs" style={{ color: '#5a7499' }}>Mínimo 8 caracteres, letras e números</p>
+              <p className="text-xs" style={{ color: '#7c93bd' }}>Mínimo 8 caracteres, letras e números</p>
             </div>
           </div>
 

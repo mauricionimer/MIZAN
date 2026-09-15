@@ -24,7 +24,7 @@ export default function Privacidade() {
             </div>
             <div>
               <h1 className="text-lg font-bold text-white tracking-tight">Política de Privacidade</h1>
-              <p className="text-xs mt-0.5" style={{ color: '#5a7499' }}>
+              <p className="text-xs mt-0.5" style={{ color: '#7c93bd' }}>
                 Última atualização: maio de 2026 · Em conformidade com a LGPD (Lei nº 13.709/2018)
               </p>
             </div>
