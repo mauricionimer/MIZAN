@@ -214,21 +214,26 @@ function Slider({ label, hint, value, min, max, step, onChange, color = 'blue' }
   )
 }
 
-function PricingCard({ label, value, sub, highlight = false, icon: Icon }) {
+function PricingCard({ label, value, sub, highlight = false, accent = null, icon: Icon }) {
+  const lucroCard = accent === 'emerald'
+  const box = highlight
+    ? 'border-blue-500/40 bg-blue-600/15 shadow-[0_0_0_1px_rgba(59,130,246,0.25),0_8px_28px_-8px_rgba(59,130,246,0.4)]'
+    : lucroCard
+      ? 'border-emerald-500/30 bg-emerald-500/[0.08]'
+      : 'border-white/[0.07] bg-white/[0.02]'
+  const head  = highlight ? 'text-blue-300'     : lucroCard ? 'text-emerald-300'    : 'text-slate-500'
+  const val   = highlight ? 'text-white'        : lucroCard ? 'text-emerald-200'    : 'text-slate-100'
+  const subCl = highlight ? 'text-blue-200/80'  : lucroCard ? 'text-emerald-300/70' : 'text-slate-500'
   return (
-    <div className={`flex flex-col gap-1 rounded-xl border p-4 ${
-      highlight
-        ? 'border-blue-500/40 bg-blue-600/15 shadow-[0_0_0_1px_rgba(59,130,246,0.25),0_8px_28px_-8px_rgba(59,130,246,0.4)]'
-        : 'border-white/[0.07] bg-white/[0.02]'
-    }`}>
+    <div className={`flex flex-col gap-1 rounded-xl border p-4 ${box}`}>
       <div className="flex items-center justify-between">
-        <p className={`text-xs font-semibold uppercase tracking-wide ${highlight ? 'text-blue-300' : 'text-slate-500'}`}>
+        <p className={`text-xs font-semibold uppercase tracking-wide ${head}`}>
           {label}
         </p>
-        {Icon && <Icon className={`h-4 w-4 ${highlight ? 'text-blue-300' : 'text-slate-500'}`} />}
+        {Icon && <Icon className={`h-4 w-4 ${head}`} />}
       </div>
-      <p className={`mt-1 text-xl font-bold leading-none ${highlight ? 'text-white' : 'text-slate-100'}`}>{value}</p>
-      {sub && <p className={`mt-0.5 text-xs ${highlight ? 'text-blue-200/80' : 'text-slate-500'}`}>{sub}</p>}
+      <p className={`mt-1 text-xl font-bold leading-none ${val}`}>{value}</p>
+      {sub && <p className={`mt-0.5 text-xs ${subCl}`}>{sub}</p>}
     </div>
   )
 }
@@ -255,10 +260,11 @@ export default function Dashboard() {
     const ra              = retornoAlvo   / 100
     const liquido         = ver * (1 - cc)
     const preco           = liquido / (1 + ra)
-    const retorno         = preco > 0 ? ((liquido - preco) / preco) * 100 : 0
+    const lucro           = liquido - preco
+    const retorno         = preco > 0 ? (lucro / preco) * 100 : 0
     const desconto        = face  > 0 ? ((face - preco) / face) * 100 : 0
     const taxaRecuperacao = face  > 0 ? (ver / face) * 100 : 0
-    return { ver, face, liquido, preco, retorno, desconto, taxaRecuperacao }
+    return { ver, face, liquido, preco, lucro, retorno, desconto, taxaRecuperacao }
   }, [result, custoCobranca, retornoAlvo])
 
   const [perf, setPerf]                   = useState(null)
@@ -645,7 +651,7 @@ export default function Dashboard() {
                     value={retornoAlvo} min={10} max={80} step={1} onChange={setRetornoAlvo} color="emerald" />
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 lg:col-span-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5 lg:col-span-4">
                   <PricingCard label="Valor Esperado de Recuperação" value={fmtBRL(pricing.ver)}
                     sub={resumo.taxa_recuperacao_esperada != null ? `${fmtPct(resumo.taxa_recuperacao_esperada)} do valor de face` : 'do valor de face'}
                     icon={ArrowUpRight} />
@@ -653,8 +659,10 @@ export default function Dashboard() {
                     sub={`custos estimados: ${fmtBRL(pricing.ver - pricing.liquido)}`} icon={Percent} />
                   <PricingCard label="Preço Sugerido de Compra" value={fmtBRL(pricing.preco)}
                     sub={`${fmtPct(pricing.desconto)} de desconto sobre o face`} highlight icon={Tag} />
+                  <PricingCard label="Lucro Final (líquido)" value={fmtBRL(pricing.lucro)}
+                    sub={`retorno de ${pricing.retorno.toFixed(1)}% sobre o preço pago`} accent="emerald" icon={Banknote} />
                   <PricingCard label="Taxa de Recuperação Estimada" value={`${pricing.taxaRecuperacao.toFixed(1)}%`}
-                    sub={`do valor de face · lucro: ${fmtBRL(pricing.liquido - pricing.preco)}`} icon={TrendingUp} />
+                    sub="do valor de face" icon={TrendingUp} />
                 </div>
               </div>
 
@@ -674,7 +682,9 @@ export default function Dashboard() {
                 <span className="text-slate-700">›</span>
                 <span><span className="font-medium text-slate-400">Preço</span> = Líquido ÷ (1 + {retornoAlvo}%)</span>
                 <span className="text-slate-700">›</span>
-                <span><span className="font-medium text-slate-400">Retorno</span> = (Líquido − Preço) ÷ Preço</span>
+                <span><span className="font-medium text-emerald-400">Lucro</span> = Líquido − Preço</span>
+                <span className="text-slate-700">›</span>
+                <span><span className="font-medium text-slate-400">Retorno</span> = Lucro ÷ Preço</span>
               </div>
             </section>
           )}
