@@ -8,6 +8,9 @@ import {
 import { useAuth } from '../context/AuthContext'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001'
+const MUTED = '#7c93bd'
+const MUTED_LIGHT = '#8fa3c8'
+const LABEL = '#94a3b8'
 
 const fmtPct  = (v, casas = 1) => v != null ? `${(v * 100).toFixed(casas)}%` : '—'
 const fmtData = iso => iso
@@ -16,15 +19,15 @@ const fmtData = iso => iso
 
 function Secao({ icon: Icon, titulo, sub, children, right }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_1px_4px_rgba(15,23,42,0.06)] overflow-hidden">
-      <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+    <div className="rounded-2xl overflow-hidden" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }}>
+      <div className="px-6 py-4 border-b flex items-center justify-between flex-wrap gap-3" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
         <div className="flex items-center gap-3">
-          <div className="rounded-xl p-2 bg-blue-50 text-blue-600 shrink-0">
+          <div className="rounded-xl p-2 shrink-0" style={{ background: 'rgba(37,99,235,0.15)', color: 'var(--brand)' }}>
             <Icon className="h-4 w-4" />
           </div>
           <div>
-            <p className="text-sm font-bold text-slate-800">{titulo}</p>
-            {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
+            <p className="text-sm font-bold text-white">{titulo}</p>
+            {sub && <p className="text-xs mt-0.5" style={{ color: MUTED }}>{sub}</p>}
           </div>
         </div>
         {right}
@@ -36,19 +39,29 @@ function Secao({ icon: Icon, titulo, sub, children, right }) {
 
 function Botao({ children, onClick, disabled, variante = 'primario', ...props }) {
   const cls = {
-    primario:  'bg-blue-600 hover:bg-blue-700 text-white',
-    secundario: 'bg-slate-100 hover:bg-slate-200 text-slate-700',
-    perigo:    'bg-red-50 hover:bg-red-100 text-red-600',
+    primario:   'text-white hover:brightness-110',
+    secundario: 'bg-white/5 hover:bg-white/10 text-[#8fa3c8]',
+    perigo:     'bg-red-500/10 hover:bg-red-500/20 text-red-300',
   }[variante]
+  const style = variante === 'primario' ? { background: 'var(--brand)' } : undefined
   return (
     <button
       onClick={onClick}
       disabled={disabled}
+      style={style}
       className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${cls}`}
       {...props}
     >
       {children}
     </button>
+  )
+}
+
+function Barra({ pct, cor = 'var(--brand)' }) {
+  return (
+    <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
+      <div className="h-full rounded-full" style={{ width: `${Math.min(Math.max(pct, 0), 100)}%`, background: cor }} />
+    </div>
   )
 }
 
@@ -170,22 +183,22 @@ export default function AprendizadoDashboard() {
     <div className="min-h-screen">
       <header className="navbar-glass px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/comando')} className="text-slate-400 hover:text-slate-700 transition-colors p-1 rounded-lg hover:bg-slate-100">
+          <button onClick={() => navigate('/comando')} className="p-1 rounded-lg transition-colors hover:bg-white/5" style={{ color: MUTED }}>
             <ArrowLeft className="h-4 w-4" />
           </button>
           <div className="w-7 h-7 rounded-lg flex items-center justify-center shadow-md shadow-blue-500/20"
             style={{ background: 'linear-gradient(135deg,#1d4ed8,#2563eb)' }}>
             <Brain className="h-3.5 w-3.5 text-white" />
           </div>
-          <span className="font-bold text-slate-800 text-sm">Mizan</span>
-          <span className="text-slate-200 text-sm">/</span>
-          <span className="text-slate-500 text-sm">Gestão do Aprendizado</span>
+          <span className="font-bold text-white text-sm">Mizan</span>
+          <span className="text-white/20 text-sm">/</span>
+          <span className="text-sm" style={{ color: MUTED_LIGHT }}>Gestão do Aprendizado</span>
         </div>
         <div className="flex items-center gap-3">
           <button onClick={carregar} disabled={loading} className="nav-link disabled:opacity-50">
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Atualizar
           </button>
-          <span className="text-sm text-slate-400 hidden sm:block">{usuario?.nome}</span>
+          <span className="text-sm hidden sm:block" style={{ color: MUTED }}>{usuario?.nome}</span>
           <button onClick={() => { logout(); navigate('/login') }} className="nav-link-danger">
             <LogOut className="h-4 w-4" /> Sair
           </button>
@@ -194,17 +207,17 @@ export default function AprendizadoDashboard() {
 
       <main className="max-w-6xl mx-auto px-6 py-10 space-y-6">
         {loading && !modelos && (
-          <div className="flex flex-col items-center justify-center py-28 gap-3 text-slate-400">
+          <div className="flex flex-col items-center justify-center py-28 gap-3" style={{ color: MUTED }}>
             <Loader2 className="h-8 w-8 animate-spin" />
             <p className="text-sm">Carregando painel de aprendizado...</p>
           </div>
         )}
 
         {erro && (
-          <div className="bg-red-50 border border-red-100 rounded-2xl px-5 py-4 text-sm text-red-700">{erro}</div>
+          <div className="rounded-2xl px-5 py-4 text-sm text-red-300" style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.25)' }}>{erro}</div>
         )}
         {msg && (
-          <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-100 rounded-2xl px-5 py-3.5 text-sm text-emerald-700">
+          <div className="flex items-center gap-2 rounded-2xl px-5 py-3.5 text-sm text-emerald-300" style={{ background: 'rgba(16,185,129,0.10)', border: '1px solid rgba(16,185,129,0.25)' }}>
             <CheckCircle2 className="h-4 w-4 shrink-0" /> {msg}
           </div>
         )}
@@ -212,23 +225,23 @@ export default function AprendizadoDashboard() {
         {!loading && (
           <>
             <div>
-              <h1 className="text-xl font-bold text-slate-900 tracking-tight">Gestão do Aprendizado</h1>
-              <p className="text-sm text-slate-500 mt-1">Acesso restrito ao COMANDO — versões do modelo, variáveis, drift e ciclo de retreino</p>
+              <h1 className="text-xl font-bold text-white tracking-tight">Gestão do Aprendizado</h1>
+              <p className="text-sm mt-1" style={{ color: MUTED_LIGHT }}>Acesso restrito ao COMANDO — versões do modelo, variáveis, drift e ciclo de retreino</p>
             </div>
 
             {/* Drift */}
             {drift && (
               drift.drift_detectado ? (
-                <div className="flex items-start gap-3 bg-amber-50 border border-amber-100 rounded-2xl px-5 py-4 text-sm text-amber-800">
-                  <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-500" />
+                <div className="flex items-start gap-3 rounded-2xl px-5 py-4 text-sm text-amber-300" style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.25)' }}>
+                  <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
                   <div>
                     <p className="font-semibold">Possível drift do modelo detectado</p>
-                    <p className="text-amber-700 mt-0.5">{drift.mensagem}</p>
+                    <p className="opacity-90 mt-0.5">{drift.mensagem}</p>
                   </div>
                 </div>
               ) : drift.media_recente_30d != null ? (
-                <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-100 rounded-2xl px-5 py-3.5 text-sm text-emerald-700">
-                  <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" /> {drift.mensagem}
+                <div className="flex items-center gap-3 rounded-2xl px-5 py-3.5 text-sm text-emerald-300" style={{ background: 'rgba(16,185,129,0.10)', border: '1px solid rgba(16,185,129,0.25)' }}>
+                  <CheckCircle2 className="h-4 w-4 shrink-0" /> {drift.mensagem}
                 </div>
               ) : null
             )}
@@ -240,23 +253,23 @@ export default function AprendizadoDashboard() {
               sub="O modelo está generalizando ou decorando os próprios dados de treino?"
             >
               {!qualidade?.ok ? (
-                <p className="text-sm text-slate-400">{qualidade?.motivo || 'Diagnóstico indisponível.'}</p>
+                <p className="text-sm" style={{ color: MUTED }}>{qualidade?.motivo || 'Diagnóstico indisponível.'}</p>
               ) : (
                 <div className="space-y-6">
                   {/* Veredito */}
                   {(() => {
                     const v = qualidade.overfitting.veredito
                     const cfg = {
-                      saudavel:            { label: 'Saudável — sem sinais de overfitting', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200', Icon: CheckCircle2 },
-                      overfitting_moderado:{ label: 'Overfitting moderado — monitorar', cls: 'bg-amber-50 text-amber-700 border-amber-200', Icon: AlertTriangle },
-                      overfitting_severo:  { label: 'Overfitting severo — modelo não está confiável', cls: 'bg-red-50 text-red-700 border-red-200', Icon: XCircle },
+                      saudavel:             { label: 'Saudável — sem sinais de overfitting', bg: 'rgba(16,185,129,0.10)', border: 'rgba(16,185,129,0.25)', cor: '#6ee7b7', Icon: CheckCircle2 },
+                      overfitting_moderado: { label: 'Overfitting moderado — monitorar', bg: 'rgba(245,158,11,0.10)', border: 'rgba(245,158,11,0.25)', cor: '#fcd34d', Icon: AlertTriangle },
+                      overfitting_severo:   { label: 'Overfitting severo — modelo não está confiável', bg: 'rgba(239,68,68,0.10)', border: 'rgba(239,68,68,0.25)', cor: '#fca5a5', Icon: XCircle },
                     }[v]
                     return (
-                      <div className={`flex items-start gap-3 rounded-2xl border px-4 py-3.5 text-sm ${cfg.cls}`}>
+                      <div className="flex items-start gap-3 rounded-2xl border px-4 py-3.5 text-sm" style={{ background: cfg.bg, borderColor: cfg.border, color: cfg.cor }}>
                         <cfg.Icon className="h-4 w-4 mt-0.5 shrink-0" />
                         <div>
                           <p className="font-semibold">{cfg.label}</p>
-                          <p className="opacity-80 mt-0.5">
+                          <p className="opacity-90 mt-0.5">
                             Diferença entre acerto no treino ({fmtPct(qualidade.overfitting.treino_acuracia)}) e na
                             validação cruzada ({fmtPct(qualidade.overfitting.cv_acuracia_media)}): {fmtPct(qualidade.overfitting.gap_treino_menos_cv)} pontos.
                             {' '}Gap acima de 10% já é sinal de alerta; acima de 20%, o modelo decorou os dados em vez de aprender o padrão.
@@ -271,22 +284,20 @@ export default function AprendizadoDashboard() {
                     <p className="section-label mb-3">Acurácia — treino × validação cruzada × holdout (nunca visto)</p>
                     <div className="grid grid-cols-3 gap-4">
                       {[
-                        { label: 'Treino (100% dos dados)', valor: qualidade.overfitting.treino_acuracia, cor: 'bg-slate-400' },
-                        { label: 'Validação cruzada', valor: qualidade.overfitting.cv_acuracia_media, cor: 'bg-blue-500' },
-                        { label: 'Holdout (20% nunca visto)', valor: qualidade.holdout.acuracia, cor: 'bg-emerald-500' },
+                        { label: 'Treino (100% dos dados)', valor: qualidade.overfitting.treino_acuracia, cor: '#94a3b8' },
+                        { label: 'Validação cruzada', valor: qualidade.overfitting.cv_acuracia_media, cor: '#60a5fa' },
+                        { label: 'Holdout (20% nunca visto)', valor: qualidade.holdout.acuracia, cor: '#34d399' },
                       ].map(b => (
                         <div key={b.label}>
-                          <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
+                          <div className="flex items-center justify-between text-xs mb-1" style={{ color: MUTED }}>
                             <span>{b.label}</span>
-                            <span className="font-bold text-slate-700">{fmtPct(b.valor)}</span>
+                            <span className="font-bold text-white">{fmtPct(b.valor)}</span>
                           </div>
-                          <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                            <div className={`h-full rounded-full ${b.cor}`} style={{ width: `${Math.min((b.valor ?? 0) * 100, 100)}%` }} />
-                          </div>
+                          <Barra pct={(b.valor ?? 0) * 100} cor={b.cor} />
                         </div>
                       ))}
                     </div>
-                    <p className="text-xs text-slate-400 mt-3">
+                    <p className="text-xs mt-3" style={{ color: MUTED }}>
                       Treino muito mais alto que os outros dois = está decorando. Os três próximos = generaliza de verdade.
                     </p>
                   </div>
@@ -296,53 +307,57 @@ export default function AprendizadoDashboard() {
                     <div>
                       <p className="section-label mb-3">Matriz de confusão (holdout, {qualidade.holdout.n_amostras} casos)</p>
                       <div className="grid grid-cols-2 gap-2 text-center text-sm">
-                        <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-100">
-                          <p className="text-lg font-bold text-emerald-700">{qualidade.holdout.matriz_confusao.verdadeiro_positivo}</p>
-                          <p className="text-[11px] text-emerald-600 mt-0.5">Previu que pagava — pagou</p>
+                        <div className="rounded-xl p-3" style={{ background: 'rgba(16,185,129,0.10)', border: '1px solid rgba(16,185,129,0.22)' }}>
+                          <p className="text-lg font-bold text-emerald-300">{qualidade.holdout.matriz_confusao.verdadeiro_positivo}</p>
+                          <p className="text-[11px] text-emerald-300/80 mt-0.5">Previu que pagava — pagou</p>
                         </div>
-                        <div className="bg-red-50 rounded-xl p-3 border border-red-100">
-                          <p className="text-lg font-bold text-red-700">{qualidade.holdout.matriz_confusao.falso_positivo}</p>
-                          <p className="text-[11px] text-red-600 mt-0.5">Previu que pagava — não pagou</p>
+                        <div className="rounded-xl p-3" style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.22)' }}>
+                          <p className="text-lg font-bold text-red-300">{qualidade.holdout.matriz_confusao.falso_positivo}</p>
+                          <p className="text-[11px] text-red-300/80 mt-0.5">Previu que pagava — não pagou</p>
                         </div>
-                        <div className="bg-amber-50 rounded-xl p-3 border border-amber-100">
-                          <p className="text-lg font-bold text-amber-700">{qualidade.holdout.matriz_confusao.falso_negativo}</p>
-                          <p className="text-[11px] text-amber-600 mt-0.5">Previu que não pagava — pagou</p>
+                        <div className="rounded-xl p-3" style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.22)' }}>
+                          <p className="text-lg font-bold text-amber-300">{qualidade.holdout.matriz_confusao.falso_negativo}</p>
+                          <p className="text-[11px] text-amber-300/80 mt-0.5">Previu que não pagava — pagou</p>
                         </div>
-                        <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
-                          <p className="text-lg font-bold text-slate-700">{qualidade.holdout.matriz_confusao.verdadeiro_negativo}</p>
-                          <p className="text-[11px] text-slate-500 mt-0.5">Previu que não pagava — não pagou</p>
+                        <div className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                          <p className="text-lg font-bold text-white">{qualidade.holdout.matriz_confusao.verdadeiro_negativo}</p>
+                          <p className="text-[11px] mt-0.5" style={{ color: MUTED }}>Previu que não pagava — não pagou</p>
                         </div>
                       </div>
                       <div className="grid grid-cols-3 gap-3 mt-3 text-center">
-                        <div><p className="text-xs text-slate-400">Precisão</p><p className="font-bold text-slate-700 text-sm">{fmtPct(qualidade.holdout.precisao)}</p></div>
-                        <div><p className="text-xs text-slate-400">Revocação</p><p className="font-bold text-slate-700 text-sm">{fmtPct(qualidade.holdout.revocacao)}</p></div>
-                        <div><p className="text-xs text-slate-400">F1</p><p className="font-bold text-slate-700 text-sm">{fmtPct(qualidade.holdout.f1)}</p></div>
+                        <div><p className="text-xs" style={{ color: MUTED }}>Precisão</p><p className="font-bold text-white text-sm">{fmtPct(qualidade.holdout.precisao)}</p></div>
+                        <div><p className="text-xs" style={{ color: MUTED }}>Revocação</p><p className="font-bold text-white text-sm">{fmtPct(qualidade.holdout.revocacao)}</p></div>
+                        <div><p className="text-xs" style={{ color: MUTED }}>F1</p><p className="font-bold text-white text-sm">{fmtPct(qualidade.holdout.f1)}</p></div>
                       </div>
+                      <p className="text-[11px] mt-2 leading-relaxed" style={{ color: MUTED }}>
+                        "Positivo" aqui = o modelo previu que o devedor paga. Precisão: das vezes que previu pagamento, quantas acertou.
+                        Revocação: dos que realmente pagaram, quantos o modelo identificou.
+                      </p>
                     </div>
 
                     {/* Calibração */}
                     <div>
                       <p className="section-label mb-3">
-                        Calibração — a probabilidade é confiável? <span className="font-mono text-slate-400">(Brier: {qualidade.holdout.brier_score})</span>
+                        Calibração — a probabilidade é confiável? <span className="font-mono" style={{ color: MUTED }}>(Brier: {qualidade.holdout.brier_score})</span>
                       </p>
                       <div className="space-y-1.5">
                         {qualidade.calibracao_por_faixa.map((f, i) => {
                           const diff = Math.abs(f.prob_media_prevista - f.taxa_real_observada)
                           return (
                             <div key={i} className="flex items-center gap-2 text-xs">
-                              <span className="text-slate-400 w-16 shrink-0">Faixa {i + 1}</span>
-                              <span className="text-slate-500 w-20 shrink-0">prev. {fmtPct(f.prob_media_prevista)}</span>
-                              <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden relative">
-                                <div className="h-full bg-blue-400 rounded-full" style={{ width: `${f.prob_media_prevista * 100}%` }} />
+                              <span className="w-16 shrink-0" style={{ color: MUTED }}>Faixa {i + 1}</span>
+                              <span className="w-20 shrink-0" style={{ color: MUTED_LIGHT }}>prev. {fmtPct(f.prob_media_prevista)}</span>
+                              <div className="flex-1">
+                                <Barra pct={f.prob_media_prevista * 100} cor="#60a5fa" />
                               </div>
-                              <span className={`w-24 text-right font-semibold shrink-0 ${diff > 0.2 ? 'text-amber-600' : 'text-slate-600'}`}>
+                              <span className={`w-24 text-right font-semibold shrink-0 ${diff > 0.2 ? 'text-amber-300' : ''}`} style={diff > 0.2 ? undefined : { color: MUTED_LIGHT }}>
                                 real {fmtPct(f.taxa_real_observada)}
                               </span>
                             </div>
                           )
                         })}
                       </div>
-                      <p className="text-xs text-slate-400 mt-3">
+                      <p className="text-xs mt-3" style={{ color: MUTED }}>
                         Compara, em cada faixa de probabilidade prevista, a taxa real de pagamento observada.
                         Quanto mais próximas, mais confiável é o score — não só pra ranquear, mas como probabilidade de verdade.
                       </p>
@@ -350,7 +365,10 @@ export default function AprendizadoDashboard() {
                   </div>
 
                   {/* Complexidade vs volume de dados */}
-                  <div className={`flex items-start gap-3 rounded-xl border px-4 py-3 text-xs ${qualidade.complexidade_adequada ? 'bg-slate-50 border-slate-200 text-slate-600' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
+                  <div className="flex items-start gap-3 rounded-xl border px-4 py-3 text-xs"
+                    style={qualidade.complexidade_adequada
+                      ? { background: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.08)', color: MUTED_LIGHT }
+                      : { background: 'rgba(245,158,11,0.10)', borderColor: 'rgba(245,158,11,0.25)', color: '#fcd34d' }}>
                     <Target className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                     <span>
                       {qualidade.n_amostras} amostras para {qualidade.n_features} variáveis do modelo
@@ -370,14 +388,16 @@ export default function AprendizadoDashboard() {
               titulo="Versões do modelo de crédito"
               sub={modelos ? `Ativa: ${modelos.versao_ativa} · ${modelos.total_versoes} versão(ões)` : ''}
               right={
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number" min={1} value={minFeedbacks}
-                    onChange={e => setMinFeedbacks(Number(e.target.value))}
-                    className="w-20 text-xs border border-slate-200 rounded-lg px-2 py-1.5"
-                    title="Mínimo de feedbacks para retreinar"
-                  />
-                  <label className="flex items-center gap-1.5 text-xs text-slate-500">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <label className="flex items-center gap-1.5 text-xs" style={{ color: MUTED }}>
+                    Mín. feedbacks p/ retreinar
+                    <input
+                      type="number" min={1} value={minFeedbacks}
+                      onChange={e => setMinFeedbacks(Number(e.target.value))}
+                      className="input-base w-16 text-xs py-1.5 px-2"
+                    />
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs" style={{ color: MUTED }}>
                     <input type="checkbox" checked={autoPromover} onChange={e => setAutoPromover(e.target.checked)} />
                     auto-promover
                   </label>
@@ -389,12 +409,12 @@ export default function AprendizadoDashboard() {
               }
             >
               {!modelos?.versoes?.length ? (
-                <p className="text-sm text-slate-400">Nenhuma versão de modelo registrada ainda.</p>
+                <p className="text-sm" style={{ color: MUTED }}>Nenhuma versão de modelo registrada ainda.</p>
               ) : (
                 <div className="overflow-x-auto -mx-2">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                      <tr className="text-left text-xs font-semibold uppercase tracking-wide" style={{ color: LABEL }}>
                         <th className="px-2 py-2">Versão</th>
                         <th className="px-2 py-2">Origem</th>
                         <th className="px-2 py-2">Criada em</th>
@@ -404,22 +424,25 @@ export default function AprendizadoDashboard() {
                         <th className="px-2 py-2"></th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-50">
+                    <tbody className="divide-y" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
                       {modelos.versoes.map(v => (
-                        <tr key={v.versao} className={v.ativa ? 'bg-blue-50/50' : ''}>
-                          <td className="px-2 py-3 font-mono text-xs text-slate-600">{v.versao}</td>
+                        <tr key={v.versao} style={v.ativa ? { background: 'rgba(37,99,235,0.08)' } : undefined}>
+                          <td className="px-2 py-3 font-mono text-xs" style={{ color: MUTED_LIGHT }}>{v.versao}</td>
                           <td className="px-2 py-3">
-                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${v.tipo_alvo === 'real' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                              style={v.tipo_alvo === 'real'
+                                ? { background: 'rgba(16,185,129,0.12)', color: '#6ee7b7' }
+                                : { background: 'rgba(255,255,255,0.08)', color: MUTED }}>
                               {v.tipo_alvo === 'real' ? 'Dados reais' : 'Sintético'}
                             </span>
                           </td>
-                          <td className="px-2 py-3 text-xs text-slate-500">{fmtData(v.criado_em)}</td>
-                          <td className="px-2 py-3 text-right text-xs text-slate-500">{v.n_amostras_treino ?? '—'}</td>
-                          <td className="px-2 py-3 text-right text-xs text-slate-500">{fmtPct(v.metricas_treino?.cv_auc_media)}</td>
-                          <td className="px-2 py-3 text-right text-xs font-semibold text-slate-700">{fmtPct(v.acuracia_real)}</td>
+                          <td className="px-2 py-3 text-xs" style={{ color: MUTED }}>{fmtData(v.criado_em)}</td>
+                          <td className="px-2 py-3 text-right text-xs" style={{ color: MUTED }}>{v.n_amostras_treino ?? '—'}</td>
+                          <td className="px-2 py-3 text-right text-xs" style={{ color: MUTED }}>{fmtPct(v.metricas_treino?.cv_auc_media)}</td>
+                          <td className="px-2 py-3 text-right text-xs font-semibold text-white">{fmtPct(v.acuracia_real)}</td>
                           <td className="px-2 py-3 text-right">
                             {v.ativa ? (
-                              <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600">
+                              <span className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: 'var(--brand)' }}>
                                 <ShieldCheck className="h-3.5 w-3.5" /> Ativa
                               </span>
                             ) : (
@@ -443,16 +466,14 @@ export default function AprendizadoDashboard() {
               sub={importancia ? `${importancia.total_features} variáveis no modelo ativo` : 'Importância de cada variável no modelo ativo'}
             >
               {!importancia?.features?.length ? (
-                <p className="text-sm text-slate-400">Importância indisponível para o modelo atual.</p>
+                <p className="text-sm" style={{ color: MUTED }}>Importância indisponível para o modelo atual.</p>
               ) : (
                 <div className="space-y-2.5">
                   {importancia.features.slice(0, 12).map(f => (
                     <div key={f.nome} className="flex items-center gap-3">
-                      <span className="text-xs font-mono text-slate-500 w-40 truncate shrink-0">{f.nome}</span>
-                      <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(f.percentual, 100)}%` }} />
-                      </div>
-                      <span className="text-xs font-semibold text-slate-600 w-12 text-right shrink-0">{f.percentual}%</span>
+                      <span className="text-xs font-mono w-40 truncate shrink-0" style={{ color: MUTED }}>{f.nome}</span>
+                      <div className="flex-1"><Barra pct={f.percentual} /></div>
+                      <span className="text-xs font-semibold w-12 text-right shrink-0" style={{ color: MUTED_LIGHT }}>{f.percentual}%</span>
                     </div>
                   ))}
                 </div>
@@ -463,12 +484,12 @@ export default function AprendizadoDashboard() {
               {/* Price model */}
               <Secao icon={Award} titulo="Modelo de precificação" sub="Estima quanto do valor devido é recuperado quando o devedor paga">
                 {!priceModel?.disponivel ? (
-                  <p className="text-sm text-slate-400">{priceModel?.mensagem || 'Indisponível.'}</p>
+                  <p className="text-sm" style={{ color: MUTED }}>{priceModel?.mensagem || 'Indisponível.'}</p>
                 ) : (
                   <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div><p className="text-xs text-slate-400">Amostras / pagamentos</p><p className="font-bold text-slate-700">{priceModel.n_amostras} / {priceModel.n_pagamentos}</p></div>
-                    <div><p className="text-xs text-slate-400">R² médio (CV)</p><p className="font-bold text-slate-700">{priceModel.r2_medio}</p></div>
-                    <div><p className="text-xs text-slate-400">MAE médio</p><p className="font-bold text-slate-700">{priceModel.mae_medio}</p></div>
+                    <div><p className="text-xs" style={{ color: MUTED }}>Amostras / pagamentos</p><p className="font-bold text-white">{priceModel.n_amostras} / {priceModel.n_pagamentos}</p></div>
+                    <div><p className="text-xs" style={{ color: MUTED }}>R² médio (CV)</p><p className="font-bold text-white">{priceModel.r2_medio}</p></div>
+                    <div><p className="text-xs" style={{ color: MUTED }}>MAE médio</p><p className="font-bold text-white">{priceModel.mae_medio}</p></div>
                   </div>
                 )}
               </Secao>
@@ -481,19 +502,19 @@ export default function AprendizadoDashboard() {
                 right={<Botao variante="secundario" onClick={() => navigate('/bandit')}>Ver detalhes</Botao>}
               >
                 <div className="flex items-center gap-3">
-                  <Sliders className="h-4 w-4 text-slate-400 shrink-0" />
-                  <label className="text-xs text-slate-500 shrink-0">Exploração (alpha)</label>
+                  <Sliders className="h-4 w-4 shrink-0" style={{ color: MUTED }} />
+                  <label className="text-xs shrink-0" style={{ color: MUTED }}>Exploração (alpha)</label>
                   <input
                     type="range" min={0.1} max={5} step={0.1}
                     value={alphaInput} onChange={e => setAlphaInput(Number(e.target.value))}
                     className="flex-1"
                   />
-                  <span className="text-xs font-mono text-slate-600 w-10 text-right">{alphaInput.toFixed(1)}</span>
+                  <span className="text-xs font-mono w-10 text-right" style={{ color: MUTED_LIGHT }}>{alphaInput.toFixed(1)}</span>
                   <Botao onClick={ajustarAlpha} disabled={acao === 'alpha'}>
                     {acao === 'alpha' ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Aplicar'}
                   </Botao>
                 </div>
-                <p className="text-xs text-slate-400 mt-3">
+                <p className="text-xs mt-3" style={{ color: MUTED }}>
                   Valor alto = mais exploração de novas abordagens; valor baixo = prioriza o que já sabe que funciona.
                 </p>
               </Secao>
@@ -512,11 +533,11 @@ export default function AprendizadoDashboard() {
               }
             >
               <div className="grid grid-cols-3 gap-4 text-sm">
-                <div><p className="text-xs text-slate-400">Próxima verificação</p><p className="font-semibold text-slate-700">{fmtData(scheduler?.proxima_verificacao)}</p></div>
-                <div><p className="text-xs text-slate-400">Retreinamentos automáticos</p><p className="font-semibold text-slate-700">{scheduler?.n_retreinamentos ?? 0}</p></div>
+                <div><p className="text-xs" style={{ color: MUTED }}>Próxima verificação</p><p className="font-semibold text-white">{fmtData(scheduler?.proxima_verificacao)}</p></div>
+                <div><p className="text-xs" style={{ color: MUTED }}>Retreinamentos automáticos</p><p className="font-semibold text-white">{scheduler?.n_retreinamentos ?? 0}</p></div>
                 <div>
-                  <p className="text-xs text-slate-400">Último resultado</p>
-                  <p className="font-semibold text-slate-700">
+                  <p className="text-xs" style={{ color: MUTED }}>Último resultado</p>
+                  <p className="font-semibold text-white">
                     {scheduler?.ultimo_resultado
                       ? (scheduler.ultimo_resultado.motivo || (scheduler.ultimo_resultado.ok ? 'Sucesso' : 'Falha'))
                       : '—'}
@@ -545,16 +566,16 @@ export default function AprendizadoDashboard() {
               }
             >
               {!dbSyncCfg ? (
-                <p className="text-sm text-slate-400">Configuração indisponível.</p>
+                <p className="text-sm" style={{ color: MUTED }}>Configuração indisponível.</p>
               ) : (
                 <div className="grid grid-cols-4 gap-4 text-sm">
-                  <div><p className="text-xs text-slate-400">Status</p><p className={`font-semibold ${dbSyncCfg.ativo ? 'text-emerald-600' : 'text-slate-500'}`}>{dbSyncCfg.ativo ? 'Ativo' : 'Inativo'}</p></div>
-                  <div><p className="text-xs text-slate-400">Tipo</p><p className="font-semibold text-slate-700 uppercase">{dbSyncCfg.tipo}</p></div>
-                  <div><p className="text-xs text-slate-400">Última sincronização</p><p className="font-semibold text-slate-700">{fmtData(dbSyncStatus?.ultimo_sync)}</p></div>
-                  <div><p className="text-xs text-slate-400">Total de sincronizações</p><p className="font-semibold text-slate-700">{dbSyncStatus?.n_sincronizacoes ?? 0}</p></div>
+                  <div><p className="text-xs" style={{ color: MUTED }}>Status</p><p className="font-semibold" style={{ color: dbSyncCfg.ativo ? '#6ee7b7' : MUTED_LIGHT }}>{dbSyncCfg.ativo ? 'Ativo' : 'Inativo'}</p></div>
+                  <div><p className="text-xs" style={{ color: MUTED }}>Tipo</p><p className="font-semibold text-white uppercase">{dbSyncCfg.tipo}</p></div>
+                  <div><p className="text-xs" style={{ color: MUTED }}>Última sincronização</p><p className="font-semibold text-white">{fmtData(dbSyncStatus?.ultimo_sync)}</p></div>
+                  <div><p className="text-xs" style={{ color: MUTED }}>Total de sincronizações</p><p className="font-semibold text-white">{dbSyncStatus?.n_sincronizacoes ?? 0}</p></div>
                 </div>
               )}
-              <p className="text-xs text-slate-400 mt-4">
+              <p className="text-xs mt-4" style={{ color: MUTED }}>
                 Configuração de host/credenciais é feita via API (<code className="font-mono">POST /admin/db-sync/config</code>).
                 Para importar carteiras de um banco externo, use a tela de Conexões.
               </p>

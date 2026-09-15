@@ -751,21 +751,23 @@ export default function AdminUsuarios() {
                           </span>
                         </td>
                         <td className="px-5 py-4">
-                          <div className="flex items-center justify-center gap-1">
+                          <div className="flex items-center justify-center gap-1.5">
                             {u.email !== usuario?.email && u.role !== 'comando' ? (
                               <>
-                                <button onClick={() => handleToggleAtivo(u)} title={u.ativo ? 'Desativar' : 'Ativar'}
-                                  className="p-1.5 rounded-lg transition-colors" style={{ color: '#7c93bd' }}
+                                <button onClick={() => handleToggleAtivo(u)} title={u.ativo ? 'Desativar usuário' : 'Ativar usuário'}
+                                  className="flex items-center gap-1 px-2 py-1 rounded-lg transition-colors text-xs font-medium whitespace-nowrap" style={{ color: '#7c93bd' }}
                                   onMouseOver={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = 'white' }}
                                   onMouseOut={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#7c93bd' }}>
-                                  {u.ativo ? <ToggleRight className="w-5 h-5 text-emerald-400" /> : <ToggleLeft className="w-5 h-5" />}
+                                  {u.ativo ? <ToggleRight className="w-4 h-4 text-emerald-400 shrink-0" /> : <ToggleLeft className="w-4 h-4 shrink-0" />}
+                                  {u.ativo ? 'Desativar' : 'Ativar'}
                                 </button>
                                 {isComando && (
                                   <button onClick={() => handleToggleRole(u)} title={u.role === 'admin' ? 'Rebaixar para operador' : 'Promover a admin'}
-                                    className="p-1.5 rounded-lg transition-colors" style={{ color: '#7c93bd' }}
+                                    className="flex items-center gap-1 px-2 py-1 rounded-lg transition-colors text-xs font-medium whitespace-nowrap" style={{ color: '#7c93bd' }}
                                     onMouseOver={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = 'white' }}
                                     onMouseOut={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#7c93bd' }}>
-                                    {u.role === 'admin' ? <ShieldOff className="w-4 h-4 text-violet-400" /> : <ShieldCheck className="w-4 h-4" />}
+                                    {u.role === 'admin' ? <ShieldOff className="w-4 h-4 text-violet-400 shrink-0" /> : <ShieldCheck className="w-4 h-4 shrink-0" />}
+                                    {u.role === 'admin' ? 'Rebaixar' : 'Promover'}
                                   </button>
                                 )}
                               </>
