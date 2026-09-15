@@ -3748,10 +3748,18 @@ async def db_sync_status(
 async def listar_auditoria(
     entidade: Optional[str] = None,
     entidade_id: Optional[str] = None,
+    usuario_email: Optional[str] = None,
+    acao: Optional[str] = None,
+    data_inicio: Optional[str] = None,
+    data_fim: Optional[str] = None,
     limit: int = 20,
+    offset: int = 0,
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
-    """Histórico de ações auditadas — filtrado pela empresa do token (ou tudo para COMANDO)."""
+    """
+    Histórico de ações auditadas — filtrado pela empresa do token (ou tudo para COMANDO).
+    Suporta filtro por período/usuário/ação e paginação, para telas de auditoria/compliance.
+    """
     payload = _usuario_autenticado(credentials)
     empresa_id = payload.get("empresa_id", "")
     role       = payload.get("role", "operador")
@@ -3763,7 +3771,17 @@ async def listar_auditoria(
         q = q.eq("entidade", entidade)
     if entidade_id:
         q = q.eq("entidade_id", str(entidade_id))
-    res = q.order("created_at", desc=True).limit(min(limit, 100)).execute()
+    if usuario_email:
+        q = q.eq("usuario_email", usuario_email.strip().lower())
+    if acao:
+        q = q.eq("acao", acao)
+    if data_inicio:
+        q = q.gte("created_at", data_inicio)
+    if data_fim:
+        q = q.lte("created_at", data_fim)
+    limit = min(max(limit, 1), 1000)
+    offset = max(offset, 0)
+    res = q.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
     return res.data or []
 
 

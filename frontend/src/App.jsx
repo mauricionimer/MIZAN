@@ -71,6 +71,7 @@ import ComandoDashboard from './pages/ComandoDashboard'
 import AdminHome from './pages/AdminHome'
 import OperadorHome from './pages/OperadorHome'
 import AdminUsuarios from './pages/AdminUsuarios'
+import Auditoria from './pages/Auditoria'
 import AlterarSenha from './pages/AlterarSenha'
 import EsqueciSenha from './pages/EsqueciSenha'
 import RedefinirSenha from './pages/RedefinirSenha'
@@ -106,6 +107,7 @@ export default function App() {
             <Route path="/admin" element={<RotaProtegida roles={['admin', 'comando']}><AdminHome /></RotaProtegida>} />
             <Route path="/operador" element={<RotaProtegida roles={['operador']}><OperadorHome /></RotaProtegida>} />
             <Route path="/admin/usuarios" element={<RotaProtegida roles={['admin', 'comando']}><AdminUsuarios /></RotaProtegida>} />
+            <Route path="/auditoria" element={<RotaProtegida roles={['admin', 'comando']}><Auditoria /></RotaProtegida>} />
             <Route path="/alterar-senha" element={<RotaProtegida><AlterarSenha /></RotaProtegida>} />
             <Route path="/privacidade" element={<Privacidade />} />
             <Route path="*" element={<Navigate to="/" replace />} />

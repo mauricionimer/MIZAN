@@ -298,6 +298,10 @@ export default function ComandoDashboard() {
             className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800 font-medium">
             <UserCog className="h-3.5 w-3.5" /> Usuários
           </button>
+          <button onClick={() => navigate('/auditoria')}
+            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800 font-medium">
+            <Shield className="h-3.5 w-3.5" /> Auditoria
+          </button>
           <button onClick={() => navigate('/aprendizado')}
             className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800 font-medium">
             <Brain className="h-3.5 w-3.5" /> Aprendizado

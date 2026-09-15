@@ -557,6 +557,7 @@ export default function AdminUsuarios() {
           <span className="text-sm" style={{ color: '#8fa3c8' }}>Usuários</span>
         </div>
         <div className="flex items-center gap-3">
+          <button onClick={() => navigate('/auditoria')} className="nav-link"><ShieldCheck className="w-4 h-4" /> Auditoria</button>
           <span className="text-sm hidden sm:block" style={{ color: '#7c93bd' }}>{usuario?.nome}</span>
           <button onClick={logout} className="nav-link-danger"><LogOut className="w-4 h-4" /> Sair</button>
         </div>
