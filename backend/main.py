@@ -3195,6 +3195,21 @@ async def feedbacks_status(
     return status_map
 
 
+@app.get("/admin/modelo/qualidade")
+def admin_modelo_qualidade(credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """
+    Diagnóstico de qualidade do modelo de crédito: overfitting (treino vs. validação
+    cruzada vs. holdout), calibração de probabilidade, matriz de confusão e se há
+    dados suficientes para a complexidade atual do modelo.
+    """
+    _exigir_comando(credentials)
+    from model.diagnostico import avaliar_qualidade
+    try:
+        return avaliar_qualidade()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao avaliar qualidade do modelo: {e}")
+
+
 @app.get("/admin/price-model")
 def admin_price_model_stats(credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """Metadados e métricas do modelo de regressão de preço."""

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, RefreshCw, Loader2, LogOut, Brain, GitBranch, TrendingUp,
   AlertTriangle, CheckCircle2, Zap, Sliders, Database, Clock, PlayCircle,
-  ShieldCheck, BarChart3, Award,
+  ShieldCheck, BarChart3, Award, Microscope, Target, XCircle,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
@@ -72,6 +72,7 @@ export default function AprendizadoDashboard() {
   const navigate = useNavigate()
   const { token, usuario, logout } = useAuth()
 
+  const [qualidade, setQualidade] = useState(null)
   const [modelos, setModelos]     = useState(null)
   const [importancia, setImportancia] = useState(null)
   const [drift, setDrift]         = useState(null)
@@ -94,7 +95,8 @@ export default function AprendizadoDashboard() {
     setLoading(true)
     setErro('')
     try {
-      const [m, fi, d, pm, cv, sc, dc, ds] = await Promise.all([
+      const [q, m, fi, d, pm, cv, sc, dc, ds] = await Promise.all([
+        _get('/admin/modelo/qualidade', token).catch(() => null),
         _get('/admin/modelos', token).catch(() => null),
         _get('/admin/feature-importance', token).catch(() => null),
         _get('/admin/drift', token).catch(() => null),
@@ -104,6 +106,7 @@ export default function AprendizadoDashboard() {
         _get('/admin/db-sync/config', token).catch(() => null),
         _get('/admin/db-sync/status', token).catch(() => null),
       ])
+      setQualidade(q)
       setModelos(m); setImportancia(fi); setDrift(d); setPriceModel(pm)
       setConvergencia(cv); setScheduler(sc); setDbSyncCfg(dc); setDbSyncStatus(ds)
       if (cv) setAlphaInput(cv.alpha)
@@ -229,6 +232,137 @@ export default function AprendizadoDashboard() {
                 </div>
               ) : null
             )}
+
+            {/* Qualidade da IA: overfitting, calibração, matriz de confusão */}
+            <Secao
+              icon={Microscope}
+              titulo="Qualidade da IA — overfitting e confiabilidade"
+              sub="O modelo está generalizando ou decorando os próprios dados de treino?"
+            >
+              {!qualidade?.ok ? (
+                <p className="text-sm text-slate-400">{qualidade?.motivo || 'Diagnóstico indisponível.'}</p>
+              ) : (
+                <div className="space-y-6">
+                  {/* Veredito */}
+                  {(() => {
+                    const v = qualidade.overfitting.veredito
+                    const cfg = {
+                      saudavel:            { label: 'Saudável — sem sinais de overfitting', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200', Icon: CheckCircle2 },
+                      overfitting_moderado:{ label: 'Overfitting moderado — monitorar', cls: 'bg-amber-50 text-amber-700 border-amber-200', Icon: AlertTriangle },
+                      overfitting_severo:  { label: 'Overfitting severo — modelo não está confiável', cls: 'bg-red-50 text-red-700 border-red-200', Icon: XCircle },
+                    }[v]
+                    return (
+                      <div className={`flex items-start gap-3 rounded-2xl border px-4 py-3.5 text-sm ${cfg.cls}`}>
+                        <cfg.Icon className="h-4 w-4 mt-0.5 shrink-0" />
+                        <div>
+                          <p className="font-semibold">{cfg.label}</p>
+                          <p className="opacity-80 mt-0.5">
+                            Diferença entre acerto no treino ({fmtPct(qualidade.overfitting.treino_acuracia)}) e na
+                            validação cruzada ({fmtPct(qualidade.overfitting.cv_acuracia_media)}): {fmtPct(qualidade.overfitting.gap_treino_menos_cv)} pontos.
+                            {' '}Gap acima de 10% já é sinal de alerta; acima de 20%, o modelo decorou os dados em vez de aprender o padrão.
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  })()}
+
+                  {/* Treino vs CV vs Holdout */}
+                  <div>
+                    <p className="section-label mb-3">Acurácia — treino × validação cruzada × holdout (nunca visto)</p>
+                    <div className="grid grid-cols-3 gap-4">
+                      {[
+                        { label: 'Treino (100% dos dados)', valor: qualidade.overfitting.treino_acuracia, cor: 'bg-slate-400' },
+                        { label: 'Validação cruzada', valor: qualidade.overfitting.cv_acuracia_media, cor: 'bg-blue-500' },
+                        { label: 'Holdout (20% nunca visto)', valor: qualidade.holdout.acuracia, cor: 'bg-emerald-500' },
+                      ].map(b => (
+                        <div key={b.label}>
+                          <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
+                            <span>{b.label}</span>
+                            <span className="font-bold text-slate-700">{fmtPct(b.valor)}</span>
+                          </div>
+                          <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full ${b.cor}`} style={{ width: `${Math.min((b.valor ?? 0) * 100, 100)}%` }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-slate-400 mt-3">
+                      Treino muito mais alto que os outros dois = está decorando. Os três próximos = generaliza de verdade.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-6">
+                    {/* Matriz de confusão */}
+                    <div>
+                      <p className="section-label mb-3">Matriz de confusão (holdout, {qualidade.holdout.n_amostras} casos)</p>
+                      <div className="grid grid-cols-2 gap-2 text-center text-sm">
+                        <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-100">
+                          <p className="text-lg font-bold text-emerald-700">{qualidade.holdout.matriz_confusao.verdadeiro_positivo}</p>
+                          <p className="text-[11px] text-emerald-600 mt-0.5">Previu que pagava — pagou</p>
+                        </div>
+                        <div className="bg-red-50 rounded-xl p-3 border border-red-100">
+                          <p className="text-lg font-bold text-red-700">{qualidade.holdout.matriz_confusao.falso_positivo}</p>
+                          <p className="text-[11px] text-red-600 mt-0.5">Previu que pagava — não pagou</p>
+                        </div>
+                        <div className="bg-amber-50 rounded-xl p-3 border border-amber-100">
+                          <p className="text-lg font-bold text-amber-700">{qualidade.holdout.matriz_confusao.falso_negativo}</p>
+                          <p className="text-[11px] text-amber-600 mt-0.5">Previu que não pagava — pagou</p>
+                        </div>
+                        <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
+                          <p className="text-lg font-bold text-slate-700">{qualidade.holdout.matriz_confusao.verdadeiro_negativo}</p>
+                          <p className="text-[11px] text-slate-500 mt-0.5">Previu que não pagava — não pagou</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-3 mt-3 text-center">
+                        <div><p className="text-xs text-slate-400">Precisão</p><p className="font-bold text-slate-700 text-sm">{fmtPct(qualidade.holdout.precisao)}</p></div>
+                        <div><p className="text-xs text-slate-400">Revocação</p><p className="font-bold text-slate-700 text-sm">{fmtPct(qualidade.holdout.revocacao)}</p></div>
+                        <div><p className="text-xs text-slate-400">F1</p><p className="font-bold text-slate-700 text-sm">{fmtPct(qualidade.holdout.f1)}</p></div>
+                      </div>
+                    </div>
+
+                    {/* Calibração */}
+                    <div>
+                      <p className="section-label mb-3">
+                        Calibração — a probabilidade é confiável? <span className="font-mono text-slate-400">(Brier: {qualidade.holdout.brier_score})</span>
+                      </p>
+                      <div className="space-y-1.5">
+                        {qualidade.calibracao_por_faixa.map((f, i) => {
+                          const diff = Math.abs(f.prob_media_prevista - f.taxa_real_observada)
+                          return (
+                            <div key={i} className="flex items-center gap-2 text-xs">
+                              <span className="text-slate-400 w-16 shrink-0">Faixa {i + 1}</span>
+                              <span className="text-slate-500 w-20 shrink-0">prev. {fmtPct(f.prob_media_prevista)}</span>
+                              <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden relative">
+                                <div className="h-full bg-blue-400 rounded-full" style={{ width: `${f.prob_media_prevista * 100}%` }} />
+                              </div>
+                              <span className={`w-24 text-right font-semibold shrink-0 ${diff > 0.2 ? 'text-amber-600' : 'text-slate-600'}`}>
+                                real {fmtPct(f.taxa_real_observada)}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                      <p className="text-xs text-slate-400 mt-3">
+                        Compara, em cada faixa de probabilidade prevista, a taxa real de pagamento observada.
+                        Quanto mais próximas, mais confiável é o score — não só pra ranquear, mas como probabilidade de verdade.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Complexidade vs volume de dados */}
+                  <div className={`flex items-start gap-3 rounded-xl border px-4 py-3 text-xs ${qualidade.complexidade_adequada ? 'bg-slate-50 border-slate-200 text-slate-600' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
+                    <Target className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                    <span>
+                      {qualidade.n_amostras} amostras para {qualidade.n_features} variáveis do modelo
+                      ({qualidade.amostras_por_feature} amostras/variável).
+                      {qualidade.complexidade_adequada
+                        ? ' Volume de dados adequado para a complexidade atual do modelo.'
+                        : ' Abaixo do recomendado (≥ 20 amostras por variável) — as métricas acima têm alta variância até chegar mais feedback real.'}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </Secao>
 
             {/* Versões do modelo */}
             <Secao
