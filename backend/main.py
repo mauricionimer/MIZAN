@@ -1363,12 +1363,14 @@ def remover_usuario_empresa(empresa_id: str, usuario_id: str, credentials: HTTPA
 class EmpresaConfigIn(BaseModel):
     nome_exibicao: Optional[str] = None
     cor_primaria: Optional[str] = None
+    # Flags/preferências extras (ex: {"permitir_upload_db": true}). Mescladas, nunca substituídas por inteiro.
+    extra: Optional[dict] = None
 
 
 def _get_empresa_config(empresa_id: str) -> dict:
     """Retorna a config de branding de uma empresa, com fallback."""
     if not empresa_id:
-        return {"nome_exibicao": "Mizan", "foto_url": None, "cor_primaria": None, "empresa_id": None}
+        return {"nome_exibicao": "Mizan", "foto_url": None, "cor_primaria": None, "extra": {}, "empresa_id": None}
     db = get_db()
     cfg_res = db.table("empresa_config").select("*").eq("empresa_id", empresa_id).limit(1).execute()
     if cfg_res.data:
@@ -1378,8 +1380,9 @@ def _get_empresa_config(empresa_id: str) -> dict:
             "nome_exibicao": c.get("nome_exibicao") or empresa_id,
             "foto_url": c.get("foto_url"),
             "cor_primaria": c.get("cor_primaria") or "#1d4ed8",
+            "extra": c.get("extra") or {},
         }
-    return {"empresa_id": empresa_id, "nome_exibicao": empresa_id, "foto_url": None, "cor_primaria": "#1d4ed8"}
+    return {"empresa_id": empresa_id, "nome_exibicao": empresa_id, "foto_url": None, "cor_primaria": "#1d4ed8", "extra": {}}
 
 
 @app.get("/empresa/config-publica")
@@ -1420,6 +1423,9 @@ def put_empresa_config(body: EmpresaConfigIn, empresa_id_alvo: Optional[str] = N
         updates["nome_exibicao"] = body.nome_exibicao.strip()
     if body.cor_primaria is not None:
         updates["cor_primaria"] = body.cor_primaria.strip()
+    if body.extra is not None:
+        atual = _get_empresa_config(empresa_id).get("extra") or {}
+        updates["extra"] = {**atual, **body.extra}
 
     existing = db.table("empresa_config").select("id").eq("empresa_id", empresa_id).limit(1).execute()
     if existing.data:

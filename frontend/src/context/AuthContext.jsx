@@ -27,6 +27,12 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(false)
   const [erro,    setErro]    = useState('')
 
+  // Aplica a cor da empresa como variável CSS global — propaga pra qualquer
+  // componente que use var(--brand) (botões primários, destaques etc.)
+  useEffect(() => {
+    document.documentElement.style.setProperty('--brand', empresaConfig?.cor_primaria || '#2563eb')
+  }, [empresaConfig?.cor_primaria])
+
   const _loadEmpresaConfig = useCallback(async (tok) => {
     const cfg = await _fetchEmpresaConfig(tok)
     if (cfg) {

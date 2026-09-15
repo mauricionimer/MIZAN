@@ -217,6 +217,7 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
   const [cfg, setCfg]           = useState(null)
   const [editNome, setEditNome] = useState(false)
   const [nomeEdit, setNomeEdit] = useState('')
+  const [corEdit, setCorEdit]   = useState('#2563eb')
   const [salvandoNome, setSalvandoNome] = useState(false)
   const [salvandoFoto, setSalvandoFoto] = useState(false)
   const [msgBrand, setMsgBrand] = useState('')
@@ -231,8 +232,8 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
   async function handleSalvarNome() {
     setSalvandoNome(true)
     try {
-      const r = await putEmpresaConfig(token, { nome_exibicao: nomeEdit }, empresa.empresa_id)
-      setCfg(r); setEditNome(false); flashBrand('Nome atualizado.')
+      const r = await putEmpresaConfig(token, { nome_exibicao: nomeEdit, cor_primaria: corEdit }, empresa.empresa_id)
+      setCfg(r); setEditNome(false); flashBrand('Perfil atualizado.')
     } catch (e) { flashBrand(e.message) } finally { setSalvandoNome(false) }
   }
 
@@ -298,11 +299,14 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
 
         <div className="flex-1 min-w-0">
           {editNome ? (
-            <div className="flex gap-1.5">
+            <div className="flex gap-1.5 items-center">
               <input autoFocus type="text" value={nomeEdit} onChange={e => setNomeEdit(e.target.value)}
                 className="flex-1 text-sm rounded-lg px-2.5 py-1 focus:outline-none"
                 style={{ background: '#0a1220', border: '1px solid rgba(99,102,241,0.30)', color: 'white' }}
                 placeholder="Nome de exibição" />
+              <input type="color" value={corEdit} onChange={e => setCorEdit(e.target.value)}
+                title="Cor de destaque" className="w-7 h-7 rounded-md cursor-pointer shrink-0 bg-transparent"
+                style={{ border: '1px solid rgba(255,255,255,0.10)' }} />
               <button onClick={handleSalvarNome} disabled={salvandoNome}
                 className="px-2.5 py-1 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700 disabled:opacity-50">
                 <Check className="w-3.5 h-3.5" />
@@ -314,12 +318,15 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
           ) : (
             <div className="flex items-center gap-1.5">
               <div>
-                <p className="font-bold text-white text-sm">{nomeExibicao}</p>
+                <p className="font-bold text-white text-sm flex items-center gap-1.5">
+                  {nomeExibicao}
+                  <span className="inline-block w-2 h-2 rounded-full border border-white/20 shrink-0" style={{ background: cfg?.cor_primaria || '#2563eb' }} />
+                </p>
                 {cfg?.nome_exibicao && <p className="text-xs" style={{ color: '#5a7499' }}>ID: {empresa.empresa_id}</p>}
                 <p className="text-xs" style={{ color: '#5a7499' }}>{membros.length} membro{membros.length !== 1 ? 's' : ''}</p>
               </div>
-              <button onClick={() => { setNomeEdit(nomeExibicao); setEditNome(true) }}
-                className="p-1 rounded transition-colors" title="Editar nome" style={{ color: '#3d5270' }}
+              <button onClick={() => { setNomeEdit(nomeExibicao); setCorEdit(cfg?.cor_primaria || '#2563eb'); setEditNome(true) }}
+                className="p-1 rounded transition-colors" title="Editar nome e cor" style={{ color: '#3d5270' }}
                 onMouseOver={e => e.currentTarget.style.color = '#a5b4fc'}
                 onMouseOut={e => e.currentTarget.style.color = '#3d5270'}>
                 <Pencil className="w-3 h-3" />
@@ -420,6 +427,7 @@ export default function AdminUsuarios() {
   // Branding da empresa
   const [editandoBrand, setEditandoBrand] = useState(false)
   const [nomeEmpresaEdit, setNomeEmpresaEdit] = useState('')
+  const [corEmpresaEdit, setCorEmpresaEdit] = useState('#2563eb')
   const [salvandoBrand, setSalvandoBrand] = useState(false)
   const [msgBrand, setMsgBrand] = useState('')
   const fotoInputRef = useRef(null)
@@ -478,16 +486,17 @@ export default function AdminUsuarios() {
 
   function abrirEdicaoBrand() {
     setNomeEmpresaEdit(empresaConfig?.nome_exibicao || usuario?.empresa_id || '')
+    setCorEmpresaEdit(empresaConfig?.cor_primaria || '#2563eb')
     setEditandoBrand(true)
   }
 
   async function handleSalvarNome() {
     setSalvandoBrand(true)
     try {
-      await putEmpresaConfig(token, { nome_exibicao: nomeEmpresaEdit })
+      await putEmpresaConfig(token, { nome_exibicao: nomeEmpresaEdit, cor_primaria: corEmpresaEdit })
       refreshEmpresaConfig()
       setEditandoBrand(false)
-      flashBrand('Nome atualizado.')
+      flashBrand('Perfil da empresa atualizado.')
     } catch (e) { flashBrand(e.message) } finally { setSalvandoBrand(false) }
   }
 
@@ -611,20 +620,28 @@ export default function AdminUsuarios() {
 
                   <div className="flex-1 min-w-0">
                     {editandoBrand ? (
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 items-center">
                         <input type="text" value={nomeEmpresaEdit} onChange={e => setNomeEmpresaEdit(e.target.value)} placeholder="Nome de exibição"
                           className="flex-1 text-sm rounded-xl px-3 py-2 focus:outline-none"
                           style={{ background: '#0a1220', border: '1px solid rgba(29,106,255,0.30)', color: 'white' }}
                         />
+                        <input type="color" value={corEmpresaEdit} onChange={e => setCorEmpresaEdit(e.target.value)}
+                          title="Cor de destaque da empresa"
+                          className="w-10 h-9 rounded-lg cursor-pointer shrink-0 bg-transparent"
+                          style={{ border: '1px solid rgba(255,255,255,0.10)' }}
+                        />
                         <button onClick={handleSalvarNome} disabled={salvandoBrand}
-                          className="flex items-center gap-1 px-3 py-2 bg-blue-600 text-white text-xs font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors">
-                          <Check className="w-3.5 h-3.5" />{salvandoBrand ? 'Salvando...' : 'Salvar nome'}
+                          className="flex items-center gap-1 px-3 py-2 bg-blue-600 text-white text-xs font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors shrink-0">
+                          <Check className="w-3.5 h-3.5" />{salvandoBrand ? 'Salvando...' : 'Salvar'}
                         </button>
                       </div>
                     ) : (
                       <>
                         <p className="font-bold text-white text-base truncate">{empresaConfig?.nome_exibicao || usuario?.empresa_id}</p>
-                        <p className="text-xs mt-0.5" style={{ color: '#5a7499' }}>ID: {usuario?.empresa_id}</p>
+                        <p className="text-xs mt-0.5 flex items-center gap-1.5" style={{ color: '#5a7499' }}>
+                          ID: {usuario?.empresa_id}
+                          <span className="inline-block w-2.5 h-2.5 rounded-full border border-white/20" style={{ background: empresaConfig?.cor_primaria || '#2563eb' }} />
+                        </p>
                       </>
                     )}
                   </div>

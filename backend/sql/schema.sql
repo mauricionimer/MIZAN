@@ -188,6 +188,21 @@ CREATE TABLE IF NOT EXISTS api_keys (
   ativa        BOOLEAN DEFAULT TRUE
 );
 
+-- ── Configuração / branding por empresa ─────────────────────
+CREATE TABLE IF NOT EXISTS empresa_config (
+  id             UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  empresa_id     TEXT UNIQUE NOT NULL,
+  nome_exibicao  TEXT,
+  foto_url       TEXT,
+  cor_primaria   TEXT DEFAULT '#2563eb',
+  extra          JSONB DEFAULT '{}'::jsonb,
+  updated_by     TEXT,
+  updated_at     TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE empresa_config ADD COLUMN IF NOT EXISTS extra JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE empresa_config DISABLE ROW LEVEL SECURITY;
+
 -- ── Índices ──────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_predicoes_cpf        ON predicoes(cpf);
 CREATE INDEX IF NOT EXISTS idx_predicoes_carteira   ON predicoes(carteira_id);
