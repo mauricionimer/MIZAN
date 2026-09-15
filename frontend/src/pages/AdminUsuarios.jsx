@@ -60,7 +60,7 @@ const ROLE_BADGE = {
 
 function BadgeRole({ role }) {
   return (
-    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${ROLE_BADGE[role] ?? 'bg-slate-100 text-slate-500'}`}>
+    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${ROLE_BADGE[role] ?? 'bg-slate-500/10 text-slate-300 ring-1 ring-slate-500/20'}`}>
       {role === 'admin' && <ShieldCheck className="w-3 h-3" />}
       {role}
     </span>
@@ -114,7 +114,7 @@ function CardPermissoes({ conexao, operadores, token }) {
   const somenteOperadores = operadores.filter(o => (o.role === 'operador' || o.role === 'admin') && o.ativo)
   const comAcesso    = somenteOperadores.filter(o => permitidos.includes(o.id))
   const semAcesso    = somenteOperadores.filter(o => !permitidos.includes(o.id))
-  const tipoCor      = TIPO_COR[conexao.tipo] ?? 'bg-slate-100 text-slate-500 ring-slate-200/60'
+  const tipoCor      = TIPO_COR[conexao.tipo] ?? 'bg-slate-500/10 text-slate-300 ring-1 ring-slate-500/20'
 
   return (
     <div className="rounded-2xl overflow-hidden" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 2px 12px rgba(0,0,0,0.40)' }}>

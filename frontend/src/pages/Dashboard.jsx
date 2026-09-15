@@ -68,7 +68,7 @@ function StatusBadge({ cpf, statusMap }) {
       <span title={title} className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-300 whitespace-nowrap cursor-default">
         <CheckCircle2 className="h-3 w-3" /> Pago
       </span>
-      {quem && <span className="text-[10px] text-slate-500">{quem}{quando}</span>}
+      {quem && <span className="text-[10px] text-[#8fa3c8]">{quem}{quando}</span>}
     </div>
   )
   if (s === 'nao_pago') return (
@@ -76,10 +76,10 @@ function StatusBadge({ cpf, statusMap }) {
       <span title={title} className="inline-flex items-center gap-1 rounded-md border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-xs font-medium text-red-300 whitespace-nowrap cursor-default">
         <XCircle className="h-3 w-3" /> Não pago
       </span>
-      {quem && <span className="text-[10px] text-slate-500">{quem}{quando}</span>}
+      {quem && <span className="text-[10px] text-[#8fa3c8]">{quem}{quando}</span>}
     </div>
   )
-  return <span className="text-xs text-slate-500 whitespace-nowrap">Pendente</span>
+  return <span className="text-xs text-[#8fa3c8] whitespace-nowrap">Pendente</span>
 }
 
 /* ───────────────────────── KPI card (chic minimal) ───────────────────────── */
@@ -209,7 +209,7 @@ function Slider({ label, hint, value, min, max, step, onChange, color = 'blue' }
         className="h-1.5 w-full cursor-pointer appearance-none rounded-full"
         style={{ background: `linear-gradient(to right, ${trackColor} ${pct}%, rgba(255,255,255,0.1) ${pct}%)` }}
       />
-      <p className="mt-1 text-xs text-slate-500">{hint}</p>
+      <p className="mt-1 text-xs text-[#8fa3c8]">{hint}</p>
     </div>
   )
 }
@@ -221,9 +221,9 @@ function PricingCard({ label, value, sub, highlight = false, accent = null, icon
     : lucroCard
       ? 'border-emerald-500/30 bg-emerald-500/[0.08]'
       : 'border-white/[0.07] bg-white/[0.02]'
-  const head  = highlight ? 'text-blue-300'     : lucroCard ? 'text-emerald-300'    : 'text-slate-500'
+  const head  = highlight ? 'text-blue-300'     : lucroCard ? 'text-emerald-300'    : 'text-[#8fa3c8]'
   const val   = highlight ? 'text-white'        : lucroCard ? 'text-emerald-200'    : 'text-slate-100'
-  const subCl = highlight ? 'text-blue-200/80'  : lucroCard ? 'text-emerald-300/70' : 'text-slate-500'
+  const subCl = highlight ? 'text-blue-200/80'  : lucroCard ? 'text-emerald-300/70' : 'text-[#8fa3c8]'
   return (
     <div className={`flex flex-col gap-1 rounded-xl border p-4 ${box}`}>
       <div className="flex items-center justify-between">
@@ -466,10 +466,10 @@ export default function Dashboard() {
             <form onSubmit={handleConfirmarPagamento} className="space-y-4">
               <div>
                 <label className="mb-1.5 block text-xs font-semibold text-slate-300">
-                  Valor recuperado <span className="font-normal text-slate-500">(opcional)</span>
+                  Valor recuperado <span className="font-normal text-[#8fa3c8]">(opcional)</span>
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-slate-500">R$</span>
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-[#8fa3c8]">R$</span>
                   <input
                     type="number" min="0" step="0.01" placeholder="0,00"
                     value={confirmarForm.valor_recuperado}
@@ -480,7 +480,7 @@ export default function Dashboard() {
               </div>
               <div>
                 <label className="mb-1.5 block text-xs font-semibold text-slate-300">
-                  Data do pagamento <span className="font-normal text-slate-500">(opcional)</span>
+                  Data do pagamento <span className="font-normal text-[#8fa3c8]">(opcional)</span>
                 </label>
                 <input
                   type="date"
@@ -564,7 +564,7 @@ export default function Dashboard() {
         <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-white/[0.07] bg-[#0a0f1e]/80 px-8 backdrop-blur-xl">
           <div className="flex items-center gap-2 text-sm">
             <span className="font-semibold text-white">{nomeEmpresa}</span>
-            <span className="text-slate-600">/</span>
+            <span className="text-white/20">/</span>
             <span className="font-light text-slate-400">Visão da carteira</span>
           </div>
 
@@ -595,7 +595,7 @@ export default function Dashboard() {
             <div className="ml-2 flex items-center gap-2.5 border-l border-white/[0.07] pl-4">
               <div className="hidden text-right sm:block">
                 <p className="text-sm font-medium leading-tight text-white">{nomeUser}</p>
-                <p className="text-xs font-light text-slate-500">{usuario?.email || 'usuario@mizan.app'}</p>
+                <p className="text-xs font-light text-[#8fa3c8]">{usuario?.email || 'usuario@mizan.app'}</p>
               </div>
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
                 {iniciais}
@@ -611,7 +611,7 @@ export default function Dashboard() {
             <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#6d84ab' }}>Análise de Carteira</p>
             <h1 className="text-2xl font-semibold tracking-tight mt-1" style={{ color: '#f0f0f5' }}>Dashboard</h1>
             {resumo?.criado_por && (
-              <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
+              <div className="mt-2 flex items-center gap-1.5 text-xs text-[#8fa3c8]">
                 <Clock className="h-3 w-3 shrink-0" />
                 <span>
                   Análise por <span className="font-medium text-slate-400">{resumo.criado_por}</span>
@@ -644,7 +644,7 @@ export default function Dashboard() {
 
               <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-5">
                 <div className="space-y-5 rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 lg:col-span-1">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Parâmetros</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#8fa3c8]">Parâmetros</p>
                   <Slider label="Custo de Cobrança" hint="Despesas operacionais e comissões"
                     value={custoCobranca} min={5} max={50} step={1} onChange={setCustoCobranca} color="blue" />
                   <Slider label="Retorno Alvo" hint="ROI mínimo desejado na operação"
@@ -666,7 +666,7 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-white/[0.07] pt-4 text-xs text-slate-500">
+              <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-white/[0.07] pt-4 text-xs text-[#8fa3c8]">
                 {resumo?.precificacao_ml ? (
                   <>
                     <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-300">
@@ -677,13 +677,13 @@ export default function Dashboard() {
                 ) : (
                   <span><span className="font-medium text-slate-400">VER</span> = Σ (valor_dívida × score/100)</span>
                 )}
-                <span className="text-slate-700">›</span>
+                <span className="text-white/20">›</span>
                 <span><span className="font-medium text-slate-400">Líquido</span> = VER × (1 − {custoCobranca}%)</span>
-                <span className="text-slate-700">›</span>
+                <span className="text-white/20">›</span>
                 <span><span className="font-medium text-slate-400">Preço</span> = Líquido ÷ (1 + {retornoAlvo}%)</span>
-                <span className="text-slate-700">›</span>
+                <span className="text-white/20">›</span>
                 <span><span className="font-medium text-emerald-400">Lucro</span> = Líquido − Preço</span>
-                <span className="text-slate-700">›</span>
+                <span className="text-white/20">›</span>
                 <span><span className="font-medium text-slate-400">Retorno</span> = Lucro ÷ Preço</span>
               </div>
             </section>
@@ -714,7 +714,7 @@ export default function Dashboard() {
                   <div key={d.aging} className="flex items-center gap-1.5">
                     <div className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: AGING_COLORS[i] }} />
                     <span className="text-xs text-slate-400">{d.aging}</span>
-                    <span className="text-xs text-slate-500">({fmtNum(d.total_devedores)})</span>
+                    <span className="text-xs text-[#8fa3c8]">({fmtNum(d.total_devedores)})</span>
                   </div>
                 ))}
               </div>
@@ -749,7 +749,7 @@ export default function Dashboard() {
                       <div className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: CLUSTER_COLORS[i] }} />
                       <span className="truncate text-slate-400">{d.perfil_cluster}</span>
                     </div>
-                    <span className="ml-2 shrink-0 text-slate-500">{fmtNum(d.total_devedores)}</span>
+                    <span className="ml-2 shrink-0 text-[#8fa3c8]">{fmtNum(d.total_devedores)}</span>
                   </div>
                 ))}
               </div>
@@ -776,7 +776,7 @@ export default function Dashboard() {
                   <thead>
                     <tr className="border-b border-white/[0.07]">
                       {['Faixa de Score', 'Feedbacks', 'Pagaram', 'Não Pagaram', 'Taxa de Pagamento', ''].map(h => (
-                        <th key={h} className="px-4 pb-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 first:pl-0">{h}</th>
+                        <th key={h} className="px-4 pb-3 text-left text-xs font-medium uppercase tracking-wider text-[#8fa3c8] first:pl-0">{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -825,7 +825,7 @@ export default function Dashboard() {
                   <p className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>{pagamentos.filter(p => p.pagou).length} pagamentos · {pagamentos.filter(p => !p.pagou).length} não pagaram</p>
                 </div>
                 <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#8fa3c8]" />
                   <input
                     value={searchPag}
                     onChange={e => setSearchPag(e.target.value)}
@@ -839,7 +839,7 @@ export default function Dashboard() {
                   <thead>
                     <tr className="border-b border-white/[0.07]">
                       {['Nome', 'CPF', 'Dívida', 'Score', 'Situação', 'Valor Recuperado', 'Data', 'Registrado por'].map(h => (
-                        <th key={h} className="whitespace-nowrap px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">{h}</th>
+                        <th key={h} className="whitespace-nowrap px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-[#8fa3c8]">{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -869,14 +869,14 @@ export default function Dashboard() {
                               : <span className="flex items-center gap-1 text-xs font-medium text-red-400"><XCircle className="h-3.5 w-3.5" />Não pagou</span>}
                           </td>
                           <td className="px-4 py-3 font-semibold text-emerald-400">
-                            {p.pagou && p.valor_recuperado > 0 ? fmtBRL(p.valor_recuperado) : p.pagou ? '—' : <span className="text-slate-600">—</span>}
+                            {p.pagou && p.valor_recuperado > 0 ? fmtBRL(p.valor_recuperado) : p.pagou ? '—' : <span className="text-[#6d84ab]">—</span>}
                           </td>
-                          <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-500">
+                          <td className="whitespace-nowrap px-4 py-3 text-xs text-[#8fa3c8]">
                             {p.data_pagamento ? new Intl.DateTimeFormat('pt-BR').format(new Date(p.data_pagamento.substring(0, 10) + 'T12:00:00')) : '—'}
                           </td>
                           <td className="px-4 py-3 text-xs text-slate-400">
-                            {p.registrado_por || <span className="text-slate-600">—</span>}
-                            {p.registrado_em && <div className="text-[10px] text-slate-600">{new Date(p.registrado_em).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}</div>}
+                            {p.registrado_por || <span className="text-[#6d84ab]">—</span>}
+                            {p.registrado_em && <div className="text-[10px] text-[#6d84ab]">{new Date(p.registrado_em).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}</div>}
                           </td>
                         </tr>
                       ))}
@@ -887,7 +887,7 @@ export default function Dashboard() {
                   const q = searchPag.toLowerCase()
                   return (p.nome || '').toLowerCase().includes(q) || (p.cpf || '').includes(q)
                 }).length === 0 && (
-                  <p className="py-8 text-center text-sm text-slate-500">Nenhum resultado encontrado.</p>
+                  <p className="py-8 text-center text-sm text-[#8fa3c8]">Nenhum resultado encontrado.</p>
                 )}
               </div>
             </section>
@@ -906,7 +906,7 @@ export default function Dashboard() {
                   </p>
                 </div>
                 <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#8fa3c8]" />
                   <input
                     type="text"
                     placeholder="Buscar por nome ou CPF..."
@@ -963,7 +963,7 @@ export default function Dashboard() {
                 </div>
                 {(filtroPrio !== 'todos' || filtroProduto !== 'todos' || filtroUF !== 'todas' || filtroStatus !== 'todos' || search) && (
                   <button onClick={() => { setFiltroPrio('todos'); setFiltroProduto('todos'); setFiltroUF('todas'); setFiltroStatus('todos'); setSearch('') }}
-                    className="text-xs text-slate-500 underline transition-colors hover:text-slate-300">
+                    className="text-xs text-[#8fa3c8] underline transition-colors hover:text-slate-300">
                     Limpar filtros
                   </button>
                 )}
@@ -986,7 +986,7 @@ export default function Dashboard() {
                       { label: 'Prioridade',     align: 'center' },
                       { label: 'Status',         align: 'center' },
                     ].map(({ label, align }) => (
-                      <th key={label} className={`whitespace-nowrap px-4 py-3 text-xs font-medium uppercase tracking-wider text-slate-500 text-${align}`}>
+                      <th key={label} className={`whitespace-nowrap px-4 py-3 text-xs font-medium uppercase tracking-wider text-[#8fa3c8] text-${align}`}>
                         {label}
                       </th>
                     ))}
@@ -999,13 +999,13 @@ export default function Dashboard() {
                       onClick={() => navigate(`/devedor/${d.rank}`)}
                       className="group cursor-pointer border-b border-white/[0.04] transition-colors last:border-0 hover:bg-blue-500/[0.06]"
                     >
-                      <td className="w-10 px-4 py-3 font-mono text-xs text-slate-500">{d.rank}</td>
+                      <td className="w-10 px-4 py-3 font-mono text-xs text-[#8fa3c8]">{d.rank}</td>
                       <td className="px-4 py-3 font-medium text-slate-100 transition-colors group-hover:text-blue-300">{d.nome}</td>
-                      <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-slate-500">{d.cpf}</td>
+                      <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-[#8fa3c8]">{d.cpf}</td>
                       <td className="px-4 py-3 capitalize text-slate-400">{d.produto}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-xs text-slate-300">{fmtBRL(d.valor_divida)}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-xs">
-                        <span className={(d.valor_esperado_recuperacao ?? 0) > 0 ? 'font-semibold text-emerald-400' : 'text-slate-500'}>
+                        <span className={(d.valor_esperado_recuperacao ?? 0) > 0 ? 'font-semibold text-emerald-400' : 'text-[#8fa3c8]'}>
                           {d.valor_esperado_recuperacao != null ? fmtBRL(d.valor_esperado_recuperacao) : '—'}
                         </span>
                       </td>
@@ -1013,7 +1013,7 @@ export default function Dashboard() {
                       <td className="px-4 py-3 text-right">
                         <span className={`text-sm font-bold ${
                           d.score_recuperabilidade >= 70 ? 'text-emerald-400' :
-                          d.score_recuperabilidade >= 40 ? 'text-amber-400' : 'text-slate-500'
+                          d.score_recuperabilidade >= 40 ? 'text-amber-400' : 'text-[#8fa3c8]'
                         }`}>
                           {d.score_recuperabilidade}
                         </span>
@@ -1045,7 +1045,7 @@ export default function Dashboard() {
             </div>
             {totalPages > 1 && (
               <div className="flex items-center justify-between border-t border-white/[0.07] bg-[#0d1424] px-6 py-3">
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-[#8fa3c8]">
                   {fmtNum((page - 1) * PAGE_SIZE + 1)}–{fmtNum(Math.min(page * PAGE_SIZE, filtered.length))} de {fmtNum(filtered.length)}
                 </span>
                 <div className="flex items-center gap-2">

@@ -35,9 +35,9 @@ function KpiCard({ label, value, sub, icon: Icon, accent = 'indigo' }) {
         <Icon className="h-5 w-5" />
       </div>
       <div className="min-w-0">
-        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">{label}</p>
+        <p className="text-[11px] font-semibold text-[#8fa3c8] uppercase tracking-widest">{label}</p>
         <p className={`text-2xl font-bold mt-1 leading-tight ${cfg.val}`}>{value}</p>
-        {sub && <p className="text-xs text-slate-600 mt-0.5">{sub}</p>}
+        {sub && <p className="text-xs text-[#7c93bd] mt-0.5">{sub}</p>}
       </div>
     </div>
   )
@@ -59,7 +59,7 @@ function StatusBadge({ suspeita, taxaFeedback }) {
     )
   }
   return (
-    <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+    <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-0.5 rounded-full bg-white/[0.06] text-slate-400 border border-white/10">
       <Activity className="h-3 w-3" /> Normal
     </span>
   )
@@ -69,8 +69,8 @@ function RoleBadge({ role }) {
   const m = {
     comando:  'bg-indigo-900/50 text-indigo-300 border-indigo-700/50',
     admin:    'bg-amber-900/40 text-amber-300 border-amber-700/50',
-    operador: 'bg-slate-800 text-slate-400 border-slate-700',
-  }[role] || 'bg-slate-800 text-slate-400 border-slate-700'
+    operador: 'bg-white/[0.06] text-slate-400 border-white/10',
+  }[role] || 'bg-white/[0.06] text-slate-400 border-white/10'
   return (
     <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full border uppercase tracking-wide ${m}`}>
       {role}
@@ -110,32 +110,32 @@ function EmpresaDetalhePanel({ empresa, token, onClose }) {
       <div className="flex-1 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
       {/* Panel */}
-      <div className="w-full max-w-xl bg-slate-900 border-l border-slate-800 flex flex-col h-full overflow-hidden shadow-2xl">
+      <div className="w-full max-w-xl bg-[#0d1628] border-l border-white/[0.07] flex flex-col h-full overflow-hidden shadow-2xl">
         {/* Header */}
-        <div className="px-6 py-5 border-b border-slate-800 flex items-start gap-4 shrink-0">
+        <div className="px-6 py-5 border-b border-white/[0.07] flex items-start gap-4 shrink-0">
           {empresa?.foto_url
-            ? <img src={empresa.foto_url} alt={empresa.nome_exibicao} className="h-14 w-14 rounded-2xl object-cover border border-slate-700 shrink-0" />
-            : <div className="h-14 w-14 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
-                <Building2 className="h-7 w-7 text-slate-500" />
+            ? <img src={empresa.foto_url} alt={empresa.nome_exibicao} className="h-14 w-14 rounded-2xl object-cover border border-white/10 shrink-0" />
+            : <div className="h-14 w-14 rounded-2xl bg-white/[0.06] border border-white/10 flex items-center justify-center shrink-0">
+                <Building2 className="h-7 w-7 text-[#8fa3c8]" />
               </div>
           }
           <div className="flex-1 min-w-0">
             <h2 className="text-lg font-bold text-white leading-tight truncate">
               {empresa?.nome_exibicao || empresa?.empresa_id}
             </h2>
-            <p className="text-xs text-slate-500 font-mono mt-0.5">{empresa?.empresa_id}</p>
+            <p className="text-xs text-[#8fa3c8] font-mono mt-0.5">{empresa?.empresa_id}</p>
             <div className="flex items-center gap-2 mt-2">
               <StatusBadge suspeita={empresa?.flag_suspeita} taxaFeedback={empresa?.taxa_feedback || 0} />
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-500 hover:text-white transition-colors">
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/5 text-[#8fa3c8] hover:text-white transition-colors">
             <X className="h-4 w-4" />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
           {loading ? (
-            <div className="flex items-center justify-center py-16 gap-2 text-slate-500">
+            <div className="flex items-center justify-center py-16 gap-2 text-[#8fa3c8]">
               <Loader2 className="h-5 w-5 animate-spin" />
               <span className="text-sm">Carregando...</span>
             </div>
@@ -143,34 +143,34 @@ function EmpresaDetalhePanel({ empresa, token, onClose }) {
             <>
               {/* KPIs */}
               <div className="grid grid-cols-3 gap-3">
-                <div className="bg-slate-800/60 rounded-xl p-3 text-center border border-slate-700/50">
-                  <p className="text-lg font-bold text-slate-100">{carteiras.length}</p>
-                  <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">Carteiras</p>
+                <div className="bg-white/[0.04] rounded-xl p-3 text-center border border-white/[0.07]">
+                  <p className="text-lg font-bold text-[#f0f0f5]">{carteiras.length}</p>
+                  <p className="text-[10px] text-[#8fa3c8] uppercase tracking-widest mt-0.5">Carteiras</p>
                 </div>
-                <div className="bg-slate-800/60 rounded-xl p-3 text-center border border-slate-700/50">
-                  <p className="text-lg font-bold text-slate-100">{fmtNum(totalDev)}</p>
-                  <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">Devedores</p>
+                <div className="bg-white/[0.04] rounded-xl p-3 text-center border border-white/[0.07]">
+                  <p className="text-lg font-bold text-[#f0f0f5]">{fmtNum(totalDev)}</p>
+                  <p className="text-[10px] text-[#8fa3c8] uppercase tracking-widest mt-0.5">Devedores</p>
                 </div>
-                <div className="bg-slate-800/60 rounded-xl p-3 text-center border border-slate-700/50">
+                <div className="bg-white/[0.04] rounded-xl p-3 text-center border border-white/[0.07]">
                   <p className="text-sm font-bold text-emerald-400">{fmtBRL(totalFace)}</p>
-                  <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">Valor face</p>
+                  <p className="text-[10px] text-[#8fa3c8] uppercase tracking-widest mt-0.5">Valor face</p>
                 </div>
               </div>
 
               {/* Usuários */}
               <section>
-                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                <h3 className="text-xs font-semibold text-[#8fa3c8] uppercase tracking-widest mb-3 flex items-center gap-1.5">
                   <User className="h-3.5 w-3.5" /> Equipe ({usuarios.length})
                 </h3>
                 {usuarios.length === 0 ? (
-                  <p className="text-xs text-slate-600 italic">Nenhum usuário cadastrado</p>
+                  <p className="text-xs text-[#7c93bd] italic">Nenhum usuário cadastrado</p>
                 ) : (
                   <div className="space-y-2">
                     {[...admins, ...operadores].map(u => (
-                      <div key={u.id} className="flex items-center justify-between gap-3 bg-slate-800/40 rounded-xl px-3.5 py-2.5 border border-slate-700/30">
+                      <div key={u.id} className="flex items-center justify-between gap-3 bg-white/[0.03] rounded-xl px-3.5 py-2.5 border border-white/[0.06]">
                         <div className="min-w-0">
                           <p className="text-sm text-slate-200 font-medium truncate">{u.nome}</p>
-                          <p className="text-xs text-slate-500 truncate">{u.email}</p>
+                          <p className="text-xs text-[#8fa3c8] truncate">{u.email}</p>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
                           {!u.ativo && (
@@ -186,22 +186,22 @@ function EmpresaDetalhePanel({ empresa, token, onClose }) {
 
               {/* Conexões */}
               <section>
-                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                <h3 className="text-xs font-semibold text-[#8fa3c8] uppercase tracking-widest mb-3 flex items-center gap-1.5">
                   <Database className="h-3.5 w-3.5" /> Bancos de dados ({conexoes.length})
                 </h3>
                 {conexoes.length === 0 ? (
-                  <p className="text-xs text-slate-600 italic">Nenhuma conexão configurada</p>
+                  <p className="text-xs text-[#7c93bd] italic">Nenhuma conexão configurada</p>
                 ) : (
                   <div className="space-y-2">
                     {conexoes.map(cx => (
-                      <div key={cx.id} className="bg-slate-800/40 rounded-xl px-3.5 py-2.5 border border-slate-700/30">
+                      <div key={cx.id} className="bg-white/[0.03] rounded-xl px-3.5 py-2.5 border border-white/[0.06]">
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-sm text-slate-200 font-medium truncate">{cx.nome || cx.id}</p>
-                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-700 text-slate-400 uppercase shrink-0">
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/[0.08] text-slate-400 uppercase shrink-0">
                             {cx.tipo || 'DB'}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-500 font-mono mt-0.5 truncate">
+                        <p className="text-xs text-[#8fa3c8] font-mono mt-0.5 truncate">
                           {cx.host}{cx.database ? ` / ${cx.database}` : ''}
                         </p>
                       </div>
@@ -212,20 +212,20 @@ function EmpresaDetalhePanel({ empresa, token, onClose }) {
 
               {/* Carteiras */}
               <section>
-                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                <h3 className="text-xs font-semibold text-[#8fa3c8] uppercase tracking-widest mb-3 flex items-center gap-1.5">
                   <FileText className="h-3.5 w-3.5" /> Carteiras ({carteiras.length})
                 </h3>
                 {carteiras.length === 0 ? (
-                  <p className="text-xs text-slate-600 italic">Nenhuma carteira analisada ainda</p>
+                  <p className="text-xs text-[#7c93bd] italic">Nenhuma carteira analisada ainda</p>
                 ) : (
                   <div className="space-y-2">
                     {carteiras.map(c => (
-                      <div key={c.id} className="bg-slate-800/40 rounded-xl px-3.5 py-2.5 border border-slate-700/30">
+                      <div key={c.id} className="bg-white/[0.03] rounded-xl px-3.5 py-2.5 border border-white/[0.06]">
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-sm text-slate-300 font-mono truncate">{c.nome_arquivo || c.id.slice(0, 16)}</p>
-                          <p className="text-xs text-slate-500 shrink-0">{fmtDataCurta(c.created_at)}</p>
+                          <p className="text-xs text-[#8fa3c8] shrink-0">{fmtDataCurta(c.created_at)}</p>
                         </div>
-                        <div className="flex items-center gap-3 mt-1 text-xs text-slate-500 font-mono">
+                        <div className="flex items-center gap-3 mt-1 text-xs text-[#8fa3c8] font-mono">
                           <span>{fmtNum(c.total_devedores)} dev.</span>
                           <span>{fmtBRL(c.valor_face)}</span>
                           {c.score_medio != null && (
@@ -278,43 +278,43 @@ export default function ComandoDashboard() {
   const suspeitas = dados?.empresas?.filter(e => e.flag_suspeita) || []
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      <header className="bg-slate-900 border-b border-slate-800 px-6 py-3.5 flex items-center justify-between sticky top-0 z-20">
+    <div className="min-h-screen bg-[#09090f] text-[#f0f0f5]">
+      <header className="bg-[#0d1628] border-b border-white/[0.07] px-6 py-3.5 flex items-center justify-between sticky top-0 z-20">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-900/50 shrink-0">
             <Shield className="h-4 w-4 text-white" />
           </div>
           <div>
             <span className="font-bold text-white tracking-wide text-sm">COMANDO</span>
-            <span className="ml-2 text-xs text-slate-500">Visão geral do ecossistema</span>
+            <span className="ml-2 text-xs text-[#8fa3c8]">Visão geral do ecossistema</span>
           </div>
         </div>
         <div className="flex items-center gap-1.5">
           <button onClick={() => navigate('/')}
-            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800 font-medium">
+            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-white/5 font-medium">
             <Upload className="h-3.5 w-3.5" /> Análise
           </button>
           <button onClick={() => navigate('/admin/usuarios')}
-            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800 font-medium">
+            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-white/5 font-medium">
             <UserCog className="h-3.5 w-3.5" /> Usuários
           </button>
           <button onClick={() => navigate('/auditoria')}
-            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800 font-medium">
+            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-white/5 font-medium">
             <Shield className="h-3.5 w-3.5" /> Auditoria
           </button>
           <button onClick={() => navigate('/aprendizado')}
-            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800 font-medium">
+            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-white/5 font-medium">
             <Brain className="h-3.5 w-3.5" /> Aprendizado
           </button>
           <button onClick={() => navigate('/bandit')}
-            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800 font-medium">
+            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-white/5 font-medium">
             <Zap className="h-3.5 w-3.5" /> Performance IA
           </button>
           <button onClick={carregar} disabled={loadingMain}
-            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800 disabled:opacity-40 font-medium">
+            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-white/5 disabled:opacity-40 font-medium">
             <RefreshCw className={`h-3.5 w-3.5 ${loadingMain ? 'animate-spin' : ''}`} /> Atualizar
           </button>
-          <span className="text-xs text-slate-600 hidden md:block">{usuario?.nome}</span>
+          <span className="text-xs text-[#7c93bd] hidden md:block">{usuario?.nome}</span>
           <button onClick={() => { logout(); navigate('/login') }}
             className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-red-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-red-950/40 font-medium">
             <LogOut className="h-3.5 w-3.5" /> Sair
@@ -324,7 +324,7 @@ export default function ComandoDashboard() {
 
       <main className="max-w-7xl mx-auto px-6 py-10 space-y-6">
         {loadingMain && !dados && (
-          <div className="flex flex-col items-center justify-center py-32 gap-3 text-slate-600">
+          <div className="flex flex-col items-center justify-center py-32 gap-3 text-[#7c93bd]">
             <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
             <p className="text-sm">Carregando dados do ecossistema...</p>
           </div>
@@ -341,11 +341,11 @@ export default function ComandoDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-2xl font-bold text-white tracking-tight">Painel COMANDO</h1>
-                <p className="text-sm text-slate-500 mt-1">
+                <p className="text-sm text-[#8fa3c8] mt-1">
                   Visibilidade total sobre todos os clientes e carteiras analisadas na plataforma
                 </p>
               </div>
-              <div className="text-xs text-slate-600 font-mono">
+              <div className="text-xs text-[#7c93bd] font-mono">
                 {t?.total_empresas} empresa{t?.total_empresas !== 1 ? 's' : ''} ativas
               </div>
             </div>
@@ -398,18 +398,18 @@ export default function ComandoDashboard() {
               </div>
             )}
 
-            <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
-              <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+            <div className="bg-[#0d1628] rounded-2xl border border-white/[0.07] overflow-hidden">
+              <div className="px-6 py-4 border-b border-white/[0.07] flex items-center justify-between">
                 <div>
                   <h2 className="text-sm font-semibold text-slate-200">Empresas clientes</h2>
-                  <p className="text-xs text-slate-600 mt-0.5">Clique em uma linha para ver o dashboard da empresa</p>
+                  <p className="text-xs text-[#7c93bd] mt-0.5">Clique em uma linha para ver o dashboard da empresa</p>
                 </div>
-                <Eye className="h-4 w-4 text-slate-700" />
+                <Eye className="h-4 w-4 text-[#6d84ab]" />
               </div>
 
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-slate-800/50">
+                  <thead className="bg-white/[0.03]">
                     <tr>
                       {[
                         ['Empresa', 'text-left'],
@@ -422,7 +422,7 @@ export default function ComandoDashboard() {
                         ['Status', 'text-right'],
                         ['', 'w-8'],
                       ].map(([h, cls = '']) => (
-                        <th key={h} className={`px-4 py-3.5 text-[11px] font-semibold text-slate-500 uppercase tracking-widest whitespace-nowrap ${cls}`}>
+                        <th key={h} className={`px-4 py-3.5 text-[11px] font-semibold text-[#8fa3c8] uppercase tracking-widest whitespace-nowrap ${cls}`}>
                           {h}
                         </th>
                       ))}
@@ -441,21 +441,21 @@ export default function ComandoDashboard() {
                               ? 'bg-indigo-950/30 ring-1 ring-indigo-700/40 ring-inset'
                               : isSusp
                                 ? 'bg-red-950/10 hover:bg-red-950/20'
-                                : 'hover:bg-slate-800/40'
+                                : 'hover:bg-white/[0.03]'
                           }`}
                         >
                           <td className="px-4 py-4">
                             <div className="flex items-center gap-2.5">
                               {e.foto_url
-                                ? <img src={e.foto_url} alt={e.nome_exibicao} className="h-7 w-7 rounded-lg object-cover border border-slate-700 shrink-0" />
-                                : <Building2 className={`h-3.5 w-3.5 shrink-0 ${isSusp ? 'text-red-500' : 'text-slate-600'}`} />
+                                ? <img src={e.foto_url} alt={e.nome_exibicao} className="h-7 w-7 rounded-lg object-cover border border-white/10 shrink-0" />
+                                : <Building2 className={`h-3.5 w-3.5 shrink-0 ${isSusp ? 'text-red-500' : 'text-[#7c93bd]'}`} />
                               }
                               <div>
                                 <p className={`text-sm font-medium leading-tight ${isSusp ? 'text-red-300' : 'text-slate-200'}`}>
                                   {e.nome_exibicao || e.empresa_id}
                                 </p>
-                                <p className="text-xs text-slate-600 font-mono">
-                                  {e.empresa_id !== e.nome_exibicao && <span className="text-slate-700">{e.empresa_id} · </span>}
+                                <p className="text-xs text-[#7c93bd] font-mono">
+                                  {e.empresa_id !== e.nome_exibicao && <span className="text-[#6d84ab]">{e.empresa_id} · </span>}
                                   {e.total_carteiras} carteira{e.total_carteiras !== 1 ? 's' : ''}
                                 </p>
                               </div>
@@ -466,7 +466,7 @@ export default function ComandoDashboard() {
                           <td className="px-4 py-4 text-right text-slate-400 font-mono text-sm">{fmtBRL(e.valor_esperado_total)}</td>
                           <td className="px-4 py-4 text-right">
                             <span className={`text-sm font-bold ${
-                              e.score_medio == null ? 'text-slate-600' :
+                              e.score_medio == null ? 'text-[#7c93bd]' :
                               e.score_medio >= 60   ? 'text-emerald-400' :
                               e.score_medio >= 40   ? 'text-amber-400' : 'text-red-400'
                             }`}>
@@ -476,7 +476,7 @@ export default function ComandoDashboard() {
                           <td className="px-4 py-4 text-right">
                             <div className="flex flex-col items-end gap-0.5">
                               <span className="text-sm text-slate-300 font-mono">{fmtNum(e.n_feedbacks)}</span>
-                              <span className={`text-xs font-mono ${e.flag_suspeita ? 'text-red-500' : 'text-slate-600'}`}>
+                              <span className={`text-xs font-mono ${e.flag_suspeita ? 'text-red-500' : 'text-[#7c93bd]'}`}>
                                 {fmtPct(e.taxa_feedback)} dos devedores
                               </span>
                               {e.valor_recuperado_real > 0 && (
@@ -484,13 +484,13 @@ export default function ComandoDashboard() {
                               )}
                             </div>
                           </td>
-                          <td className="px-4 py-4 text-right text-xs text-slate-500 font-mono whitespace-nowrap">
+                          <td className="px-4 py-4 text-right text-xs text-[#8fa3c8] font-mono whitespace-nowrap">
                             {fmtData(e.ultima_atividade)}
                           </td>
                           <td className="px-4 py-4 text-right">
                             <StatusBadge suspeita={e.flag_suspeita} taxaFeedback={e.taxa_feedback} />
                           </td>
-                          <td className="px-4 py-4 text-slate-600">
+                          <td className="px-4 py-4 text-[#7c93bd]">
                             <ChevronRight className={`h-3.5 w-3.5 transition-transform ${isSel ? 'rotate-90 text-indigo-400' : ''}`} />
                           </td>
                         </tr>
@@ -501,13 +501,13 @@ export default function ComandoDashboard() {
               </div>
 
               {dados.empresas.length === 0 && (
-                <div className="py-16 text-center text-slate-600 text-sm">
+                <div className="py-16 text-center text-[#7c93bd] text-sm">
                   Nenhuma empresa registrada ainda.
                 </div>
               )}
             </div>
 
-            <div className="flex flex-wrap gap-5 text-xs text-slate-600">
+            <div className="flex flex-wrap gap-5 text-xs text-[#7c93bd]">
               <div className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-500" /> Ativa — taxa de feedback ≥ 20%
               </div>
