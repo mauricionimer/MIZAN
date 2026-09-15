@@ -5,7 +5,7 @@ import {
   Shield, AlertTriangle, TrendingUp, Users, DollarSign,
   RefreshCw, Loader2, LogOut, Building2, CheckCircle2, Activity,
   Eye, Upload, Zap, UserCog, X, Database, FileText, User,
-  ChevronRight,
+  ChevronRight, Brain,
 } from 'lucide-react'
 
 const BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001'
@@ -297,6 +297,10 @@ export default function ComandoDashboard() {
           <button onClick={() => navigate('/admin/usuarios')}
             className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800 font-medium">
             <UserCog className="h-3.5 w-3.5" /> Usuários
+          </button>
+          <button onClick={() => navigate('/aprendizado')}
+            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800 font-medium">
+            <Brain className="h-3.5 w-3.5" /> Aprendizado
           </button>
           <button onClick={() => navigate('/bandit')}
             className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800 font-medium">

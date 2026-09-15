@@ -66,6 +66,7 @@ import Dashboard from './pages/Dashboard'
 import DebtorDetail from './pages/DebtorDetail'
 import Feedback from './pages/Feedback'
 import BanditDashboard from './pages/BanditDashboard'
+import AprendizadoDashboard from './pages/AprendizadoDashboard'
 import ComandoDashboard from './pages/ComandoDashboard'
 import AdminHome from './pages/AdminHome'
 import OperadorHome from './pages/OperadorHome'
@@ -100,6 +101,7 @@ export default function App() {
             <Route path="/devedor/:rank" element={<RotaProtegida><DebtorDetail /></RotaProtegida>} />
             <Route path="/feedback" element={<RotaProtegida><Feedback /></RotaProtegida>} />
             <Route path="/bandit" element={<RotaProtegida roles={['comando']}><BanditDashboard /></RotaProtegida>} />
+            <Route path="/aprendizado" element={<RotaProtegida roles={['comando']}><AprendizadoDashboard /></RotaProtegida>} />
             <Route path="/comando" element={<RotaProtegida roles={['comando']}><ComandoDashboard /></RotaProtegida>} />
             <Route path="/admin" element={<RotaProtegida roles={['admin', 'comando']}><AdminHome /></RotaProtegida>} />
             <Route path="/operador" element={<RotaProtegida roles={['operador']}><OperadorHome /></RotaProtegida>} />
