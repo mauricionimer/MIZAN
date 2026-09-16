@@ -1,3 +1,4 @@
+import ThemeToggle from '../components/ThemeToggle'
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -9,9 +10,9 @@ import {
 import { useAuth } from '../context/AuthContext'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001'
-const MUTED = '#7c93bd'
-const MUTED_LIGHT = '#8fa3c8'
-const LABEL = '#94a3b8'
+const MUTED = 'var(--ink-3)'
+const MUTED_LIGHT = 'var(--ink-2)'
+const LABEL = 'var(--ink-2)'
 
 const CANAL_LABELS = { whatsapp: 'WhatsApp', telefone: 'Ligação', carta: 'Carta / E-mail' }
 const OFERTA_LABELS = {
@@ -23,7 +24,7 @@ const OFERTA_LABELS = {
 const CANAL_COLORS  = ['#25D366', '#60a5fa', '#fbbf24']
 const OFERTA_COLORS = ['#34d399', '#818cf8', '#fb923c', '#c4b5fd']
 const FASE_META = {
-  exploração_inicial: { label: 'Exploração inicial', dot: 'bg-slate-400',  bg: 'rgba(255,255,255,0.06)', border: 'rgba(255,255,255,0.12)', cor: MUTED_LIGHT },
+  exploração_inicial: { label: 'Exploração inicial', dot: 'bg-slate-400',  bg: 'var(--raise-3)', border: 'var(--line)', cor: MUTED_LIGHT },
   aprendendo:         { label: 'Aprendendo',          dot: 'bg-amber-400', bg: 'rgba(245,158,11,0.10)', border: 'rgba(245,158,11,0.25)', cor: '#fcd34d' },
   calibrado:          { label: 'Calibrado',           dot: 'bg-emerald-500', bg: 'rgba(16,185,129,0.10)', border: 'rgba(16,185,129,0.25)', cor: '#6ee7b7' },
 }
@@ -34,7 +35,7 @@ function Logo() {
   return (
     <div className="w-7 h-7 rounded-lg flex items-center justify-center shadow-md shadow-blue-500/20"
       style={{ background: 'linear-gradient(135deg,#1d4ed8,#2563eb)' }}>
-      <span className="text-white font-bold text-xs">⚖</span>
+      <span className="text-brand-ink font-bold text-xs">⚖</span>
     </div>
   )
 }
@@ -44,16 +45,16 @@ function LocalStatCard({ label, value, sub, icon: Icon, accent = 'blue' }) {
     blue:    { bg: 'rgba(37,99,235,0.15)', cor: 'var(--brand)' },
     emerald: { bg: 'rgba(16,185,129,0.15)', cor: '#6ee7b7' },
     amber:   { bg: 'rgba(245,158,11,0.15)', cor: '#fcd34d' },
-    slate:   { bg: 'rgba(255,255,255,0.08)', cor: MUTED_LIGHT },
+    slate:   { bg: 'var(--raise-3)', cor: MUTED_LIGHT },
   }[accent]
   return (
-    <div className="rounded-2xl p-5 flex gap-4 items-start" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }}>
+    <div className="rounded-2xl p-5 flex gap-4 items-start" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
       <div className="rounded-xl p-2.5 shrink-0" style={{ background: colors.bg, color: colors.cor }}>
         <Icon className="h-4 w-4" />
       </div>
       <div className="min-w-0">
         <p className="section-label">{label}</p>
-        <p className="text-xl font-bold text-white mt-1 leading-tight">{value}</p>
+        <p className="text-xl font-bold text-ink mt-1 leading-tight">{value}</p>
         {sub && <p className="text-xs mt-0.5" style={{ color: MUTED }}>{sub}</p>}
       </div>
     </div>
@@ -63,8 +64,8 @@ function LocalStatCard({ label, value, sub, icon: Icon, accent = 'blue' }) {
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
   return (
-    <div className="rounded-xl shadow-lg p-3 text-xs" style={{ background: '#111d34', border: '1px solid rgba(255,255,255,0.10)' }}>
-      <p className="font-semibold text-white mb-1">{label}</p>
+    <div className="rounded-xl shadow-lg p-3 text-xs" style={{ background: '#111d34', border: '1px solid var(--line)' }}>
+      <p className="font-semibold text-ink mb-1">{label}</p>
       <p style={{ color: MUTED_LIGHT }}>Taxa de recuperação: <span className="font-bold text-emerald-300">{fmtPct(payload[0].value / 100)}</span></p>
       {payload[0].payload.tentativas != null && (
         <p className="mt-0.5" style={{ color: MUTED }}>{payload[0].payload.tentativas} interações</p>
@@ -155,12 +156,12 @@ export default function BanditDashboard() {
     <div className="min-h-screen">
       <header className="navbar-glass px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/comando')} className="p-1 rounded-lg transition-colors hover:bg-white/5" style={{ color: MUTED }}>
+          <button onClick={() => navigate('/comando')} className="p-1 rounded-lg transition-colors hover:bg-raise-2" style={{ color: MUTED }}>
             <ArrowLeft className="h-4 w-4" />
           </button>
           <Logo />
-          <span className="font-bold text-white text-sm">Mizan</span>
-          <span className="text-white/20 text-sm">/</span>
+          <span className="font-bold text-ink text-sm">Mizan</span>
+          <span className="text-ink-4 text-sm">/</span>
           <span className="text-sm" style={{ color: MUTED_LIGHT }}>Bandit LinUCB</span>
         </div>
         <div className="flex items-center gap-3">
@@ -172,6 +173,7 @@ export default function BanditDashboard() {
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Atualizar
           </button>
           <span className="text-sm hidden sm:block" style={{ color: MUTED }}>{usuario?.nome}</span>
+          <ThemeToggle />
           <button onClick={() => { logout(); navigate('/login') }} className="nav-link-danger">
             <LogOut className="h-4 w-4" /> Sair
           </button>
@@ -218,7 +220,7 @@ export default function BanditDashboard() {
           <>
             <div className="flex items-start justify-between">
               <div>
-                <h1 className="text-xl font-bold text-white tracking-tight">Performance do Bandit LinUCB</h1>
+                <h1 className="text-xl font-bold text-ink tracking-tight">Performance do Bandit LinUCB</h1>
                 <p className="text-sm mt-1" style={{ color: MUTED_LIGHT }}>Quais canais e ofertas estão gerando mais pagamentos</p>
               </div>
               {fase && (
@@ -261,7 +263,7 @@ export default function BanditDashboard() {
             </div>
 
             <div className="grid grid-cols-2 gap-6">
-              <div className="rounded-2xl p-6" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }}>
+              <div className="rounded-2xl p-6" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
                 <p className="section-label mb-5">Taxa de recuperação por canal</p>
                 {porCanal.every(c => c.taxa == null) ? (
                   <div className="flex items-center justify-center h-40 text-sm" style={{ color: MUTED }}>
@@ -270,10 +272,10 @@ export default function BanditDashboard() {
                 ) : (
                   <ResponsiveContainer width="100%" height={200}>
                     <BarChart data={porCanal} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,141,166,0.28)" vertical={false} />
                       <XAxis dataKey="label" tick={{ fontSize: 11, fill: LABEL }} axisLine={false} tickLine={false} />
                       <YAxis tick={{ fontSize: 11, fill: LABEL }} axisLine={false} tickLine={false} unit="%" domain={[0, 100]} />
-                      <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+                      <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(128,141,166,0.14)' }} />
                       <Bar dataKey="taxa" radius={[4, 4, 0, 0]} maxBarSize={56}>
                         {porCanal.map((_, i) => <Cell key={i} fill={CANAL_COLORS[i % CANAL_COLORS.length]} />)}
                       </Bar>
@@ -285,13 +287,13 @@ export default function BanditDashboard() {
                     <div key={c.label} className="flex items-center gap-1.5 text-xs" style={{ color: MUTED }}>
                       <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: CANAL_COLORS[i] }} />
                       {c.label}
-                      <span style={{ color: '#6d84ab' }}>({c.tentativas} int.)</span>
+                      <span style={{ color: 'var(--ink-4)' }}>({c.tentativas} int.)</span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="rounded-2xl p-6" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }}>
+              <div className="rounded-2xl p-6" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
                 <p className="section-label mb-5">Taxa de recuperação por oferta</p>
                 {porOferta.every(o => o.taxa == null) ? (
                   <div className="flex items-center justify-center h-40 text-sm" style={{ color: MUTED }}>
@@ -300,10 +302,10 @@ export default function BanditDashboard() {
                 ) : (
                   <ResponsiveContainer width="100%" height={200}>
                     <BarChart data={porOferta} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,141,166,0.28)" vertical={false} />
                       <XAxis dataKey="label" tick={{ fontSize: 10, fill: LABEL }} axisLine={false} tickLine={false} />
                       <YAxis tick={{ fontSize: 11, fill: LABEL }} axisLine={false} tickLine={false} unit="%" domain={[0, 100]} />
-                      <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+                      <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(128,141,166,0.14)' }} />
                       <Bar dataKey="taxa" radius={[4, 4, 0, 0]} maxBarSize={56}>
                         {porOferta.map((_, i) => <Cell key={i} fill={OFERTA_COLORS[i % OFERTA_COLORS.length]} />)}
                       </Bar>
@@ -315,20 +317,20 @@ export default function BanditDashboard() {
                     <div key={o.label} className="flex items-center gap-1.5 text-xs" style={{ color: MUTED }}>
                       <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: OFERTA_COLORS[i] }} />
                       {o.label}
-                      <span style={{ color: '#6d84ab' }}>({o.tentativas} int.)</span>
+                      <span style={{ color: 'var(--ink-4)' }}>({o.tentativas} int.)</span>
                     </div>
                   ))}
                 </div>
               </div>
             </div>
 
-            <div className="rounded-2xl overflow-hidden" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }}>
-              <div className="px-6 py-4 border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+            <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
+              <div className="px-6 py-4 border-b" style={{ borderColor: 'var(--line)' }}>
                 <p className="section-label">Ranking das 12 combinações</p>
                 <p className="text-xs mt-0.5" style={{ color: MUTED }}>Ordenado por taxa de recuperação média</p>
               </div>
               <table className="w-full text-sm">
-                <thead style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                <thead style={{ background: 'var(--raise-1)', borderBottom: '1px solid var(--line)' }}>
                   <tr>
                     {['#', 'Canal', 'Oferta', 'Interações', 'Taxa de recuperação', 'Barra'].map((h, i) => (
                       <th key={h} className={`px-5 py-3.5 text-xs font-semibold uppercase tracking-wide whitespace-nowrap ${i >= 3 ? 'text-right' : 'text-left'}`} style={{ color: LABEL }}>
@@ -337,7 +339,7 @@ export default function BanditDashboard() {
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
+                <tbody className="divide-y" style={{ borderColor: 'var(--line)' }}>
                   {rankingAcoes.map((a, i) => {
                     const pct = a.recompensa_media != null ? a.recompensa_media * 100 : null
                     const isTop = i === 0 && pct != null
@@ -347,9 +349,9 @@ export default function BanditDashboard() {
                         <td className="px-5 py-3">
                           <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full"
                             style={
-                              a.canal === 'whatsapp' ? { background: 'rgba(37,197,94,0.12)', color: '#6ee7b7' } :
-                              a.canal === 'telefone' ? { background: 'rgba(59,130,246,0.12)', color: '#93c5fd' } :
-                                                        { background: 'rgba(245,158,11,0.12)', color: '#fcd34d' }
+                              a.canal === 'whatsapp' ? { background: 'rgba(37,197,94,0.12)', color: 'rgb(var(--c-emerald-300))' } :
+                              a.canal === 'telefone' ? { background: 'rgba(59,130,246,0.12)', color: 'rgb(var(--c-blue-300))' } :
+                                                        { background: 'rgba(245,158,11,0.12)', color: 'rgb(var(--c-amber-300))' }
                             }>
                             {CANAL_LABELS[a.canal] ?? a.canal}
                           </span>
@@ -366,7 +368,7 @@ export default function BanditDashboard() {
                           </span>
                         </td>
                         <td className="px-5 py-3 w-36">
-                          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--raise-3)' }}>
                             {pct != null && (
                               <div
                                 className="h-full rounded-full transition-all"

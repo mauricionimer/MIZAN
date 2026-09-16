@@ -12,8 +12,8 @@ export default function StatCard({ label, value, sub, icon: Icon, accent = 'defa
   return (
     <div className="px-6 py-5 flex flex-col gap-3"
       style={{
-        background: 'rgba(255,255,255,0.02)',
-        border: '1px solid rgba(255,255,255,0.05)',
+        background: 'var(--raise-1)',
+        border: '1px solid var(--line)',
         borderLeft: `2px solid ${color}`,
         borderRadius: '0.75rem',
       }}>
@@ -23,18 +23,18 @@ export default function StatCard({ label, value, sub, icon: Icon, accent = 'defa
           fontWeight: 600,
           textTransform: 'uppercase',
           letterSpacing: '0.12em',
-          color: '#94a3b8',
+          color: 'var(--ink-2)',
         }}>
           {label}
         </p>
-        {Icon && <Icon className="h-3.5 w-3.5" style={{ color: '#6d84ab' }} />}
+        {Icon && <Icon className="h-3.5 w-3.5" style={{ color: 'var(--ink-4)' }} />}
       </div>
       <div>
-        <p className="text-[1.75rem] font-semibold tracking-tight leading-none" style={{ color: '#f0f0f5' }}>
+        <p className="text-[1.75rem] font-semibold tracking-tight leading-none" style={{ color: 'var(--ink)' }}>
           {value}
         </p>
         {sub && (
-          <p className="text-xs mt-1.5" style={{ color: '#6d84ab' }}>{sub}</p>
+          <p className="text-xs mt-1.5" style={{ color: 'var(--ink-4)' }}>{sub}</p>
         )}
       </div>
     </div>

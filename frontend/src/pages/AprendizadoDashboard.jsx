@@ -1,3 +1,4 @@
+import ThemeToggle from '../components/ThemeToggle'
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -8,9 +9,9 @@ import {
 import { useAuth } from '../context/AuthContext'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001'
-const MUTED = '#7c93bd'
-const MUTED_LIGHT = '#8fa3c8'
-const LABEL = '#94a3b8'
+const MUTED = 'var(--ink-3)'
+const MUTED_LIGHT = 'var(--ink-2)'
+const LABEL = 'var(--ink-2)'
 
 const fmtPct  = (v, casas = 1) => v != null ? `${(v * 100).toFixed(casas)}%` : '—'
 const fmtData = iso => iso
@@ -19,14 +20,14 @@ const fmtData = iso => iso
 
 function Secao({ icon: Icon, titulo, sub, children, right }) {
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }}>
-      <div className="px-6 py-4 border-b flex items-center justify-between flex-wrap gap-3" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+    <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
+      <div className="px-6 py-4 border-b flex items-center justify-between flex-wrap gap-3" style={{ borderColor: 'var(--line)' }}>
         <div className="flex items-center gap-3">
           <div className="rounded-xl p-2 shrink-0" style={{ background: 'rgba(37,99,235,0.15)', color: 'var(--brand)' }}>
             <Icon className="h-4 w-4" />
           </div>
           <div>
-            <p className="text-sm font-bold text-white">{titulo}</p>
+            <p className="text-sm font-bold text-ink">{titulo}</p>
             {sub && <p className="text-xs mt-0.5" style={{ color: MUTED }}>{sub}</p>}
           </div>
         </div>
@@ -39,8 +40,8 @@ function Secao({ icon: Icon, titulo, sub, children, right }) {
 
 function Botao({ children, onClick, disabled, variante = 'primario', ...props }) {
   const cls = {
-    primario:   'text-white hover:brightness-110',
-    secundario: 'bg-white/5 hover:bg-white/10 text-[#8fa3c8]',
+    primario:   'text-ink hover:brightness-110',
+    secundario: 'bg-raise-2 hover:bg-raise-3 text-ink-2',
     perigo:     'bg-red-500/10 hover:bg-red-500/20 text-red-300',
   }[variante]
   const style = variante === 'primario' ? { background: 'var(--brand)' } : undefined
@@ -59,7 +60,7 @@ function Botao({ children, onClick, disabled, variante = 'primario', ...props })
 
 function Barra({ pct, cor = 'var(--brand)' }) {
   return (
-    <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
+    <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--raise-3)' }}>
       <div className="h-full rounded-full" style={{ width: `${Math.min(Math.max(pct, 0), 100)}%`, background: cor }} />
     </div>
   )
@@ -183,15 +184,15 @@ export default function AprendizadoDashboard() {
     <div className="min-h-screen">
       <header className="navbar-glass px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/comando')} className="p-1 rounded-lg transition-colors hover:bg-white/5" style={{ color: MUTED }}>
+          <button onClick={() => navigate('/comando')} className="p-1 rounded-lg transition-colors hover:bg-raise-2" style={{ color: MUTED }}>
             <ArrowLeft className="h-4 w-4" />
           </button>
           <div className="w-7 h-7 rounded-lg flex items-center justify-center shadow-md shadow-blue-500/20"
             style={{ background: 'linear-gradient(135deg,#1d4ed8,#2563eb)' }}>
-            <Brain className="h-3.5 w-3.5 text-white" />
+            <Brain className="h-3.5 w-3.5 text-brand-ink" />
           </div>
-          <span className="font-bold text-white text-sm">Mizan</span>
-          <span className="text-white/20 text-sm">/</span>
+          <span className="font-bold text-ink text-sm">Mizan</span>
+          <span className="text-ink-4 text-sm">/</span>
           <span className="text-sm" style={{ color: MUTED_LIGHT }}>Gestão do Aprendizado</span>
         </div>
         <div className="flex items-center gap-3">
@@ -199,6 +200,7 @@ export default function AprendizadoDashboard() {
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Atualizar
           </button>
           <span className="text-sm hidden sm:block" style={{ color: MUTED }}>{usuario?.nome}</span>
+          <ThemeToggle />
           <button onClick={() => { logout(); navigate('/login') }} className="nav-link-danger">
             <LogOut className="h-4 w-4" /> Sair
           </button>
@@ -225,7 +227,7 @@ export default function AprendizadoDashboard() {
         {!loading && (
           <>
             <div>
-              <h1 className="text-xl font-bold text-white tracking-tight">Gestão do Aprendizado</h1>
+              <h1 className="text-xl font-bold text-ink tracking-tight">Gestão do Aprendizado</h1>
               <p className="text-sm mt-1" style={{ color: MUTED_LIGHT }}>Acesso restrito ao COMANDO — versões do modelo, variáveis, drift e ciclo de retreino</p>
             </div>
 
@@ -284,14 +286,14 @@ export default function AprendizadoDashboard() {
                     <p className="section-label mb-3">Acurácia — treino × validação cruzada × holdout (nunca visto)</p>
                     <div className="grid grid-cols-3 gap-4">
                       {[
-                        { label: 'Treino (100% dos dados)', valor: qualidade.overfitting.treino_acuracia, cor: '#94a3b8' },
+                        { label: 'Treino (100% dos dados)', valor: qualidade.overfitting.treino_acuracia, cor: 'var(--ink-2)' },
                         { label: 'Validação cruzada', valor: qualidade.overfitting.cv_acuracia_media, cor: '#60a5fa' },
                         { label: 'Holdout (20% nunca visto)', valor: qualidade.holdout.acuracia, cor: '#34d399' },
                       ].map(b => (
                         <div key={b.label}>
                           <div className="flex items-center justify-between text-xs mb-1" style={{ color: MUTED }}>
                             <span>{b.label}</span>
-                            <span className="font-bold text-white">{fmtPct(b.valor)}</span>
+                            <span className="font-bold text-ink">{fmtPct(b.valor)}</span>
                           </div>
                           <Barra pct={(b.valor ?? 0) * 100} cor={b.cor} />
                         </div>
@@ -319,15 +321,15 @@ export default function AprendizadoDashboard() {
                           <p className="text-lg font-bold text-amber-300">{qualidade.holdout.matriz_confusao.falso_negativo}</p>
                           <p className="text-[11px] text-amber-300/80 mt-0.5">Previu que não pagava — pagou</p>
                         </div>
-                        <div className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                          <p className="text-lg font-bold text-white">{qualidade.holdout.matriz_confusao.verdadeiro_negativo}</p>
+                        <div className="rounded-xl p-3" style={{ background: 'var(--raise-2)', border: '1px solid var(--line)' }}>
+                          <p className="text-lg font-bold text-ink">{qualidade.holdout.matriz_confusao.verdadeiro_negativo}</p>
                           <p className="text-[11px] mt-0.5" style={{ color: MUTED }}>Previu que não pagava — não pagou</p>
                         </div>
                       </div>
                       <div className="grid grid-cols-3 gap-3 mt-3 text-center">
-                        <div><p className="text-xs" style={{ color: MUTED }}>Precisão</p><p className="font-bold text-white text-sm">{fmtPct(qualidade.holdout.precisao)}</p></div>
-                        <div><p className="text-xs" style={{ color: MUTED }}>Revocação</p><p className="font-bold text-white text-sm">{fmtPct(qualidade.holdout.revocacao)}</p></div>
-                        <div><p className="text-xs" style={{ color: MUTED }}>F1</p><p className="font-bold text-white text-sm">{fmtPct(qualidade.holdout.f1)}</p></div>
+                        <div><p className="text-xs" style={{ color: MUTED }}>Precisão</p><p className="font-bold text-ink text-sm">{fmtPct(qualidade.holdout.precisao)}</p></div>
+                        <div><p className="text-xs" style={{ color: MUTED }}>Revocação</p><p className="font-bold text-ink text-sm">{fmtPct(qualidade.holdout.revocacao)}</p></div>
+                        <div><p className="text-xs" style={{ color: MUTED }}>F1</p><p className="font-bold text-ink text-sm">{fmtPct(qualidade.holdout.f1)}</p></div>
                       </div>
                       <p className="text-[11px] mt-2 leading-relaxed" style={{ color: MUTED }}>
                         "Positivo" aqui = o modelo previu que o devedor paga. Precisão: das vezes que previu pagamento, quantas acertou.
@@ -367,8 +369,8 @@ export default function AprendizadoDashboard() {
                   {/* Complexidade vs volume de dados */}
                   <div className="flex items-start gap-3 rounded-xl border px-4 py-3 text-xs"
                     style={qualidade.complexidade_adequada
-                      ? { background: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.08)', color: MUTED_LIGHT }
-                      : { background: 'rgba(245,158,11,0.10)', borderColor: 'rgba(245,158,11,0.25)', color: '#fcd34d' }}>
+                      ? { background: 'var(--raise-2)', borderColor: 'var(--line)', color: MUTED_LIGHT }
+                      : { background: 'rgba(245,158,11,0.10)', borderColor: 'rgba(245,158,11,0.25)', color: 'rgb(var(--c-amber-300))' }}>
                     <Target className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                     <span>
                       {qualidade.n_amostras} amostras para {qualidade.n_features} variáveis do modelo
@@ -424,22 +426,22 @@ export default function AprendizadoDashboard() {
                         <th className="px-2 py-2"></th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+                    <tbody className="divide-y" style={{ borderColor: 'var(--line)' }}>
                       {modelos.versoes.map(v => (
                         <tr key={v.versao} style={v.ativa ? { background: 'rgba(37,99,235,0.08)' } : undefined}>
                           <td className="px-2 py-3 font-mono text-xs" style={{ color: MUTED_LIGHT }}>{v.versao}</td>
                           <td className="px-2 py-3">
                             <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
                               style={v.tipo_alvo === 'real'
-                                ? { background: 'rgba(16,185,129,0.12)', color: '#6ee7b7' }
-                                : { background: 'rgba(255,255,255,0.08)', color: MUTED }}>
+                                ? { background: 'rgba(16,185,129,0.12)', color: 'rgb(var(--c-emerald-300))' }
+                                : { background: 'var(--raise-3)', color: MUTED }}>
                               {v.tipo_alvo === 'real' ? 'Dados reais' : 'Sintético'}
                             </span>
                           </td>
                           <td className="px-2 py-3 text-xs" style={{ color: MUTED }}>{fmtData(v.criado_em)}</td>
                           <td className="px-2 py-3 text-right text-xs" style={{ color: MUTED }}>{v.n_amostras_treino ?? '—'}</td>
                           <td className="px-2 py-3 text-right text-xs" style={{ color: MUTED }}>{fmtPct(v.metricas_treino?.cv_auc_media)}</td>
-                          <td className="px-2 py-3 text-right text-xs font-semibold text-white">{fmtPct(v.acuracia_real)}</td>
+                          <td className="px-2 py-3 text-right text-xs font-semibold text-ink">{fmtPct(v.acuracia_real)}</td>
                           <td className="px-2 py-3 text-right">
                             {v.ativa ? (
                               <span className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: 'var(--brand)' }}>
@@ -487,9 +489,9 @@ export default function AprendizadoDashboard() {
                   <p className="text-sm" style={{ color: MUTED }}>{priceModel?.mensagem || 'Indisponível.'}</p>
                 ) : (
                   <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div><p className="text-xs" style={{ color: MUTED }}>Amostras / pagamentos</p><p className="font-bold text-white">{priceModel.n_amostras} / {priceModel.n_pagamentos}</p></div>
-                    <div><p className="text-xs" style={{ color: MUTED }}>R² médio (CV)</p><p className="font-bold text-white">{priceModel.r2_medio}</p></div>
-                    <div><p className="text-xs" style={{ color: MUTED }}>MAE médio</p><p className="font-bold text-white">{priceModel.mae_medio}</p></div>
+                    <div><p className="text-xs" style={{ color: MUTED }}>Amostras / pagamentos</p><p className="font-bold text-ink">{priceModel.n_amostras} / {priceModel.n_pagamentos}</p></div>
+                    <div><p className="text-xs" style={{ color: MUTED }}>R² médio (CV)</p><p className="font-bold text-ink">{priceModel.r2_medio}</p></div>
+                    <div><p className="text-xs" style={{ color: MUTED }}>MAE médio</p><p className="font-bold text-ink">{priceModel.mae_medio}</p></div>
                   </div>
                 )}
               </Secao>
@@ -533,11 +535,11 @@ export default function AprendizadoDashboard() {
               }
             >
               <div className="grid grid-cols-3 gap-4 text-sm">
-                <div><p className="text-xs" style={{ color: MUTED }}>Próxima verificação</p><p className="font-semibold text-white">{fmtData(scheduler?.proxima_verificacao)}</p></div>
-                <div><p className="text-xs" style={{ color: MUTED }}>Retreinamentos automáticos</p><p className="font-semibold text-white">{scheduler?.n_retreinamentos ?? 0}</p></div>
+                <div><p className="text-xs" style={{ color: MUTED }}>Próxima verificação</p><p className="font-semibold text-ink">{fmtData(scheduler?.proxima_verificacao)}</p></div>
+                <div><p className="text-xs" style={{ color: MUTED }}>Retreinamentos automáticos</p><p className="font-semibold text-ink">{scheduler?.n_retreinamentos ?? 0}</p></div>
                 <div>
                   <p className="text-xs" style={{ color: MUTED }}>Último resultado</p>
-                  <p className="font-semibold text-white">
+                  <p className="font-semibold text-ink">
                     {scheduler?.ultimo_resultado
                       ? (scheduler.ultimo_resultado.motivo || (scheduler.ultimo_resultado.ok ? 'Sucesso' : 'Falha'))
                       : '—'}
@@ -570,9 +572,9 @@ export default function AprendizadoDashboard() {
               ) : (
                 <div className="grid grid-cols-4 gap-4 text-sm">
                   <div><p className="text-xs" style={{ color: MUTED }}>Status</p><p className="font-semibold" style={{ color: dbSyncCfg.ativo ? '#6ee7b7' : MUTED_LIGHT }}>{dbSyncCfg.ativo ? 'Ativo' : 'Inativo'}</p></div>
-                  <div><p className="text-xs" style={{ color: MUTED }}>Tipo</p><p className="font-semibold text-white uppercase">{dbSyncCfg.tipo}</p></div>
-                  <div><p className="text-xs" style={{ color: MUTED }}>Última sincronização</p><p className="font-semibold text-white">{fmtData(dbSyncStatus?.ultimo_sync)}</p></div>
-                  <div><p className="text-xs" style={{ color: MUTED }}>Total de sincronizações</p><p className="font-semibold text-white">{dbSyncStatus?.n_sincronizacoes ?? 0}</p></div>
+                  <div><p className="text-xs" style={{ color: MUTED }}>Tipo</p><p className="font-semibold text-ink uppercase">{dbSyncCfg.tipo}</p></div>
+                  <div><p className="text-xs" style={{ color: MUTED }}>Última sincronização</p><p className="font-semibold text-ink">{fmtData(dbSyncStatus?.ultimo_sync)}</p></div>
+                  <div><p className="text-xs" style={{ color: MUTED }}>Total de sincronizações</p><p className="font-semibold text-ink">{dbSyncStatus?.n_sincronizacoes ?? 0}</p></div>
                 </div>
               )}
               <p className="text-xs mt-4" style={{ color: MUTED }}>

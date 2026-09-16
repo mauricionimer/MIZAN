@@ -1,3 +1,4 @@
+import ThemeToggle from '../components/ThemeToggle'
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
@@ -30,7 +31,7 @@ const ACAO_COR = {
   usuario_ativado:       'bg-emerald-500/10 text-emerald-300 ring-emerald-500/20',
   usuario_desativado:    'bg-red-500/10 text-red-300 ring-red-500/20',
   role_alterado:         'bg-amber-500/10 text-amber-300 ring-amber-500/20',
-  senha_alterada:        'bg-slate-500/10 text-slate-300 ring-slate-500/20',
+  senha_alterada:        'bg-slate-500/10 text-ink-2 ring-slate-500/20',
   pagamento_confirmado:  'bg-emerald-500/10 text-emerald-300 ring-emerald-500/20',
 }
 
@@ -102,19 +103,20 @@ export default function Auditoria() {
     <div className="min-h-screen">
       <header className="navbar-glass px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate(isComando ? '/comando' : '/admin')} className="p-1 rounded-lg transition-colors hover:bg-white/5" style={{ color: '#7c93bd' }}>
+          <button onClick={() => navigate(isComando ? '/comando' : '/admin')} className="p-1 rounded-lg transition-colors hover:bg-raise-2" style={{ color: 'var(--ink-3)' }}>
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div className="w-7 h-7 rounded-lg flex items-center justify-center shadow-md shadow-blue-500/20"
             style={{ background: 'linear-gradient(135deg,#1d4ed8,#2563eb)' }}>
-            <ShieldCheck className="h-3.5 w-3.5 text-white" />
+            <ShieldCheck className="h-3.5 w-3.5 text-brand-ink" />
           </div>
-          <span className="font-bold text-white text-sm">Mizan</span>
-          <span className="text-white/20 text-sm">/</span>
-          <span className="text-sm" style={{ color: '#8fa3c8' }}>Auditoria</span>
+          <span className="font-bold text-ink text-sm">Mizan</span>
+          <span className="text-ink-4 text-sm">/</span>
+          <span className="text-sm" style={{ color: 'var(--ink-2)' }}>Auditoria</span>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-sm hidden sm:block" style={{ color: '#7c93bd' }}>{usuario?.nome}</span>
+          <span className="text-sm hidden sm:block" style={{ color: 'var(--ink-3)' }}>{usuario?.nome}</span>
+          <ThemeToggle />
           <button onClick={logout} className="nav-link-danger"><LogOut className="w-4 h-4" /> Sair</button>
         </div>
       </header>
@@ -122,15 +124,15 @@ export default function Auditoria() {
       <div className="max-w-6xl mx-auto px-6 py-10">
         <div className="flex items-start justify-between mb-6">
           <div>
-            <h1 className="text-xl font-bold text-white tracking-tight">Trilha de auditoria</h1>
-            <p className="text-sm mt-1" style={{ color: '#8fa3c8' }}>
+            <h1 className="text-xl font-bold text-ink tracking-tight">Trilha de auditoria</h1>
+            <p className="text-sm mt-1" style={{ color: 'var(--ink-2)' }}>
               Histórico de ações {isComando ? 'de toda a plataforma' : 'da sua empresa'} — compliance e rastreabilidade
             </p>
           </div>
           <button
             onClick={() => exportarCSV(linhas)}
             disabled={linhas.length === 0}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white transition-colors disabled:opacity-40"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-ink transition-colors disabled:opacity-40"
             style={{ background: 'var(--brand)' }}
           >
             <Download className="w-3.5 h-3.5" /> Exportar CSV ({linhas.length})
@@ -138,12 +140,12 @@ export default function Auditoria() {
         </div>
 
         {/* Filtros */}
-        <div className="rounded-2xl p-4 mb-6 flex flex-wrap items-end gap-3" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }}>
-          <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: '#8fa3c8' }}>
+        <div className="rounded-2xl p-4 mb-6 flex flex-wrap items-end gap-3" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
+          <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>
             <Filter className="w-3.5 h-3.5" /> Filtros
           </div>
           <div>
-            <label className="block text-[11px] mb-1" style={{ color: '#7c93bd' }}>Ação</label>
+            <label className="block text-[11px] mb-1" style={{ color: 'var(--ink-3)' }}>Ação</label>
             <select value={filtros.acao} onChange={e => setFiltros(f => ({ ...f, acao: e.target.value }))}
               className="input-base text-xs py-1.5 w-48">
               <option value="">Todas</option>
@@ -152,24 +154,24 @@ export default function Auditoria() {
           </div>
           {isComando && (
             <div>
-              <label className="block text-[11px] mb-1" style={{ color: '#7c93bd' }}>E-mail do usuário</label>
+              <label className="block text-[11px] mb-1" style={{ color: 'var(--ink-3)' }}>E-mail do usuário</label>
               <input type="email" value={filtros.usuario_email} onChange={e => setFiltros(f => ({ ...f, usuario_email: e.target.value }))}
                 placeholder="nome@empresa.com" className="input-base text-xs py-1.5 w-52" />
             </div>
           )}
           <div>
-            <label className="block text-[11px] mb-1" style={{ color: '#7c93bd' }}>De</label>
+            <label className="block text-[11px] mb-1" style={{ color: 'var(--ink-3)' }}>De</label>
             <input type="date" value={filtros.data_inicio} onChange={e => setFiltros(f => ({ ...f, data_inicio: e.target.value }))}
               className="input-base text-xs py-1.5" />
           </div>
           <div>
-            <label className="block text-[11px] mb-1" style={{ color: '#7c93bd' }}>Até</label>
+            <label className="block text-[11px] mb-1" style={{ color: 'var(--ink-3)' }}>Até</label>
             <input type="date" value={filtros.data_fim} onChange={e => setFiltros(f => ({ ...f, data_fim: e.target.value }))}
               className="input-base text-xs py-1.5" />
           </div>
           <button onClick={() => carregar(0, false)} disabled={loading}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
-            style={{ background: 'rgba(255,255,255,0.06)', color: '#8fa3c8' }}>
+            style={{ background: 'var(--raise-3)', color: 'var(--ink-2)' }}>
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Aplicar
           </button>
         </div>
@@ -177,33 +179,33 @@ export default function Auditoria() {
         {erro && <div className="mb-5 text-red-400 rounded-xl px-4 py-3 text-sm" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)' }}>{erro}</div>}
 
         {/* Tabela */}
-        <div className="rounded-2xl overflow-hidden" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }}>
+        <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
           {loading && linhas.length === 0 ? (
-            <div className="flex items-center justify-center py-16 gap-2" style={{ color: '#7c93bd' }}>
+            <div className="flex items-center justify-center py-16 gap-2" style={{ color: 'var(--ink-3)' }}>
               <Loader2 className="h-5 w-5 animate-spin" /> Carregando...
             </div>
           ) : linhas.length === 0 ? (
-            <div className="py-16 text-center text-sm" style={{ color: '#7c93bd' }}>Nenhum registro de auditoria encontrado para esses filtros.</div>
+            <div className="py-16 text-center text-sm" style={{ color: 'var(--ink-3)' }}>Nenhum registro de auditoria encontrado para esses filtros.</div>
           ) : (
-            <div className="divide-y" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+            <div className="divide-y" style={{ borderColor: 'var(--line)' }}>
               {linhas.map(l => (
                 <div key={l.id} className="px-5 py-3.5">
                   <div
                     className="flex items-center gap-3 cursor-pointer"
                     onClick={() => setExpandido(prev => prev === l.id ? null : l.id)}
                   >
-                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ring-1 shrink-0 ${ACAO_COR[l.acao] || 'bg-slate-500/10 text-slate-300 ring-slate-500/20'}`}>
+                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ring-1 shrink-0 ${ACAO_COR[l.acao] || 'bg-slate-500/10 text-ink-2 ring-slate-500/20'}`}>
                       {ACAO_LABEL[l.acao] || l.acao}
                     </span>
-                    <span className="text-sm text-white truncate flex-1 min-w-0">
+                    <span className="text-sm text-ink truncate flex-1 min-w-0">
                       {l.usuario_email || 'sistema'}
-                      {l.entidade && <span style={{ color: '#7c93bd' }}> · {l.entidade}{l.entidade_id ? ` (${l.entidade_id.slice(0, 12)})` : ''}</span>}
+                      {l.entidade && <span style={{ color: 'var(--ink-3)' }}> · {l.entidade}{l.entidade_id ? ` (${l.entidade_id.slice(0, 12)})` : ''}</span>}
                     </span>
-                    <span className="text-xs font-mono shrink-0" style={{ color: '#7c93bd' }}>{fmtData(l.created_at)}</span>
-                    {l.detalhes && <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${expandido === l.id ? 'rotate-180' : ''}`} style={{ color: '#6d84ab' }} />}
+                    <span className="text-xs font-mono shrink-0" style={{ color: 'var(--ink-3)' }}>{fmtData(l.created_at)}</span>
+                    {l.detalhes && <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${expandido === l.id ? 'rotate-180' : ''}`} style={{ color: 'var(--ink-4)' }} />}
                   </div>
                   {expandido === l.id && l.detalhes && (
-                    <pre className="mt-2.5 text-xs rounded-lg p-3 overflow-x-auto" style={{ background: '#0a1220', color: '#8fa3c8', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <pre className="mt-2.5 text-xs rounded-lg p-3 overflow-x-auto" style={{ background: 'var(--surface-2)', color: 'var(--ink-2)', border: '1px solid var(--line)' }}>
                       {JSON.stringify(l.detalhes, null, 2)}
                     </pre>
                   )}
@@ -217,7 +219,7 @@ export default function Auditoria() {
           <div className="flex justify-center mt-5">
             <button onClick={() => carregar(linhas.length, true)} disabled={loading}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-colors disabled:opacity-50"
-              style={{ background: 'rgba(255,255,255,0.06)', color: '#8fa3c8' }}>
+              style={{ background: 'var(--raise-3)', color: 'var(--ink-2)' }}>
               {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null} Carregar mais
             </button>
           </div>

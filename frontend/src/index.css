@@ -5,9 +5,121 @@
 @tailwind utilities;
 
 @layer base {
+  /* ── Tema escuro (padrão) ──────────────────────────────────
+     Todo o app lê estas variáveis; trocar data-theme no <html>
+     troca o tema inteiro sem tocar em componente nenhum. */
   :root {
     --brand: #2563eb;
     --brand-hover: color-mix(in srgb, var(--brand) 80%, white);
+    --brand-ink: #ffffff;          /* texto sobre a cor de marca */
+
+    --bg: #09090f;                 /* fundo da página */
+    --surface: #0d1628;            /* painel principal */
+    --surface-2: #0a0f1e;          /* painel aninhado / cabeçalho de tabela */
+
+    --raise-1: rgba(255,255,255,0.02);
+    --raise-2: rgba(255,255,255,0.04);
+    --raise-3: rgba(255,255,255,0.07);
+
+    --line: rgba(255,255,255,0.07);
+    --line-2: rgba(255,255,255,0.14);
+
+    --ink:   #f0f0f5;              /* texto primário */
+    --ink-2: #8fa3c8;              /* secundário */
+    --ink-3: #7c93bd;              /* terciário */
+    --ink-4: #6d84ab;              /* placeholder / desabilitado */
+
+    /* acentos: valores padrao do Tailwind (tema escuro inalterado) */
+    --c-emerald-200: 167 243 208;
+    --c-emerald-300: 110 231 183;
+    --c-emerald-400: 52 211 153;
+    --c-emerald-900: 6 78 59;
+    --c-emerald-950: 2 44 34;
+    --c-red-200: 254 202 202;
+    --c-red-300: 252 165 165;
+    --c-red-400: 248 113 113;
+    --c-red-900: 127 29 29;
+    --c-red-950: 69 10 10;
+    --c-blue-200: 191 219 254;
+    --c-blue-300: 147 197 253;
+    --c-blue-400: 96 165 250;
+    --c-blue-900: 30 58 138;
+    --c-blue-950: 23 37 84;
+    --c-amber-200: 253 230 138;
+    --c-amber-300: 252 211 77;
+    --c-amber-400: 251 191 36;
+    --c-amber-900: 120 53 15;
+    --c-amber-950: 69 26 3;
+    --c-violet-200: 221 214 254;
+    --c-violet-300: 196 181 253;
+    --c-violet-400: 167 139 250;
+    --c-indigo-200: 199 210 254;
+    --c-indigo-300: 165 180 252;
+    --c-indigo-400: 129 140 248;
+    --c-rose-300: 253 164 175;
+    --c-rose-400: 251 113 133;
+    --c-orange-400: 251 146 60;
+
+    --shadow: 0 8px 28px -12px rgba(0,0,0,0.55);
+    color-scheme: dark;
+  }
+
+  /* ── Tema claro ───────────────────────────────────────────
+     Mesmos papéis, valores invertidos. Os tons de texto foram
+     escolhidos para passar 4.5:1 sobre --surface. */
+  :root[data-theme='light'] {
+    --brand-hover: color-mix(in srgb, var(--brand) 85%, black);
+    --brand-ink: #ffffff;
+
+    --bg: #f5f7fb;
+    --surface: #ffffff;
+    --surface-2: #eef2f8;
+
+    --raise-1: rgba(15,23,42,0.02);
+    --raise-2: rgba(15,23,42,0.04);
+    --raise-3: rgba(15,23,42,0.07);
+
+    --line: rgba(15,23,42,0.10);
+    --line-2: rgba(15,23,42,0.18);
+
+    --ink:   #0f172a;
+    --ink-2: #47566b;
+    --ink-3: #5a6b84;
+    --ink-4: #6b7c93;
+
+    /* acentos escurecidos para contraste sobre fundo claro */
+    --c-emerald-200: 5 150 105;
+    --c-emerald-300: 4 120 87;
+    --c-emerald-400: 4 120 87;
+    --c-emerald-900: 209 250 229;
+    --c-emerald-950: 236 253 245;
+    --c-red-200: 220 38 38;
+    --c-red-300: 185 28 28;
+    --c-red-400: 220 38 38;
+    --c-red-900: 254 226 226;
+    --c-red-950: 254 242 242;
+    --c-blue-200: 29 78 216;
+    --c-blue-300: 29 78 216;
+    --c-blue-400: 37 99 235;
+    --c-blue-900: 219 234 254;
+    --c-blue-950: 239 246 255;
+    --c-amber-200: 180 83 9;
+    --c-amber-300: 180 83 9;
+    --c-amber-400: 217 119 6;
+    --c-amber-900: 254 243 199;
+    --c-amber-950: 255 251 235;
+    --c-violet-200: 109 40 217;
+    --c-violet-300: 109 40 217;
+    --c-violet-400: 124 58 237;
+    --c-indigo-200: 67 56 202;
+    --c-indigo-300: 67 56 202;
+    --c-indigo-400: 79 70 229;
+    --c-rose-300: 190 18 60;
+    --c-rose-400: 225 29 72;
+    --c-orange-400: 194 65 12;
+
+    --shadow: 0 8px 28px -12px rgba(15,23,42,0.18);
+    color-scheme: light;
   }
 
   * { box-sizing: border-box; }
@@ -15,39 +127,45 @@
   html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 
   body {
-    color: #f0f0f5;
+    color: var(--ink);
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'tnum';
-    background: #09090f;
+    background: var(--bg);
     background-attachment: fixed;
+    transition: background-color 180ms ease, color 180ms ease;
   }
 
   ::-webkit-scrollbar { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 9999px; }
-  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.14); }
+  ::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--ink-4); }
 
-  ::selection { background: rgba(59,130,246,0.25); color: white; }
+  ::selection { background: color-mix(in srgb, var(--brand) 30%, transparent); color: var(--ink); }
 
   input[type='range']::-webkit-slider-thumb {
     -webkit-appearance: none;
     width: 14px; height: 14px;
     border-radius: 50%;
-    background: white;
-    border: 2px solid #3b82f6;
+    background: var(--surface);
+    border: 2px solid var(--brand);
     cursor: pointer;
-    box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 12%, transparent);
   }
   input[type='range']::-moz-range-thumb {
     width: 14px; height: 14px;
     border-radius: 50%;
-    background: white;
-    border: 2px solid #3b82f6;
+    background: var(--surface);
+    border: 2px solid var(--brand);
     cursor: pointer;
   }
 
-  input[type='date']::-webkit-calendar-picker-indicator {
+  /* o ícone nativo do date é escuro; só inverte no tema escuro */
+  :root:not([data-theme='light']) input[type='date']::-webkit-calendar-picker-indicator {
     filter: invert(1) opacity(0.3);
+    cursor: pointer;
+  }
+  :root[data-theme='light'] input[type='date']::-webkit-calendar-picker-indicator {
+    opacity: 0.45;
     cursor: pointer;
   }
 }
@@ -56,15 +174,15 @@
   /* ── Cards ── */
   .card {
     @apply rounded-xl;
-    background: rgba(255,255,255,0.02);
-    border: 1px solid rgba(255,255,255,0.06);
+    background: var(--raise-1);
+    border: 1px solid var(--line);
   }
   .card-hover {
     @apply card transition-all duration-200;
   }
   .card-hover:hover {
-    border-color: rgba(255,255,255,0.10);
-    background: rgba(255,255,255,0.03);
+    border-color: var(--line-2);
+    background: var(--raise-2);
   }
 
   /* ── Labels ── */
@@ -73,15 +191,15 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.12em;
-    color: #94a3b8;
+    color: var(--ink-2);
   }
   .section-title {
     @apply text-sm font-semibold tracking-tight;
-    color: #f0f0f5;
+    color: var(--ink);
   }
   .section-sub {
     @apply text-xs mt-0.5;
-    color: #94a3b8;
+    color: var(--ink-2);
   }
 
   /* ── Section header ── */
@@ -91,23 +209,24 @@
   /* ── Inputs ── */
   .input-base {
     @apply w-full rounded-lg px-3.5 py-2.5 text-sm focus:outline-none transition-all;
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.08);
-    color: #f0f0f5;
+    background: var(--raise-2);
+    border: 1px solid var(--line);
+    color: var(--ink);
   }
-  .input-base::placeholder { color: #6d84ab; }
+  .input-base::placeholder { color: var(--ink-4); }
   .input-base:focus {
-    border-color: rgba(59,130,246,0.50);
-    background: rgba(255,255,255,0.05);
-    box-shadow: 0 0 0 3px rgba(59,130,246,0.10);
+    border-color: color-mix(in srgb, var(--brand) 50%, transparent);
+    background: var(--raise-3);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 10%, transparent);
   }
 
   /* ── Primary button ── */
   .btn-primary {
     @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg
-           font-medium text-sm text-white transition-all duration-150
+           font-medium text-sm transition-all duration-150
            active:scale-[0.98] focus:outline-none;
     background: var(--brand);
+    color: var(--brand-ink);
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.10);
   }
   .btn-primary:hover:not(:disabled) {
@@ -121,20 +240,20 @@
   /* ── Nav links ── */
   .nav-link {
     @apply flex items-center gap-1.5 text-sm font-medium transition-colors px-2.5 py-1.5 rounded-lg;
-    color: #94a3b8;
+    color: var(--ink-2);
   }
-  .nav-link:hover { color: #f0f0f5; background: rgba(255,255,255,0.05); }
+  .nav-link:hover { color: var(--ink); background: var(--raise-2); }
 
   .nav-link-danger {
     @apply flex items-center gap-1.5 text-sm font-medium transition-colors px-2.5 py-1.5 rounded-lg;
-    color: #94a3b8;
+    color: var(--ink-2);
   }
   .nav-link-danger:hover { color: #f87171; background: rgba(239,68,68,0.06); }
 
   /* ── Navbar ── */
   .navbar-glass {
     @apply backdrop-blur-xl border-b sticky top-0 z-20;
-    background: rgba(9,9,15,0.90);
-    border-color: rgba(255,255,255,0.06);
+    background: color-mix(in srgb, var(--bg) 90%, transparent);
+    border-color: var(--line);
   }
 }

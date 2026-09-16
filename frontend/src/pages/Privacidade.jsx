@@ -1,3 +1,4 @@
+import ThemeToggle from '../components/ThemeToggle'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 
@@ -5,26 +6,27 @@ export default function Privacidade() {
   const navigate = useNavigate()
   return (
     <div className="min-h-screen py-12 px-6">
+      <ThemeToggle className="fixed top-4 right-4 z-50" />
       <div className="max-w-2xl mx-auto">
         <button onClick={() => navigate(-1)}
-          className="flex items-center gap-1.5 text-sm text-blue-400 hover:text-white mb-8 transition-colors font-medium">
+          className="flex items-center gap-1.5 text-sm text-blue-400 hover:text-ink mb-8 transition-colors font-medium">
           <ArrowLeft className="h-4 w-4" /> Voltar
         </button>
 
         <div className="rounded-2xl p-8 space-y-6"
           style={{
-            background: '#0d1628',
-            border: '1px solid rgba(255,255,255,0.07)',
+            background: 'var(--surface)',
+            border: '1px solid var(--line)',
             boxShadow: '0 8px 32px rgba(0,0,0,0.50), 0 2px 8px rgba(0,0,0,0.30)',
           }}>
           <div className="flex items-center gap-3 mb-1">
             <div className="w-8 h-8 rounded-xl flex items-center justify-center"
               style={{ background: 'linear-gradient(135deg,#1d6aff,#1557f0)' }}>
-              <span className="text-white font-bold text-sm">⚖</span>
+              <span className="text-brand-ink font-bold text-sm">⚖</span>
             </div>
             <div>
-              <h1 className="text-lg font-bold text-white tracking-tight">Política de Privacidade</h1>
-              <p className="text-xs mt-0.5" style={{ color: '#7c93bd' }}>
+              <h1 className="text-lg font-bold text-ink tracking-tight">Política de Privacidade</h1>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
                 Última atualização: maio de 2026 · Em conformidade com a LGPD (Lei nº 13.709/2018)
               </p>
             </div>
@@ -43,7 +45,7 @@ export default function Privacidade() {
             </div>
           </div>
 
-          <div className="border-t" style={{ borderColor: 'rgba(255,255,255,0.07)' }} />
+          <div className="border-t" style={{ borderColor: 'var(--line)' }} />
 
           {[
             {
@@ -84,8 +86,8 @@ export default function Privacidade() {
             },
           ].map(({ titulo, texto }) => (
             <div key={titulo}>
-              <h2 className="text-sm font-semibold text-white mb-1.5">{titulo}</h2>
-              <p className="text-sm leading-relaxed" style={{ color: '#8fa3c8' }}>{texto}</p>
+              <h2 className="text-sm font-semibold text-ink mb-1.5">{titulo}</h2>
+              <p className="text-sm leading-relaxed" style={{ color: 'var(--ink-2)' }}>{texto}</p>
             </div>
           ))}
         </div>

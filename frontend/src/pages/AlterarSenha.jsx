@@ -1,3 +1,4 @@
+import ThemeToggle from '../components/ThemeToggle'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
@@ -10,7 +11,7 @@ function Logo() {
   return (
     <div className="w-7 h-7 rounded-lg flex items-center justify-center"
       style={{ background: 'linear-gradient(135deg,#1d6aff,#1557f0)', boxShadow: '0 2px 8px rgba(29,106,255,0.30)' }}>
-      <span className="text-white font-bold text-xs">⚖</span>
+      <span className="text-brand-ink font-bold text-xs">⚖</span>
     </div>
   )
 }
@@ -59,7 +60,7 @@ export default function AlterarSenha() {
   function Campo({ label, campo, show, setShow }) {
     return (
       <div>
-        <label className="block text-xs font-semibold mb-1.5" style={{ color: '#8fa3c8' }}>{label}</label>
+        <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>{label}</label>
         <div className="relative">
           <input
             type={show ? 'text' : 'password'}
@@ -70,7 +71,7 @@ export default function AlterarSenha() {
           />
           <button type="button" onClick={() => setShow(s => !s)}
             className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors"
-            style={{ color: '#7c93bd' }}>
+            style={{ color: 'var(--ink-3)' }}>
             {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
           </button>
         </div>
@@ -83,17 +84,18 @@ export default function AlterarSenha() {
       <header className="navbar-glass px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button onClick={() => navigate(homePath)}
-            className="transition-colors p-1 rounded-lg hover:bg-white/5"
-            style={{ color: '#7c93bd' }}>
+            className="transition-colors p-1 rounded-lg hover:bg-raise-2"
+            style={{ color: 'var(--ink-3)' }}>
             <ArrowLeft className="w-4 h-4" />
           </button>
           <Logo />
-          <span className="font-bold text-white text-sm">Mizan</span>
-          <span className="text-white/20 text-sm">/</span>
-          <span className="text-sm" style={{ color: '#8fa3c8' }}>Alterar senha</span>
+          <span className="font-bold text-ink text-sm">Mizan</span>
+          <span className="text-ink-4 text-sm">/</span>
+          <span className="text-sm" style={{ color: 'var(--ink-2)' }}>Alterar senha</span>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-sm hidden sm:block" style={{ color: '#7c93bd' }}>{usuario?.nome}</span>
+          <span className="text-sm hidden sm:block" style={{ color: 'var(--ink-3)' }}>{usuario?.nome}</span>
+          <ThemeToggle />
           <button onClick={logout} className="nav-link-danger">
             <LogOut className="w-4 h-4" /> Sair
           </button>
@@ -103,8 +105,8 @@ export default function AlterarSenha() {
       <div className="max-w-md mx-auto px-6 py-12">
         <div className="rounded-2xl p-8"
           style={{
-            background: '#0d1628',
-            border: '1px solid rgba(255,255,255,0.07)',
+            background: 'var(--surface)',
+            border: '1px solid var(--line)',
             boxShadow: '0 16px 48px rgba(0,0,0,0.50), 0 4px 12px rgba(0,0,0,0.30)',
           }}>
           <div className="flex items-center gap-3 mb-2">
@@ -113,12 +115,12 @@ export default function AlterarSenha() {
               <KeyRound className="w-5 h-5 text-blue-400" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-white tracking-tight">Alterar senha</h1>
-              <p className="text-xs" style={{ color: '#7c93bd' }}>Mínimo 8 caracteres, letras e números</p>
+              <h1 className="text-lg font-bold text-ink tracking-tight">Alterar senha</h1>
+              <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Mínimo 8 caracteres, letras e números</p>
             </div>
           </div>
 
-          <div className="border-t my-5" style={{ borderColor: 'rgba(255,255,255,0.07)' }} />
+          <div className="border-t my-5" style={{ borderColor: 'var(--line)' }} />
 
           {sucesso ? (
             <div className="text-center py-6">
@@ -126,8 +128,8 @@ export default function AlterarSenha() {
                 style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.20)' }}>
                 <CheckCircle2 className="w-7 h-7 text-emerald-400" />
               </div>
-              <h2 className="text-base font-bold text-white mb-1 tracking-tight">Senha alterada!</h2>
-              <p className="text-sm mb-6" style={{ color: '#8fa3c8' }}>Sua senha foi atualizada com sucesso.</p>
+              <h2 className="text-base font-bold text-ink mb-1 tracking-tight">Senha alterada!</h2>
+              <p className="text-sm mb-6" style={{ color: 'var(--ink-2)' }}>Sua senha foi atualizada com sucesso.</p>
               <button onClick={() => navigate(homePath)} className="btn-primary px-6 py-2.5">
                 Voltar
               </button>
@@ -174,7 +176,7 @@ function DeletarConta({ onDeleted }) {
   }
 
   return (
-    <div className="mt-8 border-t pt-6" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
+    <div className="mt-8 border-t pt-6" style={{ borderColor: 'var(--line)' }}>
       <p className="text-[11px] font-semibold text-red-400/70 uppercase tracking-widest mb-3">Zona de perigo</p>
       {!confirmando ? (
         <button onClick={() => setConfirmando(true)}
@@ -191,13 +193,13 @@ function DeletarConta({ onDeleted }) {
           {erro && <p className="text-xs text-red-400">{erro}</p>}
           <div className="flex gap-2">
             <button onClick={confirmarDelecao} disabled={deletando}
-              className="px-4 py-2 rounded-xl text-sm font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors">
+              className="px-4 py-2 rounded-xl text-sm font-semibold bg-red-600 text-brand-ink hover:bg-red-700 disabled:opacity-50 transition-colors">
               {deletando ? 'Deletando...' : 'Confirmar exclusão'}
             </button>
             <button onClick={() => setConfirmando(false)}
               className="px-4 py-2 rounded-xl text-sm font-medium transition-colors"
-              style={{ color: '#8fa3c8' }}
-              onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+              style={{ color: 'var(--ink-2)' }}
+              onMouseOver={e => e.currentTarget.style.background = 'var(--raise-2)'}
               onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
               Cancelar
             </button>

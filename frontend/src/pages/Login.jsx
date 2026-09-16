@@ -1,3 +1,4 @@
+import ThemeToggle from '../components/ThemeToggle'
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
@@ -66,6 +67,7 @@ export default function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden p-4"
       style={{ background: '#080d1e' }}>
+      <ThemeToggle className="fixed top-4 right-4 z-50" />
 
       {/* Glow de fundo */}
       <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full blur-3xl opacity-10 pointer-events-none"
@@ -89,31 +91,31 @@ export default function Login() {
           <div className="flex items-center gap-3">
             {fotoEmpresa ? (
               <img src={fotoEmpresa} alt={nomEmpresa}
-                className="w-12 h-12 rounded-2xl object-cover border border-white/20 shadow-xl" />
+                className="w-12 h-12 rounded-2xl object-cover border border-line-2 shadow-xl" />
             ) : (
               <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
                 style={{ background: 'rgba(29,106,255,0.15)', border: '1px solid rgba(29,106,255,0.30)', boxShadow: '0 8px 32px rgba(29,106,255,0.15)' }}>
-                <span className="text-white text-xl font-bold">⚖</span>
+                <span className="text-ink text-xl font-bold">⚖</span>
               </div>
             )}
-            <span className="text-white text-2xl font-extrabold tracking-tight">
+            <span className="text-ink text-2xl font-extrabold tracking-tight">
               {nomEmpresa || 'Mizan'}
             </span>
-            {nomEmpresa && <span className="text-white/30 text-sm font-medium">· via Mizan</span>}
+            {nomEmpresa && <span className="text-ink-4 text-sm font-medium">· via Mizan</span>}
           </div>
 
           <div>
             <p className="text-blue-400 text-xs font-bold uppercase tracking-[0.2em] mb-4">
               Recuperação de crédito com IA
             </p>
-            <h2 className="text-5xl font-extrabold text-white leading-[1.1] tracking-tight mb-5">
+            <h2 className="text-5xl font-extrabold text-ink leading-[1.1] tracking-tight mb-5">
               {nomEmpresa ? (
                 <>Bem-vindo à<br /><span style={{ color: cor }}>{nomEmpresa}</span></>
               ) : (
                 <>Recupere mais.<br /><span className="text-blue-400">Aprenda com</span><br />cada resultado.</>
               )}
             </h2>
-            <p className="text-[#8fa3c8] text-base leading-relaxed max-w-sm">
+            <p className="text-ink-2 text-base leading-relaxed max-w-sm">
               Analise carteiras, priorize devedores e receba recomendações que evoluem com cada contato registrado.
             </p>
           </div>
@@ -126,48 +128,48 @@ export default function Login() {
                 { n: '12',   l: 'Estratégias', icon: '🧠' },
               ].map(({ n, l, icon }) => (
                 <div key={l} className="rounded-2xl p-4"
-                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  style={{ background: 'var(--raise-2)', border: '1px solid var(--line)' }}>
                   <p className="text-xl mb-2">{icon}</p>
-                  <p className="text-2xl font-extrabold text-white tracking-tight">{n}</p>
+                  <p className="text-2xl font-extrabold text-ink tracking-tight">{n}</p>
                   <p className="text-blue-400 text-xs mt-1 font-semibold">{l}</p>
                 </div>
               ))}
             </div>
           )}
 
-          <p className="text-[#6d84ab] text-xs">© 2026 Mizan · Todos os direitos reservados</p>
+          <p className="text-ink-4 text-xs">© 2026 Mizan · Todos os direitos reservados</p>
         </div>
 
         {/* Lado direito — card do formulário */}
         <div className="w-full lg:w-[400px] shrink-0">
           <div className="rounded-3xl p-8"
             style={{
-              background: '#0d1628',
-              border: '1px solid rgba(255,255,255,0.08)',
+              background: 'var(--surface)',
+              border: '1px solid var(--line)',
               boxShadow: '0 32px 80px rgba(0,0,0,0.60), 0 8px 24px rgba(0,0,0,0.40)',
             }}>
 
             <div className="flex items-center gap-2.5 mb-8">
               {fotoEmpresa ? (
                 <img src={fotoEmpresa} alt={nomEmpresa}
-                  className="w-9 h-9 rounded-xl object-cover border border-white/10 shrink-0" />
+                  className="w-9 h-9 rounded-xl object-cover border border-line shrink-0" />
               ) : (
                 <div className="w-9 h-9 rounded-xl flex items-center justify-center shadow-lg shrink-0"
                   style={{ background: `linear-gradient(135deg,${cor},${cor}cc)` }}>
-                  <span className="text-white font-bold text-sm">⚖</span>
+                  <span className="text-brand-ink font-bold text-sm">⚖</span>
                 </div>
               )}
               <div>
-                <span className="text-white text-base font-bold tracking-tight leading-none block">
+                <span className="text-ink text-base font-bold tracking-tight leading-none block">
                   {nomEmpresa || 'Mizan'}
                 </span>
-                {nomEmpresa && <span className="text-[#7c93bd] text-xs">via Mizan</span>}
+                {nomEmpresa && <span className="text-ink-3 text-xs">via Mizan</span>}
               </div>
             </div>
 
             <div className="mb-7">
-              <h1 className="text-2xl font-extrabold text-white tracking-tight">Bem-vindo de volta</h1>
-              <p className="text-[#8fa3c8] text-sm mt-1.5">Entre com suas credenciais para acessar</p>
+              <h1 className="text-2xl font-extrabold text-ink tracking-tight">Bem-vindo de volta</h1>
+              <p className="text-ink-2 text-sm mt-1.5">Entre com suas credenciais para acessar</p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-5">
@@ -179,7 +181,7 @@ export default function Login() {
               )}
 
               <div>
-                <label className="block text-xs font-semibold mb-1.5" style={{ color: '#8fa3c8' }}>E-mail</label>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>E-mail</label>
                 <input
                   type="email"
                   value={email}
@@ -192,7 +194,7 @@ export default function Login() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold mb-1.5" style={{ color: '#8fa3c8' }}>Senha</label>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>Senha</label>
                 <div className="relative">
                   <input
                     type={mostrarSenha ? 'text' : 'password'}
@@ -206,7 +208,7 @@ export default function Login() {
                     type="button"
                     onClick={() => setMostrarSenha(v => !v)}
                     className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors"
-                    style={{ color: '#7c93bd' }}
+                    style={{ color: 'var(--ink-3)' }}
                   >
                     {mostrarSenha ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -228,7 +230,7 @@ export default function Login() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 rounded-xl font-bold text-white text-base disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                className="w-full py-3 rounded-xl font-bold text-ink text-base disabled:opacity-50 transition-all flex items-center justify-center gap-2"
                 style={{
                   background: `linear-gradient(135deg,${cor},${cor}cc)`,
                   boxShadow: `0 4px 16px ${cor}40`,
@@ -240,9 +242,9 @@ export default function Login() {
               </button>
             </form>
 
-            <p className="mt-7 text-center text-xs" style={{ color: '#6d84ab' }}>
+            <p className="mt-7 text-center text-xs" style={{ color: 'var(--ink-4)' }}>
               Acesso restrito a usuários cadastrados.{' '}
-              <a href="/privacidade" className="underline hover:text-[#8fa3c8] transition-colors">Privacidade</a>
+              <a href="/privacidade" className="underline hover:text-ink-2 transition-colors">Privacidade</a>
             </p>
           </div>
         </div>
