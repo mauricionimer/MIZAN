@@ -1,4 +1,6 @@
 import ThemeToggle from '../components/ThemeToggle'
+import { motion } from 'framer-motion'
+import { lista, item } from '../lib/motion'
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -626,12 +628,13 @@ export default function Dashboard() {
           </div>
 
           {/* ── KPIs ── */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <KpiCard label="Total de Devedores"     value={fmtNum(resumo.total_devedores)}  icon={Users}       accent="blue"    />
-            <KpiCard label="Valor de Face"           value={fmtBRL(resumo.total_em_risco)}   sub="valor nominal da carteira"   icon={TrendingDown} accent="amber"   />
-            <KpiCard label="Score Médio"             value={resumo.score_medio.toFixed(1)}   sub="recuperabilidade (0–100)"    icon={BarChart2}    accent="violet"  />
-            <KpiCard label="Devedores Prioritários" value={fmtNum(prioritarios)}             sub="score ≥ 70"                  icon={Star}         accent="emerald" />
-          </div>
+          <motion.div variants={lista} initial="inicial" animate="entra"
+            className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <motion.div variants={item}><KpiCard label="Total de Devedores"     value={fmtNum(resumo.total_devedores)}  icon={Users}       accent="blue"    /></motion.div>
+            <motion.div variants={item}><KpiCard label="Valor de Face"           value={fmtBRL(resumo.total_em_risco)}   sub="valor nominal da carteira"   icon={TrendingDown} accent="amber"   /></motion.div>
+            <motion.div variants={item}><KpiCard label="Score Médio"             value={resumo.score_medio.toFixed(1)}   sub="recuperabilidade (0–100)"    icon={BarChart2}    accent="violet"  /></motion.div>
+            <motion.div variants={item}><KpiCard label="Devedores Prioritários" value={fmtNum(prioritarios)}             sub="score ≥ 70"                  icon={Star}         accent="emerald" /></motion.div>
+          </motion.div>
 
           {/* ── Precificação ── */}
           {!isOperador && (
@@ -653,19 +656,20 @@ export default function Dashboard() {
                     value={retornoAlvo} min={10} max={80} step={1} onChange={setRetornoAlvo} color="emerald" />
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5 lg:col-span-4">
-                  <PricingCard label="Valor Esperado de Recuperação" value={fmtBRL(pricing.ver)}
+                <motion.div variants={lista} initial="inicial" animate="entra"
+                  className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5 lg:col-span-4">
+                  <motion.div variants={item}><PricingCard label="Valor Esperado de Recuperação" value={fmtBRL(pricing.ver)}
                     sub={resumo.taxa_recuperacao_esperada != null ? `${fmtPct(resumo.taxa_recuperacao_esperada)} do valor de face` : 'do valor de face'}
-                    icon={ArrowUpRight} />
-                  <PricingCard label="Valor Líquido (após custos)" value={fmtBRL(pricing.liquido)}
-                    sub={`custos estimados: ${fmtBRL(pricing.ver - pricing.liquido)}`} icon={Percent} />
-                  <PricingCard label="Preço Sugerido de Compra" value={fmtBRL(pricing.preco)}
-                    sub={`${fmtPct(pricing.desconto)} de desconto sobre o face`} highlight icon={Tag} />
-                  <PricingCard label="Lucro Final (líquido)" value={fmtBRL(pricing.lucro)}
-                    sub={`retorno de ${pricing.retorno.toFixed(1)}% sobre o preço pago`} accent="emerald" icon={Banknote} />
-                  <PricingCard label="Taxa de Recuperação Estimada" value={`${pricing.taxaRecuperacao.toFixed(1)}%`}
-                    sub="do valor de face" icon={TrendingUp} />
-                </div>
+                    icon={ArrowUpRight} /></motion.div>
+                  <motion.div variants={item}><PricingCard label="Valor Líquido (após custos)" value={fmtBRL(pricing.liquido)}
+                    sub={`custos estimados: ${fmtBRL(pricing.ver - pricing.liquido)}`} icon={Percent} /></motion.div>
+                  <motion.div variants={item}><PricingCard label="Preço Sugerido de Compra" value={fmtBRL(pricing.preco)}
+                    sub={`${fmtPct(pricing.desconto)} de desconto sobre o face`} highlight icon={Tag} /></motion.div>
+                  <motion.div variants={item}><PricingCard label="Lucro Final (líquido)" value={fmtBRL(pricing.lucro)}
+                    sub={`retorno de ${pricing.retorno.toFixed(1)}% sobre o preço pago`} accent="emerald" icon={Banknote} /></motion.div>
+                  <motion.div variants={item}><PricingCard label="Taxa de Recuperação Estimada" value={`${pricing.taxaRecuperacao.toFixed(1)}%`}
+                    sub="do valor de face" icon={TrendingUp} /></motion.div>
+                </motion.div>
               </div>
 
               <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-line pt-4 text-xs text-ink-2">

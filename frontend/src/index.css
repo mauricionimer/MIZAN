@@ -257,3 +257,33 @@
     border-color: var(--line);
   }
 }
+
+@layer base {
+  /* Rede de segurança: quem configurou o sistema para menos movimento não
+     recebe animação nenhuma, inclusive de bibliotecas. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* O botão primário já usa active:scale do Tailwind; mexer no transform
+     aqui brigaria com ele, então o realce de hover é via sombra. */
+  .btn-primary {
+    transition: background-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+  }
+  .btn-primary:hover:not(:disabled) {
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.10),
+                0 6px 18px -6px color-mix(in srgb, var(--brand) 55%, transparent);
+  }
+
+  /* Troca de tema suave nas superfícies */
+  .card, .input-base, .navbar-glass {
+    transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease;
+  }
+}

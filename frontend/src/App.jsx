@@ -4,6 +4,8 @@ import { Loader2 } from 'lucide-react'
 import { AnalysisProvider } from './context/AnalysisContext'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
+import { AnimatePresence } from 'framer-motion'
+import PageTransition from './components/PageTransition'
 
 class ErrorBoundary extends Component {
   state = { error: null }
@@ -87,6 +89,33 @@ function RotaProtegida({ children, roles }) {
   return children
 }
 
+function RotasAnimadas() {
+  const location = useLocation()
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+          <Routes location={location} key={location.pathname}>
+            <Route path="/login" element={<PageTransition><Login /></PageTransition>} />
+            <Route path="/esqueci-senha" element={<PageTransition><EsqueciSenha /></PageTransition>} />
+            <Route path="/redefinir-senha" element={<PageTransition><RedefinirSenha /></PageTransition>} />
+            <Route path="/" element={<PageTransition><RotaProtegida><Upload /></RotaProtegida></PageTransition>} />
+            <Route path="/dashboard" element={<PageTransition><RotaProtegida><Dashboard /></RotaProtegida></PageTransition>} />
+            <Route path="/devedor/:rank" element={<PageTransition><RotaProtegida><DebtorDetail /></RotaProtegida></PageTransition>} />
+            <Route path="/feedback" element={<PageTransition><RotaProtegida><Feedback /></RotaProtegida></PageTransition>} />
+            <Route path="/bandit" element={<PageTransition><RotaProtegida roles={['comando']}><BanditDashboard /></RotaProtegida></PageTransition>} />
+            <Route path="/aprendizado" element={<PageTransition><RotaProtegida roles={['comando']}><AprendizadoDashboard /></RotaProtegida></PageTransition>} />
+            <Route path="/comando" element={<PageTransition><RotaProtegida roles={['comando']}><ComandoDashboard /></RotaProtegida></PageTransition>} />
+            <Route path="/admin" element={<PageTransition><RotaProtegida roles={['admin', 'comando']}><AdminHome /></RotaProtegida></PageTransition>} />
+            <Route path="/operador" element={<PageTransition><RotaProtegida roles={['operador']}><OperadorHome /></RotaProtegida></PageTransition>} />
+            <Route path="/admin/usuarios" element={<PageTransition><RotaProtegida roles={['admin', 'comando']}><AdminUsuarios /></RotaProtegida></PageTransition>} />
+            <Route path="/auditoria" element={<PageTransition><RotaProtegida roles={['admin', 'comando']}><Auditoria /></RotaProtegida></PageTransition>} />
+            <Route path="/alterar-senha" element={<PageTransition><RotaProtegida><AlterarSenha /></RotaProtegida></PageTransition>} />
+            <Route path="/privacidade" element={<PageTransition><Privacidade /></PageTransition>} />
+            <Route path="*" element={<Navigate to="/" replace />} /> />
+          </Routes>
+    </AnimatePresence>
+  )
+}
+
 export default function App() {
   return (
     <ErrorBoundary>
@@ -95,25 +124,7 @@ export default function App() {
       <AnalysisProvider>
         <ServerWarmupBanner />
         <BrowserRouter>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/esqueci-senha" element={<EsqueciSenha />} />
-            <Route path="/redefinir-senha" element={<RedefinirSenha />} />
-            <Route path="/" element={<RotaProtegida><Upload /></RotaProtegida>} />
-            <Route path="/dashboard" element={<RotaProtegida><Dashboard /></RotaProtegida>} />
-            <Route path="/devedor/:rank" element={<RotaProtegida><DebtorDetail /></RotaProtegida>} />
-            <Route path="/feedback" element={<RotaProtegida><Feedback /></RotaProtegida>} />
-            <Route path="/bandit" element={<RotaProtegida roles={['comando']}><BanditDashboard /></RotaProtegida>} />
-            <Route path="/aprendizado" element={<RotaProtegida roles={['comando']}><AprendizadoDashboard /></RotaProtegida>} />
-            <Route path="/comando" element={<RotaProtegida roles={['comando']}><ComandoDashboard /></RotaProtegida>} />
-            <Route path="/admin" element={<RotaProtegida roles={['admin', 'comando']}><AdminHome /></RotaProtegida>} />
-            <Route path="/operador" element={<RotaProtegida roles={['operador']}><OperadorHome /></RotaProtegida>} />
-            <Route path="/admin/usuarios" element={<RotaProtegida roles={['admin', 'comando']}><AdminUsuarios /></RotaProtegida>} />
-            <Route path="/auditoria" element={<RotaProtegida roles={['admin', 'comando']}><Auditoria /></RotaProtegida>} />
-            <Route path="/alterar-senha" element={<RotaProtegida><AlterarSenha /></RotaProtegida>} />
-            <Route path="/privacidade" element={<Privacidade />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+          <RotasAnimadas />
         </BrowserRouter>
       </AnalysisProvider>
       </AuthProvider>

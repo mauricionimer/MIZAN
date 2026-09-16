@@ -1,4 +1,6 @@
 import ThemeToggle from '../components/ThemeToggle'
+import { motion } from 'framer-motion'
+import { lista, item } from '../lib/motion'
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
@@ -108,12 +110,13 @@ export default function AdminHome() {
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <ActionCard icon={Upload}   label="Analisar carteira"  desc="Enviar CSV/Excel ou conectar banco de dados para análise com IA" onClick={() => navigate('/')}               accent="blue"    />
-          <ActionCard icon={Users}    label="Gerenciar equipe"   desc="Operadores, permissões de banco e configurações da empresa"      onClick={() => navigate('/admin/usuarios')} accent="violet"  />
-          <ActionCard icon={Database} label="Bancos de dados"    desc="Cadastrar conexões e configurar sincronizações automáticas"      onClick={() => navigate('/')}               accent="emerald" />
-          <ActionCard icon={KeyRound} label="Alterar senha"      desc="Atualizar suas credenciais de acesso ao sistema"                 onClick={() => navigate('/alterar-senha')}  accent="slate"   />
-        </div>
+        <motion.div variants={lista} initial="inicial" animate="entra"
+          className="grid grid-cols-2 gap-4">
+          <motion.div variants={item}><ActionCard icon={Upload}   label="Analisar carteira"  desc="Enviar CSV/Excel ou conectar banco de dados para análise com IA" onClick={() => navigate('/')}               accent="blue"    /></motion.div>
+          <motion.div variants={item}><ActionCard icon={Users}    label="Gerenciar equipe"   desc="Operadores, permissões de banco e configurações da empresa"      onClick={() => navigate('/admin/usuarios')} accent="violet"  /></motion.div>
+          <motion.div variants={item}><ActionCard icon={Database} label="Bancos de dados"    desc="Cadastrar conexões e configurar sincronizações automáticas"      onClick={() => navigate('/')}               accent="emerald" /></motion.div>
+          <motion.div variants={item}><ActionCard icon={KeyRound} label="Alterar senha"      desc="Atualizar suas credenciais de acesso ao sistema"                 onClick={() => navigate('/alterar-senha')}  accent="slate"   /></motion.div>
+        </motion.div>
 
         <div className="mt-6">
           <button

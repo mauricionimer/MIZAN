@@ -1,4 +1,6 @@
 import ThemeToggle from '../components/ThemeToggle'
+import { motion } from 'framer-motion'
+import { lista, item } from '../lib/motion'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useAnalysis } from '../context/AnalysisContext'
@@ -92,12 +94,13 @@ export default function OperadorHome() {
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <ActionCard icon={Upload}      label="Analisar carteira"       desc="Enviar CSV/Excel ou sincronizar banco de dados autorizado"            onClick={() => navigate('/')}          accent="blue"    />
-          <ActionCard icon={BarChart2}   label="Ver ranking"             desc={result ? 'Ver devedores priorizados e recomendações da IA' : 'Faça uma análise primeiro para ver o ranking'} onClick={() => navigate('/dashboard')} accent="emerald" disabled={!result} />
-          <ActionCard icon={ClipboardList} label="Histórico de pagamentos" desc="Ver pagamentos registrados e status dos devedores da carteira"         onClick={() => navigate('/feedback')}  accent="amber"   />
-          <ActionCard icon={KeyRound}    label="Alterar senha"           desc="Atualizar suas credenciais de acesso ao sistema"                       onClick={() => navigate('/alterar-senha')} accent="slate" />
-        </div>
+        <motion.div variants={lista} initial="inicial" animate="entra"
+          className="grid grid-cols-2 gap-4">
+          <motion.div variants={item}><ActionCard icon={Upload}      label="Analisar carteira"       desc="Enviar CSV/Excel ou sincronizar banco de dados autorizado"            onClick={() => navigate('/')}          accent="blue"    /></motion.div>
+          <motion.div variants={item}><ActionCard icon={BarChart2}   label="Ver ranking"             desc={result ? 'Ver devedores priorizados e recomendações da IA' : 'Faça uma análise primeiro para ver o ranking'} onClick={() => navigate('/dashboard')} accent="emerald" disabled={!result} /></motion.div>
+          <motion.div variants={item}><ActionCard icon={ClipboardList} label="Histórico de pagamentos" desc="Ver pagamentos registrados e status dos devedores da carteira"         onClick={() => navigate('/feedback')}  accent="amber"   /></motion.div>
+          <motion.div variants={item}><ActionCard icon={KeyRound}    label="Alterar senha"           desc="Atualizar suas credenciais de acesso ao sistema"                       onClick={() => navigate('/alterar-senha')} accent="slate" /></motion.div>
+        </motion.div>
       </main>
     </div>
   )
