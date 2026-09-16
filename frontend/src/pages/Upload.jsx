@@ -56,7 +56,7 @@ const CAMPOS_MIZAN = [
 const INP_DARK = {
   background: 'var(--surface-2)',
   border: '1px solid var(--line)',
-  color: 'white',
+  color: 'var(--ink)',
 }
 
 function inp(cls = '') {
@@ -551,7 +551,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
           <div className="p-3 rounded-xl space-y-2" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.20)' }}>
             <p className="text-xs font-semibold text-amber-400">Quer salvar esta conexão para reutilizar depois?</p>
             <input value={nomeParaSalvar} onChange={e => setNomeParaSalvar(e.target.value)} placeholder="Nome da conexão (ex: banco_principal)..."
-              className="w-full rounded-lg px-3 py-1.5 text-xs focus:outline-none" style={{ background: 'var(--surface-2)', border: '1px solid rgba(245,158,11,0.25)', color: 'white' }} />
+              className="w-full rounded-lg px-3 py-1.5 text-xs focus:outline-none" style={{ background: 'var(--surface-2)', border: '1px solid rgba(245,158,11,0.25)', color: 'var(--ink)' }} />
             <p className="text-xs text-amber-500/60">Preenchendo aqui, a conexão é salva automaticamente ao clicar em Analisar carteira.</p>
           </div>
         )
@@ -688,12 +688,12 @@ export default function Upload() {
         <div className="flex gap-1 p-1 rounded-xl mb-6" style={{ background: 'var(--raise-2)' }}>
           <button onClick={() => { setAba('arquivo'); setError(null) }}
             className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${aba === 'arquivo' ? 'text-ink' : ''}`}
-            style={aba === 'arquivo' ? { background: 'var(--surface)', color: 'white', boxShadow: '0 1px 4px rgba(0,0,0,0.30)' } : { color: 'var(--ink-3)' }}>
+            style={aba === 'arquivo' ? { background: 'var(--surface)', color: 'var(--ink)', boxShadow: '0 1px 4px rgba(0,0,0,0.30)' } : { color: 'var(--ink-3)' }}>
             <UploadCloud className="h-4 w-4" /> Arquivo
           </button>
           <button onClick={() => { setAba('db'); setError(null) }}
             className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all`}
-            style={aba === 'db' ? { background: 'var(--surface)', color: 'white', boxShadow: '0 1px 4px rgba(0,0,0,0.30)' } : { color: 'var(--ink-3)' }}>
+            style={aba === 'db' ? { background: 'var(--surface)', color: 'var(--ink)', boxShadow: '0 1px 4px rgba(0,0,0,0.30)' } : { color: 'var(--ink-3)' }}>
             <Database className="h-4 w-4" /> Banco de Dados
           </button>
         </div>

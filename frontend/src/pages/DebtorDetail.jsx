@@ -16,7 +16,7 @@ const CARD = {
   boxShadow: '0 8px 32px rgba(0,0,0,0.50), 0 2px 8px rgba(0,0,0,0.30)',
 }
 const DIVIDER = { borderColor: 'var(--line)' }
-const INP = { background: 'var(--surface-2)', border: '1px solid var(--line)', color: 'white' }
+const INP = { background: 'var(--surface-2)', border: '1px solid var(--line)', color: 'var(--ink)' }
 
 function Logo() {
   return (
@@ -173,7 +173,7 @@ function HistoricoContatos({ cpf, rec }) {
     ? new Intl.DateTimeFormat('pt-BR').format(new Date(iso.includes('T') ? iso : iso + 'T12:00:00'))
     : '—'
 
-  const selectStyle = { background: 'var(--surface-2)', border: '1px solid var(--line)', color: 'white', borderRadius: '0.75rem', padding: '0.5rem 0.75rem', fontSize: '0.875rem', width: '100%', outline: 'none' }
+  const selectStyle = { background: 'var(--surface-2)', border: '1px solid var(--line)', color: 'var(--ink)', borderRadius: '0.75rem', padding: '0.5rem 0.75rem', fontSize: '0.875rem', width: '100%', outline: 'none' }
   const inputStyle  = { ...selectStyle }
   const taStyle     = { ...selectStyle, resize: 'none' }
 

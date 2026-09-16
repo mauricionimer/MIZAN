@@ -743,7 +743,7 @@ export default function Dashboard() {
                     ))}
                   </Pie>
                   <Tooltip
-                    contentStyle={{ borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--surface-2)', fontSize: 11, color: '#fff' }}
+                    contentStyle={{ borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--surface-2)', fontSize: 11, color: 'var(--ink)' }}
                     formatter={(v, _, { payload }) => [fmtNum(v), payload.perfil_cluster]}
                   />
                 </PieChart>

@@ -303,7 +303,7 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
             <div className="flex gap-1.5 items-center">
               <input autoFocus type="text" value={nomeEdit} onChange={e => setNomeEdit(e.target.value)}
                 className="flex-1 text-sm rounded-lg px-2.5 py-1 focus:outline-none"
-                style={{ background: 'var(--surface-2)', border: '1px solid rgba(99,102,241,0.30)', color: 'white' }}
+                style={{ background: 'var(--surface-2)', border: '1px solid rgba(99,102,241,0.30)', color: 'var(--ink)' }}
                 placeholder="Nome de exibição" />
               <input type="color" value={corEdit} onChange={e => setCorEdit(e.target.value)}
                 title="Cor de destaque" className="w-7 h-7 rounded-md cursor-pointer shrink-0 bg-transparent"
@@ -360,7 +360,7 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
           <input type="email" required value={emailInput} onChange={e => { setEmailInput(e.target.value); setErro('') }}
             placeholder="email@dominio.com (já cadastrado no sistema)"
             className="flex-1 text-sm rounded-xl px-3 py-2 focus:outline-none"
-            style={{ background: 'var(--surface-2)', border: '1px solid rgba(99,102,241,0.25)', color: 'white' }} />
+            style={{ background: 'var(--surface-2)', border: '1px solid rgba(99,102,241,0.25)', color: 'var(--ink)' }} />
           <button type="submit" disabled={adicionando} className="px-3 py-2 bg-indigo-600 text-brand-ink text-xs font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors whitespace-nowrap">
             {adicionando ? 'Adicionando...' : 'Confirmar'}
           </button>
@@ -577,7 +577,7 @@ export default function AdminUsuarios() {
             ].map(([id, icon, label]) => (
               <button key={id} onClick={() => setAba(id)}
                 className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                style={aba === id ? { background: 'var(--surface)', color: 'white', boxShadow: '0 1px 4px rgba(0,0,0,0.30)' } : { color: 'var(--ink-3)' }}>
+                style={aba === id ? { background: 'var(--surface)', color: 'var(--ink)', boxShadow: '0 1px 4px rgba(0,0,0,0.30)' } : { color: 'var(--ink-3)' }}>
                 {icon}{label}
               </button>
             ))}
@@ -626,7 +626,7 @@ export default function AdminUsuarios() {
                       <div className="flex gap-2 items-center">
                         <input type="text" value={nomeEmpresaEdit} onChange={e => setNomeEmpresaEdit(e.target.value)} placeholder="Nome de exibição"
                           className="flex-1 text-sm rounded-xl px-3 py-2 focus:outline-none"
-                          style={{ background: 'var(--surface-2)', border: '1px solid rgba(29,106,255,0.30)', color: 'white' }}
+                          style={{ background: 'var(--surface-2)', border: '1px solid rgba(29,106,255,0.30)', color: 'var(--ink)' }}
                         />
                         <input type="color" value={corEmpresaEdit} onChange={e => setCorEmpresaEdit(e.target.value)}
                           title="Cor de destaque da empresa"
@@ -838,7 +838,7 @@ export default function AdminUsuarios() {
               <input type="text" value={novaEmpresa} onChange={e => setNovaEmpresa(e.target.value)}
                 placeholder="Nome/ID da nova empresa (ex: sicoob, bradesco)"
                 className="flex-1 text-sm rounded-xl px-4 py-2.5 focus:outline-none"
-                style={{ background: 'var(--surface-2)', border: '1px solid var(--line)', color: 'white' }} />
+                style={{ background: 'var(--surface-2)', border: '1px solid var(--line)', color: 'var(--ink)' }} />
               <button type="submit" disabled={criandoEmpresa || !novaEmpresa.trim()}
                 className="flex items-center gap-1.5 px-4 py-2.5 bg-indigo-600 text-brand-ink text-sm font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-40 transition-colors whitespace-nowrap">
                 <Plus className="w-4 h-4" />{criandoEmpresa ? 'Criando...' : 'Nova empresa'}
