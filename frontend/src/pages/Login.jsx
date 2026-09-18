@@ -72,7 +72,7 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden p-4"
-      style={{ background: 'var(--page)' }}>
+      style={{ background: 'var(--page-auth)' }}>
 
       {/* Ondas concêntricas — textura de marca, puramente decorativa */}
       {!fotoEmpresa && <RippleBackdrop />}

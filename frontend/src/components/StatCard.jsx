@@ -3,7 +3,7 @@ const ACCENT_COLOR = {
   blue:    'var(--info)',
   emerald: 'var(--ok)',
   amber:   'var(--warn)',
-  violet:  '#8b5cf6',
+  violet:  '#5B3FB8',
 }
 
 export default function StatCard({ label, value, sub, icon: Icon, accent = 'default' }) {

@@ -179,7 +179,7 @@ export default function AprendizadoDashboard() {
     <div className="min-h-screen">
       <header className="navbar-glass px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/comando')} className="p-1 rounded-lg transition-colors hover:bg-[rgba(22,32,60,0.04)]" style={{ color: MUTED }}>
+          <button onClick={() => navigate('/comando')} className="p-1 rounded-lg transition-colors hover:bg-[rgba(255,255,255,0.12)]" style={{ color: MUTED }}>
             <ArrowLeft className="h-4 w-4" />
           </button>
           <LogoMark className="h-4 w-4 shrink-0" />

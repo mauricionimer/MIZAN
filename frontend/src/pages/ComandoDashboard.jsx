@@ -23,9 +23,10 @@ const fmtDataCurta = iso => iso
   ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' }).format(new Date(iso))
   : '—'
 
-function KpiCard({ label, value, sub }) {
+function KpiCard({ label, value, sub, accent = 'var(--nav)' }) {
   return (
-    <div className="rounded-lg border border-[var(--border)] bg-[rgba(22,32,60,0.02)] px-5 py-4">
+    <div className="card relative overflow-hidden px-5 py-4 pl-6">
+      <span className="absolute left-0 inset-y-0 w-1" style={{ background: accent }} />
       <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-3)]">{label}</p>
       <p className="text-2xl font-semibold mt-2 leading-none tracking-tight text-[var(--text-1)] tabular-nums">{value}</p>
       {sub && <p className="text-xs text-[var(--text-3)] mt-1.5">{sub}</p>}
@@ -187,7 +188,7 @@ function EmpresaDetalhePanel({ empresa, token, onClose }) {
                       <div key={cx.id} className="bg-[var(--surface-sub)] rounded-md px-3.5 py-2.5 border border-[var(--border)]">
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-sm text-[var(--text-1)] font-medium truncate">{cx.nome || cx.id}</p>
-                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-700 text-[var(--text-3)] uppercase shrink-0">
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[var(--surface-sub)] border border-[var(--border)] text-[var(--text-2)] uppercase shrink-0">
                             {cx.tipo || 'DB'}
                           </span>
                         </div>
@@ -269,7 +270,7 @@ export default function ComandoDashboard() {
 
   return (
     <div className="min-h-screen bg-[var(--page)] text-[var(--text-1)]">
-      <header className="bg-[var(--surface)] border-b border-[var(--border)] px-6 py-3.5 flex items-center justify-between sticky top-0 z-20">
+      <header className="navbar-glass px-6 py-3.5 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <LogoMark className="h-5 w-5 shrink-0" />
           <div>
@@ -346,16 +347,19 @@ export default function ComandoDashboard() {
               />
               <KpiCard
                 label="Devedores analisados"
+                accent="var(--info)"
                 value={fmtNum(t?.total_devedores)}
                 sub="total acumulado"
               />
               <KpiCard
                 label="Valor face total"
+                accent="var(--accent)"
                 value={fmtBRL(t?.valor_face_total)}
                 sub="carteiras analisadas"
               />
               <KpiCard
                 label="Valor recuperado real"
+                accent="var(--ok)"
                 value={fmtBRL(t?.valor_recuperado_real)}
                 sub={t?.valor_face_total > 0
                   ? `${((t.valor_recuperado_real / t.valor_face_total) * 100).toFixed(1)}% do valor face`
@@ -408,7 +412,7 @@ export default function ComandoDashboard() {
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800/50">
+                  <tbody className="divide-y divide-[var(--border)]">
                     {dados.empresas.map(e => {
                       const isSusp = e.flag_suspeita
                       const isSel  = empresaSel?.empresa_id === e.empresa_id

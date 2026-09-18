@@ -20,8 +20,8 @@ import { useAuth } from '../context/AuthContext'
 const BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
 
 const AGING_ORDER = ['0-29 dias', '30-59 dias', '60-89 dias', '90-179 dias', '180+ dias']
-const AGING_COLORS  = ['var(--ok)', 'var(--info)', 'var(--warn)', '#f97316', 'var(--danger)']
-const CLUSTER_COLORS = ['var(--info)', 'var(--info)', 'var(--ok)', 'var(--warn)', 'var(--danger)', '#6366f1', '#14b8a6']
+const AGING_COLORS  = ['var(--ok)', 'var(--info)', 'var(--warn)', '#D97706', 'var(--danger)']
+const CLUSTER_COLORS = ['var(--info)', 'var(--info)', 'var(--ok)', 'var(--warn)', 'var(--danger)', '#5B3FB8', '#0E9384']
 
 const fmtBRL = (v) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v)
@@ -84,7 +84,7 @@ function StatusBadge({ cpf, statusMap }) {
 
 /* ───────────────────────── KPI card (chic minimal) ───────────────────────── */
 function KpiCard({ label, value, sub, danger = false, icon: Icon, accent }) {
-  const accentColor = { blue: 'var(--info)', amber: 'var(--warn)', violet: '#8b5cf6', emerald: 'var(--ok)' }[accent] ?? 'rgba(22,32,60,0.12)'
+  const accentColor = { blue: 'var(--info)', amber: 'var(--warn)', violet: '#5B3FB8', emerald: 'var(--ok)' }[accent] ?? 'rgba(22,32,60,0.12)'
   return (
     <div className="px-6 py-5 flex flex-col gap-3 rounded-md transition-colors"
       style={{
@@ -187,7 +187,7 @@ function exportExcel(ranking, resumo) {
 const CustomBarTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
   return (
-    <div className="rounded-lg border border-[var(--border-hi)] bg-[#0a0f1e] px-3.5 py-2.5 text-xs">
+    <div className="rounded-lg border border-[var(--border-hi)] bg-[var(--surface-sub)] px-3.5 py-2.5 text-xs">
       <p className="mb-1 font-semibold text-[var(--text-1)]">{label}</p>
       <p className="text-[var(--text-3)]">Devedores: <span className="font-bold text-[var(--info)]">{fmtNum(payload[0].value)}</span></p>
     </div>
@@ -437,12 +437,12 @@ export default function Dashboard() {
   ]
 
   return (
-    <div className="flex min-h-screen bg-[#0a0f1e] font-sans text-[var(--text-1)]">
+    <div className="flex min-h-screen bg-[var(--surface-sub)] font-sans text-[var(--text-1)]">
 
       {/* ───── Modal de confirmação de pagamento ───── */}
       {confirmarModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md space-y-5 rounded-lg border border-[var(--border)] bg-[#111827] p-6 shadow-2xl">
+          <div className="w-full max-w-md space-y-5 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-6 shadow-2xl">
             <div className="flex items-start justify-between">
               <div>
                 <h2 className="text-base font-bold text-[var(--text-1)]">Confirmar pagamento</h2>
@@ -468,7 +468,7 @@ export default function Dashboard() {
                     type="number" min="0" step="0.01" placeholder="0,00"
                     value={confirmarForm.valor_recuperado}
                     onChange={e => setConfirmarForm(f => ({ ...f, valor_recuperado: e.target.value }))}
-                    className="h-10 w-full rounded-lg border border-[var(--border)] bg-[#0a0f1e] pl-9 pr-3 text-sm text-[var(--text-1)] placeholder-slate-500 transition-colors focus:border-[var(--info-border)] focus:outline-none"
+                    className="h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--surface-sub)] pl-9 pr-3 text-sm text-[var(--text-1)] placeholder-[var(--text-muted)] transition-colors focus:border-[var(--info-border)] focus:outline-none"
                   />
                 </div>
               </div>
@@ -481,7 +481,7 @@ export default function Dashboard() {
                   max={new Date().toISOString().split('T')[0]}
                   value={confirmarForm.data_pagamento}
                   onChange={e => setConfirmarForm(f => ({ ...f, data_pagamento: e.target.value }))}
-                  className="h-10 w-full rounded-lg border border-[var(--border)] bg-[#0a0f1e] px-3 text-sm text-[var(--text-1)] transition-colors focus:border-[var(--info-border)] focus:outline-none [color-scheme:dark]"
+                  className="h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--surface-sub)] px-3 text-sm text-[var(--text-1)] transition-colors focus:border-[var(--info-border)] focus:outline-none"
                 />
               </div>
 
@@ -511,7 +511,7 @@ export default function Dashboard() {
       )}
 
       {/* ───── Sidebar ───── */}
-      <aside className="fixed inset-y-0 left-0 z-30 flex w-60 flex-col border-r border-[var(--border)] bg-[#0a0f1e]">
+      <aside className="fixed inset-y-0 left-0 z-30 flex w-60 flex-col border-r border-[var(--border)] bg-[var(--surface-sub)]">
         <div className="flex h-16 items-center gap-2.5 px-5">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--brand)]">
             <span className="text-sm font-bold text-[var(--text-1)]">{nomeEmpresa.charAt(0).toUpperCase()}</span>
@@ -555,7 +555,7 @@ export default function Dashboard() {
       <div className="flex flex-1 flex-col pl-60">
 
         {/* Top bar */}
-        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-[var(--border)] bg-[#0a0f1e]/80 px-8 backdrop-blur-xl">
+        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-[var(--border)] bg-[var(--surface)]/92 px-8 backdrop-blur-xl">
           <div className="flex items-center gap-2 text-sm">
             <span className="font-semibold text-[var(--text-1)]">{nomeEmpresa}</span>
             <span className="text-[var(--text-3)]">/</span>
@@ -566,13 +566,13 @@ export default function Dashboard() {
             {/* Exports */}
             <button
               onClick={() => exportCSV(ranking_completo)}
-              className="flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[#111827] px-3 py-1.5 text-xs font-medium text-[var(--text-2)] transition-colors hover:border-[var(--ok-border)] hover:text-[var(--text-1)]"
+              className="flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--text-2)] transition-colors hover:border-[var(--ok-border)] hover:text-[var(--text-1)]"
             >
               <FileSpreadsheet className="h-3.5 w-3.5" /> CSV
             </button>
             <button
               onClick={() => exportExcel(ranking_completo, resumo)}
-              className="flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[#111827] px-3 py-1.5 text-xs font-medium text-[var(--text-2)] transition-colors hover:border-[var(--ok-border)] hover:text-[var(--text-1)]"
+              className="flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--text-2)] transition-colors hover:border-[var(--ok-border)] hover:text-[var(--text-1)]"
             >
               <FileSpreadsheet className="h-3.5 w-3.5" /> Excel
             </button>
@@ -627,7 +627,7 @@ export default function Dashboard() {
 
           {/* ── Precificação ── */}
           {!isOperador && (
-            <section className="mt-6 rounded-md border border-[var(--border)] bg-[#111827] p-6">
+            <section className="mt-6 rounded-md border border-[var(--border)] bg-[var(--surface)] p-6">
               <div className="mb-6 flex items-center justify-between">
                 <div>
                   <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-3)' }}>Precificação</p>
@@ -683,7 +683,7 @@ export default function Dashboard() {
           <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-5">
 
             {/* Aging Bar Chart */}
-            <div className="rounded-md border border-[var(--border)] bg-[#111827] p-6 lg:col-span-3">
+            <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-6 lg:col-span-3">
               <div className="mb-5">
                 <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-3)' }}>Distribuição</p>
                 <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--text-1)' }}>Aging da Carteira</h3>
@@ -711,7 +711,7 @@ export default function Dashboard() {
             </div>
 
             {/* Cluster Pie */}
-            <div className="rounded-md border border-[var(--border)] bg-[#111827] p-6 lg:col-span-2">
+            <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-6 lg:col-span-2">
               <div className="mb-5">
                 <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-3)' }}>Segmentação</p>
                 <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--text-1)' }}>Perfis de Devedores</h3>
@@ -723,7 +723,7 @@ export default function Dashboard() {
                     cx="50%" cy="50%" outerRadius={80} innerRadius={40} paddingAngle={2}
                   >
                     {distribuicao_cluster.map((_, i) => (
-                      <Cell key={i} fill={CLUSTER_COLORS[i % CLUSTER_COLORS.length]} stroke="#111827" strokeWidth={2} />
+                      <Cell key={i} fill={CLUSTER_COLORS[i % CLUSTER_COLORS.length]} stroke="var(--surface)" strokeWidth={2} />
                     ))}
                   </Pie>
                   <Tooltip
@@ -748,7 +748,7 @@ export default function Dashboard() {
 
           {/* ── Resultados Reais ── */}
           {!isOperador && !loadingPerf && perf && perf.total_feedbacks > 0 && (
-            <section className="mt-6 overflow-hidden rounded-md border border-[var(--border)] bg-[#111827]">
+            <section className="mt-6 overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface)]">
               <div className="flex items-center justify-between border-b border-[var(--border)] px-6 py-4">
                 <div>
                   <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-3)' }}>Resultados Reais</p>
@@ -807,7 +807,7 @@ export default function Dashboard() {
 
           {/* ── Pagamentos individuais ── */}
           {pagamentos.length > 0 && (
-            <section className="mt-6 overflow-hidden rounded-md border border-[var(--border)] bg-[#111827]">
+            <section className="mt-6 overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface)]">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] px-6 py-4">
                 <div>
                   <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-3)' }}>Histórico</p>
@@ -820,7 +820,7 @@ export default function Dashboard() {
                     value={searchPag}
                     onChange={e => setSearchPag(e.target.value)}
                     placeholder="Buscar por nome ou CPF..."
-                    className="h-9 w-52 rounded-lg border border-[var(--border)] bg-[#0a0f1e] pl-9 pr-3 text-xs text-[var(--text-1)] placeholder-slate-500 transition-colors focus:border-[var(--info-border)] focus:outline-none"
+                    className="h-9 w-52 rounded-lg border border-[var(--border)] bg-[var(--surface-sub)] pl-9 pr-3 text-xs text-[var(--text-1)] placeholder-[var(--text-muted)] transition-colors focus:border-[var(--info-border)] focus:outline-none"
                   />
                 </div>
               </div>
@@ -884,7 +884,7 @@ export default function Dashboard() {
           )}
 
           {/* ── Ranking ── */}
-          <section className="mt-6 overflow-hidden rounded-md border border-[var(--border)] bg-[#111827]">
+          <section className="mt-6 overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface)]">
             <div className="space-y-3 border-b border-[var(--border)] px-6 py-4">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
@@ -902,7 +902,7 @@ export default function Dashboard() {
                     placeholder="Buscar por nome ou CPF..."
                     value={search}
                     onChange={e => setSearch(e.target.value)}
-                    className="h-9 w-56 rounded-lg border border-[var(--border)] bg-[#0a0f1e] pl-9 pr-3 text-sm text-[var(--text-1)] placeholder-slate-500 transition-colors focus:border-[var(--info-border)] focus:outline-none"
+                    className="h-9 w-56 rounded-lg border border-[var(--border)] bg-[var(--surface-sub)] pl-9 pr-3 text-sm text-[var(--text-1)] placeholder-[var(--text-muted)] transition-colors focus:border-[var(--info-border)] focus:outline-none"
                   />
                 </div>
               </div>
@@ -924,14 +924,14 @@ export default function Dashboard() {
                 </div>
                 {produtos.length > 1 && (
                   <select value={filtroProduto} onChange={e => setFiltroProduto(e.target.value)}
-                    className="rounded-lg border border-[var(--border)] bg-[#0a0f1e] px-2 py-1.5 text-xs text-[var(--text-2)] transition-colors focus:border-[var(--info-border)] focus:outline-none [color-scheme:dark]">
+                    className="rounded-lg border border-[var(--border)] bg-[var(--surface-sub)] px-2 py-1.5 text-xs text-[var(--text-2)] transition-colors focus:border-[var(--info-border)] focus:outline-none">
                     <option value="todos">Todos produtos</option>
                     {produtos.map(p => <option key={p} value={p}>{p}</option>)}
                   </select>
                 )}
                 {ufs.length > 1 && (
                   <select value={filtroUF} onChange={e => setFiltroUF(e.target.value)}
-                    className="rounded-lg border border-[var(--border)] bg-[#0a0f1e] px-2 py-1.5 text-xs text-[var(--text-2)] transition-colors focus:border-[var(--info-border)] focus:outline-none [color-scheme:dark]">
+                    className="rounded-lg border border-[var(--border)] bg-[var(--surface-sub)] px-2 py-1.5 text-xs text-[var(--text-2)] transition-colors focus:border-[var(--info-border)] focus:outline-none">
                     <option value="todas">Todos estados</option>
                     {ufs.map(u => <option key={u} value={u}>{u}</option>)}
                   </select>
@@ -962,7 +962,7 @@ export default function Dashboard() {
 
             <div className="max-h-[520px] overflow-auto">
               <table className="w-full text-sm">
-                <thead className="sticky top-0 z-10 border-b border-[var(--border)] bg-[#0d1424]">
+                <thead className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--surface-sub)]">
                   <tr>
                     {[
                       { label: '#',              align: 'left'   },
@@ -1034,7 +1034,7 @@ export default function Dashboard() {
               </table>
             </div>
             {totalPages > 1 && (
-              <div className="flex items-center justify-between border-t border-[var(--border)] bg-[#0d1424] px-6 py-3">
+              <div className="flex items-center justify-between border-t border-[var(--border)] bg-[var(--surface-sub)] px-6 py-3">
                 <span className="text-xs text-[var(--text-3)]">
                   {fmtNum((page - 1) * PAGE_SIZE + 1)}–{fmtNum(Math.min(page * PAGE_SIZE, filtered.length))} de {fmtNum(filtered.length)}
                 </span>

@@ -47,7 +47,7 @@ export default function RedefinirSenha() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6">
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-[var(--page-auth)]">
       <div className="flex items-center gap-2.5 mb-10">
         <LogoMark className="h-5 w-5 shrink-0" />
         <span className="text-[var(--text-1)] text-xl font-bold tracking-tight">Mizan</span>

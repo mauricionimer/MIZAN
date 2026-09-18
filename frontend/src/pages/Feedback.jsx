@@ -243,7 +243,7 @@ export default function Feedback() {
     <div className="min-h-screen">
       <header className="navbar-glass px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/dashboard')} className="text-[var(--text-3)] hover:text-[var(--text-1)] transition-colors p-1 rounded-lg hover:bg-[rgba(22,32,60,0.05)]">
+          <button onClick={() => navigate('/dashboard')} className="text-[var(--text-3)] hover:text-[var(--text-1)] transition-colors p-1 rounded-lg hover:bg-[rgba(255,255,255,0.12)]">
             <ArrowLeft className="w-4 h-4" />
           </button>
           <Logo />

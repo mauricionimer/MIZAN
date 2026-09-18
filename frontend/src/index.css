@@ -15,15 +15,22 @@
     --text-3:     #5A6479;
     --text-muted: #666F86;
 
-    /* ── Superfícies ── */
-    --page:        #F5F4F1;
+    /* ── Superfícies ──
+       O produto roda sobre uma tela fria, levemente azulada; o bege quente
+       fica só nas telas de entrada (--page-auth), onde é a marca que fala. */
+    --page:        #F0F3F8;
+    --page-auth:   #F5F4F1;
     --surface:     #FFFFFF;
-    --surface-sub: #FAFAF8;
-    --border:      rgba(22,32,60,0.10);
-    --border-hi:   rgba(22,32,60,0.20);
+    --surface-sub: #F7F9FC;
+    --border:      rgba(22,32,60,0.11);
+    --border-hi:   rgba(22,32,60,0.22);
+    --lift:        0 1px 2px rgba(22,32,60,0.05), 0 1px 1px rgba(22,32,60,0.03);
 
     /* ── Marca: navy por padrão, sobrescrita pela cor da empresa ── */
     --brand:       #1A2440;
+    /* Barra superior: navy fixo, independente da cor da empresa — a cor do
+       cliente entra nos botões e na marca, onde não arrisca a legibilidade. */
+    --nav:         #16203C;
     --brand-hover: color-mix(in srgb, var(--brand) 86%, black);
 
     /* ── Acento: teal para dados e destaques ── */
@@ -77,6 +84,7 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--r-surface);
+    box-shadow: var(--lift);
   }
   .panel-sub {
     background: var(--surface-sub);
@@ -87,7 +95,11 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--r-surface);
+    box-shadow: var(--lift);
   }
+  /* Cabeçalho de tabela: faixa fria para separar cabeçalho de dados */
+  .panel thead, .card thead { background: var(--surface-sub); }
+
   .card-hover { @apply card transition-colors duration-150; }
   .card-hover:hover { border-color: var(--border-hi); }
 
@@ -159,9 +171,25 @@
   }
   .nav-link-danger:hover { color: var(--danger); background: var(--danger-soft); }
 
+  /* ── Barra superior: navy sólido ──
+     Os tokens de texto e borda são redeclarados aqui, então todo descendente
+     que usa var(--text-N) inverte junto sem precisar de classe própria. */
   .navbar-glass {
     @apply border-b sticky top-0 z-20;
-    background: var(--surface);
-    border-color: var(--border);
+    background: var(--nav);
+    border-color: rgba(255,255,255,0.10);
+    color: #FFFFFF;
+
+    --text-1:     #FFFFFF;
+    --text-2:     rgba(255,255,255,0.82);
+    --text-3:     rgba(255,255,255,0.68);
+    --text-muted: rgba(255,255,255,0.60);
+    --border:     rgba(255,255,255,0.14);
+    --border-hi:  rgba(255,255,255,0.26);
+    --surface:     rgba(255,255,255,0.10);
+    --surface-sub: rgba(255,255,255,0.14);
+    --danger:     #FDA4A1;
+    --danger-soft: rgba(255,255,255,0.12);
   }
+  .navbar-glass .nav-link:hover { background: rgba(255,255,255,0.12); }
 }

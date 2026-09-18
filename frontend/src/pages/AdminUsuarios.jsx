@@ -284,7 +284,7 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
             className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center cursor-pointer transition-colors shadow"
             style={{ background: 'var(--text-3)' }}
             title="Trocar foto"
-            onMouseOver={e => e.currentTarget.style.background = '#6366f1'}
+            onMouseOver={e => e.currentTarget.style.background = '#5B3FB8'}
             onMouseOut={e => e.currentTarget.style.background = 'var(--text-3)'}>
             {salvandoFoto
               ? <span className="text-[var(--text-1)] text-[8px]">...</span>
