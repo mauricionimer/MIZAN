@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { KeyRound, Eye, EyeOff, Loader2, CheckCircle2 } from 'lucide-react'
+import { LogoMark } from '../components/Logo'
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
 
@@ -48,22 +49,18 @@ export default function RedefinirSenha() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6">
       <div className="flex items-center gap-2.5 mb-10">
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-          style={{ background: 'linear-gradient(135deg,#1d6aff,#1557f0)', boxShadow: '0 4px 16px rgba(29,106,255,0.30)' }}>
-          <span className="text-white font-bold text-sm">⚖</span>
-        </div>
+        <LogoMark className="h-5 w-5 shrink-0" />
         <span className="text-white text-xl font-bold tracking-tight">Mizan</span>
       </div>
 
-      <div className="w-full max-w-sm rounded-2xl p-8"
+      <div className="w-full max-w-sm rounded-lg p-8"
         style={{
           background: '#0d1628',
           border: '1px solid rgba(255,255,255,0.08)',
-          boxShadow: '0 16px 48px rgba(0,0,0,0.50), 0 4px 12px rgba(0,0,0,0.30)',
         }}>
         {sucesso ? (
           <div className="text-center py-4">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+            <div className="w-14 h-14 rounded-lg flex items-center justify-center mx-auto mb-4"
               style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.20)' }}>
               <CheckCircle2 className="w-7 h-7 text-emerald-400" />
             </div>
@@ -77,7 +74,7 @@ export default function RedefinirSenha() {
           </div>
         ) : (
           <>
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-5"
+            <div className="w-12 h-12 rounded-md flex items-center justify-center mb-5"
               style={{ background: 'rgba(29,106,255,0.12)', border: '1px solid rgba(29,106,255,0.20)' }}>
               <KeyRound className="w-6 h-6 text-blue-400" />
             </div>
@@ -113,7 +110,7 @@ export default function RedefinirSenha() {
                 </div>
               </div>
               {erro && (
-                <div className="text-sm text-red-400 rounded-xl px-4 py-3"
+                <div className="text-sm text-red-400 rounded-md px-4 py-3"
                   style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.20)' }}>
                   {erro}
                 </div>

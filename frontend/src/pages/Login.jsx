@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Eye, EyeOff, Loader2, Check } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { LogoMark } from '../components/Logo'
 import { getEmpresaConfigPublica } from '../api'
 
 const BASE_API = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
@@ -59,19 +60,19 @@ export default function Login() {
     else navigate('/operador')
   }
 
-  const cor = empresaBrand?.cor_primaria || '#1d6aff'
+  const cor = empresaBrand?.cor_primaria || '#2563eb'
+
+  // Antes do login o AuthContext ainda não tem empresaConfig, então a cor da
+  // empresa precisa ser aplicada aqui para o branding valer já na tela de entrada.
+  useEffect(() => {
+    document.documentElement.style.setProperty('--brand', cor)
+  }, [cor])
   const nomEmpresa = empresaBrand?.nome_exibicao
   const fotoEmpresa = empresaBrand?.foto_url
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden p-4"
-      style={{ background: '#080d1e' }}>
-
-      {/* Glow de fundo */}
-      <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full blur-3xl opacity-10 pointer-events-none"
-        style={{ background: 'radial-gradient(circle,#1d6aff,transparent 70%)' }} />
-      <div className="absolute bottom-[-15%] right-[-5%] w-[500px] h-[500px] rounded-full blur-3xl opacity-8 pointer-events-none"
-        style={{ background: 'radial-gradient(circle,#8b5cf6,transparent 70%)' }} />
+      style={{ background: '#09090f' }}>
 
       {/* Foto de capa da empresa */}
       {fotoEmpresa && (
@@ -85,80 +86,63 @@ export default function Login() {
       <div className="relative z-10 w-full max-w-5xl flex items-center gap-16">
 
         {/* Lado esquerdo */}
-        <div className="hidden lg:flex flex-1 flex-col gap-8">
-          <div className="flex items-center gap-3">
+        <div className="hidden lg:flex flex-1 flex-col gap-10">
+          <div className="flex items-center gap-2.5">
             {fotoEmpresa ? (
               <img src={fotoEmpresa} alt={nomEmpresa}
-                className="w-12 h-12 rounded-2xl object-cover border border-white/20 shadow-xl" />
+                className="w-9 h-9 rounded-md object-cover border border-white/10" />
             ) : (
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
-                style={{ background: 'rgba(29,106,255,0.15)', border: '1px solid rgba(29,106,255,0.30)', boxShadow: '0 8px 32px rgba(29,106,255,0.15)' }}>
-                <span className="text-white text-xl font-bold">⚖</span>
-              </div>
+              <LogoMark className="h-5 w-5" />
             )}
-            <span className="text-white text-2xl font-extrabold tracking-tight">
+            <span className="text-white text-lg font-semibold tracking-tight">
               {nomEmpresa || 'Mizan'}
             </span>
-            {nomEmpresa && <span className="text-white/30 text-sm font-medium">· via Mizan</span>}
+            {nomEmpresa && <span className="text-[#6d84ab] text-sm">via Mizan</span>}
           </div>
 
           <div>
-            <p className="text-blue-400 text-xs font-bold uppercase tracking-[0.2em] mb-4">
-              Recuperação de crédito com IA
-            </p>
-            <h2 className="text-5xl font-extrabold text-white leading-[1.1] tracking-tight mb-5">
-              {nomEmpresa ? (
-                <>Bem-vindo à<br /><span style={{ color: cor }}>{nomEmpresa}</span></>
-              ) : (
-                <>Recupere mais.<br /><span className="text-blue-400">Aprenda com</span><br />cada resultado.</>
-              )}
+            <h2 className="text-4xl font-semibold text-white leading-[1.15] tracking-tight mb-4">
+              {nomEmpresa
+                ? <>Recuperação de crédito<br />da {nomEmpresa}.</>
+                : <>Priorize quem tem<br />mais chance de pagar.</>}
             </h2>
-            <p className="text-[#8fa3c8] text-base leading-relaxed max-w-sm">
-              Analise carteiras, priorize devedores e receba recomendações que evoluem com cada contato registrado.
+            <p className="text-[#8fa3c8] text-base leading-relaxed max-w-md">
+              Ordene a carteira por probabilidade de recuperação, registre cada contato
+              e acompanhe o que realmente converteu em pagamento.
             </p>
           </div>
 
           {!nomEmpresa && (
-            <div className="grid grid-cols-3 gap-3">
+            <ul className="space-y-2.5 max-w-md">
               {[
-                { n: '98%', l: 'Precisão ML',  icon: '🎯' },
-                { n: '<1s',  l: 'Por devedor', icon: '⚡' },
-                { n: '12',   l: 'Estratégias', icon: '🧠' },
-              ].map(({ n, l, icon }) => (
-                <div key={l} className="rounded-2xl p-4"
-                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                  <p className="text-xl mb-2">{icon}</p>
-                  <p className="text-2xl font-extrabold text-white tracking-tight">{n}</p>
-                  <p className="text-blue-400 text-xs mt-1 font-semibold">{l}</p>
-                </div>
+                'Score de recuperabilidade por devedor, com o motivo de cada nota',
+                'Recomendação de canal e oferta calibrada pelos resultados reais',
+                'Trilha de auditoria completa e exportável',
+              ].map(item => (
+                <li key={item} className="flex items-start gap-2.5 text-sm text-[#8fa3c8]">
+                  <Check className="h-4 w-4 mt-0.5 shrink-0" style={{ color: 'var(--brand)' }} />
+                  {item}
+                </li>
               ))}
-            </div>
+            </ul>
           )}
 
-          <p className="text-[#6d84ab] text-xs">© 2026 Mizan · Todos os direitos reservados</p>
+          <p className="text-[#6d84ab] text-xs">© 2026 Mizan</p>
         </div>
 
         {/* Lado direito — card do formulário */}
         <div className="w-full lg:w-[400px] shrink-0">
-          <div className="rounded-3xl p-8"
-            style={{
-              background: '#0d1628',
-              border: '1px solid rgba(255,255,255,0.08)',
-              boxShadow: '0 32px 80px rgba(0,0,0,0.60), 0 8px 24px rgba(0,0,0,0.40)',
-            }}>
+          <div className="panel p-8">
 
-            <div className="flex items-center gap-2.5 mb-8">
+            <div className="flex items-center gap-2.5 mb-8 lg:hidden">
               {fotoEmpresa ? (
                 <img src={fotoEmpresa} alt={nomEmpresa}
-                  className="w-9 h-9 rounded-xl object-cover border border-white/10 shrink-0" />
+                  className="w-8 h-8 rounded-md object-cover border border-white/10 shrink-0" />
               ) : (
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center shadow-lg shrink-0"
-                  style={{ background: `linear-gradient(135deg,${cor},${cor}cc)` }}>
-                  <span className="text-white font-bold text-sm">⚖</span>
-                </div>
+                <LogoMark className="h-5 w-5 shrink-0" />
               )}
               <div>
-                <span className="text-white text-base font-bold tracking-tight leading-none block">
+                <span className="text-white text-base font-semibold tracking-tight leading-none block">
                   {nomEmpresa || 'Mizan'}
                 </span>
                 {nomEmpresa && <span className="text-[#7c93bd] text-xs">via Mizan</span>}
@@ -166,13 +150,13 @@ export default function Login() {
             </div>
 
             <div className="mb-7">
-              <h1 className="text-2xl font-extrabold text-white tracking-tight">Bem-vindo de volta</h1>
-              <p className="text-[#8fa3c8] text-sm mt-1.5">Entre com suas credenciais para acessar</p>
+              <h1 className="text-xl font-semibold text-white tracking-tight">Entrar</h1>
+              <p className="text-[#8fa3c8] text-sm mt-1.5">Acesso restrito a usuários cadastrados.</p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-5">
               {sessionExpirada && (
-                <div className="p-3.5 rounded-xl text-amber-400 text-sm text-center"
+                <div className="p-3.5 rounded-md text-amber-400 text-sm text-center"
                   style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.20)' }}>
                   Sua sessão expirou. Faça login novamente.
                 </div>
@@ -219,8 +203,8 @@ export default function Login() {
               </div>
 
               {erro && (
-                <div className="text-sm text-red-400 rounded-xl px-4 py-3"
-                  style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.20)' }}>
+                <div className="text-sm text-red-300 px-4 py-3"
+                  style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 'var(--r-control)' }}>
                   {erro}
                 </div>
               )}
@@ -228,11 +212,7 @@ export default function Login() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 rounded-xl font-bold text-white text-base disabled:opacity-50 transition-all flex items-center justify-center gap-2"
-                style={{
-                  background: `linear-gradient(135deg,${cor},${cor}cc)`,
-                  boxShadow: `0 4px 16px ${cor}40`,
-                }}
+                className="btn-primary w-full py-2.5"
               >
                 {loading
                   ? <><Loader2 className="h-4 w-4 animate-spin" /> Entrando...</>
@@ -241,8 +221,7 @@ export default function Login() {
             </form>
 
             <p className="mt-7 text-center text-xs" style={{ color: '#6d84ab' }}>
-              Acesso restrito a usuários cadastrados.{' '}
-              <a href="/privacidade" className="underline hover:text-[#8fa3c8] transition-colors">Privacidade</a>
+              <a href="/privacidade" className="underline hover:text-[#8fa3c8] transition-colors">Política de privacidade</a>
             </p>
           </div>
         </div>

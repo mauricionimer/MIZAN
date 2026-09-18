@@ -5,6 +5,7 @@ import { buscarAuditoria } from '../api'
 import {
   ArrowLeft, LogOut, ShieldCheck, Download, Loader2, Filter, RefreshCw, ChevronDown,
 } from 'lucide-react'
+import { LogoMark } from '../components/Logo'
 
 const ACAO_LABEL = {
   carteira_criada:        'Carteira criada',
@@ -105,11 +106,8 @@ export default function Auditoria() {
           <button onClick={() => navigate(isComando ? '/comando' : '/admin')} className="p-1 rounded-lg transition-colors hover:bg-white/5" style={{ color: '#7c93bd' }}>
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center shadow-md shadow-blue-500/20"
-            style={{ background: 'linear-gradient(135deg,#1d4ed8,#2563eb)' }}>
-            <ShieldCheck className="h-3.5 w-3.5 text-white" />
-          </div>
-          <span className="font-bold text-white text-sm">Mizan</span>
+          <LogoMark className="h-4 w-4 shrink-0" />
+          <span className="font-semibold text-white text-sm">Mizan</span>
           <span className="text-white/20 text-sm">/</span>
           <span className="text-sm" style={{ color: '#8fa3c8' }}>Auditoria</span>
         </div>
@@ -130,7 +128,7 @@ export default function Auditoria() {
           <button
             onClick={() => exportarCSV(linhas)}
             disabled={linhas.length === 0}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white transition-colors disabled:opacity-40"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-semibold text-white transition-colors disabled:opacity-40"
             style={{ background: 'var(--brand)' }}
           >
             <Download className="w-3.5 h-3.5" /> Exportar CSV ({linhas.length})
@@ -138,7 +136,7 @@ export default function Auditoria() {
         </div>
 
         {/* Filtros */}
-        <div className="rounded-2xl p-4 mb-6 flex flex-wrap items-end gap-3" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }}>
+        <div className="rounded-lg p-4 mb-6 flex flex-wrap items-end gap-3" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }}>
           <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: '#8fa3c8' }}>
             <Filter className="w-3.5 h-3.5" /> Filtros
           </div>
@@ -174,10 +172,10 @@ export default function Auditoria() {
           </button>
         </div>
 
-        {erro && <div className="mb-5 text-red-400 rounded-xl px-4 py-3 text-sm" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)' }}>{erro}</div>}
+        {erro && <div className="mb-5 text-red-400 rounded-md px-4 py-3 text-sm" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)' }}>{erro}</div>}
 
         {/* Tabela */}
-        <div className="rounded-2xl overflow-hidden" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }}>
+        <div className="rounded-lg overflow-hidden" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }}>
           {loading && linhas.length === 0 ? (
             <div className="flex items-center justify-center py-16 gap-2" style={{ color: '#7c93bd' }}>
               <Loader2 className="h-5 w-5 animate-spin" /> Carregando...
@@ -216,7 +214,7 @@ export default function Auditoria() {
         {temMais && (
           <div className="flex justify-center mt-5">
             <button onClick={() => carregar(linhas.length, true)} disabled={loading}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-semibold transition-colors disabled:opacity-50"
               style={{ background: 'rgba(255,255,255,0.06)', color: '#8fa3c8' }}>
               {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null} Carregar mais
             </button>

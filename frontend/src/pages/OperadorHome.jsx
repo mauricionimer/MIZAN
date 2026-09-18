@@ -2,14 +2,10 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useAnalysis } from '../context/AnalysisContext'
 import { Upload, ClipboardList, BarChart2, KeyRound, LogOut, ChevronRight } from 'lucide-react'
+import { LogoMark } from '../components/Logo'
 
 function Logo() {
-  return (
-    <div className="w-7 h-7 rounded-lg flex items-center justify-center"
-      style={{ background: 'linear-gradient(135deg,#1d6aff,#1557f0)', boxShadow: '0 2px 8px rgba(29,106,255,0.30)' }}>
-      <span className="text-white font-bold text-xs">⚖</span>
-    </div>
-  )
+  return <LogoMark className="h-4 w-4" />
 }
 
 function ActionCard({ icon: Icon, label, desc, onClick, accent = 'blue', disabled = false }) {
@@ -24,16 +20,15 @@ function ActionCard({ icon: Icon, label, desc, onClick, accent = 'blue', disable
     <button
       onClick={disabled ? undefined : onClick}
       disabled={disabled}
-      className={`group flex items-center gap-4 text-left p-5 rounded-2xl transition-all ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
+      className={`group flex items-center gap-4 text-left p-5 rounded-lg transition-all ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
       style={{
         background: '#0d1628',
         border: '1px solid rgba(255,255,255,0.07)',
-        boxShadow: '0 2px 12px rgba(0,0,0,0.30)',
       }}
-      onMouseOver={e => { if (!disabled) { e.currentTarget.style.borderColor = 'rgba(29,106,255,0.30)'; e.currentTarget.style.boxShadow = '0 4px 24px rgba(0,0,0,0.40)' } }}
-      onMouseOut={e => { if (!disabled) { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.30)' } }}
+      onMouseOver={e => { if (!disabled) { e.currentTarget.style.borderColor = 'rgba(29,106,255,0.30)' } }}
+      onMouseOut={e => { if (!disabled) { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)' } }}
     >
-      <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
+      <div className="w-11 h-11 rounded-md flex items-center justify-center shrink-0"
         style={{ background: cfg.iconBg }}>
         <Icon className={`w-5 h-5 ${cfg.iconTx}`} />
       </div>

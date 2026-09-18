@@ -12,6 +12,7 @@ import {
   ArrowLeft, Database, Lock, Unlock, ChevronDown, ChevronUp,
   Building2, Plus, X, UserMinus, Mail, Trash2, Clock, Camera, Pencil, Check,
 } from 'lucide-react'
+import { LogoMark } from '../components/Logo'
 
 const ACAO_LABEL = {
   carteira_criada:      'Carteira criada',
@@ -44,12 +45,7 @@ function fmtAuditDate(iso) {
 }
 
 function Logo() {
-  return (
-    <div className="w-7 h-7 rounded-lg flex items-center justify-center shadow-md shadow-blue-500/20"
-      style={{ background: 'linear-gradient(135deg,#1d4ed8,#2563eb)' }}>
-      <span className="text-white font-bold text-xs">⚖</span>
-    </div>
-  )
+  return <LogoMark className="h-4 w-4" />
 }
 
 const ROLE_BADGE = {
@@ -60,7 +56,7 @@ const ROLE_BADGE = {
 
 function BadgeRole({ role }) {
   return (
-    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${ROLE_BADGE[role] ?? 'bg-slate-100 text-slate-500'}`}>
+    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${ROLE_BADGE[role] ?? 'bg-slate-100 text-slate-400'}`}>
       {role === 'admin' && <ShieldCheck className="w-3 h-3" />}
       {role}
     </span>
@@ -114,12 +110,12 @@ function CardPermissoes({ conexao, operadores, token }) {
   const somenteOperadores = operadores.filter(o => (o.role === 'operador' || o.role === 'admin') && o.ativo)
   const comAcesso    = somenteOperadores.filter(o => permitidos.includes(o.id))
   const semAcesso    = somenteOperadores.filter(o => !permitidos.includes(o.id))
-  const tipoCor      = TIPO_COR[conexao.tipo] ?? 'bg-slate-100 text-slate-500 ring-slate-200/60'
+  const tipoCor      = TIPO_COR[conexao.tipo] ?? 'bg-slate-100 text-slate-400 ring-slate-200/60'
 
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 2px 12px rgba(0,0,0,0.40)' }}>
+    <div className="rounded-lg overflow-hidden" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }}>
       <div className="flex items-center gap-3 px-5 py-4 border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.06)' }}>
+        <div className="w-9 h-9 rounded-md flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.06)' }}>
           <Database className="w-4 h-4" style={{ color: '#8fa3c8' }} />
         </div>
         <div className="flex-1 min-w-0">
@@ -144,7 +140,7 @@ function CardPermissoes({ conexao, operadores, token }) {
               </p>
               <div className="space-y-1.5">
                 {comAcesso.map(op => (
-                  <div key={op.id} className="flex items-center justify-between py-1 px-3 rounded-xl" style={{ background: 'rgba(16,185,129,0.06)' }}>
+                  <div key={op.id} className="flex items-center justify-between py-1 px-3 rounded-md" style={{ background: 'rgba(16,185,129,0.06)' }}>
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-emerald-400 shrink-0" style={{ background: 'rgba(16,185,129,0.15)' }}>
                         {(op.nome || op.email)[0].toUpperCase()}
@@ -173,7 +169,7 @@ function CardPermissoes({ conexao, operadores, token }) {
               </p>
               <div className="space-y-1.5">
                 {semAcesso.map(op => (
-                  <div key={op.id} className="flex items-center justify-between py-1 px-3 rounded-xl transition-colors"
+                  <div key={op.id} className="flex items-center justify-between py-1 px-3 rounded-md transition-colors"
                     onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
                     onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
                     <div className="flex items-center gap-2.5 min-w-0">
@@ -276,10 +272,10 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
   const nomeExibicao = cfg?.nome_exibicao || empresa.empresa_id
 
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 2px 12px rgba(0,0,0,0.40)' }}>
+    <div className="rounded-lg overflow-hidden" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }}>
       <div className="px-5 py-4 border-b flex items-center justify-between gap-3" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
         <div className="relative shrink-0">
-          <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center" style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.20)' }}>
+          <div className="w-10 h-10 rounded-md overflow-hidden flex items-center justify-center" style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.20)' }}>
             {cfg?.foto_url
               ? <img src={cfg.foto_url} alt={nomeExibicao} className="w-full h-full object-cover" />
               : <Building2 className="w-4 h-4 text-indigo-400" />}
@@ -338,7 +334,7 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
 
         <div className="flex items-center gap-2 shrink-0">
           <button onClick={() => { setShowInput(s => !s); setErro('') }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-indigo-400 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-indigo-400 transition-colors"
             style={{ background: 'rgba(99,102,241,0.10)', border: '1px solid rgba(99,102,241,0.20)' }}
             onMouseOver={e => e.currentTarget.style.background = 'rgba(99,102,241,0.18)'}
             onMouseOut={e => e.currentTarget.style.background = 'rgba(99,102,241,0.10)'}>
@@ -358,9 +354,9 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
           <Mail className="w-4 h-4 shrink-0" style={{ color: '#7c93bd' }} />
           <input type="email" required value={emailInput} onChange={e => { setEmailInput(e.target.value); setErro('') }}
             placeholder="email@dominio.com (já cadastrado no sistema)"
-            className="flex-1 text-sm rounded-xl px-3 py-2 focus:outline-none"
+            className="flex-1 text-sm rounded-md px-3 py-2 focus:outline-none"
             style={{ background: '#0a1220', border: '1px solid rgba(99,102,241,0.25)', color: 'white' }} />
-          <button type="submit" disabled={adicionando} className="px-3 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors whitespace-nowrap">
+          <button type="submit" disabled={adicionando} className="px-3 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors whitespace-nowrap">
             {adicionando ? 'Adicionando...' : 'Confirmar'}
           </button>
           <button type="button" onClick={() => { setShowInput(false); setErro('') }} className="p-2 transition-colors" style={{ color: '#7c93bd' }}>
@@ -567,7 +563,7 @@ export default function AdminUsuarios() {
 
         {/* Abas */}
         {(isAdmin || isComando) && (
-          <div className="flex gap-1 mb-8 p-1 rounded-xl w-fit" style={{ background: 'rgba(255,255,255,0.05)' }}>
+          <div className="flex gap-1 mb-8 p-1 rounded-md w-fit" style={{ background: 'rgba(255,255,255,0.05)' }}>
             {[
               ['usuarios', <Users className="w-4 h-4" />, 'Usuários'],
               ...(isComando ? [['empresas', <Building2 className="w-4 h-4" />, 'Empresas']] : []),
@@ -575,22 +571,22 @@ export default function AdminUsuarios() {
             ].map(([id, icon, label]) => (
               <button key={id} onClick={() => setAba(id)}
                 className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                style={aba === id ? { background: '#0d1628', color: 'white', boxShadow: '0 1px 4px rgba(0,0,0,0.30)' } : { color: '#7c93bd' }}>
+                style={aba === id ? { background: '#0d1628', color: 'white' } : { color: '#7c93bd' }}>
                 {icon}{label}
               </button>
             ))}
           </div>
         )}
 
-        {msg && <div className="mb-5 text-emerald-400 rounded-xl px-4 py-3 text-sm" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.20)' }}>{msg}</div>}
-        {erro && <div className="mb-5 text-red-400 rounded-xl px-4 py-3 text-sm" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)' }}>{erro}</div>}
+        {msg && <div className="mb-5 text-emerald-400 rounded-md px-4 py-3 text-sm" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.20)' }}>{msg}</div>}
+        {erro && <div className="mb-5 text-red-400 rounded-md px-4 py-3 text-sm" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)' }}>{erro}</div>}
 
         {/* ── ABA USUÁRIOS ── */}
         {aba === 'usuarios' && (
           <>
             {/* Perfil da empresa (admin/comando) */}
             {(isAdmin || isComando) && usuario?.empresa_id && (
-              <div className="mb-8 rounded-2xl p-5" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 2px 12px rgba(0,0,0,0.40)' }}>
+              <div className="mb-8 rounded-lg p-5" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }}>
                 <div className="flex items-center justify-between mb-4">
                   <p className="text-xs font-semibold uppercase tracking-wide flex items-center gap-1.5" style={{ color: '#7c93bd' }}>
                     <Building2 className="h-3.5 w-3.5" /> Perfil da empresa
@@ -606,13 +602,13 @@ export default function AdminUsuarios() {
 
                 <div className="flex items-center gap-4">
                   <div className="relative shrink-0">
-                    <div className="w-16 h-16 rounded-2xl overflow-hidden flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}>
+                    <div className="w-16 h-16 rounded-lg overflow-hidden flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}>
                       {empresaConfig?.foto_url
                         ? <img src={empresaConfig.foto_url} alt="Logo" className="w-full h-full object-cover" />
                         : <Building2 className="w-6 h-6" style={{ color: '#7c93bd' }} />}
                     </div>
                     {editandoBrand && (
-                      <label className="absolute -bottom-1.5 -right-1.5 w-7 h-7 bg-blue-600 hover:bg-blue-700 rounded-full flex items-center justify-center cursor-pointer transition-colors shadow-md" title="Trocar foto">
+                      <label className="absolute -bottom-1.5 -right-1.5 w-7 h-7 bg-blue-600 hover:bg-blue-700 rounded-full flex items-center justify-center cursor-pointer transition-colors" title="Trocar foto">
                         <Camera className="w-3.5 h-3.5 text-white" />
                         <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" ref={fotoInputRef} onChange={handleFotoChange} />
                       </label>
@@ -623,7 +619,7 @@ export default function AdminUsuarios() {
                     {editandoBrand ? (
                       <div className="flex gap-2 items-center">
                         <input type="text" value={nomeEmpresaEdit} onChange={e => setNomeEmpresaEdit(e.target.value)} placeholder="Nome de exibição"
-                          className="flex-1 text-sm rounded-xl px-3 py-2 focus:outline-none"
+                          className="flex-1 text-sm rounded-md px-3 py-2 focus:outline-none"
                           style={{ background: '#0a1220', border: '1px solid rgba(29,106,255,0.30)', color: 'white' }}
                         />
                         <input type="color" value={corEmpresaEdit} onChange={e => setCorEmpresaEdit(e.target.value)}
@@ -632,7 +628,7 @@ export default function AdminUsuarios() {
                           style={{ border: '1px solid rgba(255,255,255,0.10)' }}
                         />
                         <button onClick={handleSalvarNome} disabled={salvandoBrand}
-                          className="flex items-center gap-1 px-3 py-2 bg-blue-600 text-white text-xs font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors shrink-0">
+                          className="flex items-center gap-1 px-3 py-2 bg-blue-600 text-white text-xs font-semibold rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors shrink-0">
                           <Check className="w-3.5 h-3.5" />{salvandoBrand ? 'Salvando...' : 'Salvar'}
                         </button>
                       </div>
@@ -671,7 +667,7 @@ export default function AdminUsuarios() {
             </div>
 
             {isComando && showForm && (
-              <div className="mb-6 rounded-2xl p-6" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 2px 12px rgba(0,0,0,0.40)' }}>
+              <div className="mb-6 rounded-lg p-6" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }}>
                 <h2 className="text-sm font-bold text-white mb-5">Criar novo usuário</h2>
                 <form onSubmit={handleRegistrar} className="grid grid-cols-2 gap-4">
                   <div>
@@ -708,10 +704,10 @@ export default function AdminUsuarios() {
                     )}
                     <p className="text-xs mt-1" style={{ color: '#7c93bd' }}>Usuários da mesma empresa compartilham dados entre si.</p>
                   </div>
-                  {formErro && <p className="col-span-2 text-sm text-red-400 rounded-xl px-4 py-2" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)' }}>{formErro}</p>}
+                  {formErro && <p className="col-span-2 text-sm text-red-400 rounded-md px-4 py-2" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)' }}>{formErro}</p>}
                   <div className="col-span-2 flex gap-3 justify-end pt-1">
                     <button type="button" onClick={() => setShowForm(false)}
-                      className="px-4 py-2 text-sm rounded-xl transition-colors" style={{ color: '#8fa3c8' }}
+                      className="px-4 py-2 text-sm rounded-md transition-colors" style={{ color: '#8fa3c8' }}
                       onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
                       onMouseOut={e => e.currentTarget.style.background = 'transparent'}>Cancelar</button>
                     <button type="submit" disabled={salvando} className="btn-primary disabled:opacity-50">{salvando ? 'Criando...' : 'Criar usuário'}</button>
@@ -723,7 +719,7 @@ export default function AdminUsuarios() {
             {carregando ? (
               <div className="text-center py-16 text-sm" style={{ color: '#7c93bd' }}>Carregando...</div>
             ) : (
-              <div className="rounded-2xl overflow-hidden" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 2px 12px rgba(0,0,0,0.40)' }}>
+              <div className="rounded-lg overflow-hidden" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }}>
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b" style={{ background: '#111d34', borderColor: 'rgba(255,255,255,0.08)' }}>
@@ -794,7 +790,7 @@ export default function AdminUsuarios() {
                 <p className="text-xs font-semibold uppercase tracking-wide mb-3 flex items-center gap-1.5" style={{ color: '#7c93bd' }}>
                   <Clock className="h-3 w-3" /> Atividade Recente
                 </p>
-                <div className="rounded-2xl overflow-hidden" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 2px 12px rgba(0,0,0,0.40)' }}>
+                <div className="rounded-lg overflow-hidden" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }}>
                   {auditoria.map((a, i) => (
                     <div key={i} className="flex items-start gap-3 px-5 py-3.5 border-b" style={{ borderColor: 'rgba(255,255,255,0.04)' }}>
                       <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${ACAO_COR[a.acao] ?? 'bg-slate-500'}`} />
@@ -835,10 +831,10 @@ export default function AdminUsuarios() {
               <Building2 className="w-4 h-4 shrink-0" style={{ color: '#7c93bd' }} />
               <input type="text" value={novaEmpresa} onChange={e => setNovaEmpresa(e.target.value)}
                 placeholder="Nome/ID da nova empresa (ex: sicoob, bradesco)"
-                className="flex-1 text-sm rounded-xl px-4 py-2.5 focus:outline-none"
+                className="flex-1 text-sm rounded-md px-4 py-2.5 focus:outline-none"
                 style={{ background: '#0a1220', border: '1px solid rgba(255,255,255,0.10)', color: 'white' }} />
               <button type="submit" disabled={criandoEmpresa || !novaEmpresa.trim()}
-                className="flex items-center gap-1.5 px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-40 transition-colors whitespace-nowrap">
+                className="flex items-center gap-1.5 px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-md hover:bg-indigo-700 disabled:opacity-40 transition-colors whitespace-nowrap">
                 <Plus className="w-4 h-4" />{criandoEmpresa ? 'Criando...' : 'Nova empresa'}
               </button>
             </form>
@@ -856,7 +852,7 @@ export default function AdminUsuarios() {
                 {empresas.sem_empresa?.length > 0 && (
                   <div className="mt-8">
                     <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: '#7c93bd' }}>Sem empresa atribuída ({empresas.sem_empresa.length})</p>
-                    <div className="rounded-2xl overflow-hidden" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }}>
+                    <div className="rounded-lg overflow-hidden" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }}>
                       {empresas.sem_empresa.map(u => (
                         <div key={u.id} className="flex items-center gap-3 px-5 py-3 border-b" style={{ borderColor: 'rgba(255,255,255,0.04)' }}>
                           <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{ background: 'rgba(255,255,255,0.08)', color: '#8fa3c8' }}>

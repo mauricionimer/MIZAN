@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Lock } from 'lucide-react'
+import { LogoMark } from '../components/Logo'
 
 export default function Privacidade() {
   const navigate = useNavigate()
@@ -11,17 +12,13 @@ export default function Privacidade() {
           <ArrowLeft className="h-4 w-4" /> Voltar
         </button>
 
-        <div className="rounded-2xl p-8 space-y-6"
+        <div className="rounded-lg p-8 space-y-6"
           style={{
             background: '#0d1628',
             border: '1px solid rgba(255,255,255,0.07)',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.50), 0 2px 8px rgba(0,0,0,0.30)',
           }}>
           <div className="flex items-center gap-3 mb-1">
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center"
-              style={{ background: 'linear-gradient(135deg,#1d6aff,#1557f0)' }}>
-              <span className="text-white font-bold text-sm">⚖</span>
-            </div>
+            <LogoMark className="h-5 w-5 shrink-0" />
             <div>
               <h1 className="text-lg font-bold text-white tracking-tight">Política de Privacidade</h1>
               <p className="text-xs mt-0.5" style={{ color: '#7c93bd' }}>
@@ -30,9 +27,9 @@ export default function Privacidade() {
             </div>
           </div>
 
-          <div className="rounded-xl px-5 py-4 flex gap-3 items-start"
+          <div className="rounded-md px-5 py-4 flex gap-3 items-start"
             style={{ background: 'rgba(29,106,255,0.08)', border: '1px solid rgba(29,106,255,0.20)' }}>
-            <span className="text-blue-400 text-lg mt-0.5">🔒</span>
+            <Lock className="h-4 w-4 mt-0.5 shrink-0" style={{ color: 'var(--brand)' }} />
             <div>
               <p className="text-sm font-semibold text-blue-300">
                 Dados armazenados em servidores no Brasil, em conformidade com a LGPD.

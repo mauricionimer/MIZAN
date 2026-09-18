@@ -7,6 +7,7 @@ import {
   ArrowLeft, RefreshCw, Loader2, Zap, TrendingUp, Activity, Award, LogOut, AlertTriangle, CheckCircle2,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { LogoMark } from '../components/Logo'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001'
 const MUTED = '#7c93bd'
@@ -31,31 +32,15 @@ const FASE_META = {
 const fmtPct = (v) => v != null ? `${(v * 100).toFixed(1)}%` : '—'
 
 function Logo() {
-  return (
-    <div className="w-7 h-7 rounded-lg flex items-center justify-center shadow-md shadow-blue-500/20"
-      style={{ background: 'linear-gradient(135deg,#1d4ed8,#2563eb)' }}>
-      <span className="text-white font-bold text-xs">⚖</span>
-    </div>
-  )
+  return <LogoMark className="h-4 w-4" />
 }
 
-function LocalStatCard({ label, value, sub, icon: Icon, accent = 'blue' }) {
-  const colors = {
-    blue:    { bg: 'rgba(37,99,235,0.15)', cor: 'var(--brand)' },
-    emerald: { bg: 'rgba(16,185,129,0.15)', cor: '#6ee7b7' },
-    amber:   { bg: 'rgba(245,158,11,0.15)', cor: '#fcd34d' },
-    slate:   { bg: 'rgba(255,255,255,0.08)', cor: MUTED_LIGHT },
-  }[accent]
+function LocalStatCard({ label, value, sub }) {
   return (
-    <div className="rounded-2xl p-5 flex gap-4 items-start" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }}>
-      <div className="rounded-xl p-2.5 shrink-0" style={{ background: colors.bg, color: colors.cor }}>
-        <Icon className="h-4 w-4" />
-      </div>
-      <div className="min-w-0">
-        <p className="section-label">{label}</p>
-        <p className="text-xl font-bold text-white mt-1 leading-tight">{value}</p>
-        {sub && <p className="text-xs mt-0.5" style={{ color: MUTED }}>{sub}</p>}
-      </div>
+    <div className="rounded-lg px-5 py-4" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }}>
+      <p className="section-label">{label}</p>
+      <p className="text-xl font-semibold text-white mt-2 leading-none tracking-tight tabular-nums">{value}</p>
+      {sub && <p className="text-xs mt-1.5" style={{ color: MUTED }}>{sub}</p>}
     </div>
   )
 }
@@ -63,7 +48,7 @@ function LocalStatCard({ label, value, sub, icon: Icon, accent = 'blue' }) {
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
   return (
-    <div className="rounded-xl shadow-lg p-3 text-xs" style={{ background: '#111d34', border: '1px solid rgba(255,255,255,0.10)' }}>
+    <div className="rounded-md shadow-lg p-3 text-xs" style={{ background: '#111d34', border: '1px solid rgba(255,255,255,0.10)' }}>
       <p className="font-semibold text-white mb-1">{label}</p>
       <p style={{ color: MUTED_LIGHT }}>Taxa de recuperação: <span className="font-bold text-emerald-300">{fmtPct(payload[0].value / 100)}</span></p>
       {payload[0].payload.tentativas != null && (
@@ -187,14 +172,14 @@ export default function BanditDashboard() {
         )}
 
         {erro && (
-          <div className="rounded-2xl px-5 py-4 text-sm text-red-300" style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.25)' }}>
+          <div className="rounded-lg px-5 py-4 text-sm text-red-300" style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.25)' }}>
             {erro}
           </div>
         )}
 
         {drift && (
           drift.drift_detectado ? (
-            <div className="flex items-start gap-3 rounded-2xl px-5 py-4 text-sm text-amber-300" style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.25)' }}>
+            <div className="flex items-start gap-3 rounded-lg px-5 py-4 text-sm text-amber-300" style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.25)' }}>
               <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
               <div>
                 <p className="font-semibold">Possível drift do modelo detectado</p>
@@ -205,7 +190,7 @@ export default function BanditDashboard() {
               </div>
             </div>
           ) : drift.media_recente_30d != null ? (
-            <div className="flex items-center gap-3 rounded-2xl px-5 py-3.5 text-sm text-emerald-300" style={{ background: 'rgba(16,185,129,0.10)', border: '1px solid rgba(16,185,129,0.25)' }}>
+            <div className="flex items-center gap-3 rounded-lg px-5 py-3.5 text-sm text-emerald-300" style={{ background: 'rgba(16,185,129,0.10)', border: '1px solid rgba(16,185,129,0.25)' }}>
               <CheckCircle2 className="h-4 w-4 shrink-0" />
               <span>
                 Modelo estável — média recente: <strong>{drift.media_recente_30d?.toFixed(1)}</strong>, histórica: <strong>{drift.media_historica?.toFixed(1)}</strong> (diferença: {drift.diferenca?.toFixed(1)} pontos).
@@ -234,34 +219,26 @@ export default function BanditDashboard() {
                 label="Total de interações"
                 value={dados.total_interacoes.toLocaleString('pt-BR')}
                 sub="feedbacks registrados no bandit"
-                icon={Activity}
-                accent="blue"
               />
               <LocalStatCard
                 label="Ações disponíveis"
                 value="12"
                 sub="3 canais × 4 ofertas"
-                icon={Zap}
-                accent="slate"
               />
               <LocalStatCard
                 label="Melhor canal"
                 value={melhorCanal?.taxa != null ? melhorCanal.label : '—'}
                 sub={melhorCanal?.taxa != null ? `${fmtPct(melhorCanal.taxa / 100)} de recuperação` : 'sem dados ainda'}
-                icon={TrendingUp}
-                accent="emerald"
               />
               <LocalStatCard
                 label="Melhor oferta"
                 value={melhorOferta?.taxa != null ? melhorOferta.label : '—'}
                 sub={melhorOferta?.taxa != null ? `${fmtPct(melhorOferta.taxa / 100)} de recuperação` : 'sem dados ainda'}
-                icon={Award}
-                accent="amber"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-6">
-              <div className="rounded-2xl p-6" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }}>
+              <div className="rounded-lg p-6" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }}>
                 <p className="section-label mb-5">Taxa de recuperação por canal</p>
                 {porCanal.every(c => c.taxa == null) ? (
                   <div className="flex items-center justify-center h-40 text-sm" style={{ color: MUTED }}>
@@ -291,7 +268,7 @@ export default function BanditDashboard() {
                 </div>
               </div>
 
-              <div className="rounded-2xl p-6" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }}>
+              <div className="rounded-lg p-6" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }}>
                 <p className="section-label mb-5">Taxa de recuperação por oferta</p>
                 {porOferta.every(o => o.taxa == null) ? (
                   <div className="flex items-center justify-center h-40 text-sm" style={{ color: MUTED }}>
@@ -322,7 +299,7 @@ export default function BanditDashboard() {
               </div>
             </div>
 
-            <div className="rounded-2xl overflow-hidden" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }}>
+            <div className="rounded-lg overflow-hidden" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }}>
               <div className="px-6 py-4 border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
                 <p className="section-label">Ranking das 12 combinações</p>
                 <p className="text-xs mt-0.5" style={{ color: MUTED }}>Ordenado por taxa de recuperação média</p>
@@ -386,7 +363,7 @@ export default function BanditDashboard() {
             </div>
 
             {dados.total_interacoes < 50 && (
-              <div className="rounded-2xl px-5 py-4 text-sm text-amber-300" style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.25)' }}>
+              <div className="rounded-lg px-5 py-4 text-sm text-amber-300" style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.25)' }}>
                 <span className="font-semibold">O bandit ainda está aprendendo.</span>{' '}
                 Com {dados.total_interacoes} interações, os dados ainda têm alta variância.
                 Os resultados ficam mais confiáveis a partir de 50 feedbacks por ação.

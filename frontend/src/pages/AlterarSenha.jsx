@@ -3,16 +3,12 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { KeyRound, ArrowLeft, Eye, EyeOff, LogOut, Trash2, CheckCircle2 } from 'lucide-react'
 import { deletarConta } from '../api'
+import { LogoMark } from '../components/Logo'
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
 
 function Logo() {
-  return (
-    <div className="w-7 h-7 rounded-lg flex items-center justify-center"
-      style={{ background: 'linear-gradient(135deg,#1d6aff,#1557f0)', boxShadow: '0 2px 8px rgba(29,106,255,0.30)' }}>
-      <span className="text-white font-bold text-xs">⚖</span>
-    </div>
-  )
+  return <LogoMark className="h-4 w-4" />
 }
 
 export default function AlterarSenha() {
@@ -101,14 +97,13 @@ export default function AlterarSenha() {
       </header>
 
       <div className="max-w-md mx-auto px-6 py-12">
-        <div className="rounded-2xl p-8"
+        <div className="rounded-lg p-8"
           style={{
             background: '#0d1628',
             border: '1px solid rgba(255,255,255,0.07)',
-            boxShadow: '0 16px 48px rgba(0,0,0,0.50), 0 4px 12px rgba(0,0,0,0.30)',
           }}>
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+            <div className="w-10 h-10 rounded-md flex items-center justify-center"
               style={{ background: 'rgba(29,106,255,0.12)', border: '1px solid rgba(29,106,255,0.20)' }}>
               <KeyRound className="w-5 h-5 text-blue-400" />
             </div>
@@ -122,7 +117,7 @@ export default function AlterarSenha() {
 
           {sucesso ? (
             <div className="text-center py-6">
-              <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+              <div className="w-14 h-14 rounded-lg flex items-center justify-center mx-auto mb-4"
                 style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.20)' }}>
                 <CheckCircle2 className="w-7 h-7 text-emerald-400" />
               </div>
@@ -139,7 +134,7 @@ export default function AlterarSenha() {
                 <Campo label="Nova senha" campo="nova_senha" show={showNova} setShow={setShowNova} />
                 <Campo label="Confirmar nova senha" campo="confirmar" show={showConfirmar} setShow={setShowConfirmar} />
                 {erro && (
-                  <div className="text-red-400 rounded-xl px-4 py-3 text-sm"
+                  <div className="text-red-400 rounded-md px-4 py-3 text-sm"
                     style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.20)' }}>
                     {erro}
                   </div>
@@ -178,12 +173,12 @@ function DeletarConta({ onDeleted }) {
       <p className="text-[11px] font-semibold text-red-400/70 uppercase tracking-widest mb-3">Zona de perigo</p>
       {!confirmando ? (
         <button onClick={() => setConfirmando(true)}
-          className="flex items-center gap-2 text-sm text-red-400/60 hover:text-red-400 px-3 py-2 rounded-xl transition-colors font-medium hover:bg-red-500/8">
+          className="flex items-center gap-2 text-sm text-red-400/60 hover:text-red-400 px-3 py-2 rounded-md transition-colors font-medium hover:bg-red-500/8">
           <Trash2 className="h-4 w-4" /> Deletar minha conta (LGPD)
         </button>
       ) : (
         <div className="space-y-3">
-          <div className="text-sm text-red-400 rounded-xl px-4 py-3 leading-relaxed"
+          <div className="text-sm text-red-400 rounded-md px-4 py-3 leading-relaxed"
             style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.20)' }}>
             Isso removerá permanentemente sua conta, conexões salvas e histórico de contatos.{' '}
             <strong>Essa ação não pode ser desfeita.</strong>
@@ -191,11 +186,11 @@ function DeletarConta({ onDeleted }) {
           {erro && <p className="text-xs text-red-400">{erro}</p>}
           <div className="flex gap-2">
             <button onClick={confirmarDelecao} disabled={deletando}
-              className="px-4 py-2 rounded-xl text-sm font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors">
+              className="px-4 py-2 rounded-md text-sm font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors">
               {deletando ? 'Deletando...' : 'Confirmar exclusão'}
             </button>
             <button onClick={() => setConfirmando(false)}
-              className="px-4 py-2 rounded-xl text-sm font-medium transition-colors"
+              className="px-4 py-2 rounded-md text-sm font-medium transition-colors"
               style={{ color: '#8fa3c8' }}
               onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
               onMouseOut={e => e.currentTarget.style.background = 'transparent'}>

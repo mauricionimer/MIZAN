@@ -6,6 +6,7 @@ import {
   ShieldCheck, BarChart3, Award, Microscope, Target, XCircle,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { LogoMark } from '../components/Logo'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001'
 const MUTED = '#7c93bd'
@@ -17,18 +18,13 @@ const fmtData = iso => iso
   ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(iso))
   : '—'
 
-function Secao({ icon: Icon, titulo, sub, children, right }) {
+function Secao({ titulo, sub, children, right }) {
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }}>
+    <div className="rounded-lg overflow-hidden" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }}>
       <div className="px-6 py-4 border-b flex items-center justify-between flex-wrap gap-3" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-        <div className="flex items-center gap-3">
-          <div className="rounded-xl p-2 shrink-0" style={{ background: 'rgba(37,99,235,0.15)', color: 'var(--brand)' }}>
-            <Icon className="h-4 w-4" />
-          </div>
-          <div>
-            <p className="text-sm font-bold text-white">{titulo}</p>
-            {sub && <p className="text-xs mt-0.5" style={{ color: MUTED }}>{sub}</p>}
-          </div>
+        <div>
+          <p className="text-sm font-semibold text-white">{titulo}</p>
+          {sub && <p className="text-xs mt-0.5" style={{ color: MUTED }}>{sub}</p>}
         </div>
         {right}
       </div>
@@ -49,7 +45,7 @@ function Botao({ children, onClick, disabled, variante = 'primario', ...props })
       onClick={onClick}
       disabled={disabled}
       style={style}
-      className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${cls}`}
+      className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${cls}`}
       {...props}
     >
       {children}
@@ -186,11 +182,8 @@ export default function AprendizadoDashboard() {
           <button onClick={() => navigate('/comando')} className="p-1 rounded-lg transition-colors hover:bg-white/5" style={{ color: MUTED }}>
             <ArrowLeft className="h-4 w-4" />
           </button>
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center shadow-md shadow-blue-500/20"
-            style={{ background: 'linear-gradient(135deg,#1d4ed8,#2563eb)' }}>
-            <Brain className="h-3.5 w-3.5 text-white" />
-          </div>
-          <span className="font-bold text-white text-sm">Mizan</span>
+          <LogoMark className="h-4 w-4 shrink-0" />
+          <span className="font-semibold text-white text-sm">Mizan</span>
           <span className="text-white/20 text-sm">/</span>
           <span className="text-sm" style={{ color: MUTED_LIGHT }}>Gestão do Aprendizado</span>
         </div>
@@ -214,10 +207,10 @@ export default function AprendizadoDashboard() {
         )}
 
         {erro && (
-          <div className="rounded-2xl px-5 py-4 text-sm text-red-300" style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.25)' }}>{erro}</div>
+          <div className="rounded-lg px-5 py-4 text-sm text-red-300" style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.25)' }}>{erro}</div>
         )}
         {msg && (
-          <div className="flex items-center gap-2 rounded-2xl px-5 py-3.5 text-sm text-emerald-300" style={{ background: 'rgba(16,185,129,0.10)', border: '1px solid rgba(16,185,129,0.25)' }}>
+          <div className="flex items-center gap-2 rounded-lg px-5 py-3.5 text-sm text-emerald-300" style={{ background: 'rgba(16,185,129,0.10)', border: '1px solid rgba(16,185,129,0.25)' }}>
             <CheckCircle2 className="h-4 w-4 shrink-0" /> {msg}
           </div>
         )}
@@ -232,7 +225,7 @@ export default function AprendizadoDashboard() {
             {/* Drift */}
             {drift && (
               drift.drift_detectado ? (
-                <div className="flex items-start gap-3 rounded-2xl px-5 py-4 text-sm text-amber-300" style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.25)' }}>
+                <div className="flex items-start gap-3 rounded-lg px-5 py-4 text-sm text-amber-300" style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.25)' }}>
                   <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
                   <div>
                     <p className="font-semibold">Possível drift do modelo detectado</p>
@@ -240,16 +233,15 @@ export default function AprendizadoDashboard() {
                   </div>
                 </div>
               ) : drift.media_recente_30d != null ? (
-                <div className="flex items-center gap-3 rounded-2xl px-5 py-3.5 text-sm text-emerald-300" style={{ background: 'rgba(16,185,129,0.10)', border: '1px solid rgba(16,185,129,0.25)' }}>
+                <div className="flex items-center gap-3 rounded-lg px-5 py-3.5 text-sm text-emerald-300" style={{ background: 'rgba(16,185,129,0.10)', border: '1px solid rgba(16,185,129,0.25)' }}>
                   <CheckCircle2 className="h-4 w-4 shrink-0" /> {drift.mensagem}
                 </div>
               ) : null
             )}
 
-            {/* Qualidade da IA: overfitting, calibração, matriz de confusão */}
+            {/* Qualidade do modelo: overfitting, calibração, matriz de confusão */}
             <Secao
-              icon={Microscope}
-              titulo="Qualidade da IA — overfitting e confiabilidade"
+              titulo="Qualidade do modelo — overfitting e confiabilidade"
               sub="O modelo está generalizando ou decorando os próprios dados de treino?"
             >
               {!qualidade?.ok ? (
@@ -265,7 +257,7 @@ export default function AprendizadoDashboard() {
                       overfitting_severo:   { label: 'Overfitting severo — modelo não está confiável', bg: 'rgba(239,68,68,0.10)', border: 'rgba(239,68,68,0.25)', cor: '#fca5a5', Icon: XCircle },
                     }[v]
                     return (
-                      <div className="flex items-start gap-3 rounded-2xl border px-4 py-3.5 text-sm" style={{ background: cfg.bg, borderColor: cfg.border, color: cfg.cor }}>
+                      <div className="flex items-start gap-3 rounded-lg border px-4 py-3.5 text-sm" style={{ background: cfg.bg, borderColor: cfg.border, color: cfg.cor }}>
                         <cfg.Icon className="h-4 w-4 mt-0.5 shrink-0" />
                         <div>
                           <p className="font-semibold">{cfg.label}</p>
@@ -307,19 +299,19 @@ export default function AprendizadoDashboard() {
                     <div>
                       <p className="section-label mb-3">Matriz de confusão (holdout, {qualidade.holdout.n_amostras} casos)</p>
                       <div className="grid grid-cols-2 gap-2 text-center text-sm">
-                        <div className="rounded-xl p-3" style={{ background: 'rgba(16,185,129,0.10)', border: '1px solid rgba(16,185,129,0.22)' }}>
+                        <div className="rounded-md p-3" style={{ background: 'rgba(16,185,129,0.10)', border: '1px solid rgba(16,185,129,0.22)' }}>
                           <p className="text-lg font-bold text-emerald-300">{qualidade.holdout.matriz_confusao.verdadeiro_positivo}</p>
                           <p className="text-[11px] text-emerald-300/80 mt-0.5">Previu que pagava — pagou</p>
                         </div>
-                        <div className="rounded-xl p-3" style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.22)' }}>
+                        <div className="rounded-md p-3" style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.22)' }}>
                           <p className="text-lg font-bold text-red-300">{qualidade.holdout.matriz_confusao.falso_positivo}</p>
                           <p className="text-[11px] text-red-300/80 mt-0.5">Previu que pagava — não pagou</p>
                         </div>
-                        <div className="rounded-xl p-3" style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.22)' }}>
+                        <div className="rounded-md p-3" style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.22)' }}>
                           <p className="text-lg font-bold text-amber-300">{qualidade.holdout.matriz_confusao.falso_negativo}</p>
                           <p className="text-[11px] text-amber-300/80 mt-0.5">Previu que não pagava — pagou</p>
                         </div>
-                        <div className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                        <div className="rounded-md p-3" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
                           <p className="text-lg font-bold text-white">{qualidade.holdout.matriz_confusao.verdadeiro_negativo}</p>
                           <p className="text-[11px] mt-0.5" style={{ color: MUTED }}>Previu que não pagava — não pagou</p>
                         </div>
@@ -365,7 +357,7 @@ export default function AprendizadoDashboard() {
                   </div>
 
                   {/* Complexidade vs volume de dados */}
-                  <div className="flex items-start gap-3 rounded-xl border px-4 py-3 text-xs"
+                  <div className="flex items-start gap-3 rounded-md border px-4 py-3 text-xs"
                     style={qualidade.complexidade_adequada
                       ? { background: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.08)', color: MUTED_LIGHT }
                       : { background: 'rgba(245,158,11,0.10)', borderColor: 'rgba(245,158,11,0.25)', color: '#fcd34d' }}>
@@ -384,7 +376,6 @@ export default function AprendizadoDashboard() {
 
             {/* Versões do modelo */}
             <Secao
-              icon={GitBranch}
               titulo="Versões do modelo de crédito"
               sub={modelos ? `Ativa: ${modelos.versao_ativa} · ${modelos.total_versoes} versão(ões)` : ''}
               right={
@@ -461,7 +452,6 @@ export default function AprendizadoDashboard() {
 
             {/* Importância das variáveis */}
             <Secao
-              icon={BarChart3}
               titulo="O que mais pesa no score"
               sub={importancia ? `${importancia.total_features} variáveis no modelo ativo` : 'Importância de cada variável no modelo ativo'}
             >
@@ -482,7 +472,7 @@ export default function AprendizadoDashboard() {
 
             <div className="grid grid-cols-2 gap-6">
               {/* Price model */}
-              <Secao icon={Award} titulo="Modelo de precificação" sub="Estima quanto do valor devido é recuperado quando o devedor paga">
+              <Secao titulo="Modelo de precificação" sub="Estima quanto do valor devido é recuperado quando o devedor paga">
                 {!priceModel?.disponivel ? (
                   <p className="text-sm" style={{ color: MUTED }}>{priceModel?.mensagem || 'Indisponível.'}</p>
                 ) : (
@@ -496,7 +486,6 @@ export default function AprendizadoDashboard() {
 
               {/* Bandit: convergência + alpha */}
               <Secao
-                icon={Zap}
                 titulo="Bandit de abordagem (LinUCB)"
                 sub={convergencia ? `${convergencia.acoes_convergidas}/${convergencia.acoes_total} ações convergidas` : ''}
                 right={<Botao variante="secundario" onClick={() => navigate('/bandit')}>Ver detalhes</Botao>}
@@ -522,7 +511,6 @@ export default function AprendizadoDashboard() {
 
             {/* Retreinamento automático */}
             <Secao
-              icon={Clock}
               titulo="Retreinamento automático (scheduler)"
               sub={scheduler ? `Última verificação: ${fmtData(scheduler.ultima_verificacao)}` : ''}
               right={
@@ -548,7 +536,6 @@ export default function AprendizadoDashboard() {
 
             {/* Conexão de sincronização de pagamentos */}
             <Secao
-              icon={Database}
               titulo="Sincronização com banco de dados do cliente"
               sub="Busca pagamentos confirmados de um banco externo para realimentar o aprendizado (closed-loop)"
               right={

@@ -7,7 +7,17 @@
 @layer base {
   :root {
     --brand: #2563eb;
-    --brand-hover: color-mix(in srgb, var(--brand) 80%, white);
+    --brand-hover: color-mix(in srgb, var(--brand) 84%, white);
+
+    /* Superfícies — mantidas, o contraste do texto já é validado contra elas */
+    --surface:     #0d1628;
+    --surface-sub: #0a1220;
+    --border:      rgba(255,255,255,0.07);
+    --border-hi:   rgba(255,255,255,0.12);
+
+    /* Raios: superfícies 8px, controles 6px. Nada de 16px+ */
+    --r-control: 6px;
+    --r-surface: 8px;
   }
 
   * { box-sizing: border-box; }
@@ -19,7 +29,6 @@
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'tnum';
     background: #09090f;
-    background-attachment: fixed;
   }
 
   ::-webkit-scrollbar { width: 4px; height: 4px; }
@@ -27,22 +36,21 @@
   ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 9999px; }
   ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.14); }
 
-  ::selection { background: rgba(59,130,246,0.25); color: white; }
+  ::selection { background: rgba(37,99,235,0.30); color: white; }
 
   input[type='range']::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 14px; height: 14px;
+    width: 13px; height: 13px;
     border-radius: 50%;
-    background: white;
-    border: 2px solid #3b82f6;
+    background: var(--brand);
+    border: none;
     cursor: pointer;
-    box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
   }
   input[type='range']::-moz-range-thumb {
-    width: 14px; height: 14px;
+    width: 13px; height: 13px;
     border-radius: 50%;
-    background: white;
-    border: 2px solid #3b82f6;
+    background: var(--brand);
+    border: none;
     cursor: pointer;
   }
 
@@ -53,26 +61,37 @@
 }
 
 @layer components {
-  /* ── Cards ── */
+  /* ── Superfície padrão: plana, borda hairline, sem sombra ── */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-surface);
+  }
+  .panel-sub {
+    background: var(--surface-sub);
+    border: 1px solid var(--border);
+    border-radius: var(--r-control);
+  }
+
   .card {
-    @apply rounded-xl;
     background: rgba(255,255,255,0.02);
-    border: 1px solid rgba(255,255,255,0.06);
+    border: 1px solid var(--border);
+    border-radius: var(--r-surface);
   }
   .card-hover {
-    @apply card transition-all duration-200;
+    @apply card transition-colors duration-150;
   }
   .card-hover:hover {
-    border-color: rgba(255,255,255,0.10);
+    border-color: var(--border-hi);
     background: rgba(255,255,255,0.03);
   }
 
   /* ── Labels ── */
   .section-label {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.06em;
     color: #94a3b8;
   }
   .section-title {
@@ -84,57 +103,72 @@
     color: #94a3b8;
   }
 
-  /* ── Section header ── */
   .section-header { @apply flex items-center gap-3 mb-5; }
-  .section-header-icon { @apply w-8 h-8 rounded-xl flex items-center justify-center shrink-0; }
+  .section-header-icon {
+    @apply w-7 h-7 flex items-center justify-center shrink-0;
+    border-radius: var(--r-control);
+  }
 
   /* ── Inputs ── */
   .input-base {
-    @apply w-full rounded-lg px-3.5 py-2.5 text-sm focus:outline-none transition-all;
+    @apply w-full px-3 py-2 text-sm focus:outline-none transition-colors;
+    border-radius: var(--r-control);
     background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.10);
     color: #f0f0f5;
   }
   .input-base::placeholder { color: #6d84ab; }
   .input-base:focus {
-    border-color: rgba(59,130,246,0.50);
+    border-color: var(--brand);
     background: rgba(255,255,255,0.05);
-    box-shadow: 0 0 0 3px rgba(59,130,246,0.10);
   }
 
-  /* ── Primary button ── */
+  /* ── Botões ── */
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg
-           font-medium text-sm text-white transition-all duration-150
-           active:scale-[0.98] focus:outline-none;
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2
+           font-medium text-sm text-white transition-colors duration-150
+           focus:outline-none;
+    border-radius: var(--r-control);
     background: var(--brand);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.10);
   }
-  .btn-primary:hover:not(:disabled) {
-    background: var(--brand-hover);
-  }
+  .btn-primary:hover:not(:disabled) { background: var(--brand-hover); }
   .btn-primary:disabled {
     @apply cursor-not-allowed;
     opacity: 0.4;
   }
 
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2
+           font-medium text-sm transition-colors duration-150 focus:outline-none;
+    border-radius: var(--r-control);
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    color: #8fa3c8;
+  }
+  .btn-secondary:hover:not(:disabled) {
+    background: rgba(255,255,255,0.08);
+    color: #f0f0f5;
+  }
+
   /* ── Nav links ── */
   .nav-link {
-    @apply flex items-center gap-1.5 text-sm font-medium transition-colors px-2.5 py-1.5 rounded-lg;
+    @apply flex items-center gap-1.5 text-sm font-medium transition-colors px-2.5 py-1.5;
+    border-radius: var(--r-control);
     color: #94a3b8;
   }
   .nav-link:hover { color: #f0f0f5; background: rgba(255,255,255,0.05); }
 
   .nav-link-danger {
-    @apply flex items-center gap-1.5 text-sm font-medium transition-colors px-2.5 py-1.5 rounded-lg;
+    @apply flex items-center gap-1.5 text-sm font-medium transition-colors px-2.5 py-1.5;
+    border-radius: var(--r-control);
     color: #94a3b8;
   }
   .nav-link-danger:hover { color: #f87171; background: rgba(239,68,68,0.06); }
 
   /* ── Navbar ── */
   .navbar-glass {
-    @apply backdrop-blur-xl border-b sticky top-0 z-20;
-    background: rgba(9,9,15,0.90);
-    border-color: rgba(255,255,255,0.06);
+    @apply border-b sticky top-0 z-20;
+    background: #0b0f1a;
+    border-color: var(--border);
   }
 }

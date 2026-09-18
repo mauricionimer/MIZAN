@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { CheckCircle2, XCircle, Loader2, ClipboardList, ArrowLeft, Plus, Trash2, UploadCloud, FileText, Download, LogOut } from 'lucide-react'
 import { feedbackLote } from '../api'
 import { useAuth } from '../context/AuthContext'
+import { LogoMark } from '../components/Logo'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001'
 
@@ -12,18 +13,13 @@ const fmtBRL = (v) =>
 const EMPTY = { cpf: '', pagou: 'sim', valor_recuperado: '', data_pagamento: '' }
 
 function Logo() {
-  return (
-    <div className="w-7 h-7 rounded-lg flex items-center justify-center shadow-md shadow-blue-500/20"
-      style={{ background: 'linear-gradient(135deg,#1d4ed8,#2563eb)' }}>
-      <span className="text-white font-bold text-xs">⚖</span>
-    </div>
-  )
+  return <LogoMark className="h-4 w-4" />
 }
 
 function StatusBadge({ ok }) {
   return ok
-    ? <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 ring-1 ring-emerald-200/60 rounded-full px-2.5 py-0.5"><CheckCircle2 className="h-3.5 w-3.5" /> Registrado</span>
-    : <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-700 bg-red-50 ring-1 ring-red-200/60 rounded-full px-2.5 py-0.5"><XCircle className="h-3.5 w-3.5" /> Erro</span>
+    ? <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-300 bg-emerald-500/10 ring-1 ring-emerald-500/30/60 rounded-full px-2.5 py-0.5"><CheckCircle2 className="h-3.5 w-3.5" /> Registrado</span>
+    : <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-300 bg-red-500/10 ring-1 ring-red-500/30/60 rounded-full px-2.5 py-0.5"><XCircle className="h-3.5 w-3.5" /> Erro</span>
 }
 
 function baixarTemplate() {
@@ -71,18 +67,18 @@ function ImportacaoLote({ token }) {
 
   return (
     <div className="col-span-5 space-y-5">
-      <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 flex gap-4 items-start">
+      <div className="bg-white/[0.03] border border-white/[0.07] rounded-lg p-5 flex gap-4 items-start">
         <FileText className="h-5 w-5 text-slate-400 shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-slate-700 mb-1">Formato esperado do arquivo</p>
-          <p className="text-xs text-slate-500 mb-3 leading-relaxed">
-            Colunas obrigatórias: <code className="bg-white border border-slate-200 rounded px-1 font-mono">cpf</code> e{' '}
-            <code className="bg-white border border-slate-200 rounded px-1 font-mono">pagou</code> (sim/não ou 1/0).
-            {' '}Opcionais: <code className="bg-white border border-slate-200 rounded px-1 font-mono">valor_recuperado</code>,{' '}
-            <code className="bg-white border border-slate-200 rounded px-1 font-mono">data_pagamento</code>.
+          <p className="text-sm font-semibold text-slate-200 mb-1">Formato esperado do arquivo</p>
+          <p className="text-xs text-slate-400 mb-3 leading-relaxed">
+            Colunas obrigatórias: <code className="bg-white/[0.03] border border-white/10 rounded px-1 font-mono">cpf</code> e{' '}
+            <code className="bg-white/[0.03] border border-white/10 rounded px-1 font-mono">pagou</code> (sim/não ou 1/0).
+            {' '}Opcionais: <code className="bg-white/[0.03] border border-white/10 rounded px-1 font-mono">valor_recuperado</code>,{' '}
+            <code className="bg-white/[0.03] border border-white/10 rounded px-1 font-mono">data_pagamento</code>.
           </p>
           <button onClick={baixarTemplate}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors">
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-300 hover:text-blue-200 bg-blue-500/10 hover:bg-blue-500/15 px-3 py-1.5 rounded-lg transition-colors">
             <Download className="h-3.5 w-3.5" /> Baixar template CSV
           </button>
         </div>
@@ -93,10 +89,10 @@ function ImportacaoLote({ token }) {
         onDragOver={e => { e.preventDefault(); setIsDragging(true) }}
         onDragLeave={e => { e.preventDefault(); setIsDragging(false) }}
         onDrop={e => { e.preventDefault(); setIsDragging(false); handleFile(e.dataTransfer.files[0]) }}
-        className={`border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-all ${
-          isDragging ? 'border-blue-400 bg-blue-50' :
-          file       ? 'border-emerald-300 bg-emerald-50' :
-                       'border-slate-200 hover:border-blue-300 hover:bg-slate-50/50'
+        className={`border-2 border-dashed rounded-lg p-10 text-center cursor-pointer transition-all ${
+          isDragging ? 'border-blue-400 bg-blue-500/10' :
+          file       ? 'border-emerald-500/40 bg-emerald-500/10' :
+                       'border-white/10 hover:border-blue-500/40 hover:bg-white/[0.03]/50'
         }`}
       >
         <input ref={inputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden"
@@ -104,7 +100,7 @@ function ImportacaoLote({ token }) {
         {file ? (
           <div className="flex flex-col items-center gap-2">
             <FileText className="h-9 w-9 text-emerald-500" />
-            <p className="font-semibold text-slate-800 text-sm">{file.name}</p>
+            <p className="font-semibold text-white text-sm">{file.name}</p>
             <p className="text-xs text-slate-400">{(file.size / 1024).toFixed(1)} KB</p>
           </div>
         ) : (
@@ -117,9 +113,9 @@ function ImportacaoLote({ token }) {
       </div>
 
       {erro && (
-        <div className="flex items-start gap-2 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+        <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/25 rounded-md px-4 py-3">
           <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-          <p className="text-sm text-red-700">{erro}</p>
+          <p className="text-sm text-red-300">{erro}</p>
         </div>
       )}
 
@@ -135,30 +131,30 @@ function ImportacaoLote({ token }) {
               { label: 'Importados', value: resultado.importados, color: 'emerald' },
               { label: 'Erros',      value: resultado.erros,      color: resultado.erros > 0 ? 'red' : 'slate' },
             ].map(({ label, value, color }) => (
-              <div key={label} className={`rounded-2xl border p-4 text-center ${
-                color === 'emerald' ? 'bg-emerald-50 border-emerald-100' :
-                color === 'red'     ? 'bg-red-50 border-red-100' :
-                                      'bg-slate-50 border-slate-100'
+              <div key={label} className={`rounded-lg border p-4 text-center ${
+                color === 'emerald' ? 'bg-emerald-500/10 border-emerald-500/25' :
+                color === 'red'     ? 'bg-red-500/10 border-red-500/25' :
+                                      'bg-white/[0.03] border-white/[0.07]'
               }`}>
                 <p className={`text-2xl font-bold ${
-                  color === 'emerald' ? 'text-emerald-700' :
-                  color === 'red'     ? 'text-red-600' : 'text-slate-700'
+                  color === 'emerald' ? 'text-emerald-300' :
+                  color === 'red'     ? 'text-red-300' : 'text-slate-200'
                 }`}>{value}</p>
-                <p className="text-xs text-slate-500 mt-0.5">{label}</p>
+                <p className="text-xs text-slate-400 mt-0.5">{label}</p>
               </div>
             ))}
           </div>
 
           {erros.length > 0 && (
-            <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
-              <div className="px-4 py-3 border-b border-slate-100 bg-red-50">
-                <p className="text-xs font-semibold text-red-700 uppercase tracking-wide">Linhas com erro</p>
+            <div className="bg-white/[0.03] border border-white/[0.07] rounded-lg overflow-hidden">
+              <div className="px-4 py-3 border-b border-white/[0.07] bg-red-500/10">
+                <p className="text-xs font-semibold text-red-300 uppercase tracking-wide">Linhas com erro</p>
               </div>
-              <div className="divide-y divide-slate-50 max-h-48 overflow-y-auto">
+              <div className="divide-y divide-white/[0.06] max-h-48 overflow-y-auto">
                 {erros.map((e, i) => (
                   <div key={i} className="px-4 py-2.5 flex items-center gap-3">
                     <span className="text-xs text-slate-400 font-mono w-12 shrink-0">Ln {e.linha}</span>
-                    <span className="text-xs font-mono text-slate-600">{e.cpf}</span>
+                    <span className="text-xs font-mono text-slate-300">{e.cpf}</span>
                     <span className="text-xs text-red-500 ml-auto">{e.erro}</span>
                   </div>
                 ))}
@@ -247,13 +243,13 @@ export default function Feedback() {
     <div className="min-h-screen">
       <header className="navbar-glass px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/dashboard')} className="text-slate-400 hover:text-slate-700 transition-colors p-1 rounded-lg hover:bg-slate-100">
+          <button onClick={() => navigate('/dashboard')} className="text-slate-400 hover:text-slate-200 transition-colors p-1 rounded-lg hover:bg-white/[0.06]">
             <ArrowLeft className="w-4 h-4" />
           </button>
           <Logo />
-          <span className="font-bold text-slate-800 text-sm">Mizan</span>
+          <span className="font-bold text-white text-sm">Mizan</span>
           <span className="text-slate-200 text-sm">/</span>
-          <span className="text-slate-500 text-sm">Pagamentos</span>
+          <span className="text-slate-400 text-sm">Pagamentos</span>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm text-slate-400 hidden sm:block">{usuario?.nome}</span>
@@ -265,27 +261,27 @@ export default function Feedback() {
 
       <main className="max-w-5xl mx-auto px-6 py-10 space-y-6">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Pagamentos</h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <h1 className="text-xl font-bold text-white tracking-tight">Pagamentos</h1>
+          <p className="text-sm text-slate-400 mt-1">
             Acompanhe e registre pagamentos da carteira.
           </p>
         </div>
 
         {/* Operador: só visualiza, não registra */}
         {isOperador && (
-          <div className="bg-blue-50 border border-blue-100 rounded-2xl px-6 py-8 flex flex-col items-center text-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-blue-100 flex items-center justify-center">
+          <div className="bg-blue-500/10 border border-blue-500/25 rounded-lg px-6 py-8 flex flex-col items-center text-center gap-3">
+            <div className="w-12 h-12 rounded-lg bg-blue-500/15 flex items-center justify-center">
               <ClipboardList className="h-6 w-6 text-blue-500" />
             </div>
             <div>
-              <p className="text-sm font-bold text-slate-800">Registro de pagamentos é feito pelo administrador</p>
-              <p className="text-xs text-slate-500 mt-1 max-w-md leading-relaxed">
+              <p className="text-sm font-bold text-white">Registro de pagamentos é feito pelo administrador</p>
+              <p className="text-xs text-slate-400 mt-1 max-w-md leading-relaxed">
                 Os pagamentos são atualizados automaticamente quando o banco de dados da empresa é sincronizado.
                 Qualquer alteração de status aparece aqui para toda a equipe em tempo real.
               </p>
             </div>
             <button onClick={() => navigate('/dashboard')}
-              className="mt-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors">
+              className="mt-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-md hover:bg-blue-700 transition-colors">
               Ver dashboard
             </button>
           </div>
@@ -294,14 +290,14 @@ export default function Feedback() {
         {/* Admin / Comando: pode registrar manualmente */}
         {podeRegistrar && (
           <>
-            <div className="flex gap-1 p-1 bg-slate-100 rounded-xl w-fit">
+            <div className="flex gap-1 p-1 bg-white/[0.06] rounded-md w-fit">
               {[
                 { key: 'manual', label: 'Manual (um por vez)' },
                 { key: 'lote',   label: 'Importar em lote'   },
               ].map(({ key, label }) => (
                 <button key={key} onClick={() => setAba(key)}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                    aba === key ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                    aba === key ? 'bg-white/[0.03] text-white' : 'text-slate-400 hover:text-slate-200'
                   }`}>
                   {label}
                 </button>
@@ -316,24 +312,24 @@ export default function Feedback() {
 
             {aba === 'manual' && (
               <div className="grid grid-cols-5 gap-6 items-start">
-                <form onSubmit={enviar} className="col-span-2 bg-white rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.06)] p-6 space-y-5">
+                <form onSubmit={enviar} className="col-span-2 bg-white/[0.03] rounded-lg border border-white/[0.07] p-6 space-y-5">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">CPF do devedor</label>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">CPF do devedor</label>
                     <input type="text" inputMode="numeric" placeholder="000.000.000-00"
                       value={form.cpf} onChange={e => set('cpf', formatarCPF(e.target.value))}
                       required className="input-base font-mono" />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-2">Realizou pagamento?</label>
+                    <label className="block text-xs font-semibold text-slate-300 mb-2">Realizou pagamento?</label>
                     <div className="grid grid-cols-2 gap-2">
                       {[
                         { val: 'sim', label: 'Sim, pagou', active: 'bg-emerald-600 border-emerald-600 text-white' },
                         { val: 'nao', label: 'Não pagou',  active: 'bg-red-500 border-red-500 text-white' },
                       ].map(({ val, label, active }) => (
                         <button key={val} type="button" onClick={() => set('pagou', val)}
-                          className={`py-2.5 rounded-xl border text-sm font-semibold transition-all ${
-                            form.pagou === val ? active : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                          className={`py-2.5 rounded-md border text-sm font-semibold transition-all ${
+                            form.pagou === val ? active : 'bg-white/[0.03] border-white/10 text-slate-300 hover:border-white/15 hover:bg-white/[0.03]'
                           }`}>
                           {label}
                         </button>
@@ -343,7 +339,7 @@ export default function Feedback() {
 
                   {form.pagou === 'sim' && (
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                      <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                         Valor recuperado <span className="font-normal text-slate-400">(opcional)</span>
                       </label>
                       <div className="relative">
@@ -356,7 +352,7 @@ export default function Feedback() {
                   )}
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                       Data do pagamento <span className="font-normal text-slate-400">(opcional)</span>
                     </label>
                     <input type="date" value={form.data_pagamento}
@@ -365,15 +361,15 @@ export default function Feedback() {
                   </div>
 
                   {sucesso && (
-                    <div className="flex items-start gap-2 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">
+                    <div className="flex items-start gap-2 bg-emerald-500/10 border border-emerald-500/25 rounded-md px-4 py-3">
                       <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
-                      <p className="text-sm text-emerald-700 font-medium">{sucesso}</p>
+                      <p className="text-sm text-emerald-300 font-medium">{sucesso}</p>
                     </div>
                   )}
                   {erro && (
-                    <div className="flex items-start gap-2 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+                    <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/25 rounded-md px-4 py-3">
                       <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-                      <p className="text-sm text-red-700">{erro}</p>
+                      <p className="text-sm text-red-300">{erro}</p>
                     </div>
                   )}
 
@@ -384,8 +380,8 @@ export default function Feedback() {
                   </button>
                 </form>
 
-                <div className="col-span-3 bg-white rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.06)] overflow-hidden">
-                  <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                <div className="col-span-3 bg-white/[0.03] rounded-lg border border-white/[0.07] overflow-hidden">
+                  <div className="px-5 py-4 border-b border-white/[0.07] flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <ClipboardList className="h-4 w-4 text-slate-400" />
                       <span className="section-label">Registros desta sessão</span>
@@ -405,18 +401,20 @@ export default function Feedback() {
                       <p className="text-xs text-slate-300 mt-1">Os registros aparecem aqui após o envio.</p>
                     </div>
                   ) : (
-                    <div className="divide-y divide-slate-50">
+                    <div className="divide-y divide-white/[0.06]">
                       {historico.map((item, i) => (
                         <div key={i} className="px-5 py-3.5 flex items-center gap-4">
                           <StatusBadge ok={item.ok} />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-3 flex-wrap">
-                              <span className="font-mono text-sm font-semibold text-slate-800">{item.cpf}</span>
-                              <span className={`text-xs font-semibold ${item.pagou ? 'text-emerald-600' : 'text-red-500'}`}>
-                                {item.pagou ? '✓ Pagou' : '✗ Não pagou'}
+                              <span className="font-mono text-sm font-semibold text-white">{item.cpf}</span>
+                              <span className={`text-xs font-semibold ${item.pagou ? 'text-emerald-300' : 'text-red-500'}`}>
+                                {item.pagou
+                          ? <><CheckCircle2 className="h-3 w-3" /> Pagou</>
+                          : <><XCircle className="h-3 w-3" /> Não pagou</>}
                               </span>
                               {item.pagou && item.valor_recuperado > 0 && (
-                                <span className="text-xs text-slate-500">{fmtBRL(item.valor_recuperado)}</span>
+                                <span className="text-xs text-slate-400">{fmtBRL(item.valor_recuperado)}</span>
                               )}
                             </div>
                             {item.writeback && (
@@ -437,14 +435,14 @@ export default function Feedback() {
           </>
         )}
 
-        <div className="bg-blue-50 border border-blue-100 rounded-2xl px-5 py-4 flex gap-3">
+        <div className="bg-blue-500/10 border border-blue-500/25 rounded-lg px-5 py-4 flex gap-3">
           <CheckCircle2 className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
-          <div className="text-sm text-blue-700 space-y-0.5">
+          <div className="text-sm text-blue-300 space-y-0.5">
             <p className="font-semibold">Como funciona</p>
-            <p className="text-blue-600 text-xs leading-relaxed">
-              Cada feedback registrado alimenta o modelo de ML e o bandit LinUCB.
-              O bandit aprende quais canais e ofertas geraram pagamento e passa a priorizá-los nas próximas recomendações.
-              O modelo retreina automaticamente quando acumular 30 feedbacks novos.
+            <p className="text-blue-300 text-xs leading-relaxed">
+              Cada pagamento registrado aqui realimenta as recomendações: o sistema passa a priorizar
+              os canais e ofertas que de fato converteram, e recalibra o score de recuperabilidade
+              automaticamente a cada 30 novos registros.
             </p>
           </div>
         </div>

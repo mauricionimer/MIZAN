@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Phone, Tag, Zap, MessageSquare, Brain, Plus, ClipboardList, CheckCircle2, XCircle, Clock } from 'lucide-react'
+import { ArrowLeft, Phone, Tag, Zap, MessageSquare, Mail, Brain, Plus, ClipboardList, CheckCircle2, XCircle, Clock } from 'lucide-react'
 import { useAnalysis } from '../context/AnalysisContext'
 import PriorityBadge from '../components/PriorityBadge'
 import { buscarRecomendacao, registrarContato, listarContatos, buscarStatusFeedbacks, buscarExplicacaoScore, traduzirErroRede } from '../api'
+import { LogoMark } from '../components/Logo'
 
 const fmtBRL = (v) => v != null ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v) : '—'
 const fmtNum = (v) => v != null ? new Intl.NumberFormat('pt-BR').format(v) : '—'
@@ -12,18 +13,12 @@ const fmtPct = (v) => v != null ? `${(v * 100).toFixed(1)}%` : '—'
 const CARD = {
   background: '#0d1628',
   border: '1px solid rgba(255,255,255,0.07)',
-  boxShadow: '0 8px 32px rgba(0,0,0,0.50), 0 2px 8px rgba(0,0,0,0.30)',
 }
 const DIVIDER = { borderColor: 'rgba(255,255,255,0.06)' }
 const INP = { background: '#0a1220', border: '1px solid rgba(255,255,255,0.10)', color: 'white' }
 
 function Logo() {
-  return (
-    <div className="w-7 h-7 rounded-lg flex items-center justify-center"
-      style={{ background: 'linear-gradient(135deg,#1d6aff,#1557f0)', boxShadow: '0 2px 8px rgba(29,106,255,0.30)' }}>
-      <span className="text-white font-bold text-xs">⚖</span>
-    </div>
-  )
+  return <LogoMark className="h-4 w-4" />
 }
 
 function DataRow({ label, value }) {
@@ -103,14 +98,19 @@ function ExplicacaoScore({ explicacao, loading, erro }) {
 
 function Section({ title, children }) {
   return (
-    <div className="rounded-2xl p-5" style={CARD}>
+    <div className="rounded-lg p-5" style={CARD}>
       <p className="section-label mb-3">{title}</p>
       {children}
     </div>
   )
 }
 
-const CANAL_ICONS = { whatsapp: '💬', telefone: '📞', carta: '✉️' }
+const CANAL_ICONS = { whatsapp: MessageSquare, telefone: Phone, carta: Mail }
+
+function CanalIcon({ canal }) {
+  const Icon = CANAL_ICONS[canal] ?? ClipboardList
+  return <Icon className="h-4 w-4 shrink-0 mt-0.5" style={{ color: '#7c93bd' }} />
+}
 const RESULTADO_CFG = {
   contactado:     { label: 'Contactado',       color: 'text-blue-400',    bg: 'rgba(29,106,255,0.10)',   border: 'rgba(29,106,255,0.20)'  },
   sem_resposta:   { label: 'Sem resposta',      color: 'text-[#8fa3c8]',  bg: 'rgba(255,255,255,0.06)', border: 'rgba(255,255,255,0.12)' },
@@ -177,7 +177,7 @@ function HistoricoContatos({ cpf, rec }) {
   const taStyle     = { ...selectStyle, resize: 'none' }
 
   return (
-    <div className="rounded-2xl overflow-hidden" style={CARD}>
+    <div className="rounded-lg overflow-hidden" style={CARD}>
       <div className="px-5 py-4 border-b flex items-center justify-between" style={DIVIDER}>
         <div className="flex items-center gap-2">
           <ClipboardList className="h-3.5 w-3.5" style={{ color: '#7c93bd' }} />
@@ -236,13 +236,13 @@ function HistoricoContatos({ cpf, rec }) {
             <label className="block text-xs font-semibold mb-1.5" style={{ color: '#8fa3c8' }}>Observação (opcional)</label>
             <textarea value={form.observacao} onChange={e => set('observacao', e.target.value)} rows={2} placeholder="Detalhes do contato..." style={taStyle} />
           </div>
-          {erro && <p className="text-xs text-red-400 rounded-xl px-3 py-2" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)' }}>{erro}</p>}
+          {erro && <p className="text-xs text-red-400 rounded-md px-3 py-2" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)' }}>{erro}</p>}
           <div className="flex gap-2">
             <button onClick={salvar} disabled={salvando} className="btn-primary py-1.5 disabled:opacity-50">
               {salvando ? 'Salvando...' : 'Salvar'}
             </button>
             <button onClick={() => { setFormAberto(false); setErro(null) }}
-              className="px-4 py-1.5 rounded-xl text-sm font-medium transition-colors"
+              className="px-4 py-1.5 rounded-md text-sm font-medium transition-colors"
               style={{ color: '#8fa3c8' }}
               onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
               onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
@@ -266,7 +266,7 @@ function HistoricoContatos({ cpf, rec }) {
           const res = RESULTADO_CFG[c.resultado] ?? { label: c.resultado, color: 'text-[#8fa3c8]', bg: 'rgba(255,255,255,0.06)', border: 'rgba(255,255,255,0.12)' }
           return (
             <div key={c.id} className="px-5 py-3.5 flex items-start gap-3 border-b" style={DIVIDER}>
-              <span className="text-base shrink-0 mt-0.5">{CANAL_ICONS[c.canal] ?? '📋'}</span>
+              <CanalIcon canal={c.canal} />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${res.color}`}
@@ -306,13 +306,13 @@ function ApproachRecommendation({ devedor, rec, loading, erro }) {
   const modoCfg = rec ? (MODO_CONFIG[rec.modo] ?? MODO_CONFIG.aprendendo) : null
 
   return (
-    <div className="rounded-2xl overflow-hidden" style={CARD}>
+    <div className="rounded-lg overflow-hidden" style={CARD}>
       <div className="px-5 py-4 border-b flex items-center justify-between" style={DIVIDER}>
         <p className="section-label">Recomendação de Abordagem</p>
         {modoCfg && (
           <span className={`flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full ${modoCfg.color}`}
             style={{ background: modoCfg.bg, border: `1px solid ${modoCfg.border}` }}>
-            <Brain className="h-3 w-3" /> IA · {modoCfg.label}
+            {modoCfg.label}
           </span>
         )}
       </div>
@@ -320,33 +320,27 @@ function ApproachRecommendation({ devedor, rec, loading, erro }) {
         {loading && (
           <div className="flex items-center justify-center py-8 text-sm gap-2" style={{ color: '#7c93bd' }}>
             <div className="h-4 w-4 border-2 rounded-full animate-spin" style={{ borderColor: 'rgba(255,255,255,0.10)', borderTopColor: '#1d6aff' }} />
-            Consultando IA...
+            Calculando recomendação...
           </div>
         )}
         {erro && <p className="text-sm text-red-400 text-center py-4">{erro}</p>}
         {rec && !loading && (
           <>
             <div className="grid grid-cols-3 gap-3">
-              <div className="flex flex-col items-center gap-1.5 rounded-xl p-3"
-                style={{ background: urgCfg.bg, border: `1px solid ${urgCfg.border}` }}>
-                <Zap className="h-4 w-4" style={{ color: urgCfg.color }} />
-                <p className="text-xs font-medium" style={{ color: '#8fa3c8' }}>Urgência</p>
-                <span className="text-sm font-bold" style={{ color: urgCfg.color }}>{urgencia}</span>
-              </div>
-              <div className="flex flex-col items-center gap-1.5 rounded-xl p-3"
-                style={{ background: 'rgba(29,106,255,0.10)', border: '1px solid rgba(29,106,255,0.20)' }}>
-                <Phone className="h-4 w-4 text-blue-400" />
-                <p className="text-xs font-medium" style={{ color: '#8fa3c8' }}>Canal</p>
-                <span className="text-sm font-bold text-blue-400 text-center leading-tight">{rec.canal_label}</span>
-              </div>
-              <div className="flex flex-col items-center gap-1.5 rounded-xl p-3"
-                style={{ background: 'rgba(16,185,129,0.10)', border: '1px solid rgba(16,185,129,0.20)' }}>
-                <Tag className="h-4 w-4 text-emerald-400" />
-                <p className="text-xs font-medium" style={{ color: '#8fa3c8' }}>Oferta</p>
-                <span className="text-sm font-bold text-emerald-400 text-center leading-tight">{rec.oferta_label}</span>
-              </div>
+              {[
+                { rotulo: 'Urgência', valor: urgencia, cor: urgCfg.color },
+                { rotulo: 'Canal',    valor: rec.canal_label },
+                { rotulo: 'Oferta',   valor: rec.oferta_label },
+              ].map(({ rotulo, valor, cor }) => (
+                <div key={rotulo} className="rounded-md px-4 py-3"
+                  style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                  <p className="text-xs" style={{ color: '#7c93bd' }}>{rotulo}</p>
+                  <p className="text-sm font-semibold mt-1 leading-snug"
+                    style={{ color: cor || '#f0f0f5' }}>{valor}</p>
+                </div>
+              ))}
             </div>
-            <div className="flex gap-3 p-4 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <div className="flex gap-3 p-4 rounded-md" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
               <MessageSquare className="h-4 w-4 mt-0.5 shrink-0" style={{ color: '#7c93bd' }} />
               <p className="text-sm leading-relaxed" style={{ color: '#8fa3c8' }}>{rec.justificativa}</p>
             </div>
@@ -450,7 +444,7 @@ export default function DebtorDetail() {
         <div className="grid grid-cols-3 gap-6">
           <div className="col-span-1 flex flex-col gap-5">
             {/* Score ring */}
-            <div className="rounded-2xl p-6 flex flex-col items-center" style={CARD}>
+            <div className="rounded-lg p-6 flex flex-col items-center" style={CARD}>
               <p className="section-label mb-5 text-center">Score de Recuperabilidade</p>
               <div className="relative w-36 h-36">
                 <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
@@ -474,15 +468,15 @@ export default function DebtorDetail() {
               </div>
             </div>
 
-            {/* Perfil IA */}
-            <div className="rounded-2xl p-5" style={CARD}>
-              <p className="section-label mb-3">Perfil IA</p>
-              <div className="text-center py-3 rounded-xl text-sm font-semibold"
+            {/* Segmento */}
+            <div className="rounded-lg p-5" style={CARD}>
+              <p className="section-label mb-3">Segmento</p>
+              <div className="text-center py-3 rounded-md text-sm font-semibold"
                 style={{ backgroundColor: `${scoreColor}18`, color: scoreColor }}>
                 {d.perfil_cluster}
               </div>
               <p className="text-xs mt-3 text-center leading-relaxed" style={{ color: '#7c93bd' }}>
-                Cluster #{d.cluster_id ?? '—'} identificado por machine learning
+                Segmento #{d.cluster_id ?? '—'} — agrupamento por similaridade de perfil
               </p>
             </div>
           </div>

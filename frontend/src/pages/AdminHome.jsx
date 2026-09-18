@@ -6,14 +6,10 @@ import {
   Upload, Users, BarChart2, KeyRound, LogOut, Database,
   Shield, ChevronRight,
 } from 'lucide-react'
+import { LogoMark } from '../components/Logo'
 
 function Logo() {
-  return (
-    <div className="w-7 h-7 rounded-lg flex items-center justify-center"
-      style={{ background: 'linear-gradient(135deg,#1d6aff,#1557f0)', boxShadow: '0 2px 8px rgba(29,106,255,0.30)' }}>
-      <span className="text-white font-bold text-xs">⚖</span>
-    </div>
-  )
+  return <LogoMark className="h-4 w-4" />
 }
 
 function ActionCard({ icon: Icon, label, desc, onClick, accent = 'blue', full = false }) {
@@ -27,16 +23,15 @@ function ActionCard({ icon: Icon, label, desc, onClick, accent = 'blue', full = 
   return (
     <button
       onClick={onClick}
-      className={`group flex items-center gap-4 text-left p-5 rounded-2xl transition-all ${full ? 'col-span-2' : ''}`}
+      className={`group flex items-center gap-4 text-left p-5 rounded-lg transition-all ${full ? 'col-span-2' : ''}`}
       style={{
         background: '#0d1628',
         border: '1px solid rgba(255,255,255,0.07)',
-        boxShadow: '0 2px 12px rgba(0,0,0,0.30)',
       }}
-      onMouseOver={e => { e.currentTarget.style.borderColor = 'rgba(29,106,255,0.30)'; e.currentTarget.style.boxShadow = '0 4px 24px rgba(0,0,0,0.40)' }}
-      onMouseOut={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.30)' }}
+      onMouseOver={e => { e.currentTarget.style.borderColor = 'rgba(29,106,255,0.30)' }}
+      onMouseOut={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)' }}
     >
-      <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
+      <div className="w-11 h-11 rounded-md flex items-center justify-center shrink-0"
         style={{ background: cfg.iconBg }}>
         <Icon className={`w-5 h-5 ${cfg.iconTx}`} />
       </div>
@@ -116,7 +111,7 @@ export default function AdminHome() {
         <div className="mt-6">
           <button
             onClick={() => navigate('/dashboard')}
-            className="w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-colors text-sm"
+            className="w-full flex items-center justify-between px-5 py-4 rounded-lg transition-colors text-sm"
             style={{ border: '1px dashed rgba(255,255,255,0.10)', color: '#7c93bd' }}
             onMouseOver={e => { e.currentTarget.style.borderColor = 'rgba(29,106,255,0.30)'; e.currentTarget.style.color = '#8fa3c8' }}
             onMouseOut={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)'; e.currentTarget.style.color = '#7c93bd' }}

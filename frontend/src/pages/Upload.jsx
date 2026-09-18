@@ -4,6 +4,7 @@ import { UploadCloud, FileText, AlertCircle, Loader2, History, FolderOpen, Datab
 import { useAnalysis } from '../context/AnalysisContext'
 import { useAuth } from '../context/AuthContext'
 import { analisarCarteira, analisarDB, testarDB, listarTabelas, listarCarteiras, carregarCarteira, listarConexoes, salvarConexao, deletarConexao, sincronizarConexao, atualizarConexao, listarEmpresas } from '../api'
+import { LogoMark } from '../components/Logo'
 
 const fmtBRL = (v) => v != null
   ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v)
@@ -59,7 +60,7 @@ const INP_DARK = {
 }
 
 function inp(cls = '') {
-  return `w-full rounded-xl px-3.5 py-2.5 text-sm focus:outline-none transition-all ${cls}`
+  return `w-full rounded-md px-3.5 py-2.5 text-sm focus:outline-none transition-all ${cls}`
 }
 
 function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
@@ -201,7 +202,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
     } catch (e) { setErro(e.message); setEtapa('mapeamento') } finally { setLoadingAnalise(false) }
   }
 
-  const cardStyle = { background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 8px 32px rgba(0,0,0,0.40)' }
+  const cardStyle = { background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }
 
   // ── Lista de conexões salvas ──
   if (etapa === 'conexao' && modo === 'lista') return (
@@ -213,7 +214,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
         </div>
       )}
       {!carregandoConexoes && erroCarregamento && (
-        <div className="flex items-center justify-between p-3 rounded-xl text-sm text-amber-400"
+        <div className="flex items-center justify-between p-3 rounded-md text-sm text-amber-400"
           style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.20)' }}>
           <span>Não foi possível carregar as conexões.</span>
           <button onClick={carregarConexoes} className="ml-3 text-xs font-semibold underline whitespace-nowrap">
@@ -222,7 +223,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
         </div>
       )}
       {conexoes.map(c => (
-        <div key={c.id} className="rounded-2xl overflow-hidden" style={cardStyle}>
+        <div key={c.id} className="rounded-lg overflow-hidden" style={cardStyle}>
           <div className="flex items-start gap-3 px-4 pt-4 pb-3">
             <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'rgba(29,106,255,0.12)' }}>
               <Database className="h-4 w-4 text-blue-400" />
@@ -269,7 +270,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
         </div>
       ))}
       {syncMsg && (
-        <div className={`flex items-center gap-2 p-3 rounded-2xl text-sm ${syncMsg.tipo === 'ok' ? 'text-emerald-400' : 'text-red-400'}`}
+        <div className={`flex items-center gap-2 p-3 rounded-lg text-sm ${syncMsg.tipo === 'ok' ? 'text-emerald-400' : 'text-red-400'}`}
           style={{ background: syncMsg.tipo === 'ok' ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)', border: `1px solid ${syncMsg.tipo === 'ok' ? 'rgba(16,185,129,0.20)' : 'rgba(239,68,68,0.18)'}` }}>
           {syncMsg.tipo === 'ok' ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <XCircle className="h-4 w-4 shrink-0" />}
           {syncMsg.texto}
@@ -277,7 +278,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
       )}
       {!isOperador && (
         <button onClick={() => { setModo('nova'); setConexaoSalvaId(null); setForm({ tipo: 'postgres', host: '', porta: '', banco: '', usuario: '', senha: '', query: 'SELECT * FROM devedores', nome_fonte: '', intervalo_sync_horas: 1, writeback_habilitado: false, coluna_writeback: '', valor_pago: 'pago', valor_nao_pago: '' }); setErro(null) }}
-          className="w-full py-3 rounded-2xl border-2 border-dashed text-sm flex items-center justify-center gap-2 transition-colors"
+          className="w-full py-3 rounded-lg border-2 border-dashed text-sm flex items-center justify-center gap-2 transition-colors"
           style={{ borderColor: 'rgba(255,255,255,0.10)', color: '#7c93bd' }}
           onMouseOver={e => { e.currentTarget.style.borderColor = 'rgba(29,106,255,0.40)'; e.currentTarget.style.color = '#60a5fa' }}
           onMouseOut={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)'; e.currentTarget.style.color = '#7c93bd' }}>
@@ -309,7 +310,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
           ← Bancos salvos
         </button>
       )}
-      <div className="rounded-xl p-4" style={{ background: 'rgba(29,106,255,0.08)', border: '1px solid rgba(29,106,255,0.20)' }}>
+      <div className="rounded-md p-4" style={{ background: 'rgba(29,106,255,0.08)', border: '1px solid rgba(29,106,255,0.20)' }}>
         {conexaoSalvaId ? (
           <div className="flex items-center gap-2">
             <Database className="h-4 w-4 text-blue-400 shrink-0" />
@@ -398,7 +399,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
         </select>
         <p className="text-xs mt-1" style={{ color: '#7c93bd' }}>O sistema relê seu banco automaticamente neste intervalo — qualquer pagamento ou alteração reflete sem intervenção manual.</p>
       </div>
-      <div className="rounded-xl p-4 space-y-3" style={{ border: '1px dashed rgba(255,255,255,0.10)' }}>
+      <div className="rounded-md p-4 space-y-3" style={{ border: '1px dashed rgba(255,255,255,0.10)' }}>
         <label className="flex items-start gap-2.5 cursor-pointer">
           <input type="checkbox" checked={!!form.writeback_habilitado}
             onChange={e => set('writeback_habilitado', e.target.checked)}
@@ -430,13 +431,13 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
         )}
       </div>
       {erro && (
-        <div className="flex items-start gap-2 p-3 rounded-xl text-red-400 text-sm" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)' }}>
+        <div className="flex items-start gap-2 p-3 rounded-md text-red-400 text-sm" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)' }}>
           <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" /><span>{erro}</span>
         </div>
       )}
       <button onClick={conectar} disabled={loadingConexao}
-        className="w-full py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.97] text-white disabled:opacity-50"
-        style={{ background: loadingConexao ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg,#1d6aff,#1557f0)', boxShadow: loadingConexao ? 'none' : '0 4px 16px rgba(29,106,255,0.25)' }}>
+        className="w-full py-3 rounded-md font-semibold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.97] text-white disabled:opacity-50"
+        style={{ background: loadingConexao ? 'rgba(255,255,255,0.08)' : 'var(--brand)' }}>
         {loadingConexao ? <><Loader2 className="h-4 w-4 animate-spin" /> Conectando...</> : <><Plug className="h-4 w-4" /> Conectar</>}
       </button>
     </div>
@@ -445,7 +446,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
   // ── Seleção de tabela ──
   if (etapa === 'tabelas') return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 p-3 rounded-xl text-emerald-400" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.20)' }}>
+      <div className="flex items-center gap-2 p-3 rounded-md text-emerald-400" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.20)' }}>
         <CheckCircle2 className="h-4 w-4 shrink-0" />
         <span className="text-sm font-medium">Conectado! {tabelas.length} tabelas encontradas.</span>
         <button onClick={() => setEtapa('conexao')} className="ml-auto text-xs underline" style={{ color: '#7c93bd' }}>Voltar</button>
@@ -465,7 +466,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
       <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
         {tabelas.map(t => (
           <button key={t} onClick={() => selecionarTabela(t)} disabled={loadingTeste}
-            className="text-left px-3 py-2.5 rounded-xl text-sm font-mono truncate transition-colors disabled:opacity-50"
+            className="text-left px-3 py-2.5 rounded-md text-sm font-mono truncate transition-colors disabled:opacity-50"
             style={{ border: '1px solid rgba(255,255,255,0.08)', color: '#8fa3c8' }}
             onMouseOver={e => { e.currentTarget.style.borderColor = 'rgba(29,106,255,0.40)'; e.currentTarget.style.background = 'rgba(29,106,255,0.08)'; e.currentTarget.style.color = 'white' }}
             onMouseOut={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#8fa3c8' }}>
@@ -473,14 +474,14 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
           </button>
         ))}
       </div>
-      {erro && <div className="flex items-start gap-2 p-3 rounded-xl text-red-400 text-sm" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)' }}><AlertCircle className="h-4 w-4 mt-0.5 shrink-0" /><span>{erro}</span></div>}
+      {erro && <div className="flex items-start gap-2 p-3 rounded-md text-red-400 text-sm" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)' }}><AlertCircle className="h-4 w-4 mt-0.5 shrink-0" /><span>{erro}</span></div>}
     </div>
   )
 
   // ── Mapeamento de colunas ──
   if (etapa === 'mapeamento') return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 p-3 rounded-xl text-emerald-400" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.20)' }}>
+      <div className="flex items-center gap-2 p-3 rounded-md text-emerald-400" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.20)' }}>
         <CheckCircle2 className="h-4 w-4 shrink-0" />
         <div className="text-sm"><span className="font-medium">Conectado com sucesso.</span> <span style={{ color: '#8fa3c8' }}>{teste.total_colunas} colunas encontradas.</span></div>
         <button onClick={() => { setEtapa('conexao'); setTeste(null) }} className="ml-auto text-xs underline" style={{ color: '#7c93bd' }}>Voltar</button>
@@ -542,12 +543,12 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
       )}
       {!conexaoSalvaId && (
         (form.nome_fonte.trim() || nomeParaSalvar.trim()) ? (
-          <div className="flex items-center gap-2 p-3 rounded-xl text-xs text-blue-400" style={{ background: 'rgba(29,106,255,0.08)', border: '1px solid rgba(29,106,255,0.15)' }}>
+          <div className="flex items-center gap-2 p-3 rounded-md text-xs text-blue-400" style={{ background: 'rgba(29,106,255,0.08)', border: '1px solid rgba(29,106,255,0.15)' }}>
             <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
             Conexão será salva como <strong className="ml-1">"{form.nome_fonte.trim() || nomeParaSalvar.trim()}"</strong> automaticamente ao analisar.
           </div>
         ) : (
-          <div className="p-3 rounded-xl space-y-2" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.20)' }}>
+          <div className="p-3 rounded-md space-y-2" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.20)' }}>
             <p className="text-xs font-semibold text-amber-400">Quer salvar esta conexão para reutilizar depois?</p>
             <input value={nomeParaSalvar} onChange={e => setNomeParaSalvar(e.target.value)} placeholder="Nome da conexão (ex: banco_principal)..."
               className="w-full rounded-lg px-3 py-1.5 text-xs focus:outline-none" style={{ background: '#0a1220', border: '1px solid rgba(245,158,11,0.25)', color: 'white' }} />
@@ -555,7 +556,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
           </div>
         )
       )}
-      {erro && <div className="flex items-start gap-2 p-3 rounded-xl text-red-400 text-sm" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)' }}><AlertCircle className="h-4 w-4 mt-0.5 shrink-0" /><span>{erro}</span></div>}
+      {erro && <div className="flex items-start gap-2 p-3 rounded-md text-red-400 text-sm" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)' }}><AlertCircle className="h-4 w-4 mt-0.5 shrink-0" /><span>{erro}</span></div>}
       <button onClick={analisar} disabled={loadingAnalise} className="btn-primary w-full py-3 disabled:opacity-50">
         <ChevronRight className="h-4 w-4" /> Analisar carteira
       </button>
@@ -629,7 +630,7 @@ export default function Upload() {
   const handleDBResult = (data) => { setResult(data); navigate('/dashboard') }
   const fmtSize = (bytes) => bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`
 
-  const CARD_STYLE = { background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 16px 48px rgba(0,0,0,0.50), 0 4px 12px rgba(0,0,0,0.30)' }
+  const CARD_STYLE = { background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden">
@@ -640,24 +641,17 @@ export default function Upload() {
         </button>
       )}
 
-      {/* Hero */}
-      <div className="mb-12 text-center relative z-10">
-        <div className="relative inline-block mb-5">
-          <div className="absolute inset-0 rounded-full blur-3xl scale-[2] opacity-20"
-            style={{ background: 'radial-gradient(circle, #1d6aff, #1557f0)' }} />
-          <div className="relative w-16 h-16 rounded-2xl flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg,#1d6aff,#1557f0)', boxShadow: '0 8px 32px rgba(29,106,255,0.40), 0 2px 8px rgba(29,106,255,0.30)' }}>
-            <span className="text-white text-2xl font-bold">⚖</span>
-          </div>
-        </div>
-        <h1 className="text-4xl font-extrabold text-white tracking-tight mb-2">Mizan</h1>
-        <p className="text-base max-w-xs mx-auto leading-relaxed" style={{ color: '#8fa3c8' }}>
-          Análise de carteira de crédito com inteligência artificial
+      {/* Cabeçalho */}
+      <div className="mb-10 text-center relative z-10">
+        <LogoMark className="h-7 w-7 mx-auto mb-4" />
+        <h1 className="text-2xl font-semibold text-white tracking-tight mb-1.5">Mizan</h1>
+        <p className="text-sm max-w-xs mx-auto leading-relaxed" style={{ color: '#8fa3c8' }}>
+          Análise e priorização de carteira de crédito
         </p>
       </div>
 
       {/* Card principal */}
-      <div className="w-full max-w-lg rounded-2xl p-8 relative z-10" style={CARD_STYLE}>
+      <div className="w-full max-w-lg rounded-lg p-8 relative z-10" style={CARD_STYLE}>
         <h2 className="text-base font-semibold text-white mb-1">Carregar carteira</h2>
         <p className="text-sm mb-5" style={{ color: '#8fa3c8' }}>
           Importe os dados dos devedores via arquivo ou conexão direta com banco de dados.
@@ -670,7 +664,7 @@ export default function Upload() {
               Empresa cliente <span className="text-red-400">*</span>
             </label>
             <select value={empresaAlvo} onChange={e => setEmpresaAlvo(e.target.value)}
-              className="w-full rounded-xl border px-3 py-2 text-sm focus:outline-none"
+              className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none"
               style={{ background: '#0a1220', border: '1px solid rgba(255,255,255,0.10)', color: empresaAlvo ? 'white' : '#6d84ab' }}>
               <option value="">Selecione a empresa cliente...</option>
               {listaEmpresas.map(e => (
@@ -683,15 +677,15 @@ export default function Upload() {
         )}
 
         {/* Tabs */}
-        <div className="flex gap-1 p-1 rounded-xl mb-6" style={{ background: 'rgba(255,255,255,0.05)' }}>
+        <div className="flex gap-1 p-1 rounded-md mb-6" style={{ background: 'rgba(255,255,255,0.05)' }}>
           <button onClick={() => { setAba('arquivo'); setError(null) }}
             className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${aba === 'arquivo' ? 'text-white' : ''}`}
-            style={aba === 'arquivo' ? { background: '#0d1628', color: 'white', boxShadow: '0 1px 4px rgba(0,0,0,0.30)' } : { color: '#7c93bd' }}>
+            style={aba === 'arquivo' ? { background: '#0d1628', color: 'white' } : { color: '#7c93bd' }}>
             <UploadCloud className="h-4 w-4" /> Arquivo
           </button>
           <button onClick={() => { setAba('db'); setError(null) }}
             className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all`}
-            style={aba === 'db' ? { background: '#0d1628', color: 'white', boxShadow: '0 1px 4px rgba(0,0,0,0.30)' } : { color: '#7c93bd' }}>
+            style={aba === 'db' ? { background: '#0d1628', color: 'white' } : { color: '#7c93bd' }}>
             <Database className="h-4 w-4" /> Banco de Dados
           </button>
         </div>
@@ -702,7 +696,7 @@ export default function Upload() {
               onClick={() => inputRef.current.click()}
               onKeyDown={(e) => e.key === 'Enter' && inputRef.current.click()}
               onDrop={onDrop} onDragOver={onDragOver} onDragLeave={onDragLeave}
-              className="border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-all duration-200 select-none"
+              className="border-2 border-dashed rounded-lg p-10 text-center cursor-pointer transition-all duration-200 select-none"
               style={isDragging
                 ? { borderColor: '#1d6aff', background: 'rgba(29,106,255,0.08)' }
                 : file
@@ -730,13 +724,13 @@ export default function Upload() {
               )}
             </div>
             {error && (
-              <div className="mt-4 flex items-start gap-2 p-3 rounded-2xl text-red-400 text-sm" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)' }}>
+              <div className="mt-4 flex items-start gap-2 p-3 rounded-lg text-red-400 text-sm" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)' }}>
                 <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" /><span>{error}</span>
               </div>
             )}
             <button onClick={analisar} disabled={!file || loading}
-              className="mt-5 w-full py-3 rounded-2xl font-semibold text-sm text-white flex items-center justify-center gap-2 transition-all duration-200 disabled:opacity-50"
-              style={(!file || loading) ? { background: 'rgba(255,255,255,0.06)' } : { background: 'linear-gradient(135deg,#1d6aff,#1557f0)', boxShadow: '0 4px 16px rgba(29,106,255,0.25)' }}>
+              className="mt-5 w-full py-3 rounded-lg font-semibold text-sm text-white flex items-center justify-center gap-2 transition-all duration-200 disabled:opacity-50"
+              style={(!file || loading) ? { background: 'rgba(255,255,255,0.06)' } : { background: 'var(--brand)' }}>
               {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> Analisando carteira...</> : 'Analisar carteira'}
             </button>
             <p className="mt-4 text-center text-xs" style={{ color: '#6d84ab' }}>
@@ -758,44 +752,33 @@ export default function Upload() {
         {histLoading && <div className="flex items-center justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" style={{ color: '#6d84ab' }} /></div>}
 
         {!histLoading && historico.length === 0 && (
-          <div className="rounded-2xl p-8" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 8px 32px rgba(0,0,0,0.40)' }}>
-            <div className="text-center mb-8">
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'rgba(29,106,255,0.12)' }}>
-                <span className="text-2xl">⚖</span>
-              </div>
-              <h3 className="text-base font-semibold text-white mb-1">Bem-vindo ao Mizan</h3>
-              <p className="text-sm" style={{ color: '#8fa3c8' }}>Siga os passos abaixo para começar a recuperar valor da sua carteira</p>
-            </div>
-            <div className="grid grid-cols-4 gap-4">
-              {[
-                { num: '1', cor: 'blue',    titulo: 'Importe sua carteira',   desc: 'Faça upload de um CSV/Excel ou conecte diretamente ao seu banco de dados.', icon: '📂' },
-                { num: '2', cor: 'indigo',  titulo: 'IA analisa e ranqueia',  desc: 'O modelo de ML classifica cada devedor por probabilidade de pagamento.',    icon: '🤖' },
-                { num: '3', cor: 'emerald', titulo: 'Defina sua estratégia',  desc: 'Simule preços de compra de carteira e veja o retorno esperado da operação.', icon: '📊' },
-                { num: '4', cor: 'amber',   titulo: 'Registre os resultados', desc: 'A cada contato registrado, a IA aprende e melhora as recomendações.',        icon: '🎯' },
-              ].map(({ num, cor, titulo, desc, icon }) => {
-                const colors = { blue: 'rgba(29,106,255,0.15)', indigo: 'rgba(99,102,241,0.15)', emerald: 'rgba(16,185,129,0.12)', amber: 'rgba(245,158,11,0.12)' }
-                const borders = { blue: 'rgba(29,106,255,0.25)', indigo: 'rgba(99,102,241,0.25)', emerald: 'rgba(16,185,129,0.20)', amber: 'rgba(245,158,11,0.20)' }
-                const badges  = { blue: '#1d6aff', indigo: '#6366f1', emerald: '#10b981', amber: '#f59e0b' }
-                return (
-                  <div key={num} className="rounded-xl p-4" style={{ background: colors[cor], border: `1px solid ${borders[cor]}` }}>
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="w-5 h-5 rounded-full text-white text-xs font-bold flex items-center justify-center shrink-0" style={{ background: badges[cor] }}>{num}</span>
-                      <span className="text-lg">{icon}</span>
-                    </div>
-                    <p className="text-xs font-semibold text-white mb-1">{titulo}</p>
-                    <p className="text-xs leading-relaxed" style={{ color: '#8fa3c8' }}>{desc}</p>
-                  </div>
-                )
-              })}
-            </div>
-            <p className="text-center text-xs mt-6" style={{ color: '#6d84ab' }}>
-              Comece carregando um arquivo acima — CSV ou Excel com CPF, valor da dívida e dias em atraso são suficientes.
+          <div className="rounded-lg px-6 py-7" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }}>
+            <h3 className="text-sm font-semibold text-white mb-1">Nenhuma carteira analisada ainda</h3>
+            <p className="text-sm mb-6" style={{ color: '#8fa3c8' }}>
+              Carregue um arquivo acima. CPF, valor da dívida e dias em atraso já são suficientes para a primeira análise.
             </p>
+            <ol className="space-y-3 max-w-xl">
+              {[
+                ['Importe a carteira', 'Arquivo CSV/Excel ou conexão direta com o banco de dados do cliente.'],
+                ['Revise a priorização', 'Cada devedor recebe um score de recuperabilidade, com o motivo da nota.'],
+                ['Defina a estratégia', 'Simule preço de compra da carteira e o retorno esperado da operação.'],
+                ['Registre os resultados', 'Cada contato e pagamento registrado recalibra as recomendações seguintes.'],
+              ].map(([titulo, desc], i) => (
+                <li key={titulo} className="flex gap-3">
+                  <span className="w-5 h-5 rounded-full text-xs font-medium flex items-center justify-center shrink-0 mt-0.5"
+                    style={{ background: 'rgba(255,255,255,0.06)', color: '#8fa3c8' }}>{i + 1}</span>
+                  <div>
+                    <p className="text-sm font-medium text-white">{titulo}</p>
+                    <p className="text-xs leading-relaxed mt-0.5" style={{ color: '#8fa3c8' }}>{desc}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
           </div>
         )}
 
         {!histLoading && historico.length > 0 && (
-          <div className="rounded-2xl overflow-hidden" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 8px 32px rgba(0,0,0,0.40)' }}>
+          <div className="rounded-lg overflow-hidden" style={{ background: '#0d1628', border: '1px solid rgba(255,255,255,0.07)' }}>
             {historico.slice(0, histLimit).map((c) => (
               <div key={c.id} className="flex items-center gap-4 px-4 py-3 border-b transition-colors"
                 style={{ borderColor: 'rgba(255,255,255,0.05)' }}
