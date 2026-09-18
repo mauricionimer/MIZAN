@@ -10,10 +10,10 @@ function Logo() {
 
 function ActionCard({ icon: Icon, label, desc, onClick, accent = 'blue', disabled = false }) {
   const cfg = {
-    blue:    { iconBg: 'rgba(29,106,255,0.12)',  iconTx: 'text-blue-400'    },
-    emerald: { iconBg: 'rgba(16,185,129,0.12)',  iconTx: 'text-emerald-400' },
-    amber:   { iconBg: 'rgba(245,158,11,0.12)',  iconTx: 'text-amber-400'   },
-    slate:   { iconBg: 'rgba(255,255,255,0.06)', iconTx: 'text-slate-400'   },
+    blue:    { iconBg: 'var(--info-soft)',  iconTx: 'text-[var(--info)]'    },
+    emerald: { iconBg: 'var(--ok-soft)',  iconTx: 'text-[var(--ok)]' },
+    amber:   { iconBg: 'var(--warn-soft)',  iconTx: 'text-[var(--warn)]'   },
+    slate:   { iconBg: 'rgba(22,32,60,0.06)', iconTx: 'text-[var(--text-3)]'   },
   }[accent]
 
   return (
@@ -22,21 +22,21 @@ function ActionCard({ icon: Icon, label, desc, onClick, accent = 'blue', disable
       disabled={disabled}
       className={`group flex items-center gap-4 text-left p-5 rounded-lg transition-all ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
       style={{
-        background: '#0d1628',
-        border: '1px solid rgba(255,255,255,0.07)',
+        background: 'var(--surface)',
+        border: '1px solid rgba(22,32,60,0.10)',
       }}
-      onMouseOver={e => { if (!disabled) { e.currentTarget.style.borderColor = 'rgba(29,106,255,0.30)' } }}
-      onMouseOut={e => { if (!disabled) { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)' } }}
+      onMouseOver={e => { if (!disabled) { e.currentTarget.style.borderColor = 'var(--info-border)' } }}
+      onMouseOut={e => { if (!disabled) { e.currentTarget.style.borderColor = 'rgba(22,32,60,0.10)' } }}
     >
       <div className="w-11 h-11 rounded-md flex items-center justify-center shrink-0"
         style={{ background: cfg.iconBg }}>
         <Icon className={`w-5 h-5 ${cfg.iconTx}`} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="font-bold text-white text-sm">{label}</p>
-        <p className="text-xs mt-0.5 leading-relaxed" style={{ color: '#7c93bd' }}>{desc}</p>
+        <p className="font-bold text-[var(--text-1)] text-sm">{label}</p>
+        <p className="text-xs mt-0.5 leading-relaxed" style={{ color: 'var(--text-3)' }}>{desc}</p>
       </div>
-      {!disabled && <ChevronRight className="w-4 h-4 shrink-0" style={{ color: '#6d84ab' }} />}
+      {!disabled && <ChevronRight className="w-4 h-4 shrink-0" style={{ color: 'var(--text-muted)' }} />}
     </button>
   )
 }
@@ -54,16 +54,16 @@ export default function OperadorHome() {
       <header className="navbar-glass px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <Logo />
-          <span className="font-bold text-white text-sm">Mizan</span>
+          <span className="font-bold text-[var(--text-1)] text-sm">Mizan</span>
           {empresa && (
             <>
-              <span className="text-white/20 text-sm">/</span>
-              <span className="text-sm truncate max-w-[160px]" style={{ color: '#8fa3c8' }}>{empresa}</span>
+              <span className="text-[var(--border-hi)] text-sm">/</span>
+              <span className="text-sm truncate max-w-[160px]" style={{ color: 'var(--text-2)' }}>{empresa}</span>
             </>
           )}
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-sm hidden sm:block" style={{ color: '#7c93bd' }}>{usuario?.nome}</span>
+          <span className="text-sm hidden sm:block" style={{ color: 'var(--text-3)' }}>{usuario?.nome}</span>
           <button onClick={() => { logout(); navigate('/login') }} className="nav-link-danger">
             <LogOut className="w-4 h-4" /> Sair
           </button>
@@ -72,15 +72,15 @@ export default function OperadorHome() {
 
       <main className="max-w-3xl mx-auto px-6 py-14">
         <div className="mb-10">
-          <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: '#7c93bd' }}>
+          <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: 'var(--text-3)' }}>
             Área do cobrador
           </p>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight">
+          <h1 className="text-3xl font-extrabold text-[var(--text-1)] tracking-tight">
             Olá, {primeiroNome}
           </h1>
           {empresa && (
-            <p className="mt-2 text-sm" style={{ color: '#8fa3c8' }}>
-              Empresa: <span className="font-medium text-white">{empresa}</span>
+            <p className="mt-2 text-sm" style={{ color: 'var(--text-2)' }}>
+              Empresa: <span className="font-medium text-[var(--text-1)]">{empresa}</span>
             </p>
           )}
         </div>

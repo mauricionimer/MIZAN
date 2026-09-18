@@ -11,8 +11,8 @@ class ErrorBoundary extends Component {
     if (!this.state.error) return this.props.children
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-8 text-center">
-        <p className="text-white text-lg font-semibold">Algo deu errado nesta página.</p>
-        <p className="text-blue-200 text-sm font-mono bg-black/30 px-4 py-2 rounded-md max-w-lg break-all">
+        <p className="text-[var(--text-1)] text-lg font-semibold">Algo deu errado nesta página.</p>
+        <p className="text-[var(--info)] text-sm font-mono bg-black/30 px-4 py-2 rounded-md max-w-lg break-all">
           {this.state.error?.message || String(this.state.error)}
         </p>
         <button
@@ -53,9 +53,9 @@ function ServerWarmupBanner() {
 
   if (!show) return null
   return (
-    <div className="fixed top-0 inset-x-0 z-50 px-4 py-2.5 flex items-center justify-center gap-3 text-sm text-amber-400"
-      style={{ background: 'rgba(245,158,11,0.10)', borderBottom: '1px solid rgba(245,158,11,0.20)', backdropFilter: 'blur(8px)' }}>
-      <Loader2 className="h-4 w-4 animate-spin text-amber-400 shrink-0" />
+    <div className="fixed top-0 inset-x-0 z-50 px-4 py-2.5 flex items-center justify-center gap-3 text-sm text-[var(--warn)]"
+      style={{ background: 'var(--warn-soft)', borderBottom: '1px solid var(--warn-border)', backdropFilter: 'blur(8px)' }}>
+      <Loader2 className="h-4 w-4 animate-spin text-[var(--warn)] shrink-0" />
       <span>O servidor está acordando — a primeira requisição pode levar até 30s (plano gratuito).</span>
     </div>
   )

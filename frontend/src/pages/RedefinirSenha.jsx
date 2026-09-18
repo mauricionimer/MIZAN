@@ -50,22 +50,22 @@ export default function RedefinirSenha() {
     <div className="min-h-screen flex flex-col items-center justify-center p-6">
       <div className="flex items-center gap-2.5 mb-10">
         <LogoMark className="h-5 w-5 shrink-0" />
-        <span className="text-white text-xl font-bold tracking-tight">Mizan</span>
+        <span className="text-[var(--text-1)] text-xl font-bold tracking-tight">Mizan</span>
       </div>
 
       <div className="w-full max-w-sm rounded-lg p-8"
         style={{
-          background: '#0d1628',
-          border: '1px solid rgba(255,255,255,0.08)',
+          background: 'var(--surface)',
+          border: '1px solid rgba(22,32,60,0.08)',
         }}>
         {sucesso ? (
           <div className="text-center py-4">
             <div className="w-14 h-14 rounded-lg flex items-center justify-center mx-auto mb-4"
-              style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.20)' }}>
-              <CheckCircle2 className="w-7 h-7 text-emerald-400" />
+              style={{ background: 'var(--ok-soft)', border: '1px solid var(--ok-border)' }}>
+              <CheckCircle2 className="w-7 h-7 text-[var(--ok)]" />
             </div>
-            <h2 className="text-lg font-bold text-white mb-2 tracking-tight">Senha redefinida!</h2>
-            <p className="text-sm mb-7 leading-relaxed" style={{ color: '#8fa3c8' }}>
+            <h2 className="text-lg font-bold text-[var(--text-1)] mb-2 tracking-tight">Senha redefinida!</h2>
+            <p className="text-sm mb-7 leading-relaxed" style={{ color: 'var(--text-2)' }}>
               Sua senha foi atualizada. Faça login com a nova senha.
             </p>
             <button onClick={() => navigate('/login')} className="btn-primary w-full py-2.5">
@@ -75,43 +75,43 @@ export default function RedefinirSenha() {
         ) : (
           <>
             <div className="w-12 h-12 rounded-md flex items-center justify-center mb-5"
-              style={{ background: 'rgba(29,106,255,0.12)', border: '1px solid rgba(29,106,255,0.20)' }}>
-              <KeyRound className="w-6 h-6 text-blue-400" />
+              style={{ background: 'var(--info-soft)', border: '1px solid var(--info-border)' }}>
+              <KeyRound className="w-6 h-6 text-[var(--info)]" />
             </div>
-            <h2 className="text-lg font-bold text-white mb-1 tracking-tight">Nova senha</h2>
-            <p className="text-sm mb-7" style={{ color: '#8fa3c8' }}>
+            <h2 className="text-lg font-bold text-[var(--text-1)] mb-1 tracking-tight">Nova senha</h2>
+            <p className="text-sm mb-7" style={{ color: 'var(--text-2)' }}>
               Escolha uma nova senha com no mínimo 8 caracteres, combinando letras e números.
             </p>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold mb-1.5" style={{ color: '#8fa3c8' }}>Nova senha</label>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-2)' }}>Nova senha</label>
                 <div className="relative">
                   <input type={showNova ? 'text' : 'password'} required value={nova}
                     onChange={e => setNova(e.target.value)} className="input-base pr-11"
                     placeholder="mínimo 8 caracteres, letras e números" />
                   <button type="button" onClick={() => setShowNova(s => !s)}
                     className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors"
-                    style={{ color: '#7c93bd' }}>
+                    style={{ color: 'var(--text-3)' }}>
                     {showNova ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold mb-1.5" style={{ color: '#8fa3c8' }}>Confirmar nova senha</label>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-2)' }}>Confirmar nova senha</label>
                 <div className="relative">
                   <input type={showConf ? 'text' : 'password'} required value={confirmar}
                     onChange={e => setConfirmar(e.target.value)} className="input-base pr-11"
                     placeholder="repita a nova senha" />
                   <button type="button" onClick={() => setShowConf(s => !s)}
                     className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors"
-                    style={{ color: '#7c93bd' }}>
+                    style={{ color: 'var(--text-3)' }}>
                     {showConf ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
               {erro && (
-                <div className="text-sm text-red-400 rounded-md px-4 py-3"
-                  style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.20)' }}>
+                <div className="text-sm text-[var(--danger)] rounded-md px-4 py-3"
+                  style={{ background: 'var(--danger-soft)', border: '1px solid var(--danger-border)' }}>
                   {erro}
                 </div>
               )}

@@ -25,10 +25,10 @@ const fmtDataCurta = iso => iso
 
 function KpiCard({ label, value, sub }) {
   return (
-    <div className="rounded-lg border border-white/[0.07] bg-white/[0.02] px-5 py-4">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
-      <p className="text-2xl font-semibold mt-2 leading-none tracking-tight text-white tabular-nums">{value}</p>
-      {sub && <p className="text-xs text-slate-400 mt-1.5">{sub}</p>}
+    <div className="rounded-lg border border-[var(--border)] bg-[rgba(22,32,60,0.02)] px-5 py-4">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-3)]">{label}</p>
+      <p className="text-2xl font-semibold mt-2 leading-none tracking-tight text-[var(--text-1)] tabular-nums">{value}</p>
+      {sub && <p className="text-xs text-[var(--text-3)] mt-1.5">{sub}</p>}
     </div>
   )
 }
@@ -36,20 +36,20 @@ function KpiCard({ label, value, sub }) {
 function StatusBadge({ suspeita, taxaFeedback }) {
   if (suspeita) {
     return (
-      <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-red-900/40 text-red-400 border border-red-800/50">
+      <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[var(--danger-soft)] text-[var(--danger)] border border-[var(--danger-border)]">
         <AlertTriangle className="h-3 w-3" /> Suspeita
       </span>
     )
   }
   if (taxaFeedback >= 20) {
     return (
-      <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-900/40 text-emerald-400 border border-emerald-800/50">
+      <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[var(--ok-soft)] text-[var(--ok)] border border-[var(--ok-border)]">
         <CheckCircle2 className="h-3 w-3" /> Ativa
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+    <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-0.5 rounded-full bg-[var(--surface-sub)] text-[var(--text-3)] border border-[var(--border)]">
       <Activity className="h-3 w-3" /> Normal
     </span>
   )
@@ -57,10 +57,10 @@ function StatusBadge({ suspeita, taxaFeedback }) {
 
 function RoleBadge({ role }) {
   const m = {
-    comando:  'bg-indigo-900/50 text-indigo-300 border-indigo-700/50',
-    admin:    'bg-amber-900/40 text-amber-300 border-amber-700/50',
-    operador: 'bg-slate-800 text-slate-400 border-slate-700',
-  }[role] || 'bg-slate-800 text-slate-400 border-slate-700'
+    comando:  'bg-[#EEF2FF] text-[#4338CA] border-[var(--info-border)]',
+    admin:    'bg-[var(--warn-soft)] text-[var(--warn)] border-[var(--warn-border)]',
+    operador: 'bg-[var(--surface-sub)] text-[var(--text-3)] border-[var(--border)]',
+  }[role] || 'bg-[var(--surface-sub)] text-[var(--text-3)] border-[var(--border)]'
   return (
     <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full border uppercase tracking-wide ${m}`}>
       {role}
@@ -100,32 +100,32 @@ function EmpresaDetalhePanel({ empresa, token, onClose }) {
       <div className="flex-1 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
       {/* Panel */}
-      <div className="w-full max-w-xl bg-slate-900 border-l border-slate-800 flex flex-col h-full overflow-hidden shadow-2xl">
+      <div className="w-full max-w-xl bg-[var(--surface)] border-l border-[var(--border)] flex flex-col h-full overflow-hidden shadow-2xl">
         {/* Header */}
-        <div className="px-6 py-5 border-b border-slate-800 flex items-start gap-4 shrink-0">
+        <div className="px-6 py-5 border-b border-[var(--border)] flex items-start gap-4 shrink-0">
           {empresa?.foto_url
-            ? <img src={empresa.foto_url} alt={empresa.nome_exibicao} className="h-14 w-14 rounded-lg object-cover border border-slate-700 shrink-0" />
-            : <div className="h-14 w-14 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
-                <Building2 className="h-7 w-7 text-slate-400" />
+            ? <img src={empresa.foto_url} alt={empresa.nome_exibicao} className="h-14 w-14 rounded-lg object-cover border border-[var(--border)] shrink-0" />
+            : <div className="h-14 w-14 rounded-lg bg-[var(--surface-sub)] border border-[var(--border)] flex items-center justify-center shrink-0">
+                <Building2 className="h-7 w-7 text-[var(--text-3)]" />
               </div>
           }
           <div className="flex-1 min-w-0">
-            <h2 className="text-lg font-bold text-white leading-tight truncate">
+            <h2 className="text-lg font-bold text-[var(--text-1)] leading-tight truncate">
               {empresa?.nome_exibicao || empresa?.empresa_id}
             </h2>
-            <p className="text-xs text-slate-400 font-mono mt-0.5">{empresa?.empresa_id}</p>
+            <p className="text-xs text-[var(--text-3)] font-mono mt-0.5">{empresa?.empresa_id}</p>
             <div className="flex items-center gap-2 mt-2">
               <StatusBadge suspeita={empresa?.flag_suspeita} taxaFeedback={empresa?.taxa_feedback || 0} />
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors">
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-[var(--surface-sub)] text-[var(--text-3)] hover:text-[var(--text-1)] transition-colors">
             <X className="h-4 w-4" />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
           {loading ? (
-            <div className="flex items-center justify-center py-16 gap-2 text-slate-400">
+            <div className="flex items-center justify-center py-16 gap-2 text-[var(--text-3)]">
               <Loader2 className="h-5 w-5 animate-spin" />
               <span className="text-sm">Carregando...</span>
             </div>
@@ -133,38 +133,38 @@ function EmpresaDetalhePanel({ empresa, token, onClose }) {
             <>
               {/* KPIs */}
               <div className="grid grid-cols-3 gap-3">
-                <div className="bg-slate-800/60 rounded-md p-3 text-center border border-slate-700/50">
-                  <p className="text-lg font-bold text-slate-100">{carteiras.length}</p>
-                  <p className="text-[10px] text-slate-400 uppercase tracking-widest mt-0.5">Carteiras</p>
+                <div className="bg-[var(--surface-sub)] rounded-md p-3 text-center border border-[var(--border)]">
+                  <p className="text-lg font-bold text-[var(--text-1)]">{carteiras.length}</p>
+                  <p className="text-[10px] text-[var(--text-3)] uppercase tracking-widest mt-0.5">Carteiras</p>
                 </div>
-                <div className="bg-slate-800/60 rounded-md p-3 text-center border border-slate-700/50">
-                  <p className="text-lg font-bold text-slate-100">{fmtNum(totalDev)}</p>
-                  <p className="text-[10px] text-slate-400 uppercase tracking-widest mt-0.5">Devedores</p>
+                <div className="bg-[var(--surface-sub)] rounded-md p-3 text-center border border-[var(--border)]">
+                  <p className="text-lg font-bold text-[var(--text-1)]">{fmtNum(totalDev)}</p>
+                  <p className="text-[10px] text-[var(--text-3)] uppercase tracking-widest mt-0.5">Devedores</p>
                 </div>
-                <div className="bg-slate-800/60 rounded-md p-3 text-center border border-slate-700/50">
-                  <p className="text-sm font-bold text-emerald-400">{fmtBRL(totalFace)}</p>
-                  <p className="text-[10px] text-slate-400 uppercase tracking-widest mt-0.5">Valor face</p>
+                <div className="bg-[var(--surface-sub)] rounded-md p-3 text-center border border-[var(--border)]">
+                  <p className="text-sm font-bold text-[var(--ok)]">{fmtBRL(totalFace)}</p>
+                  <p className="text-[10px] text-[var(--text-3)] uppercase tracking-widest mt-0.5">Valor face</p>
                 </div>
               </div>
 
               {/* Usuários */}
               <section>
-                <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                <h3 className="text-xs font-semibold text-[var(--text-3)] uppercase tracking-widest mb-3 flex items-center gap-1.5">
                   <User className="h-3.5 w-3.5" /> Equipe ({usuarios.length})
                 </h3>
                 {usuarios.length === 0 ? (
-                  <p className="text-xs text-[#7c93bd] italic">Nenhum usuário cadastrado</p>
+                  <p className="text-xs text-[var(--text-3)] italic">Nenhum usuário cadastrado</p>
                 ) : (
                   <div className="space-y-2">
                     {[...admins, ...operadores].map(u => (
-                      <div key={u.id} className="flex items-center justify-between gap-3 bg-slate-800/40 rounded-md px-3.5 py-2.5 border border-slate-700/30">
+                      <div key={u.id} className="flex items-center justify-between gap-3 bg-[var(--surface-sub)] rounded-md px-3.5 py-2.5 border border-[var(--border)]">
                         <div className="min-w-0">
-                          <p className="text-sm text-slate-200 font-medium truncate">{u.nome}</p>
-                          <p className="text-xs text-slate-400 truncate">{u.email}</p>
+                          <p className="text-sm text-[var(--text-1)] font-medium truncate">{u.nome}</p>
+                          <p className="text-xs text-[var(--text-3)] truncate">{u.email}</p>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
                           {!u.ativo && (
-                            <span className="text-[10px] text-red-400 bg-red-900/30 px-1.5 py-0.5 rounded-full border border-red-800/40">inativo</span>
+                            <span className="text-[10px] text-[var(--danger)] bg-[var(--danger-soft)] px-1.5 py-0.5 rounded-full border border-[var(--danger-border)]">inativo</span>
                           )}
                           <RoleBadge role={u.role} />
                         </div>
@@ -176,22 +176,22 @@ function EmpresaDetalhePanel({ empresa, token, onClose }) {
 
               {/* Conexões */}
               <section>
-                <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                <h3 className="text-xs font-semibold text-[var(--text-3)] uppercase tracking-widest mb-3 flex items-center gap-1.5">
                   <Database className="h-3.5 w-3.5" /> Bancos de dados ({conexoes.length})
                 </h3>
                 {conexoes.length === 0 ? (
-                  <p className="text-xs text-[#7c93bd] italic">Nenhuma conexão configurada</p>
+                  <p className="text-xs text-[var(--text-3)] italic">Nenhuma conexão configurada</p>
                 ) : (
                   <div className="space-y-2">
                     {conexoes.map(cx => (
-                      <div key={cx.id} className="bg-slate-800/40 rounded-md px-3.5 py-2.5 border border-slate-700/30">
+                      <div key={cx.id} className="bg-[var(--surface-sub)] rounded-md px-3.5 py-2.5 border border-[var(--border)]">
                         <div className="flex items-center justify-between gap-2">
-                          <p className="text-sm text-slate-200 font-medium truncate">{cx.nome || cx.id}</p>
-                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-700 text-slate-400 uppercase shrink-0">
+                          <p className="text-sm text-[var(--text-1)] font-medium truncate">{cx.nome || cx.id}</p>
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-700 text-[var(--text-3)] uppercase shrink-0">
                             {cx.tipo || 'DB'}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-400 font-mono mt-0.5 truncate">
+                        <p className="text-xs text-[var(--text-3)] font-mono mt-0.5 truncate">
                           {cx.host}{cx.database ? ` / ${cx.database}` : ''}
                         </p>
                       </div>
@@ -202,26 +202,26 @@ function EmpresaDetalhePanel({ empresa, token, onClose }) {
 
               {/* Carteiras */}
               <section>
-                <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                <h3 className="text-xs font-semibold text-[var(--text-3)] uppercase tracking-widest mb-3 flex items-center gap-1.5">
                   <FileText className="h-3.5 w-3.5" /> Carteiras ({carteiras.length})
                 </h3>
                 {carteiras.length === 0 ? (
-                  <p className="text-xs text-[#7c93bd] italic">Nenhuma carteira analisada ainda</p>
+                  <p className="text-xs text-[var(--text-3)] italic">Nenhuma carteira analisada ainda</p>
                 ) : (
                   <div className="space-y-2">
                     {carteiras.map(c => (
-                      <div key={c.id} className="bg-slate-800/40 rounded-md px-3.5 py-2.5 border border-slate-700/30">
+                      <div key={c.id} className="bg-[var(--surface-sub)] rounded-md px-3.5 py-2.5 border border-[var(--border)]">
                         <div className="flex items-center justify-between gap-2">
-                          <p className="text-sm text-slate-300 tabular-nums truncate">{c.nome_arquivo || c.id.slice(0, 16)}</p>
-                          <p className="text-xs text-slate-400 shrink-0">{fmtDataCurta(c.created_at)}</p>
+                          <p className="text-sm text-[var(--text-2)] tabular-nums truncate">{c.nome_arquivo || c.id.slice(0, 16)}</p>
+                          <p className="text-xs text-[var(--text-3)] shrink-0">{fmtDataCurta(c.created_at)}</p>
                         </div>
-                        <div className="flex items-center gap-3 mt-1 text-xs text-slate-400 font-mono">
+                        <div className="flex items-center gap-3 mt-1 text-xs text-[var(--text-3)] font-mono">
                           <span>{fmtNum(c.total_devedores)} dev.</span>
                           <span>{fmtBRL(c.valor_face)}</span>
                           {c.score_medio != null && (
                             <span className={
-                              c.score_medio >= 60 ? 'text-emerald-500' :
-                              c.score_medio >= 40 ? 'text-amber-500' : 'text-red-500'
+                              c.score_medio >= 60 ? 'text-[var(--ok)]' :
+                              c.score_medio >= 40 ? 'text-amber-500' : 'text-[var(--danger)]'
                             }>score {c.score_medio.toFixed(1)}</span>
                           )}
                         </div>
@@ -268,43 +268,43 @@ export default function ComandoDashboard() {
   const suspeitas = dados?.empresas?.filter(e => e.flag_suspeita) || []
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      <header className="bg-slate-900 border-b border-slate-800 px-6 py-3.5 flex items-center justify-between sticky top-0 z-20">
+    <div className="min-h-screen bg-[var(--page)] text-[var(--text-1)]">
+      <header className="bg-[var(--surface)] border-b border-[var(--border)] px-6 py-3.5 flex items-center justify-between sticky top-0 z-20">
         <div className="flex items-center gap-3">
           <LogoMark className="h-5 w-5 shrink-0" />
           <div>
-            <span className="font-bold text-white tracking-wide text-sm">COMANDO</span>
-            <span className="ml-2 text-xs text-slate-400">Visão geral do ecossistema</span>
+            <span className="font-bold text-[var(--text-1)] tracking-wide text-sm">COMANDO</span>
+            <span className="ml-2 text-xs text-[var(--text-3)]">Visão geral do ecossistema</span>
           </div>
         </div>
         <div className="flex items-center gap-1.5">
           <button onClick={() => navigate('/')}
-            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800 font-medium">
+            className="flex items-center gap-1.5 text-xs text-[var(--text-3)] hover:text-[var(--text-1)] transition-colors px-3 py-1.5 rounded-lg hover:bg-[var(--surface-sub)] font-medium">
             <Upload className="h-3.5 w-3.5" /> Análise
           </button>
           <button onClick={() => navigate('/admin/usuarios')}
-            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800 font-medium">
+            className="flex items-center gap-1.5 text-xs text-[var(--text-3)] hover:text-[var(--text-1)] transition-colors px-3 py-1.5 rounded-lg hover:bg-[var(--surface-sub)] font-medium">
             <UserCog className="h-3.5 w-3.5" /> Usuários
           </button>
           <button onClick={() => navigate('/auditoria')}
-            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800 font-medium">
+            className="flex items-center gap-1.5 text-xs text-[var(--text-3)] hover:text-[var(--text-1)] transition-colors px-3 py-1.5 rounded-lg hover:bg-[var(--surface-sub)] font-medium">
             <Shield className="h-3.5 w-3.5" /> Auditoria
           </button>
           <button onClick={() => navigate('/aprendizado')}
-            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800 font-medium">
+            className="flex items-center gap-1.5 text-xs text-[var(--text-3)] hover:text-[var(--text-1)] transition-colors px-3 py-1.5 rounded-lg hover:bg-[var(--surface-sub)] font-medium">
             <Brain className="h-3.5 w-3.5" /> Aprendizado
           </button>
           <button onClick={() => navigate('/bandit')}
-            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800 font-medium">
+            className="flex items-center gap-1.5 text-xs text-[var(--text-3)] hover:text-[var(--text-1)] transition-colors px-3 py-1.5 rounded-lg hover:bg-[var(--surface-sub)] font-medium">
             <Zap className="h-3.5 w-3.5" /> Recomendações
           </button>
           <button onClick={carregar} disabled={loadingMain}
-            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-800 disabled:opacity-40 font-medium">
+            className="flex items-center gap-1.5 text-xs text-[var(--text-3)] hover:text-[var(--text-1)] transition-colors px-3 py-1.5 rounded-lg hover:bg-[var(--surface-sub)] disabled:opacity-40 font-medium">
             <RefreshCw className={`h-3.5 w-3.5 ${loadingMain ? 'animate-spin' : ''}`} /> Atualizar
           </button>
-          <span className="text-xs text-[#7c93bd] hidden md:block">{usuario?.nome}</span>
+          <span className="text-xs text-[var(--text-3)] hidden md:block">{usuario?.nome}</span>
           <button onClick={() => { logout(); navigate('/login') }}
-            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-red-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-red-950/40 font-medium">
+            className="flex items-center gap-1.5 text-xs text-[var(--text-3)] hover:text-[var(--danger)] transition-colors px-3 py-1.5 rounded-lg hover:bg-[var(--danger-soft)] font-medium">
             <LogOut className="h-3.5 w-3.5" /> Sair
           </button>
         </div>
@@ -312,14 +312,14 @@ export default function ComandoDashboard() {
 
       <main className="max-w-7xl mx-auto px-6 py-10 space-y-6">
         {loadingMain && !dados && (
-          <div className="flex flex-col items-center justify-center py-32 gap-3 text-[#7c93bd]">
-            <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+          <div className="flex flex-col items-center justify-center py-32 gap-3 text-[var(--text-3)]">
+            <Loader2 className="h-8 w-8 animate-spin text-[#4338CA]" />
             <p className="text-sm">Carregando dados do ecossistema...</p>
           </div>
         )}
 
         {erro && (
-          <div className="bg-red-950/40 border border-red-800/50 rounded-lg px-5 py-4 text-sm text-red-400">
+          <div className="bg-[var(--danger-soft)] border border-[var(--danger-border)] rounded-lg px-5 py-4 text-sm text-[var(--danger)]">
             {erro}
           </div>
         )}
@@ -328,12 +328,12 @@ export default function ComandoDashboard() {
           <>
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-2xl font-bold text-white tracking-tight">Painel COMANDO</h1>
-                <p className="text-sm text-slate-400 mt-1">
+                <h1 className="text-2xl font-bold text-[var(--text-1)] tracking-tight">Painel COMANDO</h1>
+                <p className="text-sm text-[var(--text-3)] mt-1">
                   Visibilidade total sobre todos os clientes e carteiras analisadas na plataforma
                 </p>
               </div>
-              <div className="text-xs text-slate-400">
+              <div className="text-xs text-[var(--text-3)]">
                 {t?.total_empresas} empresa{t?.total_empresas !== 1 ? 's' : ''} ativas
               </div>
             </div>
@@ -364,13 +364,13 @@ export default function ComandoDashboard() {
             </div>
 
             {suspeitas.length > 0 && (
-              <div className="flex items-start gap-3 bg-red-950/30 border border-red-800/50 rounded-lg px-5 py-4">
-                <AlertTriangle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
+              <div className="flex items-start gap-3 bg-[var(--danger-soft)] border border-[var(--danger-border)] rounded-lg px-5 py-4">
+                <AlertTriangle className="h-5 w-5 text-[var(--danger)] shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm font-semibold text-red-300">
+                  <p className="text-sm font-semibold text-[var(--danger)]">
                     {suspeitas.length} empresa{suspeitas.length > 1 ? 's' : ''} com comportamento suspeito
                   </p>
-                  <p className="text-xs text-red-400/70 mt-1 leading-relaxed">
+                  <p className="text-xs text-[var(--danger)]/70 mt-1 leading-relaxed">
                     Essas empresas analisaram mais de 50 devedores mas registraram menos de 5% de feedback.
                     {' '}<span className="font-medium">{suspeitas.map(e => e.nome_exibicao || e.empresa_id).join(', ')}</span>
                   </p>
@@ -378,18 +378,18 @@ export default function ComandoDashboard() {
               </div>
             )}
 
-            <div className="bg-slate-900 rounded-lg border border-slate-800 overflow-hidden">
-              <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+            <div className="bg-[var(--surface)] rounded-lg border border-[var(--border)] overflow-hidden">
+              <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
                 <div>
-                  <h2 className="text-sm font-semibold text-slate-200">Empresas clientes</h2>
-                  <p className="text-xs text-[#7c93bd] mt-0.5">Clique em uma linha para ver o dashboard da empresa</p>
+                  <h2 className="text-sm font-semibold text-[var(--text-1)]">Empresas clientes</h2>
+                  <p className="text-xs text-[var(--text-3)] mt-0.5">Clique em uma linha para ver o dashboard da empresa</p>
                 </div>
-                <Eye className="h-4 w-4 text-[#6d84ab]" />
+                <Eye className="h-4 w-4 text-[var(--text-muted)]" />
               </div>
 
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-slate-800/50">
+                  <thead className="bg-[var(--surface-sub)]/50">
                     <tr>
                       {[
                         ['Empresa', 'text-left'],
@@ -402,7 +402,7 @@ export default function ComandoDashboard() {
                         ['Status', 'text-right'],
                         ['', 'w-8'],
                       ].map(([h, cls = '']) => (
-                        <th key={h} className={`px-4 py-3.5 text-[11px] font-semibold text-slate-400 uppercase tracking-widest whitespace-nowrap ${cls}`}>
+                        <th key={h} className={`px-4 py-3.5 text-[11px] font-semibold text-[var(--text-3)] uppercase tracking-widest whitespace-nowrap ${cls}`}>
                           {h}
                         </th>
                       ))}
@@ -418,60 +418,60 @@ export default function ComandoDashboard() {
                           onClick={() => setEmpresaSel(isSel ? null : e)}
                           className={`cursor-pointer transition-colors ${
                             isSel
-                              ? 'bg-indigo-950/30 ring-1 ring-indigo-700/40 ring-inset'
+                              ? 'bg-[var(--surface-sub)] ring-1 ring-[var(--border-hi)] ring-inset'
                               : isSusp
-                                ? 'bg-red-950/10 hover:bg-red-950/20'
-                                : 'hover:bg-slate-800/40'
+                                ? 'bg-[var(--danger-soft)] hover:bg-[var(--danger-soft)]'
+                                : 'hover:bg-[var(--surface-sub)]'
                           }`}
                         >
                           <td className="px-4 py-4">
                             <div className="flex items-center gap-2.5">
                               {e.foto_url
-                                ? <img src={e.foto_url} alt={e.nome_exibicao} className="h-7 w-7 rounded-lg object-cover border border-slate-700 shrink-0" />
-                                : <Building2 className={`h-3.5 w-3.5 shrink-0 ${isSusp ? 'text-red-500' : 'text-[#7c93bd]'}`} />
+                                ? <img src={e.foto_url} alt={e.nome_exibicao} className="h-7 w-7 rounded-lg object-cover border border-[var(--border)] shrink-0" />
+                                : <Building2 className={`h-3.5 w-3.5 shrink-0 ${isSusp ? 'text-[var(--danger)]' : 'text-[var(--text-3)]'}`} />
                               }
                               <div>
-                                <p className={`text-sm font-medium leading-tight ${isSusp ? 'text-red-300' : 'text-slate-200'}`}>
+                                <p className={`text-sm font-medium leading-tight ${isSusp ? 'text-[var(--danger)]' : 'text-[var(--text-1)]'}`}>
                                   {e.nome_exibicao || e.empresa_id}
                                 </p>
-                                <p className="text-xs text-slate-400 whitespace-nowrap">
-                                  {e.empresa_id !== e.nome_exibicao && <span className="text-[#6d84ab]">{e.empresa_id} · </span>}
+                                <p className="text-xs text-[var(--text-3)] whitespace-nowrap">
+                                  {e.empresa_id !== e.nome_exibicao && <span className="text-[var(--text-muted)]">{e.empresa_id} · </span>}
                                   {e.total_carteiras} carteira{e.total_carteiras !== 1 ? 's' : ''}
                                 </p>
                               </div>
                             </div>
                           </td>
-                          <td className="px-4 py-4 text-right text-slate-300 tabular-nums text-sm">{fmtNum(e.total_devedores)}</td>
-                          <td className="px-4 py-4 text-right text-slate-300 tabular-nums text-sm">{fmtBRL(e.valor_face_total)}</td>
-                          <td className="px-4 py-4 text-right text-slate-400 tabular-nums text-sm">{fmtBRL(e.valor_esperado_total)}</td>
+                          <td className="px-4 py-4 text-right text-[var(--text-2)] tabular-nums text-sm">{fmtNum(e.total_devedores)}</td>
+                          <td className="px-4 py-4 text-right text-[var(--text-2)] tabular-nums text-sm">{fmtBRL(e.valor_face_total)}</td>
+                          <td className="px-4 py-4 text-right text-[var(--text-3)] tabular-nums text-sm">{fmtBRL(e.valor_esperado_total)}</td>
                           <td className="px-4 py-4 text-right">
                             <span className={`text-sm font-bold ${
-                              e.score_medio == null ? 'text-[#7c93bd]' :
-                              e.score_medio >= 60   ? 'text-emerald-400' :
-                              e.score_medio >= 40   ? 'text-amber-400' : 'text-red-400'
+                              e.score_medio == null ? 'text-[var(--text-3)]' :
+                              e.score_medio >= 60   ? 'text-[var(--ok)]' :
+                              e.score_medio >= 40   ? 'text-[var(--warn)]' : 'text-[var(--danger)]'
                             }`}>
                               {e.score_medio?.toFixed(1) ?? '—'}
                             </span>
                           </td>
                           <td className="px-4 py-4 text-right">
                             <div className="flex flex-col items-end gap-0.5">
-                              <span className="text-sm text-slate-300 tabular-nums">{fmtNum(e.n_feedbacks)}</span>
-                              <span className={`text-xs tabular-nums whitespace-nowrap ${e.flag_suspeita ? 'text-red-400' : 'text-slate-400'}`}>
+                              <span className="text-sm text-[var(--text-2)] tabular-nums">{fmtNum(e.n_feedbacks)}</span>
+                              <span className={`text-xs tabular-nums whitespace-nowrap ${e.flag_suspeita ? 'text-[var(--danger)]' : 'text-[var(--text-3)]'}`}>
                                 {fmtPct(e.taxa_feedback)} de retorno
                               </span>
                               {e.valor_recuperado_real > 0 && (
-                                <span className="text-xs text-emerald-400 tabular-nums">{fmtBRL(e.valor_recuperado_real)}</span>
+                                <span className="text-xs text-[var(--ok)] tabular-nums">{fmtBRL(e.valor_recuperado_real)}</span>
                               )}
                             </div>
                           </td>
-                          <td className="px-4 py-4 text-right text-xs text-slate-400 tabular-nums whitespace-nowrap">
+                          <td className="px-4 py-4 text-right text-xs text-[var(--text-3)] tabular-nums whitespace-nowrap">
                             {fmtData(e.ultima_atividade)}
                           </td>
                           <td className="px-4 py-4 text-right">
                             <StatusBadge suspeita={e.flag_suspeita} taxaFeedback={e.taxa_feedback} />
                           </td>
-                          <td className="px-4 py-4 text-[#7c93bd]">
-                            <ChevronRight className={`h-3.5 w-3.5 transition-transform ${isSel ? 'rotate-90 text-indigo-400' : ''}`} />
+                          <td className="px-4 py-4 text-[var(--text-3)]">
+                            <ChevronRight className={`h-3.5 w-3.5 transition-transform ${isSel ? 'rotate-90 text-[#4338CA]' : ''}`} />
                           </td>
                         </tr>
                       )
@@ -481,21 +481,21 @@ export default function ComandoDashboard() {
               </div>
 
               {dados.empresas.length === 0 && (
-                <div className="py-16 text-center text-[#7c93bd] text-sm">
+                <div className="py-16 text-center text-[var(--text-3)] text-sm">
                   Nenhuma empresa registrada ainda.
                 </div>
               )}
             </div>
 
-            <div className="flex flex-wrap gap-5 text-xs text-[#7c93bd]">
+            <div className="flex flex-wrap gap-5 text-xs text-[var(--text-3)]">
               <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500" /> Ativa — taxa de feedback ≥ 20%
+                <span className="w-2 h-2 rounded-full bg-[var(--ok)]" /> Ativa — taxa de feedback ≥ 20%
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-slate-500" /> Normal — taxa de feedback &lt; 20%
+                <span className="w-2 h-2 rounded-full bg-[var(--text-3)]" /> Normal — taxa de feedback &lt; 20%
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-red-500" /> Suspeita — +50 devedores analisados com &lt; 5% de feedback
+                <span className="w-2 h-2 rounded-full bg-[var(--danger)]" /> Suspeita — +50 devedores analisados com &lt; 5% de feedback
               </div>
             </div>
           </>
