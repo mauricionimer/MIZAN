@@ -19,6 +19,7 @@ import * as XLSX from 'xlsx'
 import { gerarRelatorioPDF } from '../utils/gerarPDF'
 import { useAnalysis } from '../context/AnalysisContext'
 import { useAuth } from '../context/AuthContext'
+import { LogoMark } from '../components/Logo'
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
 
@@ -522,9 +523,15 @@ export default function Dashboard() {
       {/* ───── Sidebar ───── */}
       <aside className="fixed inset-y-0 left-0 z-30 flex w-60 flex-col border-r border-line bg-surface-2">
         <div className="flex h-16 items-center gap-2.5 px-5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 shadow-md shadow-blue-500/20">
-            <span className="text-sm font-bold text-brand-ink">{nomeEmpresa.charAt(0).toUpperCase()}</span>
-          </div>
+          {/* Empresa cliente mantém a própria inicial; sem white-label, a marca. */}
+          {empresaConfig?.nome_exibicao ? (
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg shadow-md"
+              style={{ background: 'var(--brand)' }}>
+              <span className="text-sm font-bold text-brand-ink">{nomeEmpresa.charAt(0).toUpperCase()}</span>
+            </div>
+          ) : (
+            <LogoMark className="h-5 w-5 shrink-0" />
+          )}
           <span className="truncate text-[15px] font-bold tracking-tight text-ink">{nomeEmpresa}</span>
         </div>
 
