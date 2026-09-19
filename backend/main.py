@@ -352,6 +352,29 @@ def _usuario_autenticado(credentials: HTTPAuthorizationCredentials) -> dict:
     return payload
 
 
+def _exige_carteira_da_empresa(db, carteira_id: str, payload: dict) -> None:
+    """Garante que a carteira pertence à empresa de quem chamou.
+
+    Sem esta checagem, qualquer usuário autenticado podia passar o
+    carteira_id de outra empresa na query string e ler os feedbacks dela —
+    CPF, valor recuperado e data de pagamento. COMANDO enxerga tudo por
+    definição; os demais ficam restritos à própria empresa.
+    """
+    if payload.get("role") == "comando":
+        return
+    empresa_id = payload.get("empresa_id", "")
+    if not empresa_id:
+        raise HTTPException(status_code=403, detail="Acesso negado: usuário sem empresa definida.")
+    try:
+        res = db.table("carteiras").select("empresa_id").eq("id", carteira_id).limit(1).execute()
+    except Exception:
+        # Falha ao verificar não pode virar permissão: nega.
+        raise HTTPException(status_code=503, detail="Não foi possível validar o acesso à carteira.")
+    dono = (res.data or [{}])[0].get("empresa_id")
+    if not dono or dono != empresa_id:
+        raise HTTPException(status_code=403, detail="Acesso negado a esta carteira.")
+
+
 def _registrar_auditoria(
     acao: str,
     entidade: str | None = None,
@@ -2783,7 +2806,16 @@ async def feedback_lote(
 ):
     """Importa feedbacks em lote a partir de CSV ou Excel."""
     empresa_info = _validar_api_key(credentials)
-    empresa = empresa_info.get("empresa_nome")
+    # A coluna feedbacks.empresa guarda o empresa_id em todo o resto do
+    # sistema; _validar_api_key devolve em "empresa_nome" o nome do usuário
+    # quando a autenticação é por JWT, então gravar esse campo aqui fazia os
+    # feedbacks importados em lote ficarem fora do escopo da empresa.
+    _jwt = empresa_info.get("jwt") or {}
+    empresa = (
+        _jwt.get("empresa_id")
+        or empresa_info.get("empresa_id")
+        or empresa_info.get("empresa_nome")
+    )
 
     nome = (file.filename or "").lower()
     contents = await file.read()
@@ -2818,6 +2850,15 @@ async def feedback_lote(
         raise HTTPException(status_code=422, detail=f"Colunas obrigatórias ausentes: {faltantes}. Encontradas: {df.columns.tolist()}")
 
     db = get_db()
+
+    _cart_ids_empresa: list = []
+    if empresa:
+        try:
+            _c = db.table("carteiras").select("id").eq("empresa_id", empresa).limit(100).execute()
+            _cart_ids_empresa = [c["id"] for c in (_c.data or [])]
+        except Exception:
+            _cart_ids_empresa = []
+
     n_ok = 0
     n_erro = 0
     detalhes = []
@@ -2864,14 +2905,16 @@ async def feedback_lote(
                 pass
 
         try:
-            pred_res = (
+            pred_q = (
                 db.table("predicoes")
                 .select("id, score_recuperabilidade, valor_divida")
                 .eq("cpf", cpf)
-                .order("created_at", desc=True)
-                .limit(1)
-                .execute()
             )
+            # Sem este recorte, o CPF poderia casar com a predição de outra
+            # empresa e o feedback iria parar na carteira errada.
+            if _cart_ids_empresa:
+                pred_q = pred_q.in_("carteira_id", _cart_ids_empresa)
+            pred_res = pred_q.order("created_at", desc=True).limit(1).execute()
             predicao_id = pred_res.data[0]["id"] if pred_res.data else None
 
             fb_row = {"cpf": cpf, "pagou": pagou, "valor_recuperado": valor_recuperado, "empresa": empresa}
@@ -2920,7 +2963,7 @@ async def performance(
     empresa_id = payload.get("empresa_id", "")
     role       = payload.get("role", "")
 
-    if not empresa_id and role not in ("comando", "admin"):
+    if not empresa_id and role != "comando":
         return {"mensagem": "Nenhum feedback recebido ainda.", "total_feedbacks": 0}
 
     cache_key = f"perf:{carteira_id or empresa_id}"
@@ -2930,6 +2973,9 @@ async def performance(
 
     db = get_db()
 
+    if carteira_id:
+        _exige_carteira_da_empresa(db, carteira_id, payload)
+
     # Quando carteira_id fornecido, filtra apenas por aquela carteira específica
     empresa_pred_ids: set | None = None
     if carteira_id:
@@ -2938,7 +2984,9 @@ async def performance(
             ids = {p["id"] for p in (pr.data or [])}
             empresa_pred_ids = ids if ids else set()
         except Exception:
-            empresa_pred_ids = None
+            # Não conseguir montar o escopo da empresa não pode virar consulta
+            # global: isso vazaria feedbacks de outras empresas.
+            raise HTTPException(status_code=503, detail="Não foi possível montar o escopo da empresa.")
     elif empresa_id:
         try:
             cart_res = db.table("carteiras").select("id").eq("empresa_id", empresa_id).execute()
@@ -2951,7 +2999,9 @@ async def performance(
                 pred_res_all.extend(pr.data or [])
             empresa_pred_ids = {p["id"] for p in pred_res_all}
         except Exception:
-            empresa_pred_ids = None
+            # Não conseguir montar o escopo da empresa não pode virar consulta
+            # global: isso vazaria feedbacks de outras empresas.
+            raise HTTPException(status_code=503, detail="Não foi possível montar o escopo da empresa.")
 
     fb_res = db.table("feedbacks").select("pagou, predicao_id").order("created_at", desc=True).limit(5000).execute()
     feedbacks = fb_res.data
@@ -3046,7 +3096,7 @@ async def performance_pagamentos(
     empresa_id = payload.get("empresa_id", "")
     role       = payload.get("role", "")
 
-    if not empresa_id and role not in ("comando", "admin"):
+    if not empresa_id and role != "comando":
         return []
 
     cache_key = f"pagamentos:{carteira_id or empresa_id}"
@@ -3056,6 +3106,9 @@ async def performance_pagamentos(
 
     db = get_db()
 
+    if carteira_id:
+        _exige_carteira_da_empresa(db, carteira_id, payload)
+
     empresa_pred_ids: set | None = None
     if carteira_id:
         try:
@@ -3063,7 +3116,9 @@ async def performance_pagamentos(
             ids = {p["id"] for p in (pr.data or [])}
             empresa_pred_ids = ids if ids else set()
         except Exception:
-            empresa_pred_ids = None
+            # Não conseguir montar o escopo da empresa não pode virar consulta
+            # global: isso vazaria feedbacks de outras empresas.
+            raise HTTPException(status_code=503, detail="Não foi possível montar o escopo da empresa.")
     elif empresa_id:
         try:
             cart_res = db.table("carteiras").select("id").eq("empresa_id", empresa_id).execute()
@@ -3076,7 +3131,9 @@ async def performance_pagamentos(
                 pred_res_all.extend(pr.data or [])
             empresa_pred_ids = {p["id"] for p in pred_res_all}
         except Exception:
-            empresa_pred_ids = None
+            # Não conseguir montar o escopo da empresa não pode virar consulta
+            # global: isso vazaria feedbacks de outras empresas.
+            raise HTTPException(status_code=503, detail="Não foi possível montar o escopo da empresa.")
 
     _COLS = "cpf, pagou, valor_recuperado, data_pagamento, predicao_id, created_at, registrado_por"
     if empresa_pred_ids is not None:
@@ -3134,7 +3191,7 @@ async def feedbacks_status(
     empresa_id = payload.get("empresa_id", "")
     role       = payload.get("role", "")
 
-    if not empresa_id and role not in ("comando", "admin"):
+    if not empresa_id and role != "comando":
         return {}
 
     cache_key = f"fb_status:{carteira_id or empresa_id}"
@@ -3144,25 +3201,33 @@ async def feedbacks_status(
 
     db = get_db()
 
+    if carteira_id:
+        _exige_carteira_da_empresa(db, carteira_id, payload)
+
     empresa_pred_ids: set | None = None
     if carteira_id:
         try:
             pr = db.table("predicoes").select("id").eq("carteira_id", carteira_id).execute()
             empresa_pred_ids = {p["id"] for p in (pr.data or [])}
         except Exception:
-            empresa_pred_ids = None
+            # Não conseguir montar o escopo da empresa não pode virar consulta
+            # global: isso vazaria feedbacks de outras empresas.
+            raise HTTPException(status_code=503, detail="Não foi possível montar o escopo da empresa.")
     elif empresa_id:
         try:
             cart_res = db.table("carteiras").select("id").eq("empresa_id", empresa_id).execute()
             cart_ids = [c["id"] for c in (cart_res.data or [])]
-            if cart_ids:
-                pred_res_all: list = []
-                for i in range(0, len(cart_ids), 100):
-                    pr = db.table("predicoes").select("id").in_("carteira_id", cart_ids[i:i+100]).execute()
-                    pred_res_all.extend(pr.data or [])
-                empresa_pred_ids = {p["id"] for p in pred_res_all}
+            # Mesmo sem carteiras o escopo tem de ficar vazio, não nulo: nulo
+            # cairia na consulta global e devolveria feedbacks de todo mundo.
+            pred_res_all: list = []
+            for i in range(0, len(cart_ids), 100):
+                pr = db.table("predicoes").select("id").in_("carteira_id", cart_ids[i:i+100]).execute()
+                pred_res_all.extend(pr.data or [])
+            empresa_pred_ids = {p["id"] for p in pred_res_all}
         except Exception:
-            empresa_pred_ids = None
+            # Não conseguir montar o escopo da empresa não pode virar consulta
+            # global: isso vazaria feedbacks de outras empresas.
+            raise HTTPException(status_code=503, detail="Não foi possível montar o escopo da empresa.")
 
     _COLS2 = "cpf, pagou, valor_recuperado, data_pagamento, predicao_id, empresa, created_at, registrado_por"
     if empresa_pred_ids is not None:
@@ -3286,7 +3351,7 @@ async def recomendacao_devedor(cpf: str, credentials: HTTPAuthorizationCredentia
     db = get_db()
 
     role = payload.get("role", "")
-    if not empresa_id and role not in ("comando", "admin"):
+    if not empresa_id and role != "comando":
         raise HTTPException(status_code=403, detail="Acesso negado: usuário sem empresa definida.")
 
     q = (
@@ -3342,7 +3407,7 @@ async def explicar_score_devedor(cpf: str, credentials: HTTPAuthorizationCredent
     db = get_db()
 
     role = payload.get("role", "")
-    if not empresa_id and role not in ("comando", "admin"):
+    if not empresa_id and role != "comando":
         raise HTTPException(status_code=403, detail="Acesso negado: usuário sem empresa definida.")
 
     q = (

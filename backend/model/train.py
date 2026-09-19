@@ -10,6 +10,7 @@ Uso sem dados reais:
     python -m model.train carteira.csv  # treina com CSV real
 """
 
+import os
 import sys
 from datetime import datetime as _dt
 from pathlib import Path
@@ -24,7 +25,11 @@ from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test_split
 from sklearn.preprocessing import RobustScaler
 
-MODEL_DIR     = Path(__file__).parent
+# Mesma regra dos módulos irmãos (score, bandit, price_model, retrain): com
+# MIZAN_DATA_DIR definido, os .pkl saem para lá. Sem isso, um treino de teste
+# sobrescreve os modelos versionados no repositório.
+_DATA_DIR_STR = os.getenv("MIZAN_DATA_DIR", "")
+MODEL_DIR     = Path(_DATA_DIR_STR) / "model" if _DATA_DIR_STR else Path(__file__).parent
 MODEL_VERSION = 2
 
 # Colunas obrigatórias mínimas
@@ -387,6 +392,7 @@ def _treinar_com_df(df: pd.DataFrame) -> None:
     feature_names = list(X.columns) + ["cluster"]
 
     print("[6/6] Salvando modelos")
+    MODEL_DIR.mkdir(parents=True, exist_ok=True)
     joblib.dump(clf_to_save, MODEL_DIR / "mizan_model.pkl")
     joblib.dump(kmeans, MODEL_DIR / "kmeans.pkl")
     joblib.dump({
