@@ -5,6 +5,7 @@ import { UploadCloud, FileText, AlertCircle, Loader2, History, FolderOpen, Datab
 import { useAnalysis } from '../context/AnalysisContext'
 import { useAuth } from '../context/AuthContext'
 import { analisarCarteira, analisarDB, testarDB, listarTabelas, listarCarteiras, carregarCarteira, listarConexoes, salvarConexao, deletarConexao, sincronizarConexao, atualizarConexao, listarEmpresas } from '../api'
+import { LogoMark } from '../components/Logo'
 
 const fmtBRL = (v) => v != null
   ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v)
@@ -346,7 +347,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
         </div>
         <div>
           <label className="block text-xs font-medium mb-1" style={{ color: 'var(--ink-2)' }}>Credenciais da Service Account (JSON)</label>
-          <textarea value={form.sheets_credenciais || ''} onChange={e => set('sheets_credenciais', e.target.value)} rows={4} placeholder='{"type":"service_account","project_id":"..."}' className={`${inp()} font-mono text-xs resize-none`} style={INP_DARK} />
+          <textarea value={form.sheets_credenciais || ''} onChange={e => set('sheets_credenciais', e.target.value)} rows={4} placeholder='{"type":"service_account","project_id":"..."}' className={`${inp()} tabular-nums text-xs resize-none`} style={INP_DARK} />
         </div>
       </>)}
       {!isSQLite && !isSheets && (
@@ -388,7 +389,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
       {!isSheets && (
         <div>
           <label className="block text-xs font-medium mb-1" style={{ color: 'var(--ink-2)' }}>Consulta SQL</label>
-          <textarea value={form.query} onChange={e => set('query', e.target.value)} rows={3} className={`${inp()} font-mono resize-none`} style={INP_DARK} />
+          <textarea value={form.query} onChange={e => set('query', e.target.value)} rows={3} className={`${inp()} tabular-nums resize-none`} style={INP_DARK} />
           <p className="text-xs mt-1" style={{ color: 'var(--ink-3)' }}>Apenas SELECT. O sistema detecta as colunas automaticamente.</p>
         </div>
       )}
@@ -466,7 +467,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
       <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
         {tabelas.map(t => (
           <button key={t} onClick={() => selecionarTabela(t)} disabled={loadingTeste}
-            className="text-left px-3 py-2.5 rounded-xl text-sm font-mono truncate transition-colors disabled:opacity-50"
+            className="text-left px-3 py-2.5 rounded-xl text-sm tabular-nums truncate transition-colors disabled:opacity-50"
             style={{ border: '1px solid var(--line)', color: 'var(--ink-2)' }}
             onMouseOver={e => { e.currentTarget.style.borderColor = 'rgba(29,106,255,0.40)'; e.currentTarget.style.background = 'rgba(29,106,255,0.08)'; e.currentTarget.style.color = 'white' }}
             onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--line)'; e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--ink-2)' }}>
@@ -647,10 +648,7 @@ export default function Upload() {
         <div className="relative inline-block mb-5">
           <div className="absolute inset-0 rounded-full blur-3xl scale-[2] opacity-20"
             style={{ background: 'radial-gradient(circle, #1d6aff, #1557f0)' }} />
-          <div className="relative w-16 h-16 rounded-2xl flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg,#1d6aff,#1557f0)', boxShadow: '0 8px 32px rgba(29,106,255,0.40), 0 2px 8px rgba(29,106,255,0.30)' }}>
-            <span className="text-brand-ink text-2xl font-bold">⚖</span>
-          </div>
+          <LogoMark className="h-6 w-6 shrink-0" />
         </div>
         <h1 className="text-4xl font-extrabold text-ink tracking-tight mb-2">Mizan</h1>
         <p className="text-base max-w-xs mx-auto leading-relaxed" style={{ color: 'var(--ink-2)' }}>
@@ -762,9 +760,7 @@ export default function Upload() {
         {!histLoading && historico.length === 0 && (
           <div className="rounded-2xl p-8" style={{ background: 'var(--surface)', border: '1px solid var(--line)', boxShadow: '0 8px 32px rgba(0,0,0,0.40)' }}>
             <div className="text-center mb-8">
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'rgba(29,106,255,0.12)' }}>
-                <span className="text-2xl">⚖</span>
-              </div>
+              <LogoMark className="h-9 w-9 mx-auto mb-4" />
               <h3 className="text-base font-semibold text-ink mb-1">Bem-vindo ao Mizan</h3>
               <p className="text-sm" style={{ color: 'var(--ink-2)' }}>Siga os passos abaixo para começar a recuperar valor da sua carteira</p>
             </div>

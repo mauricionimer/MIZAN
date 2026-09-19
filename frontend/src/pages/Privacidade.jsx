@@ -1,6 +1,7 @@
 import ThemeToggle from '../components/ThemeToggle'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
+import { LogoMark } from '../components/Logo'
 
 export default function Privacidade() {
   const navigate = useNavigate()
@@ -20,10 +21,7 @@ export default function Privacidade() {
             boxShadow: '0 8px 32px rgba(0,0,0,0.50), 0 2px 8px rgba(0,0,0,0.30)',
           }}>
           <div className="flex items-center gap-3 mb-1">
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center"
-              style={{ background: 'linear-gradient(135deg,#1d6aff,#1557f0)' }}>
-              <span className="text-brand-ink font-bold text-sm">⚖</span>
-            </div>
+            <LogoMark className="h-6 w-6 shrink-0" />
             <div>
               <h1 className="text-lg font-bold text-ink tracking-tight">Política de Privacidade</h1>
               <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>

@@ -12,7 +12,7 @@ function temaInicial() {
   } catch {
     /* localStorage bloqueado (modo privativo) — cai no padrão */
   }
-  return 'dark'
+  return 'light'
 }
 
 export function ThemeProvider({ children }) {

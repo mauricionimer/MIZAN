@@ -2,6 +2,7 @@ import ThemeToggle from '../components/ThemeToggle'
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { KeyRound, Eye, EyeOff, Loader2, CheckCircle2 } from 'lucide-react'
+import { LogoMark } from '../components/Logo'
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
 
@@ -50,10 +51,7 @@ export default function RedefinirSenha() {
     <div className="min-h-screen flex flex-col items-center justify-center p-6">
       <ThemeToggle className="fixed top-4 right-4 z-50" />
       <div className="flex items-center gap-2.5 mb-10">
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-          style={{ background: 'linear-gradient(135deg,#1d6aff,#1557f0)', boxShadow: '0 4px 16px rgba(29,106,255,0.30)' }}>
-          <span className="text-brand-ink font-bold text-sm">⚖</span>
-        </div>
+        <LogoMark className="h-6 w-6 shrink-0" />
         <span className="text-ink text-xl font-bold tracking-tight">Mizan</span>
       </div>
 

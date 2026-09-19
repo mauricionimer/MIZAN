@@ -457,7 +457,7 @@ export default function Dashboard() {
                 <h2 className="text-base font-bold text-ink">Confirmar pagamento</h2>
                 <p className="mt-0.5 text-xs text-ink-2">
                   <span className="font-semibold text-ink">{confirmarModal.nome}</span>
-                  {' · '}<span className="font-mono">{confirmarModal.cpf}</span>
+                  {' · '}<span className="tabular-nums">{confirmarModal.cpf}</span>
                 </p>
               </div>
               <button onClick={() => { setConfirmarModal(null); setConfirmarErro('') }}
@@ -793,7 +793,7 @@ export default function Dashboard() {
                       return (
                         <tr key={f.faixa} className="border-b border-line transition-colors last:border-0 hover:bg-raise-1">
                           <td className="py-3 pl-0 pr-4 text-sm font-medium text-ink">{f.faixa}</td>
-                          <td className="px-4 py-3 font-mono text-ink-2">{f.total_feedbacks}</td>
+                          <td className="px-4 py-3 tabular-nums text-ink-2">{f.total_feedbacks}</td>
                           <td className="px-4 py-3">
                             <span className="flex items-center gap-1 font-medium text-emerald-400">
                               <CheckCircle2 className="h-3.5 w-3.5" />{f.pagaram}
@@ -860,7 +860,7 @@ export default function Dashboard() {
                       .map((p, i) => (
                         <tr key={i} className="border-b border-line transition-colors last:border-0 hover:bg-raise-1">
                           <td className="max-w-[160px] truncate px-4 py-3 font-medium text-ink">{p.nome || '—'}</td>
-                          <td className="px-4 py-3 font-mono text-xs text-ink-2">{p.cpf || '—'}</td>
+                          <td className="px-4 py-3 tabular-nums text-xs text-ink-2">{p.cpf || '—'}</td>
                           <td className="px-4 py-3 text-ink-2">{p.valor_divida != null ? fmtBRL(p.valor_divida) : '—'}</td>
                           <td className="px-4 py-3">
                             {p.score != null ? (
@@ -1005,17 +1005,17 @@ export default function Dashboard() {
                       onClick={() => navigate(`/devedor/${d.rank}`)}
                       className="group cursor-pointer border-b border-line transition-colors last:border-0 hover:bg-blue-500/[0.06]"
                     >
-                      <td className="w-10 px-4 py-3 font-mono text-xs text-ink-2">{d.rank}</td>
+                      <td className="w-10 px-4 py-3 tabular-nums text-xs text-ink-2">{d.rank}</td>
                       <td className="px-4 py-3 font-medium text-ink transition-colors group-hover:text-blue-300">{d.nome}</td>
-                      <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-ink-2">{d.cpf}</td>
+                      <td className="whitespace-nowrap px-4 py-3 tabular-nums text-xs text-ink-2">{d.cpf}</td>
                       <td className="px-4 py-3 capitalize text-ink-2">{d.produto}</td>
-                      <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-xs text-ink-2">{fmtBRL(d.valor_divida)}</td>
-                      <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-xs">
+                      <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-xs text-ink-2">{fmtBRL(d.valor_divida)}</td>
+                      <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-xs">
                         <span className={(d.valor_esperado_recuperacao ?? 0) > 0 ? 'font-semibold text-emerald-400' : 'text-ink-2'}>
                           {d.valor_esperado_recuperacao != null ? fmtBRL(d.valor_esperado_recuperacao) : '—'}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right font-mono text-xs text-ink-2">{fmtNum(d.dias_em_atraso)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-xs text-ink-2">{fmtNum(d.dias_em_atraso)}</td>
                       <td className="px-4 py-3 text-right">
                         <span className={`text-sm font-bold ${
                           d.score_recuperabilidade >= 70 ? 'text-emerald-400' :

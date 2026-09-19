@@ -15,7 +15,7 @@ class ErrorBoundary extends Component {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-8 text-center">
         <p className="text-ink text-lg font-semibold">Algo deu errado nesta página.</p>
-        <p className="text-ink-2 text-sm font-mono bg-raise-3 border border-line px-4 py-2 rounded-xl max-w-lg break-all">
+        <p className="text-ink-2 text-sm tabular-nums bg-raise-3 border border-line px-4 py-2 rounded-xl max-w-lg break-all">
           {this.state.error?.message || String(this.state.error)}
         </p>
         <button

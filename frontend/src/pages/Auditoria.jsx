@@ -201,7 +201,7 @@ export default function Auditoria() {
                       {l.usuario_email || 'sistema'}
                       {l.entidade && <span style={{ color: 'var(--ink-3)' }}> · {l.entidade}{l.entidade_id ? ` (${l.entidade_id.slice(0, 12)})` : ''}</span>}
                     </span>
-                    <span className="text-xs font-mono shrink-0" style={{ color: 'var(--ink-3)' }}>{fmtData(l.created_at)}</span>
+                    <span className="text-xs tabular-nums shrink-0" style={{ color: 'var(--ink-3)' }}>{fmtData(l.created_at)}</span>
                     {l.detalhes && <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${expandido === l.id ? 'rotate-180' : ''}`} style={{ color: 'var(--ink-4)' }} />}
                   </div>
                   {expandido === l.id && l.detalhes && (

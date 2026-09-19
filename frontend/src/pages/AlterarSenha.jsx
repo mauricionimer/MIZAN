@@ -4,16 +4,12 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { KeyRound, ArrowLeft, Eye, EyeOff, LogOut, Trash2, CheckCircle2 } from 'lucide-react'
 import { deletarConta } from '../api'
+import { LogoMark } from '../components/Logo'
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
 
 function Logo() {
-  return (
-    <div className="w-7 h-7 rounded-lg flex items-center justify-center"
-      style={{ background: 'linear-gradient(135deg,#1d6aff,#1557f0)', boxShadow: '0 2px 8px rgba(29,106,255,0.30)' }}>
-      <span className="text-brand-ink font-bold text-xs">⚖</span>
-    </div>
-  )
+  return <LogoMark className="h-5 w-5 shrink-0" />
 }
 
 export default function AlterarSenha() {

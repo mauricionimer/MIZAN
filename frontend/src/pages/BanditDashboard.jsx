@@ -8,6 +8,7 @@ import {
   ArrowLeft, RefreshCw, Loader2, Zap, TrendingUp, Activity, Award, LogOut, AlertTriangle, CheckCircle2,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { LogoMark } from '../components/Logo'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001'
 const MUTED = 'var(--ink-3)'
@@ -32,12 +33,7 @@ const FASE_META = {
 const fmtPct = (v) => v != null ? `${(v * 100).toFixed(1)}%` : '—'
 
 function Logo() {
-  return (
-    <div className="w-7 h-7 rounded-lg flex items-center justify-center shadow-md shadow-blue-500/20"
-      style={{ background: 'linear-gradient(135deg,#1d4ed8,#2563eb)' }}>
-      <span className="text-brand-ink font-bold text-xs">⚖</span>
-    </div>
-  )
+  return <LogoMark className="h-5 w-5 shrink-0" />
 }
 
 function LocalStatCard({ label, value, sub, icon: Icon, accent = 'blue' }) {
@@ -345,7 +341,7 @@ export default function BanditDashboard() {
                     const isTop = i === 0 && pct != null
                     return (
                       <tr key={a.id} style={isTop ? { background: 'rgba(16,185,129,0.06)' } : undefined}>
-                        <td className="px-5 py-3 font-mono text-xs w-8" style={{ color: MUTED }}>{i + 1}</td>
+                        <td className="px-5 py-3 tabular-nums text-xs w-8" style={{ color: MUTED }}>{i + 1}</td>
                         <td className="px-5 py-3">
                           <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full"
                             style={
@@ -357,7 +353,7 @@ export default function BanditDashboard() {
                           </span>
                         </td>
                         <td className="px-5 py-3 text-sm" style={{ color: MUTED_LIGHT }}>{OFERTA_LABELS[a.oferta] ?? a.oferta}</td>
-                        <td className="px-5 py-3 text-right font-mono text-xs" style={{ color: MUTED }}>{a.n_tentativas}</td>
+                        <td className="px-5 py-3 text-right tabular-nums text-xs" style={{ color: MUTED }}>{a.n_tentativas}</td>
                         <td className="px-5 py-3 text-right">
                           <span className={`font-bold text-sm ${
                             pct == null ? '' :

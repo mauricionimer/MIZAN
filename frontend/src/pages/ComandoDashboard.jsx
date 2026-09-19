@@ -8,6 +8,7 @@ import {
   Eye, Upload, Zap, UserCog, X, Database, FileText, User,
   ChevronRight, Brain,
 } from 'lucide-react'
+import { LogoMark } from '../components/Logo'
 
 const BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001'
 
@@ -23,23 +24,21 @@ const fmtDataCurta = iso => iso
   ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' }).format(new Date(iso))
   : '—'
 
-function KpiCard({ label, value, sub, icon: Icon, accent = 'indigo' }) {
-  const cfg = {
-    indigo:  { wrap: 'border-indigo-800/40 bg-indigo-950/40',  icon: 'bg-indigo-900/60 text-indigo-300',  val: 'text-indigo-100' },
-    emerald: { wrap: 'border-emerald-800/40 bg-emerald-950/40', icon: 'bg-emerald-900/60 text-emerald-300', val: 'text-emerald-100' },
-    amber:   { wrap: 'border-amber-800/40 bg-amber-950/40',    icon: 'bg-amber-900/60 text-amber-300',    val: 'text-amber-100' },
-    red:     { wrap: 'border-red-800/40 bg-red-950/40',        icon: 'bg-red-900/60 text-red-300',        val: 'text-red-100' },
-  }[accent]
+function KpiCard({ label, value, sub, accent = 'indigo' }) {
+  // Régua de acento no lugar do bloco colorido com ícone: a cor identifica a
+  // métrica sem tingir o card inteiro.
+  const cor = {
+    indigo:  'var(--nav, #4338ca)',
+    emerald: 'rgb(var(--c-emerald-400))',
+    amber:   'rgb(var(--c-amber-400))',
+    red:     'rgb(var(--c-red-400))',
+  }[accent] ?? 'var(--nav, #4338ca)'
   return (
-    <div className={`rounded-2xl border p-5 flex gap-4 items-start ${cfg.wrap}`}>
-      <div className={`rounded-xl p-2.5 shrink-0 ${cfg.icon}`}>
-        <Icon className="h-5 w-5" />
-      </div>
-      <div className="min-w-0">
-        <p className="text-[11px] font-semibold text-ink-2 uppercase tracking-widest">{label}</p>
-        <p className={`text-2xl font-bold mt-1 leading-tight ${cfg.val}`}>{value}</p>
-        {sub && <p className="text-xs text-ink-3 mt-0.5">{sub}</p>}
-      </div>
+    <div className="card relative overflow-hidden px-5 py-4 pl-6">
+      <span className="absolute left-0 inset-y-0 w-1" style={{ background: cor }} />
+      <p className="text-[11px] font-semibold text-ink-2 uppercase tracking-widest">{label}</p>
+      <p className="text-2xl font-semibold mt-2 leading-none tracking-tight text-ink tabular-nums">{value}</p>
+      {sub && <p className="text-xs text-ink-3 mt-1.5">{sub}</p>}
     </div>
   )
 }
@@ -124,7 +123,7 @@ function EmpresaDetalhePanel({ empresa, token, onClose }) {
             <h2 className="text-lg font-bold text-ink leading-tight truncate">
               {empresa?.nome_exibicao || empresa?.empresa_id}
             </h2>
-            <p className="text-xs text-ink-2 font-mono mt-0.5">{empresa?.empresa_id}</p>
+            <p className="text-xs text-ink-2 tabular-nums mt-0.5">{empresa?.empresa_id}</p>
             <div className="flex items-center gap-2 mt-2">
               <StatusBadge suspeita={empresa?.flag_suspeita} taxaFeedback={empresa?.taxa_feedback || 0} />
             </div>
@@ -202,7 +201,7 @@ function EmpresaDetalhePanel({ empresa, token, onClose }) {
                             {cx.tipo || 'DB'}
                           </span>
                         </div>
-                        <p className="text-xs text-ink-2 font-mono mt-0.5 truncate">
+                        <p className="text-xs text-ink-2 tabular-nums mt-0.5 truncate">
                           {cx.host}{cx.database ? ` / ${cx.database}` : ''}
                         </p>
                       </div>
@@ -223,10 +222,10 @@ function EmpresaDetalhePanel({ empresa, token, onClose }) {
                     {carteiras.map(c => (
                       <div key={c.id} className="bg-raise-1 rounded-xl px-3.5 py-2.5 border border-line">
                         <div className="flex items-center justify-between gap-2">
-                          <p className="text-sm text-ink-2 font-mono truncate">{c.nome_arquivo || c.id.slice(0, 16)}</p>
+                          <p className="text-sm text-ink-2 tabular-nums truncate">{c.nome_arquivo || c.id.slice(0, 16)}</p>
                           <p className="text-xs text-ink-2 shrink-0">{fmtDataCurta(c.created_at)}</p>
                         </div>
-                        <div className="flex items-center gap-3 mt-1 text-xs text-ink-2 font-mono">
+                        <div className="flex items-center gap-3 mt-1 text-xs text-ink-2 tabular-nums">
                           <span>{fmtNum(c.total_devedores)} dev.</span>
                           <span>{fmtBRL(c.valor_face)}</span>
                           {c.score_medio != null && (
@@ -282,9 +281,7 @@ export default function ComandoDashboard() {
     <div className="min-h-screen bg-page text-ink">
       <header className="bg-surface border-b border-line px-6 py-3.5 flex items-center justify-between sticky top-0 z-20">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-900/50 shrink-0">
-            <Shield className="h-4 w-4 text-brand-ink" />
-          </div>
+          <LogoMark className="h-5 w-5 shrink-0" />
           <div>
             <span className="font-bold text-ink tracking-wide text-sm">COMANDO</span>
             <span className="ml-2 text-xs text-ink-2">Visão geral do ecossistema</span>
@@ -347,7 +344,7 @@ export default function ComandoDashboard() {
                   Visibilidade total sobre todos os clientes e carteiras analisadas na plataforma
                 </p>
               </div>
-              <div className="text-xs text-ink-3 font-mono">
+              <div className="text-xs text-ink-3 tabular-nums">
                 {t?.total_empresas} empresa{t?.total_empresas !== 1 ? 's' : ''} ativas
               </div>
             </div>
@@ -456,16 +453,16 @@ export default function ComandoDashboard() {
                                 <p className={`text-sm font-medium leading-tight ${isSusp ? 'text-red-300' : 'text-ink'}`}>
                                   {e.nome_exibicao || e.empresa_id}
                                 </p>
-                                <p className="text-xs text-ink-3 font-mono">
+                                <p className="text-xs text-ink-3 tabular-nums">
                                   {e.empresa_id !== e.nome_exibicao && <span className="text-ink-4">{e.empresa_id} · </span>}
                                   {e.total_carteiras} carteira{e.total_carteiras !== 1 ? 's' : ''}
                                 </p>
                               </div>
                             </div>
                           </td>
-                          <td className="px-4 py-4 text-right text-ink-2 font-mono text-sm">{fmtNum(e.total_devedores)}</td>
-                          <td className="px-4 py-4 text-right text-ink-2 font-mono text-sm">{fmtBRL(e.valor_face_total)}</td>
-                          <td className="px-4 py-4 text-right text-ink-2 font-mono text-sm">{fmtBRL(e.valor_esperado_total)}</td>
+                          <td className="px-4 py-4 text-right text-ink-2 tabular-nums text-sm">{fmtNum(e.total_devedores)}</td>
+                          <td className="px-4 py-4 text-right text-ink-2 tabular-nums text-sm">{fmtBRL(e.valor_face_total)}</td>
+                          <td className="px-4 py-4 text-right text-ink-2 tabular-nums text-sm">{fmtBRL(e.valor_esperado_total)}</td>
                           <td className="px-4 py-4 text-right">
                             <span className={`text-sm font-bold ${
                               e.score_medio == null ? 'text-ink-3' :
@@ -477,16 +474,16 @@ export default function ComandoDashboard() {
                           </td>
                           <td className="px-4 py-4 text-right">
                             <div className="flex flex-col items-end gap-0.5">
-                              <span className="text-sm text-ink-2 font-mono">{fmtNum(e.n_feedbacks)}</span>
-                              <span className={`text-xs font-mono ${e.flag_suspeita ? 'text-red-500' : 'text-ink-3'}`}>
+                              <span className="text-sm text-ink-2 tabular-nums">{fmtNum(e.n_feedbacks)}</span>
+                              <span className={`text-xs tabular-nums ${e.flag_suspeita ? 'text-red-500' : 'text-ink-3'}`}>
                                 {fmtPct(e.taxa_feedback)} dos devedores
                               </span>
                               {e.valor_recuperado_real > 0 && (
-                                <span className="text-xs text-emerald-500 font-mono">{fmtBRL(e.valor_recuperado_real)}</span>
+                                <span className="text-xs text-emerald-500 tabular-nums">{fmtBRL(e.valor_recuperado_real)}</span>
                               )}
                             </div>
                           </td>
-                          <td className="px-4 py-4 text-right text-xs text-ink-2 font-mono whitespace-nowrap">
+                          <td className="px-4 py-4 text-right text-xs text-ink-2 tabular-nums whitespace-nowrap">
                             {fmtData(e.ultima_atividade)}
                           </td>
                           <td className="px-4 py-4 text-right">

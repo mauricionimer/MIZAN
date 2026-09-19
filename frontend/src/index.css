@@ -71,21 +71,33 @@
     --brand-hover: color-mix(in srgb, var(--brand) 85%, black);
     --brand-ink: #ffffff;
 
-    --bg: #f5f7fb;
+    /* O produto roda sobre uma tela fria e levemente azulada; o bege quente
+       fica só nas telas de entrada (--bg-auth), onde é a marca que fala. */
+    --bg: #f0f3f8;
+    --bg-auth: #f5f4f1;
     --surface: #ffffff;
-    --surface-2: #eef2f8;
+    --surface-2: #f7f9fc;
 
-    --raise-1: rgba(15,23,42,0.02);
-    --raise-2: rgba(15,23,42,0.04);
-    --raise-3: rgba(15,23,42,0.07);
+    /* Barra superior: navy fixo, independente da cor da empresa — a cor do
+       cliente entra nos botões e na marca, onde não arrisca a legibilidade. */
+    --nav: #16203c;
+    --lift: 0 1px 2px rgba(22,32,60,0.05), 0 1px 1px rgba(22,32,60,0.03);
 
-    --line: rgba(15,23,42,0.10);
-    --line-2: rgba(15,23,42,0.18);
+    --raise-1: #ffffff;
+    --raise-2: rgba(22,32,60,0.04);
+    --raise-3: rgba(22,32,60,0.07);
 
-    --ink:   #0f172a;
-    --ink-2: #47566b;
-    --ink-3: #5a6b84;
-    --ink-4: #59697f;
+    --line: rgba(22,32,60,0.11);
+    --line-2: rgba(22,32,60,0.22);
+
+    /* Rampa validada: os quatro níveis passam WCAG AA (>=4.5:1) tanto sobre
+       --bg quanto sobre --surface, porque --ink-4 também carrega texto real
+       (rótulos, legendas, metadados de tabela), não só placeholder.
+       bg/surface: ink 14.5/16.1 · ink-2 6.7/7.4 · ink-3 5.4/5.9 · ink-4 4.6/5.0 */
+    --ink:   #16203c;
+    --ink-2: #4b5570;
+    --ink-3: #5a6479;
+    --ink-4: #666f86;
 
     /* acentos escurecidos para contraste sobre fundo claro */
     --c-emerald-200: 5 150 105;
@@ -256,6 +268,34 @@
     background: color-mix(in srgb, var(--bg) 90%, transparent);
     border-color: var(--line);
   }
+
+  /* No tema claro a barra é uma faixa navy sólida. Os tokens de texto e de
+     linha são redeclarados aqui, então todo descendente que lê var(--ink…)
+     inverte junto, sem precisar de classe própria em cada página. */
+  :root[data-theme='light'] .navbar-glass {
+    background: var(--nav);
+    border-color: rgba(255,255,255,0.10);
+    color: #ffffff;
+
+    --ink:     #ffffff;
+    --ink-2:   rgba(255,255,255,0.82);
+    --ink-3:   rgba(255,255,255,0.68);
+    --ink-4:   rgba(255,255,255,0.60);
+    --line:    rgba(255,255,255,0.14);
+    --line-2:  rgba(255,255,255,0.26);
+    --raise-1: rgba(255,255,255,0.08);
+    --raise-2: rgba(255,255,255,0.12);
+    --raise-3: rgba(255,255,255,0.18);
+    --surface: rgba(255,255,255,0.10);
+  }
+  :root[data-theme='light'] .navbar-glass .nav-link-danger:hover {
+    color: #fda4a1; background: rgba(255,255,255,0.12);
+  }
+
+  /* Superfícies ganham elevação hairline para descolar da tela fria, e o
+     cabeçalho de tabela ganha faixa própria. */
+  :root[data-theme='light'] .card { box-shadow: var(--lift); }
+  :root[data-theme='light'] .card thead { background: var(--surface-2); }
 }
 
 @layer base {

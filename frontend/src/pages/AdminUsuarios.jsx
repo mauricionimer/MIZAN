@@ -13,6 +13,7 @@ import {
   ArrowLeft, Database, Lock, Unlock, ChevronDown, ChevronUp,
   Building2, Plus, X, UserMinus, Mail, Trash2, Clock, Camera, Pencil, Check,
 } from 'lucide-react'
+import { LogoMark } from '../components/Logo'
 
 const ACAO_LABEL = {
   carteira_criada:      'Carteira criada',
@@ -45,12 +46,7 @@ function fmtAuditDate(iso) {
 }
 
 function Logo() {
-  return (
-    <div className="w-7 h-7 rounded-lg flex items-center justify-center shadow-md shadow-blue-500/20"
-      style={{ background: 'linear-gradient(135deg,#1d4ed8,#2563eb)' }}>
-      <span className="text-brand-ink font-bold text-xs">⚖</span>
-    </div>
-  )
+  return <LogoMark className="h-5 w-5 shrink-0" />
 }
 
 const ROLE_BADGE = {

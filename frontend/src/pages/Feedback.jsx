@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { CheckCircle2, XCircle, Loader2, ClipboardList, ArrowLeft, Plus, Trash2, UploadCloud, FileText, Download, LogOut } from 'lucide-react'
 import { feedbackLote } from '../api'
 import { useAuth } from '../context/AuthContext'
+import { LogoMark } from '../components/Logo'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001'
 
@@ -13,12 +14,7 @@ const fmtBRL = (v) =>
 const EMPTY = { cpf: '', pagou: 'sim', valor_recuperado: '', data_pagamento: '' }
 
 function Logo() {
-  return (
-    <div className="w-7 h-7 rounded-lg flex items-center justify-center shadow-md shadow-blue-500/20"
-      style={{ background: 'linear-gradient(135deg,#1d4ed8,#2563eb)' }}>
-      <span className="text-brand-ink font-bold text-xs">⚖</span>
-    </div>
-  )
+  return <LogoMark className="h-5 w-5 shrink-0" />
 }
 
 function StatusBadge({ ok }) {
@@ -77,10 +73,10 @@ function ImportacaoLote({ token }) {
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-ink mb-1">Formato esperado do arquivo</p>
           <p className="text-xs mb-3 leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-            Colunas obrigatórias: <code className="bg-raise-3 border border-line text-ink rounded px-1 font-mono">cpf</code> e{' '}
-            <code className="bg-raise-3 border border-line text-ink rounded px-1 font-mono">pagou</code> (sim/não ou 1/0).
-            {' '}Opcionais: <code className="bg-raise-3 border border-line text-ink rounded px-1 font-mono">valor_recuperado</code>,{' '}
-            <code className="bg-raise-3 border border-line text-ink rounded px-1 font-mono">data_pagamento</code>.
+            Colunas obrigatórias: <code className="bg-raise-3 border border-line text-ink rounded px-1 tabular-nums">cpf</code> e{' '}
+            <code className="bg-raise-3 border border-line text-ink rounded px-1 tabular-nums">pagou</code> (sim/não ou 1/0).
+            {' '}Opcionais: <code className="bg-raise-3 border border-line text-ink rounded px-1 tabular-nums">valor_recuperado</code>,{' '}
+            <code className="bg-raise-3 border border-line text-ink rounded px-1 tabular-nums">data_pagamento</code>.
           </p>
           <button onClick={baixarTemplate}
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-300 hover:text-blue-200 bg-blue-500/10 hover:bg-blue-500/20 px-3 py-1.5 rounded-lg transition-colors">
@@ -158,8 +154,8 @@ function ImportacaoLote({ token }) {
               <div className="divide-y divide-line max-h-48 overflow-y-auto">
                 {erros.map((e, i) => (
                   <div key={i} className="px-4 py-2.5 flex items-center gap-3">
-                    <span className="text-xs font-mono w-12 shrink-0" style={{ color: 'var(--ink-3)' }}>Ln {e.linha}</span>
-                    <span className="text-xs font-mono" style={{ color: 'var(--ink-2)' }}>{e.cpf}</span>
+                    <span className="text-xs tabular-nums w-12 shrink-0" style={{ color: 'var(--ink-3)' }}>Ln {e.linha}</span>
+                    <span className="text-xs tabular-nums" style={{ color: 'var(--ink-2)' }}>{e.cpf}</span>
                     <span className="text-xs text-red-400 ml-auto">{e.erro}</span>
                   </div>
                 ))}
@@ -323,7 +319,7 @@ export default function Feedback() {
                     <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>CPF do devedor</label>
                     <input type="text" inputMode="numeric" placeholder="000.000.000-00"
                       value={form.cpf} onChange={e => set('cpf', formatarCPF(e.target.value))}
-                      required className="input-base font-mono" />
+                      required className="input-base tabular-nums" />
                   </div>
 
                   <div>
@@ -413,7 +409,7 @@ export default function Feedback() {
                           <StatusBadge ok={item.ok} />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-3 flex-wrap">
-                              <span className="font-mono text-sm font-semibold text-ink">{item.cpf}</span>
+                              <span className="tabular-nums text-sm font-semibold text-ink">{item.cpf}</span>
                               <span className={`text-xs font-semibold ${item.pagou ? 'text-emerald-400' : 'text-red-400'}`}>
                                 {item.pagou ? '✓ Pagou' : '✗ Não pagou'}
                               </span>

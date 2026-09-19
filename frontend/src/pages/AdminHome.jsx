@@ -9,14 +9,10 @@ import {
   Upload, Users, BarChart2, KeyRound, LogOut, Database,
   Shield, ChevronRight,
 } from 'lucide-react'
+import { LogoMark } from '../components/Logo'
 
 function Logo() {
-  return (
-    <div className="w-7 h-7 rounded-lg flex items-center justify-center"
-      style={{ background: 'linear-gradient(135deg,#1d6aff,#1557f0)', boxShadow: '0 2px 8px rgba(29,106,255,0.30)' }}>
-      <span className="text-brand-ink font-bold text-xs">⚖</span>
-    </div>
-  )
+  return <LogoMark className="h-5 w-5 shrink-0" />
 }
 
 function ActionCard({ icon: Icon, label, desc, onClick, accent = 'blue', full = false }) {

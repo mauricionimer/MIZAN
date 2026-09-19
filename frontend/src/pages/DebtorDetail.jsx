@@ -5,6 +5,7 @@ import { ArrowLeft, Phone, Tag, Zap, MessageSquare, Brain, Plus, ClipboardList, 
 import { useAnalysis } from '../context/AnalysisContext'
 import PriorityBadge from '../components/PriorityBadge'
 import { buscarRecomendacao, registrarContato, listarContatos, buscarStatusFeedbacks, buscarExplicacaoScore, traduzirErroRede } from '../api'
+import { LogoMark } from '../components/Logo'
 
 const fmtBRL = (v) => v != null ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v) : '—'
 const fmtNum = (v) => v != null ? new Intl.NumberFormat('pt-BR').format(v) : '—'
@@ -19,12 +20,7 @@ const DIVIDER = { borderColor: 'var(--line)' }
 const INP = { background: 'var(--surface-2)', border: '1px solid var(--line)', color: 'var(--ink)' }
 
 function Logo() {
-  return (
-    <div className="w-7 h-7 rounded-lg flex items-center justify-center"
-      style={{ background: 'linear-gradient(135deg,#1d6aff,#1557f0)', boxShadow: '0 2px 8px rgba(29,106,255,0.30)' }}>
-      <span className="text-brand-ink font-bold text-xs">⚖</span>
-    </div>
-  )
+  return <LogoMark className="h-5 w-5 shrink-0" />
 }
 
 function DataRow({ label, value }) {
@@ -420,7 +416,7 @@ export default function DebtorDetail() {
         <div className="flex items-start justify-between mb-7">
           <div>
             <h1 className="text-2xl font-bold text-ink tracking-tight">{d.nome}</h1>
-            <p className="font-mono text-sm mt-1" style={{ color: 'var(--ink-3)' }}>{d.cpf}</p>
+            <p className="tabular-nums text-sm mt-1" style={{ color: 'var(--ink-3)' }}>{d.cpf}</p>
             <p className="text-sm mt-1 capitalize" style={{ color: 'var(--ink-2)' }}>{d.produto} · {d.uf} · Rank #{d.rank}</p>
             <div className="mt-3">
               {statusPag === null && (

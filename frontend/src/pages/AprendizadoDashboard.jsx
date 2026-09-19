@@ -340,7 +340,7 @@ export default function AprendizadoDashboard() {
                     {/* Calibração */}
                     <div>
                       <p className="section-label mb-3">
-                        Calibração — a probabilidade é confiável? <span className="font-mono" style={{ color: MUTED }}>(Brier: {qualidade.holdout.brier_score})</span>
+                        Calibração — a probabilidade é confiável? <span className="tabular-nums" style={{ color: MUTED }}>(Brier: {qualidade.holdout.brier_score})</span>
                       </p>
                       <div className="space-y-1.5">
                         {qualidade.calibracao_por_faixa.map((f, i) => {
@@ -429,7 +429,7 @@ export default function AprendizadoDashboard() {
                     <tbody className="divide-y" style={{ borderColor: 'var(--line)' }}>
                       {modelos.versoes.map(v => (
                         <tr key={v.versao} style={v.ativa ? { background: 'rgba(37,99,235,0.08)' } : undefined}>
-                          <td className="px-2 py-3 font-mono text-xs" style={{ color: MUTED_LIGHT }}>{v.versao}</td>
+                          <td className="px-2 py-3 tabular-nums text-xs" style={{ color: MUTED_LIGHT }}>{v.versao}</td>
                           <td className="px-2 py-3">
                             <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
                               style={v.tipo_alvo === 'real'
@@ -473,7 +473,7 @@ export default function AprendizadoDashboard() {
                 <div className="space-y-2.5">
                   {importancia.features.slice(0, 12).map(f => (
                     <div key={f.nome} className="flex items-center gap-3">
-                      <span className="text-xs font-mono w-40 truncate shrink-0" style={{ color: MUTED }}>{f.nome}</span>
+                      <span className="text-xs tabular-nums w-40 truncate shrink-0" style={{ color: MUTED }}>{f.nome}</span>
                       <div className="flex-1"><Barra pct={f.percentual} /></div>
                       <span className="text-xs font-semibold w-12 text-right shrink-0" style={{ color: MUTED_LIGHT }}>{f.percentual}%</span>
                     </div>
@@ -511,7 +511,7 @@ export default function AprendizadoDashboard() {
                     value={alphaInput} onChange={e => setAlphaInput(Number(e.target.value))}
                     className="flex-1"
                   />
-                  <span className="text-xs font-mono w-10 text-right" style={{ color: MUTED_LIGHT }}>{alphaInput.toFixed(1)}</span>
+                  <span className="text-xs tabular-nums w-10 text-right" style={{ color: MUTED_LIGHT }}>{alphaInput.toFixed(1)}</span>
                   <Botao onClick={ajustarAlpha} disabled={acao === 'alpha'}>
                     {acao === 'alpha' ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Aplicar'}
                   </Botao>
@@ -578,7 +578,7 @@ export default function AprendizadoDashboard() {
                 </div>
               )}
               <p className="text-xs mt-4" style={{ color: MUTED }}>
-                Configuração de host/credenciais é feita via API (<code className="font-mono">POST /admin/db-sync/config</code>).
+                Configuração de host/credenciais é feita via API (<code className="tabular-nums">POST /admin/db-sync/config</code>).
                 Para importar carteiras de um banco externo, use a tela de Conexões.
               </p>
             </Secao>
