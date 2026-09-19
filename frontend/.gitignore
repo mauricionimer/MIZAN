@@ -5,3 +5,8 @@ dist/
 .env*.local
 *.log
 .DS_Store
+
+# Um lockfile só: o projeto usa npm. Dois lockfiles fazem a Vercel
+# escolher o gerenciador por conta e quebrar o build.
+pnpm-lock.yaml
+yarn.lock
