@@ -5,47 +5,121 @@
 @tailwind utilities;
 
 @layer base {
+  /* ── Tema escuro (padrão) ──────────────────────────────────
+     Todo o app lê estas variáveis; trocar data-theme no <html>
+     troca o tema inteiro sem tocar em componente nenhum. */
   :root {
-    /* ── Texto (contraste validado contra #F5F4F1 e #FFFFFF) ──
-       Os quatro níveis passam WCAG AA (>=4.5:1) nas duas superfícies, porque
-       --text-muted também carrega texto real (rótulos, legendas, metadados).
-       page/branco: text-1 14.6/16.1 · text-2 6.7/7.4 · text-3 5.4/5.9 · muted 4.6/5.0 */
-    --text-1:     #16203C;
-    --text-2:     #4B5570;
-    --text-3:     #5A6479;
-    --text-muted: #666F86;
+    --brand: #2563eb;
+    --brand-hover: color-mix(in srgb, var(--brand) 80%, white);
+    --brand-ink: #ffffff;          /* texto sobre a cor de marca */
 
-    /* ── Superfícies ──
-       O produto roda sobre uma tela fria, levemente azulada; o bege quente
-       fica só nas telas de entrada (--page-auth), onde é a marca que fala. */
-    --page:        #F0F3F8;
-    --page-auth:   #F5F4F1;
-    --surface:     #FFFFFF;
-    --surface-sub: #F7F9FC;
-    --border:      rgba(22,32,60,0.11);
-    --border-hi:   rgba(22,32,60,0.22);
-    --lift:        0 1px 2px rgba(22,32,60,0.05), 0 1px 1px rgba(22,32,60,0.03);
+    --bg: #09090f;                 /* fundo da página */
+    --surface: #0d1628;            /* painel principal */
+    --surface-2: #0a0f1e;          /* painel aninhado / cabeçalho de tabela */
 
-    /* ── Marca: navy por padrão, sobrescrita pela cor da empresa ── */
-    --brand:       #1A2440;
-    /* Barra superior: navy fixo, independente da cor da empresa — a cor do
-       cliente entra nos botões e na marca, onde não arrisca a legibilidade. */
-    --nav:         #16203C;
-    --brand-hover: color-mix(in srgb, var(--brand) 86%, black);
+    --raise-1: rgba(255,255,255,0.02);
+    --raise-2: rgba(255,255,255,0.04);
+    --raise-3: rgba(255,255,255,0.07);
 
-    /* ── Acento: teal para dados e destaques ── */
-    --accent:      #0E9384;
-    --accent-text: #0B7268;
-    --accent-soft: rgba(14,147,132,0.10);
+    --line: rgba(255,255,255,0.07);
+    --line-2: rgba(255,255,255,0.14);
 
-    /* ── Estados ── */
-    --ok:     #047857;  --ok-soft:     #ECFDF5;  --ok-border:     rgba(4,120,87,0.22);
-    --warn:   #B54708;  --warn-soft:   #FFFBEB;  --warn-border:   rgba(181,71,8,0.22);
-    --danger: #B42318;  --danger-soft: #FEF2F2;  --danger-border: rgba(180,35,24,0.22);
-    --info:   #1D4ED8;  --info-soft:   #EFF6FF;  --info-border:   rgba(29,78,216,0.20);
+    --ink:   #f0f0f5;              /* texto primário */
+    --ink-2: #8fa3c8;              /* secundário */
+    --ink-3: #7c93bd;              /* terciário */
+    --ink-4: #6d84ab;              /* placeholder / desabilitado */
 
-    --r-control: 6px;
-    --r-surface: 8px;
+    /* acentos: valores padrao do Tailwind (tema escuro inalterado) */
+    --c-emerald-200: 167 243 208;
+    --c-emerald-300: 110 231 183;
+    --c-emerald-400: 52 211 153;
+    --c-emerald-900: 6 78 59;
+    --c-emerald-950: 2 44 34;
+    --c-red-200: 254 202 202;
+    --c-red-300: 252 165 165;
+    --c-red-400: 248 113 113;
+    --c-red-900: 127 29 29;
+    --c-red-950: 69 10 10;
+    --c-blue-200: 191 219 254;
+    --c-blue-300: 147 197 253;
+    --c-blue-400: 96 165 250;
+    --c-blue-900: 30 58 138;
+    --c-blue-950: 23 37 84;
+    --c-amber-200: 253 230 138;
+    --c-amber-300: 252 211 77;
+    --c-amber-400: 251 191 36;
+    --c-amber-900: 120 53 15;
+    --c-amber-950: 69 26 3;
+    --c-violet-200: 221 214 254;
+    --c-violet-300: 196 181 253;
+    --c-violet-400: 167 139 250;
+    --c-indigo-200: 199 210 254;
+    --c-indigo-300: 165 180 252;
+    --c-indigo-400: 129 140 248;
+    --c-rose-300: 253 164 175;
+    --c-rose-400: 251 113 133;
+    --c-orange-400: 251 146 60;
+
+    --shadow: 0 8px 28px -12px rgba(0,0,0,0.55);
+    color-scheme: dark;
+  }
+
+  /* ── Tema claro ───────────────────────────────────────────
+     Mesmos papéis, valores invertidos. Os tons de texto foram
+     escolhidos para passar 4.5:1 sobre --surface. */
+  :root[data-theme='light'] {
+    --brand-hover: color-mix(in srgb, var(--brand) 85%, black);
+    --brand-ink: #ffffff;
+
+    --bg: #f5f7fb;
+    --surface: #ffffff;
+    --surface-2: #eef2f8;
+
+    --raise-1: rgba(15,23,42,0.02);
+    --raise-2: rgba(15,23,42,0.04);
+    --raise-3: rgba(15,23,42,0.07);
+
+    --line: rgba(15,23,42,0.10);
+    --line-2: rgba(15,23,42,0.18);
+
+    --ink:   #0f172a;
+    --ink-2: #47566b;
+    --ink-3: #5a6b84;
+    --ink-4: #59697f;
+
+    /* acentos escurecidos para contraste sobre fundo claro */
+    --c-emerald-200: 5 150 105;
+    --c-emerald-300: 4 120 87;
+    --c-emerald-400: 4 120 87;
+    --c-emerald-900: 209 250 229;
+    --c-emerald-950: 236 253 245;
+    --c-red-200: 153 27 27;
+    --c-red-300: 153 27 27;
+    --c-red-400: 185 28 28;
+    --c-red-900: 254 226 226;
+    --c-red-950: 254 242 242;
+    --c-blue-200: 29 78 216;
+    --c-blue-300: 29 78 216;
+    --c-blue-400: 37 99 235;
+    --c-blue-900: 219 234 254;
+    --c-blue-950: 239 246 255;
+    --c-amber-200: 120 53 15;
+    --c-amber-300: 120 53 15;
+    --c-amber-400: 146 64 14;
+    --c-amber-900: 254 243 199;
+    --c-amber-950: 255 251 235;
+    --c-violet-200: 109 40 217;
+    --c-violet-300: 109 40 217;
+    --c-violet-400: 124 58 237;
+    --c-indigo-200: 67 56 202;
+    --c-indigo-300: 67 56 202;
+    --c-indigo-400: 79 70 229;
+    --c-rose-300: 190 18 60;
+    --c-rose-400: 225 29 72;
+    --c-orange-400: 194 65 12;
+
+    --shadow: 0 8px 28px -12px rgba(15,23,42,0.18);
+    color-scheme: light;
   }
 
   * { box-sizing: border-box; }
@@ -53,143 +127,163 @@
   html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 
   body {
-    color: var(--text-1);
+    color: var(--ink);
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'tnum';
-    background: var(--page);
+    background: var(--bg);
+    background-attachment: fixed;
+    transition: background-color 180ms ease, color 180ms ease;
   }
 
-  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: rgba(22,32,60,0.16); border-radius: 9999px; }
-  ::-webkit-scrollbar-thumb:hover { background: rgba(22,32,60,0.28); }
+  ::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--ink-4); }
 
-  ::selection { background: rgba(14,147,132,0.18); }
+  ::selection { background: color-mix(in srgb, var(--brand) 30%, transparent); color: var(--ink); }
 
   input[type='range']::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 13px; height: 13px; border-radius: 50%;
-    background: var(--accent); border: none; cursor: pointer;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 2px solid var(--brand);
+    cursor: pointer;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 12%, transparent);
   }
   input[type='range']::-moz-range-thumb {
-    width: 13px; height: 13px; border-radius: 50%;
-    background: var(--accent); border: none; cursor: pointer;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 2px solid var(--brand);
+    cursor: pointer;
   }
-  input[type='date']::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.45; }
+
+  /* o ícone nativo do date é escuro; só inverte no tema escuro */
+  :root:not([data-theme='light']) input[type='date']::-webkit-calendar-picker-indicator {
+    filter: invert(1) opacity(0.3);
+    cursor: pointer;
+  }
+  :root[data-theme='light'] input[type='date']::-webkit-calendar-picker-indicator {
+    opacity: 0.45;
+    cursor: pointer;
+  }
 }
 
 @layer components {
-  /* ── Superfícies: plano, borda hairline, sem sombra ── */
-  .panel {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--r-surface);
-    box-shadow: var(--lift);
-  }
-  .panel-sub {
-    background: var(--surface-sub);
-    border: 1px solid var(--border);
-    border-radius: var(--r-control);
-  }
+  /* ── Cards ── */
   .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--r-surface);
-    box-shadow: var(--lift);
+    @apply rounded-xl;
+    background: var(--raise-1);
+    border: 1px solid var(--line);
   }
-  /* Cabeçalho de tabela: faixa fria para separar cabeçalho de dados */
-  .panel thead, .card thead { background: var(--surface-sub); }
+  .card-hover {
+    @apply card transition-all duration-200;
+  }
+  .card-hover:hover {
+    border-color: var(--line-2);
+    background: var(--raise-2);
+  }
 
-  .card-hover { @apply card transition-colors duration-150; }
-  .card-hover:hover { border-color: var(--border-hi); }
-
-  /* ── Micro-tipografia: rótulo em caixa alta, espaçado ── */
+  /* ── Labels ── */
   .section-label {
     font-size: 10px;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.14em;
-    color: var(--text-3);
+    letter-spacing: 0.12em;
+    color: var(--ink-2);
   }
   .section-title {
     @apply text-sm font-semibold tracking-tight;
-    color: var(--text-1);
+    color: var(--ink);
   }
   .section-sub {
     @apply text-xs mt-0.5;
-    color: var(--text-3);
+    color: var(--ink-2);
   }
+
+  /* ── Section header ── */
   .section-header { @apply flex items-center gap-3 mb-5; }
-  .section-header-icon {
-    @apply w-7 h-7 flex items-center justify-center shrink-0;
-    border-radius: var(--r-control);
-  }
+  .section-header-icon { @apply w-8 h-8 rounded-xl flex items-center justify-center shrink-0; }
 
   /* ── Inputs ── */
   .input-base {
-    @apply w-full px-3 py-2 text-sm focus:outline-none transition-colors;
-    border-radius: var(--r-control);
-    background: var(--surface);
-    border: 1px solid var(--border-hi);
-    color: var(--text-1);
+    @apply w-full rounded-lg px-3.5 py-2.5 text-sm focus:outline-none transition-all;
+    background: var(--raise-2);
+    border: 1px solid var(--line);
+    color: var(--ink);
   }
-  .input-base::placeholder { color: var(--text-muted); }
-  .input-base:focus { border-color: var(--accent); }
+  .input-base::placeholder { color: var(--ink-4); }
+  .input-base:focus {
+    border-color: color-mix(in srgb, var(--brand) 50%, transparent);
+    background: var(--raise-3);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 10%, transparent);
+  }
 
-  /* ── Botões ── */
+  /* ── Primary button ── */
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2
-           font-medium text-sm text-white transition-colors duration-150 focus:outline-none;
-    border-radius: var(--r-control);
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg
+           font-medium text-sm transition-all duration-150
+           active:scale-[0.98] focus:outline-none;
     background: var(--brand);
+    color: var(--brand-ink);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.10);
   }
-  .btn-primary:hover:not(:disabled) { background: var(--brand-hover); }
-  .btn-primary:disabled { @apply cursor-not-allowed; opacity: 0.4; }
-
-  .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2
-           font-medium text-sm transition-colors duration-150 focus:outline-none;
-    border-radius: var(--r-control);
-    background: var(--surface);
-    border: 1px solid var(--border-hi);
-    color: var(--text-2);
+  .btn-primary:hover:not(:disabled) {
+    background: var(--brand-hover);
   }
-  .btn-secondary:hover:not(:disabled) { background: var(--surface-sub); color: var(--text-1); }
+  .btn-primary:disabled {
+    @apply cursor-not-allowed;
+    opacity: 0.4;
+  }
 
-  /* ── Nav ── */
+  /* ── Nav links ── */
   .nav-link {
-    @apply flex items-center gap-1.5 text-sm font-medium transition-colors px-2.5 py-1.5;
-    border-radius: var(--r-control);
-    color: var(--text-2);
+    @apply flex items-center gap-1.5 text-sm font-medium transition-colors px-2.5 py-1.5 rounded-lg;
+    color: var(--ink-2);
   }
-  .nav-link:hover { color: var(--text-1); background: rgba(22,32,60,0.05); }
+  .nav-link:hover { color: var(--ink); background: var(--raise-2); }
 
   .nav-link-danger {
-    @apply flex items-center gap-1.5 text-sm font-medium transition-colors px-2.5 py-1.5;
-    border-radius: var(--r-control);
-    color: var(--text-2);
+    @apply flex items-center gap-1.5 text-sm font-medium transition-colors px-2.5 py-1.5 rounded-lg;
+    color: var(--ink-2);
   }
-  .nav-link-danger:hover { color: var(--danger); background: var(--danger-soft); }
+  .nav-link-danger:hover { color: #f87171; background: rgba(239,68,68,0.06); }
 
-  /* ── Barra superior: navy sólido ──
-     Os tokens de texto e borda são redeclarados aqui, então todo descendente
-     que usa var(--text-N) inverte junto sem precisar de classe própria. */
+  /* ── Navbar ── */
   .navbar-glass {
-    @apply border-b sticky top-0 z-20;
-    background: var(--nav);
-    border-color: rgba(255,255,255,0.10);
-    color: #FFFFFF;
-
-    --text-1:     #FFFFFF;
-    --text-2:     rgba(255,255,255,0.82);
-    --text-3:     rgba(255,255,255,0.68);
-    --text-muted: rgba(255,255,255,0.60);
-    --border:     rgba(255,255,255,0.14);
-    --border-hi:  rgba(255,255,255,0.26);
-    --surface:     rgba(255,255,255,0.10);
-    --surface-sub: rgba(255,255,255,0.14);
-    --danger:     #FDA4A1;
-    --danger-soft: rgba(255,255,255,0.12);
+    @apply backdrop-blur-xl border-b sticky top-0 z-20;
+    background: color-mix(in srgb, var(--bg) 90%, transparent);
+    border-color: var(--line);
   }
-  .navbar-glass .nav-link:hover { background: rgba(255,255,255,0.12); }
+}
+
+@layer base {
+  /* Rede de segurança: quem configurou o sistema para menos movimento não
+     recebe animação nenhuma, inclusive de bibliotecas. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* O botão primário já usa active:scale do Tailwind; mexer no transform
+     aqui brigaria com ele, então o realce de hover é via sombra. */
+  .btn-primary {
+    transition: background-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+  }
+  .btn-primary:hover:not(:disabled) {
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.10),
+                0 6px 18px -6px color-mix(in srgb, var(--brand) 55%, transparent);
+  }
+
+  /* Troca de tema suave nas superfícies */
+  .card, .input-base, .navbar-glass {
+    transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease;
+  }
 }

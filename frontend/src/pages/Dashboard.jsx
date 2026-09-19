@@ -1,3 +1,6 @@
+import ThemeToggle from '../components/ThemeToggle'
+import { motion } from 'framer-motion'
+import { lista, item } from '../lib/motion'
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -20,8 +23,8 @@ import { useAuth } from '../context/AuthContext'
 const BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
 
 const AGING_ORDER = ['0-29 dias', '30-59 dias', '60-89 dias', '90-179 dias', '180+ dias']
-const AGING_COLORS  = ['var(--ok)', 'var(--info)', 'var(--warn)', '#D97706', 'var(--danger)']
-const CLUSTER_COLORS = ['var(--info)', 'var(--info)', 'var(--ok)', 'var(--warn)', 'var(--danger)', '#5B3FB8', '#0E9384']
+const AGING_COLORS  = ['#10b981', '#3b82f6', '#f59e0b', '#f97316', '#ef4444']
+const CLUSTER_COLORS = ['#3b82f6', '#60a5fa', '#10b981', '#f59e0b', '#ef4444', '#6366f1', '#14b8a6']
 
 const fmtBRL = (v) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v)
@@ -43,10 +46,10 @@ function getStatus(cpf, statusMap) {
 /* ───────────────────────── Priority badge (dark) ───────────────────────── */
 function PriorityBadge({ score }) {
   const cfg = score >= 70
-    ? { label: 'Alta',  cls: 'bg-[var(--ok-soft)] text-[var(--ok)] border-[var(--ok-border)]', dot: 'bg-[var(--ok)]' }
+    ? { label: 'Alta',  cls: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30', dot: 'bg-emerald-400' }
     : score >= 40
-      ? { label: 'Média', cls: 'bg-[var(--warn-soft)] text-[var(--warn)] border-[var(--warn-border)]', dot: 'bg-[var(--warn)]' }
-      : { label: 'Baixa', cls: 'bg-[var(--surface-sub)] text-[var(--text-2)] border-[var(--border)]', dot: 'bg-[var(--text-muted)]' }
+      ? { label: 'Média', cls: 'bg-amber-500/10 text-amber-300 border-amber-500/30', dot: 'bg-amber-400' }
+      : { label: 'Baixa', cls: 'bg-slate-500/10 text-ink-2 border-slate-500/30', dot: 'bg-slate-400' }
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium ${cfg.cls}`}>
       <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
@@ -65,44 +68,44 @@ function StatusBadge({ cpf, statusMap }) {
 
   if (s === 'pago') return (
     <div className="flex flex-col items-center gap-0.5">
-      <span title={title} className="inline-flex items-center gap-1 rounded-md border border-[var(--ok-border)] bg-[var(--ok-soft)] px-2 py-0.5 text-xs font-medium text-[var(--ok)] whitespace-nowrap cursor-default">
+      <span title={title} className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-300 whitespace-nowrap cursor-default">
         <CheckCircle2 className="h-3 w-3" /> Pago
       </span>
-      {quem && <span className="text-[10px] text-[var(--text-3)]">{quem}{quando}</span>}
+      {quem && <span className="text-[10px] text-ink-2">{quem}{quando}</span>}
     </div>
   )
   if (s === 'nao_pago') return (
     <div className="flex flex-col items-center gap-0.5">
-      <span title={title} className="inline-flex items-center gap-1 rounded-md border border-[var(--danger-border)] bg-[var(--danger-soft)] px-2 py-0.5 text-xs font-medium text-[var(--danger)] whitespace-nowrap cursor-default">
+      <span title={title} className="inline-flex items-center gap-1 rounded-md border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-xs font-medium text-red-300 whitespace-nowrap cursor-default">
         <XCircle className="h-3 w-3" /> Não pago
       </span>
-      {quem && <span className="text-[10px] text-[var(--text-3)]">{quem}{quando}</span>}
+      {quem && <span className="text-[10px] text-ink-2">{quem}{quando}</span>}
     </div>
   )
-  return <span className="text-xs text-[var(--text-3)] whitespace-nowrap">Pendente</span>
+  return <span className="text-xs text-ink-2 whitespace-nowrap">Pendente</span>
 }
 
 /* ───────────────────────── KPI card (chic minimal) ───────────────────────── */
 function KpiCard({ label, value, sub, danger = false, icon: Icon, accent }) {
-  const accentColor = { blue: 'var(--info)', amber: 'var(--warn)', violet: '#5B3FB8', emerald: 'var(--ok)' }[accent] ?? 'rgba(22,32,60,0.12)'
+  const accentColor = { blue: '#3b82f6', amber: '#f59e0b', violet: '#8b5cf6', emerald: '#10b981' }[accent] ?? 'var(--raise-3)'
   return (
-    <div className="px-6 py-5 flex flex-col gap-3 rounded-md transition-colors"
+    <div className="px-6 py-5 flex flex-col gap-3 rounded-xl transition-colors"
       style={{
-        background: 'rgba(22,32,60,0.02)',
-        border: '1px solid rgba(22,32,60,0.04)',
+        background: 'var(--raise-1)',
+        border: '1px solid var(--line)',
         borderLeft: `2px solid ${accentColor}`,
       }}>
       <div className="flex items-center justify-between">
-        <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-3)' }}>
+        <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--ink-2)' }}>
           {label}
         </p>
-        {Icon && <Icon className="h-3.5 w-3.5" style={{ color: 'var(--text-muted)' }} />}
+        {Icon && <Icon className="h-3.5 w-3.5" style={{ color: 'var(--ink-4)' }} />}
       </div>
       <div>
-        <p className="text-[1.75rem] font-semibold tracking-tight leading-none" style={{ color: danger ? 'var(--danger)' : 'var(--text-1)' }}>
+        <p className="text-[1.75rem] font-semibold tracking-tight leading-none" style={{ color: danger ? '#f87171' : 'var(--ink)' }}>
           {value}
         </p>
-        {sub && <p className="text-xs mt-1.5" style={{ color: 'var(--text-muted)' }}>{sub}</p>}
+        {sub && <p className="text-xs mt-1.5" style={{ color: 'var(--ink-4)' }}>{sub}</p>}
       </div>
     </div>
   )
@@ -187,48 +190,53 @@ function exportExcel(ranking, resumo) {
 const CustomBarTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
   return (
-    <div className="rounded-lg border border-[var(--border-hi)] bg-[var(--surface-sub)] px-3.5 py-2.5 text-xs">
-      <p className="mb-1 font-semibold text-[var(--text-1)]">{label}</p>
-      <p className="text-[var(--text-3)]">Devedores: <span className="font-bold text-[var(--info)]">{fmtNum(payload[0].value)}</span></p>
+    <div className="rounded-lg border border-line bg-surface-2 px-3.5 py-2.5 text-xs shadow-xl">
+      <p className="mb-1 font-semibold text-ink">{label}</p>
+      <p className="text-ink-2">Devedores: <span className="font-bold text-blue-300">{fmtNum(payload[0].value)}</span></p>
     </div>
   )
 }
 
 function Slider({ label, hint, value, min, max, step, onChange, color = 'blue' }) {
   const pct = ((value - min) / (max - min)) * 100
-  const trackColor = color === 'emerald' ? 'var(--ok)' : 'var(--info)'
+  const trackColor = color === 'emerald' ? '#10b981' : '#3b82f6'
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between">
-        <span className="text-xs text-[var(--text-3)]">{label}</span>
-        <span className="text-sm font-bold text-[var(--text-1)]">{value}%</span>
+        <span className="text-xs text-ink-2">{label}</span>
+        <span className="text-sm font-bold text-ink">{value}%</span>
       </div>
       <input
         type="range" min={min} max={max} step={step} value={value}
         onChange={e => onChange(Number(e.target.value))}
         className="h-1.5 w-full cursor-pointer appearance-none rounded-full"
-        style={{ background: `linear-gradient(to right, ${trackColor} ${pct}%, rgba(22,32,60,0.12) ${pct}%)` }}
+        style={{ background: `linear-gradient(to right, ${trackColor} ${pct}%, var(--raise-3) ${pct}%)` }}
       />
-      <p className="mt-1 text-xs text-[var(--text-3)]">{hint}</p>
+      <p className="mt-1 text-xs text-ink-2">{hint}</p>
     </div>
   )
 }
 
-function PricingCard({ label, value, sub, highlight = false, icon: Icon }) {
+function PricingCard({ label, value, sub, highlight = false, accent = null, icon: Icon }) {
+  const lucroCard = accent === 'emerald'
+  const box = highlight
+    ? 'border-blue-500/40 bg-blue-600/15 shadow-[0_0_0_1px_rgba(59,130,246,0.25),0_8px_28px_-8px_rgba(59,130,246,0.4)]'
+    : lucroCard
+      ? 'border-emerald-500/30 bg-emerald-500/[0.08]'
+      : 'border-line bg-raise-1'
+  const head  = highlight ? 'text-blue-300'     : lucroCard ? 'text-emerald-300'    : 'text-ink-2'
+  const val   = highlight ? 'text-ink'        : lucroCard ? 'text-emerald-200'    : 'text-ink'
+  const subCl = highlight ? 'text-blue-200/80'  : lucroCard ? 'text-emerald-300/70' : 'text-ink-2'
   return (
-    <div className={`flex flex-col gap-1 rounded-md border p-4 ${
-      highlight
-        ? 'border-blue-500/40 bg-[var(--brand)]/15'
-        : 'border-[var(--border)] bg-[rgba(22,32,60,0.02)]'
-    }`}>
+    <div className={`flex flex-col gap-1 rounded-xl border p-4 ${box}`}>
       <div className="flex items-center justify-between">
-        <p className={`text-xs font-semibold uppercase tracking-wide ${highlight ? 'text-[var(--info)]' : 'text-[var(--text-3)]'}`}>
+        <p className={`text-xs font-semibold uppercase tracking-wide ${head}`}>
           {label}
         </p>
-        {Icon && <Icon className={`h-4 w-4 ${highlight ? 'text-[var(--info)]' : 'text-[var(--text-3)]'}`} />}
+        {Icon && <Icon className={`h-4 w-4 ${head}`} />}
       </div>
-      <p className={`mt-1 text-xl font-bold leading-none ${highlight ? 'text-[var(--text-1)]' : 'text-[var(--text-1)]'}`}>{value}</p>
-      {sub && <p className={`mt-0.5 text-xs ${highlight ? 'text-[var(--info)]' : 'text-[var(--text-3)]'}`}>{sub}</p>}
+      <p className={`mt-1 text-xl font-bold leading-none ${val}`}>{value}</p>
+      {sub && <p className={`mt-0.5 text-xs ${subCl}`}>{sub}</p>}
     </div>
   )
 }
@@ -255,10 +263,11 @@ export default function Dashboard() {
     const ra              = retornoAlvo   / 100
     const liquido         = ver * (1 - cc)
     const preco           = liquido / (1 + ra)
-    const retorno         = preco > 0 ? ((liquido - preco) / preco) * 100 : 0
+    const lucro           = liquido - preco
+    const retorno         = preco > 0 ? (lucro / preco) * 100 : 0
     const desconto        = face  > 0 ? ((face - preco) / face) * 100 : 0
     const taxaRecuperacao = face  > 0 ? (ver / face) * 100 : 0
-    return { ver, face, liquido, preco, retorno, desconto, taxaRecuperacao }
+    return { ver, face, liquido, preco, lucro, retorno, desconto, taxaRecuperacao }
   }, [result, custoCobranca, retornoAlvo])
 
   const [perf, setPerf]                   = useState(null)
@@ -429,7 +438,7 @@ export default function Dashboard() {
     { id: 'analise',   label: 'Nova análise', icon: RefreshCw,      onClick: () => navigate('/') },
     { id: 'pagamentos',label: 'Pagamentos',   icon: ClipboardList,  onClick: () => navigate('/feedback') },
     ...(isComando ? [{ id: 'comando', label: 'Comando',       icon: ShieldCheck, onClick: () => navigate('/comando') }] : []),
-    ...(isComando ? [{ id: 'bandit',  label: 'Recomendações', icon: Zap,        onClick: () => navigate('/bandit') }] : []),
+    ...(isComando ? [{ id: 'bandit',  label: 'Performance IA', icon: Zap,        onClick: () => navigate('/bandit') }] : []),
     ...((isAdmin || isComando) ? [{ id: 'usuarios', label: 'Usuários', icon: Users, onClick: () => navigate('/admin/usuarios') }] : []),
     ...(isAdmin    ? [{ id: 'inicio', label: 'Início', icon: Home, onClick: () => navigate('/admin') }] : []),
     ...(isOperador ? [{ id: 'inicio', label: 'Início', icon: Home, onClick: () => navigate('/operador') }] : []),
@@ -437,69 +446,69 @@ export default function Dashboard() {
   ]
 
   return (
-    <div className="flex min-h-screen bg-[var(--surface-sub)] font-sans text-[var(--text-1)]">
+    <div className="flex min-h-screen bg-surface-2 font-sans text-ink">
 
       {/* ───── Modal de confirmação de pagamento ───── */}
       {confirmarModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md space-y-5 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-6 shadow-2xl">
+          <div className="w-full max-w-md space-y-5 rounded-2xl border border-line bg-surface p-6 shadow-2xl">
             <div className="flex items-start justify-between">
               <div>
-                <h2 className="text-base font-bold text-[var(--text-1)]">Confirmar pagamento</h2>
-                <p className="mt-0.5 text-xs text-[var(--text-3)]">
-                  <span className="font-semibold text-[var(--text-1)]">{confirmarModal.nome}</span>
+                <h2 className="text-base font-bold text-ink">Confirmar pagamento</h2>
+                <p className="mt-0.5 text-xs text-ink-2">
+                  <span className="font-semibold text-ink">{confirmarModal.nome}</span>
                   {' · '}<span className="font-mono">{confirmarModal.cpf}</span>
                 </p>
               </div>
               <button onClick={() => { setConfirmarModal(null); setConfirmarErro('') }}
-                className="rounded-lg p-1 text-[var(--text-3)] transition-colors hover:bg-[rgba(22,32,60,0.05)] hover:text-[var(--text-1)]">
+                className="rounded-lg p-1 text-ink-2 transition-colors hover:bg-raise-3 hover:text-ink">
                 <X className="h-4 w-4" />
               </button>
             </div>
 
             <form onSubmit={handleConfirmarPagamento} className="space-y-4">
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-[var(--text-2)]">
-                  Valor recuperado <span className="font-normal text-[var(--text-3)]">(opcional)</span>
+                <label className="mb-1.5 block text-xs font-semibold text-ink-2">
+                  Valor recuperado <span className="font-normal text-ink-2">(opcional)</span>
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-[var(--text-3)]">R$</span>
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-ink-2">R$</span>
                   <input
                     type="number" min="0" step="0.01" placeholder="0,00"
                     value={confirmarForm.valor_recuperado}
                     onChange={e => setConfirmarForm(f => ({ ...f, valor_recuperado: e.target.value }))}
-                    className="h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--surface-sub)] pl-9 pr-3 text-sm text-[var(--text-1)] placeholder-[var(--text-muted)] transition-colors focus:border-[var(--info-border)] focus:outline-none"
+                    className="h-10 w-full rounded-lg border border-line bg-surface-2 pl-9 pr-3 text-sm text-ink placeholder-ink-4 transition-colors focus:border-blue-500/50 focus:outline-none"
                   />
                 </div>
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-[var(--text-2)]">
-                  Data do pagamento <span className="font-normal text-[var(--text-3)]">(opcional)</span>
+                <label className="mb-1.5 block text-xs font-semibold text-ink-2">
+                  Data do pagamento <span className="font-normal text-ink-2">(opcional)</span>
                 </label>
                 <input
                   type="date"
                   max={new Date().toISOString().split('T')[0]}
                   value={confirmarForm.data_pagamento}
                   onChange={e => setConfirmarForm(f => ({ ...f, data_pagamento: e.target.value }))}
-                  className="h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--surface-sub)] px-3 text-sm text-[var(--text-1)] transition-colors focus:border-[var(--info-border)] focus:outline-none"
+                  className="h-10 w-full rounded-lg border border-line bg-surface-2 px-3 text-sm text-ink transition-colors focus:border-blue-500/50 focus:outline-none [color-scheme:dark]"
                 />
               </div>
 
               {confirmarErro && (
-                <div className="flex items-start gap-2 rounded-lg border border-[var(--danger-border)] bg-[var(--danger-soft)] px-4 py-3">
-                  <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-[var(--danger)]" />
-                  <p className="text-sm text-[var(--danger)]">{confirmarErro}</p>
+                <div className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3">
+                  <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
+                  <p className="text-sm text-red-300">{confirmarErro}</p>
                 </div>
               )}
 
               <div className="flex gap-2 pt-1">
                 <button type="button"
                   onClick={() => { setConfirmarModal(null); setConfirmarErro('') }}
-                  className="flex-1 rounded-lg border border-[var(--border)] px-4 py-2.5 text-sm font-medium text-[var(--text-2)] transition-colors hover:bg-[rgba(22,32,60,0.035)]">
+                  className="flex-1 rounded-lg border border-line px-4 py-2.5 text-sm font-medium text-ink-2 transition-colors hover:bg-raise-2">
                   Cancelar
                 </button>
                 <button type="submit" disabled={confirmando}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-[var(--ok)] px-4 py-2.5 text-sm font-semibold text-[var(--text-1)] transition-colors hover:bg-emerald-700 disabled:opacity-60">
+                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-brand-ink transition-colors hover:bg-emerald-700 disabled:opacity-60">
                   {confirmando
                     ? <><Loader2 className="h-4 w-4 animate-spin" /> Confirmando...</>
                     : <><CheckCircle2 className="h-4 w-4" /> Confirmar pagamento</>}
@@ -511,12 +520,12 @@ export default function Dashboard() {
       )}
 
       {/* ───── Sidebar ───── */}
-      <aside className="fixed inset-y-0 left-0 z-30 flex w-60 flex-col border-r border-[var(--border)] bg-[var(--surface-sub)]">
+      <aside className="fixed inset-y-0 left-0 z-30 flex w-60 flex-col border-r border-line bg-surface-2">
         <div className="flex h-16 items-center gap-2.5 px-5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--brand)]">
-            <span className="text-sm font-bold text-[var(--text-1)]">{nomeEmpresa.charAt(0).toUpperCase()}</span>
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 shadow-md shadow-blue-500/20">
+            <span className="text-sm font-bold text-brand-ink">{nomeEmpresa.charAt(0).toUpperCase()}</span>
           </div>
-          <span className="truncate text-[15px] font-bold tracking-tight text-[var(--text-1)]">{nomeEmpresa}</span>
+          <span className="truncate text-[15px] font-bold tracking-tight text-ink">{nomeEmpresa}</span>
         </div>
 
         <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 py-4">
@@ -528,22 +537,22 @@ export default function Dashboard() {
                 onClick={onClick}
                 className={`relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
                   isActive
-                    ? 'bg-[rgba(22,32,60,0.035)] text-[var(--text-1)]'
-                    : 'text-[var(--text-3)] hover:bg-[rgba(22,32,60,0.03)] hover:text-[var(--text-1)]'
+                    ? 'bg-raise-2 text-ink'
+                    : 'text-ink-2 hover:bg-raise-1 hover:text-ink'
                 }`}
               >
                 {isActive && <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-r-full bg-blue-500" />}
-                <Icon className={`h-[18px] w-[18px] ${isActive ? 'text-[var(--info)]' : ''}`} />
+                <Icon className={`h-[18px] w-[18px] ${isActive ? 'text-blue-400' : ''}`} />
                 {label}
               </button>
             )
           })}
         </nav>
 
-        <div className="border-t border-[var(--border)] p-3">
+        <div className="border-t border-line p-3">
           <button
             onClick={() => { logout(); navigate('/login') }}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-[var(--text-3)] transition-colors hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]"
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-ink-2 transition-colors hover:bg-red-500/10 hover:text-red-400"
           >
             <LogOut className="h-[18px] w-[18px]" />
             Sair
@@ -555,43 +564,44 @@ export default function Dashboard() {
       <div className="flex flex-1 flex-col pl-60">
 
         {/* Top bar */}
-        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-[var(--border)] bg-[var(--surface)]/92 px-8 backdrop-blur-xl">
+        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-line bg-surface-2/80 px-8 backdrop-blur-xl">
           <div className="flex items-center gap-2 text-sm">
-            <span className="font-semibold text-[var(--text-1)]">{nomeEmpresa}</span>
-            <span className="text-[var(--text-3)]">/</span>
-            <span className="font-light text-[var(--text-3)]">Visão da carteira</span>
+            <span className="font-semibold text-ink">{nomeEmpresa}</span>
+            <span className="text-ink-4">/</span>
+            <span className="font-light text-ink-2">Visão da carteira</span>
           </div>
 
           <div className="flex items-center gap-2">
             {/* Exports */}
             <button
               onClick={() => exportCSV(ranking_completo)}
-              className="flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--text-2)] transition-colors hover:border-[var(--ok-border)] hover:text-[var(--text-1)]"
+              className="flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink-2 transition-colors hover:border-emerald-500/50 hover:text-ink"
             >
               <FileSpreadsheet className="h-3.5 w-3.5" /> CSV
             </button>
             <button
               onClick={() => exportExcel(ranking_completo, resumo)}
-              className="flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--text-2)] transition-colors hover:border-[var(--ok-border)] hover:text-[var(--text-1)]"
+              className="flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink-2 transition-colors hover:border-emerald-500/50 hover:text-ink"
             >
               <FileSpreadsheet className="h-3.5 w-3.5" /> Excel
             </button>
             <button
               onClick={exportPDF}
               disabled={exporting}
-              className="flex items-center gap-1.5 rounded-lg bg-[var(--brand)] px-3 py-1.5 text-xs font-semibold text-[var(--text-1)] transition-colors hover:bg-[var(--brand-hover)] disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-brand-ink transition-colors hover:bg-blue-700 disabled:opacity-50"
             >
               {exporting
                 ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Exportando...</>
                 : <><Download className="h-3.5 w-3.5" /> PDF</>}
             </button>
 
-            <div className="ml-2 flex items-center gap-2.5 border-l border-[var(--border)] pl-4">
+            <ThemeToggle />
+              <div className="ml-2 flex items-center gap-2.5 border-l border-line pl-4">
               <div className="hidden text-right sm:block">
-                <p className="text-sm font-medium leading-tight text-[var(--text-1)]">{nomeUser}</p>
-                <p className="text-xs font-light text-[var(--text-3)]">{usuario?.email || 'usuario@mizan.app'}</p>
+                <p className="text-sm font-medium leading-tight text-ink">{nomeUser}</p>
+                <p className="text-xs font-light text-ink-2">{usuario?.email || 'usuario@mizan.app'}</p>
               </div>
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--brand)] text-xs font-bold text-[var(--text-1)]">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-brand-ink">
                 {iniciais}
               </div>
             </div>
@@ -602,13 +612,13 @@ export default function Dashboard() {
         <main className="flex-1 px-8 py-8">
 
           <div className="mb-7">
-            <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--text-muted)' }}>Análise de Carteira</p>
-            <h1 className="text-2xl font-semibold tracking-tight mt-1" style={{ color: 'var(--text-1)' }}>Dashboard</h1>
+            <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--ink-4)' }}>Análise de Carteira</p>
+            <h1 className="text-2xl font-semibold tracking-tight mt-1" style={{ color: 'var(--ink)' }}>Dashboard</h1>
             {resumo?.criado_por && (
-              <div className="mt-2 flex items-center gap-1.5 text-xs text-[var(--text-3)]">
+              <div className="mt-2 flex items-center gap-1.5 text-xs text-ink-2">
                 <Clock className="h-3 w-3 shrink-0" />
                 <span>
-                  Análise por <span className="font-medium text-[var(--text-3)]">{resumo.criado_por}</span>
+                  Análise por <span className="font-medium text-ink-2">{resumo.criado_por}</span>
                   {resumo.criado_em && (
                     <> · {new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(resumo.criado_em))}</>
                   )}
@@ -618,63 +628,69 @@ export default function Dashboard() {
           </div>
 
           {/* ── KPIs ── */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <KpiCard label="Total de Devedores"     value={fmtNum(resumo.total_devedores)}  icon={Users}       accent="blue"    />
-            <KpiCard label="Valor de Face"           value={fmtBRL(resumo.total_em_risco)}   sub="valor nominal da carteira"   icon={TrendingDown} accent="amber"   />
-            <KpiCard label="Score Médio"             value={resumo.score_medio.toFixed(1)}   sub="recuperabilidade (0–100)"    icon={BarChart2}    accent="violet"  />
-            <KpiCard label="Devedores Prioritários" value={fmtNum(prioritarios)}             sub="score ≥ 70"                  icon={Star}         accent="emerald" />
-          </div>
+          <motion.div variants={lista} initial="inicial" animate="entra"
+            className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <motion.div variants={item}><KpiCard label="Total de Devedores"     value={fmtNum(resumo.total_devedores)}  icon={Users}       accent="blue"    /></motion.div>
+            <motion.div variants={item}><KpiCard label="Valor de Face"           value={fmtBRL(resumo.total_em_risco)}   sub="valor nominal da carteira"   icon={TrendingDown} accent="amber"   /></motion.div>
+            <motion.div variants={item}><KpiCard label="Score Médio"             value={resumo.score_medio.toFixed(1)}   sub="recuperabilidade (0–100)"    icon={BarChart2}    accent="violet"  /></motion.div>
+            <motion.div variants={item}><KpiCard label="Devedores Prioritários" value={fmtNum(prioritarios)}             sub="score ≥ 70"                  icon={Star}         accent="emerald" /></motion.div>
+          </motion.div>
 
           {/* ── Precificação ── */}
           {!isOperador && (
-            <section className="mt-6 rounded-md border border-[var(--border)] bg-[var(--surface)] p-6">
+            <section className="mt-6 rounded-xl border border-line bg-surface p-6">
               <div className="mb-6 flex items-center justify-between">
                 <div>
-                  <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-3)' }}>Precificação</p>
-                  <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--text-1)' }}>Carteira de Crédito</h3>
+                  <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--ink-2)' }}>Precificação</p>
+                  <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--ink)' }}>Carteira de Crédito</h3>
                 </div>
-                <p className="text-xs" style={{ color: 'var(--text-3)' }}>Ajuste custo e retorno para simular cenários</p>
+                <p className="text-xs" style={{ color: 'var(--ink-2)' }}>Ajuste custo e retorno para simular cenários</p>
               </div>
 
               <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-5">
-                <div className="space-y-5 rounded-md border border-[var(--border)] bg-[rgba(22,32,60,0.02)] p-4 lg:col-span-1">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-3)]">Parâmetros</p>
+                <div className="space-y-5 rounded-xl border border-line bg-raise-1 p-4 lg:col-span-1">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-ink-2">Parâmetros</p>
                   <Slider label="Custo de Cobrança" hint="Despesas operacionais e comissões"
                     value={custoCobranca} min={5} max={50} step={1} onChange={setCustoCobranca} color="blue" />
                   <Slider label="Retorno Alvo" hint="ROI mínimo desejado na operação"
                     value={retornoAlvo} min={10} max={80} step={1} onChange={setRetornoAlvo} color="emerald" />
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 lg:col-span-4">
-                  <PricingCard label="Valor Esperado de Recuperação" value={fmtBRL(pricing.ver)}
+                <motion.div variants={lista} initial="inicial" animate="entra"
+                  className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5 lg:col-span-4">
+                  <motion.div variants={item}><PricingCard label="Valor Esperado de Recuperação" value={fmtBRL(pricing.ver)}
                     sub={resumo.taxa_recuperacao_esperada != null ? `${fmtPct(resumo.taxa_recuperacao_esperada)} do valor de face` : 'do valor de face'}
-                    icon={ArrowUpRight} />
-                  <PricingCard label="Valor Líquido (após custos)" value={fmtBRL(pricing.liquido)}
-                    sub={`custos estimados: ${fmtBRL(pricing.ver - pricing.liquido)}`} icon={Percent} />
-                  <PricingCard label="Preço Sugerido de Compra" value={fmtBRL(pricing.preco)}
-                    sub={`${fmtPct(pricing.desconto)} de desconto sobre o face`} highlight icon={Tag} />
-                  <PricingCard label="Taxa de Recuperação Estimada" value={`${pricing.taxaRecuperacao.toFixed(1)}%`}
-                    sub={`do valor de face · lucro: ${fmtBRL(pricing.liquido - pricing.preco)}`} icon={TrendingUp} />
-                </div>
+                    icon={ArrowUpRight} /></motion.div>
+                  <motion.div variants={item}><PricingCard label="Valor Líquido (após custos)" value={fmtBRL(pricing.liquido)}
+                    sub={`custos estimados: ${fmtBRL(pricing.ver - pricing.liquido)}`} icon={Percent} /></motion.div>
+                  <motion.div variants={item}><PricingCard label="Preço Sugerido de Compra" value={fmtBRL(pricing.preco)}
+                    sub={`${fmtPct(pricing.desconto)} de desconto sobre o face`} highlight icon={Tag} /></motion.div>
+                  <motion.div variants={item}><PricingCard label="Lucro Final (líquido)" value={fmtBRL(pricing.lucro)}
+                    sub={`retorno de ${pricing.retorno.toFixed(1)}% sobre o preço pago`} accent="emerald" icon={Banknote} /></motion.div>
+                  <motion.div variants={item}><PricingCard label="Taxa de Recuperação Estimada" value={`${pricing.taxaRecuperacao.toFixed(1)}%`}
+                    sub="do valor de face" icon={TrendingUp} /></motion.div>
+                </motion.div>
               </div>
 
-              <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-[var(--border)] pt-4 text-xs text-[var(--text-3)]">
+              <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-line pt-4 text-xs text-ink-2">
                 {resumo?.precificacao_ml ? (
                   <>
-                    <span className="inline-flex items-center gap-1 rounded-md border border-[var(--ok-border)] bg-[var(--ok-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--ok)]">
-                      Precificação por modelo
+                    <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-300">
+                      ✦ ML ativo
                     </span>
-                    <span><span className="font-medium text-[var(--text-3)]">VER</span> = Σ (valor_dívida × <span className="font-medium text-[var(--ok)]">taxa_ML</span>)</span>
+                    <span><span className="font-medium text-ink-2">VER</span> = Σ (valor_dívida × <span className="font-medium text-emerald-400">taxa_ML</span>)</span>
                   </>
                 ) : (
-                  <span><span className="font-medium text-[var(--text-3)]">VER</span> = Σ (valor_dívida × score/100)</span>
+                  <span><span className="font-medium text-ink-2">VER</span> = Σ (valor_dívida × score/100)</span>
                 )}
-                <span className="text-[var(--text-muted)]">›</span>
-                <span><span className="font-medium text-[var(--text-3)]">Líquido</span> = VER × (1 − {custoCobranca}%)</span>
-                <span className="text-[var(--text-muted)]">›</span>
-                <span><span className="font-medium text-[var(--text-3)]">Preço</span> = Líquido ÷ (1 + {retornoAlvo}%)</span>
-                <span className="text-[var(--text-muted)]">›</span>
-                <span><span className="font-medium text-[var(--text-3)]">Retorno</span> = (Líquido − Preço) ÷ Preço</span>
+                <span className="text-ink-4">›</span>
+                <span><span className="font-medium text-ink-2">Líquido</span> = VER × (1 − {custoCobranca}%)</span>
+                <span className="text-ink-4">›</span>
+                <span><span className="font-medium text-ink-2">Preço</span> = Líquido ÷ (1 + {retornoAlvo}%)</span>
+                <span className="text-ink-4">›</span>
+                <span><span className="font-medium text-emerald-400">Lucro</span> = Líquido − Preço</span>
+                <span className="text-ink-4">›</span>
+                <span><span className="font-medium text-ink-2">Retorno</span> = Lucro ÷ Preço</span>
               </div>
             </section>
           )}
@@ -683,17 +699,17 @@ export default function Dashboard() {
           <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-5">
 
             {/* Aging Bar Chart */}
-            <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-6 lg:col-span-3">
+            <div className="rounded-xl border border-line bg-surface p-6 lg:col-span-3">
               <div className="mb-5">
-                <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-3)' }}>Distribuição</p>
-                <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--text-1)' }}>Aging da Carteira</h3>
+                <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--ink-2)' }}>Distribuição</p>
+                <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--ink)' }}>Aging da Carteira</h3>
               </div>
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={agingData} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(22,32,60,0.04)" vertical={false} />
-                  <XAxis dataKey="aging" tick={{ fontSize: 11, fill: 'var(--text-3)' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: 'var(--text-3)' }} axisLine={false} tickLine={false} />
-                  <Tooltip content={<CustomBarTooltip />} cursor={{ fill: 'rgba(22,32,60,0.03)' }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,141,166,0.28)" vertical={false} />
+                  <XAxis dataKey="aging" tick={{ fontSize: 11, fill: 'var(--ink-2)' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: 'var(--ink-2)' }} axisLine={false} tickLine={false} />
+                  <Tooltip content={<CustomBarTooltip />} cursor={{ fill: 'rgba(128,141,166,0.12)' }} />
                   <Bar dataKey="total_devedores" radius={[4, 4, 0, 0]} maxBarSize={48}>
                     {agingData.map((_, i) => <Cell key={i} fill={AGING_COLORS[i % AGING_COLORS.length]} />)}
                   </Bar>
@@ -703,18 +719,18 @@ export default function Dashboard() {
                 {agingData.map((d, i) => (
                   <div key={d.aging} className="flex items-center gap-1.5">
                     <div className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: AGING_COLORS[i] }} />
-                    <span className="text-xs text-[var(--text-3)]">{d.aging}</span>
-                    <span className="text-xs text-[var(--text-3)]">({fmtNum(d.total_devedores)})</span>
+                    <span className="text-xs text-ink-2">{d.aging}</span>
+                    <span className="text-xs text-ink-2">({fmtNum(d.total_devedores)})</span>
                   </div>
                 ))}
               </div>
             </div>
 
             {/* Cluster Pie */}
-            <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-6 lg:col-span-2">
+            <div className="rounded-xl border border-line bg-surface p-6 lg:col-span-2">
               <div className="mb-5">
-                <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-3)' }}>Segmentação</p>
-                <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--text-1)' }}>Perfis de Devedores</h3>
+                <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--ink-2)' }}>Segmentação</p>
+                <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--ink)' }}>Perfis de Devedores</h3>
               </div>
               <ResponsiveContainer width="100%" height={220}>
                 <PieChart>
@@ -727,7 +743,7 @@ export default function Dashboard() {
                     ))}
                   </Pie>
                   <Tooltip
-                    contentStyle={{ borderRadius: '8px', border: '1px solid rgba(22,32,60,0.12)', background: 'var(--page)', fontSize: 11, color: '#fff' }}
+                    contentStyle={{ borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--surface-2)', fontSize: 11, color: 'var(--ink)' }}
                     formatter={(v, _, { payload }) => [fmtNum(v), payload.perfil_cluster]}
                   />
                 </PieChart>
@@ -737,9 +753,9 @@ export default function Dashboard() {
                   <div key={d.perfil_cluster} className="flex items-center justify-between text-xs">
                     <div className="flex min-w-0 items-center gap-1.5">
                       <div className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: CLUSTER_COLORS[i] }} />
-                      <span className="truncate text-[var(--text-3)]">{d.perfil_cluster}</span>
+                      <span className="truncate text-ink-2">{d.perfil_cluster}</span>
                     </div>
-                    <span className="ml-2 shrink-0 text-[var(--text-3)]">{fmtNum(d.total_devedores)}</span>
+                    <span className="ml-2 shrink-0 text-ink-2">{fmtNum(d.total_devedores)}</span>
                   </div>
                 ))}
               </div>
@@ -748,15 +764,15 @@ export default function Dashboard() {
 
           {/* ── Resultados Reais ── */}
           {!isOperador && !loadingPerf && perf && perf.total_feedbacks > 0 && (
-            <section className="mt-6 overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface)]">
-              <div className="flex items-center justify-between border-b border-[var(--border)] px-6 py-4">
+            <section className="mt-6 overflow-hidden rounded-xl border border-line bg-surface">
+              <div className="flex items-center justify-between border-b border-line px-6 py-4">
                 <div>
-                  <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-3)' }}>Resultados Reais</p>
-                  <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--text-1)' }}>Quem Pagou</h3>
-                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>{perf.total_feedbacks} feedbacks registrados</p>
+                  <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--ink-2)' }}>Resultados Reais</p>
+                  <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--ink)' }}>Quem Pagou</h3>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--ink-2)' }}>{perf.total_feedbacks} feedbacks registrados</p>
                 </div>
                 {perf.acuracia_geral != null && (
-                  <span className="rounded-md border border-[var(--info-border)] bg-[var(--info-soft)] px-2.5 py-1 text-xs font-medium text-[var(--info)]">
+                  <span className="rounded-md border border-blue-500/30 bg-blue-500/10 px-2.5 py-1 text-xs font-medium text-blue-300">
                     Acurácia do modelo: {perf.acuracia_geral}%
                   </span>
                 )}
@@ -764,27 +780,27 @@ export default function Dashboard() {
               <div className="overflow-x-auto p-6">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-[var(--border)]">
+                    <tr className="border-b border-line">
                       {['Faixa de Score', 'Feedbacks', 'Pagaram', 'Não Pagaram', 'Taxa de Pagamento', ''].map(h => (
-                        <th key={h} className="px-4 pb-3 text-left text-xs font-medium uppercase tracking-wider text-[var(--text-3)] first:pl-0">{h}</th>
+                        <th key={h} className="px-4 pb-3 text-left text-xs font-medium uppercase tracking-wider text-ink-2 first:pl-0">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {perf.metricas_por_faixa.map(f => {
                       const taxa = f.taxa_pagamento ?? 0
-                      const barColor = taxa >= 60 ? 'var(--ok)' : taxa >= 30 ? 'var(--warn)' : 'var(--danger)'
+                      const barColor = taxa >= 60 ? '#10b981' : taxa >= 30 ? '#f59e0b' : '#ef4444'
                       return (
-                        <tr key={f.faixa} className="border-b border-white/[0.04] transition-colors last:border-0 hover:bg-white/[0.025]">
-                          <td className="py-3 pl-0 pr-4 text-sm font-medium text-[var(--text-1)]">{f.faixa}</td>
-                          <td className="px-4 py-3 font-mono text-[var(--text-3)]">{f.total_feedbacks}</td>
+                        <tr key={f.faixa} className="border-b border-line transition-colors last:border-0 hover:bg-raise-1">
+                          <td className="py-3 pl-0 pr-4 text-sm font-medium text-ink">{f.faixa}</td>
+                          <td className="px-4 py-3 font-mono text-ink-2">{f.total_feedbacks}</td>
                           <td className="px-4 py-3">
-                            <span className="flex items-center gap-1 font-medium text-[var(--ok)]">
+                            <span className="flex items-center gap-1 font-medium text-emerald-400">
                               <CheckCircle2 className="h-3.5 w-3.5" />{f.pagaram}
                             </span>
                           </td>
                           <td className="px-4 py-3">
-                            <span className="flex items-center gap-1 font-medium text-[var(--danger)]">
+                            <span className="flex items-center gap-1 font-medium text-red-400">
                               <XCircle className="h-3.5 w-3.5" />{f.nao_pagaram}
                             </span>
                           </td>
@@ -792,7 +808,7 @@ export default function Dashboard() {
                             <span className="text-sm font-bold" style={{ color: barColor }}>{taxa.toFixed(1)}%</span>
                           </td>
                           <td className="w-32 px-4 py-3">
-                            <div className="h-1.5 overflow-hidden rounded-full bg-[rgba(22,32,60,0.05)]">
+                            <div className="h-1.5 overflow-hidden rounded-full bg-raise-3">
                               <div className="h-full rounded-full" style={{ width: `${Math.min(taxa, 100)}%`, backgroundColor: barColor }} />
                             </div>
                           </td>
@@ -807,29 +823,29 @@ export default function Dashboard() {
 
           {/* ── Pagamentos individuais ── */}
           {pagamentos.length > 0 && (
-            <section className="mt-6 overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface)]">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] px-6 py-4">
+            <section className="mt-6 overflow-hidden rounded-xl border border-line bg-surface">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-6 py-4">
                 <div>
-                  <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-3)' }}>Histórico</p>
-                  <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--text-1)' }}>Pagamentos Registrados</h3>
-                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>{pagamentos.filter(p => p.pagou).length} pagamentos · {pagamentos.filter(p => !p.pagou).length} não pagaram</p>
+                  <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--ink-2)' }}>Histórico</p>
+                  <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--ink)' }}>Pagamentos Registrados</h3>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--ink-2)' }}>{pagamentos.filter(p => p.pagou).length} pagamentos · {pagamentos.filter(p => !p.pagou).length} não pagaram</p>
                 </div>
                 <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--text-3)]" />
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-2" />
                   <input
                     value={searchPag}
                     onChange={e => setSearchPag(e.target.value)}
                     placeholder="Buscar por nome ou CPF..."
-                    className="h-9 w-52 rounded-lg border border-[var(--border)] bg-[var(--surface-sub)] pl-9 pr-3 text-xs text-[var(--text-1)] placeholder-[var(--text-muted)] transition-colors focus:border-[var(--info-border)] focus:outline-none"
+                    className="h-9 w-52 rounded-lg border border-line bg-surface-2 pl-9 pr-3 text-xs text-ink placeholder-ink-4 transition-colors focus:border-blue-500/50 focus:outline-none"
                   />
                 </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-[var(--border)]">
+                    <tr className="border-b border-line">
                       {['Nome', 'CPF', 'Dívida', 'Score', 'Situação', 'Valor Recuperado', 'Data', 'Registrado por'].map(h => (
-                        <th key={h} className="whitespace-nowrap px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-[var(--text-3)]">{h}</th>
+                        <th key={h} className="whitespace-nowrap px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-ink-2">{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -842,31 +858,31 @@ export default function Dashboard() {
                       })
                       .slice(0, 100)
                       .map((p, i) => (
-                        <tr key={i} className="border-b border-white/[0.04] transition-colors last:border-0 hover:bg-white/[0.025]">
-                          <td className="max-w-[160px] truncate px-4 py-3 font-medium text-[var(--text-1)]">{p.nome || '—'}</td>
-                          <td className="px-4 py-3 font-mono text-xs text-[var(--text-3)]">{p.cpf || '—'}</td>
-                          <td className="px-4 py-3 text-[var(--text-2)]">{p.valor_divida != null ? fmtBRL(p.valor_divida) : '—'}</td>
+                        <tr key={i} className="border-b border-line transition-colors last:border-0 hover:bg-raise-1">
+                          <td className="max-w-[160px] truncate px-4 py-3 font-medium text-ink">{p.nome || '—'}</td>
+                          <td className="px-4 py-3 font-mono text-xs text-ink-2">{p.cpf || '—'}</td>
+                          <td className="px-4 py-3 text-ink-2">{p.valor_divida != null ? fmtBRL(p.valor_divida) : '—'}</td>
                           <td className="px-4 py-3">
                             {p.score != null ? (
-                              <span className={`rounded-md px-2 py-0.5 text-xs font-bold ${p.score >= 70 ? 'bg-[var(--ok-soft)] text-[var(--ok)]' : p.score >= 40 ? 'bg-[var(--warn-soft)] text-[var(--warn)]' : 'bg-[var(--danger-soft)] text-[var(--danger)]'}`}>
+                              <span className={`rounded-md px-2 py-0.5 text-xs font-bold ${p.score >= 70 ? 'bg-emerald-500/10 text-emerald-300' : p.score >= 40 ? 'bg-amber-500/10 text-amber-300' : 'bg-red-500/10 text-red-300'}`}>
                                 {p.score}
                               </span>
                             ) : '—'}
                           </td>
                           <td className="px-4 py-3">
                             {p.pagou
-                              ? <span className="flex items-center gap-1 text-xs font-medium text-[var(--ok)]"><CheckCircle2 className="h-3.5 w-3.5" />Pagou</span>
-                              : <span className="flex items-center gap-1 text-xs font-medium text-[var(--danger)]"><XCircle className="h-3.5 w-3.5" />Não pagou</span>}
+                              ? <span className="flex items-center gap-1 text-xs font-medium text-emerald-400"><CheckCircle2 className="h-3.5 w-3.5" />Pagou</span>
+                              : <span className="flex items-center gap-1 text-xs font-medium text-red-400"><XCircle className="h-3.5 w-3.5" />Não pagou</span>}
                           </td>
-                          <td className="px-4 py-3 font-semibold text-[var(--ok)]">
-                            {p.pagou && p.valor_recuperado > 0 ? fmtBRL(p.valor_recuperado) : p.pagou ? '—' : <span className="text-[var(--text-3)]">—</span>}
+                          <td className="px-4 py-3 font-semibold text-emerald-400">
+                            {p.pagou && p.valor_recuperado > 0 ? fmtBRL(p.valor_recuperado) : p.pagou ? '—' : <span className="text-ink-4">—</span>}
                           </td>
-                          <td className="whitespace-nowrap px-4 py-3 text-xs text-[var(--text-3)]">
+                          <td className="whitespace-nowrap px-4 py-3 text-xs text-ink-2">
                             {p.data_pagamento ? new Intl.DateTimeFormat('pt-BR').format(new Date(p.data_pagamento.substring(0, 10) + 'T12:00:00')) : '—'}
                           </td>
-                          <td className="px-4 py-3 text-xs text-[var(--text-3)]">
-                            {p.registrado_por || <span className="text-[var(--text-3)]">—</span>}
-                            {p.registrado_em && <div className="text-[10px] text-[var(--text-3)]">{new Date(p.registrado_em).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}</div>}
+                          <td className="px-4 py-3 text-xs text-ink-2">
+                            {p.registrado_por || <span className="text-ink-4">—</span>}
+                            {p.registrado_em && <div className="text-[10px] text-ink-4">{new Date(p.registrado_em).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}</div>}
                           </td>
                         </tr>
                       ))}
@@ -877,46 +893,46 @@ export default function Dashboard() {
                   const q = searchPag.toLowerCase()
                   return (p.nome || '').toLowerCase().includes(q) || (p.cpf || '').includes(q)
                 }).length === 0 && (
-                  <p className="py-8 text-center text-sm text-[var(--text-3)]">Nenhum resultado encontrado.</p>
+                  <p className="py-8 text-center text-sm text-ink-2">Nenhum resultado encontrado.</p>
                 )}
               </div>
             </section>
           )}
 
           {/* ── Ranking ── */}
-          <section className="mt-6 overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface)]">
-            <div className="space-y-3 border-b border-[var(--border)] px-6 py-4">
+          <section className="mt-6 overflow-hidden rounded-xl border border-line bg-surface">
+            <div className="space-y-3 border-b border-line px-6 py-4">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-3)' }}>Ranking</p>
-                  <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--text-1)' }}>Recuperabilidade</h3>
-                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>
+                  <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--ink-2)' }}>Ranking</p>
+                  <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--ink)' }}>Recuperabilidade</h3>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--ink-2)' }}>
                     {fmtNum(filtered.length)} devedores{search || filtroPrio !== 'todos' || filtroProduto !== 'todos' || filtroUF !== 'todas' ? ' filtrados' : ''}
                     {totalPages > 1 && ` · página ${page} de ${totalPages}`}
                   </p>
                 </div>
                 <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--text-3)]" />
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-2" />
                   <input
                     type="text"
                     placeholder="Buscar por nome ou CPF..."
                     value={search}
                     onChange={e => setSearch(e.target.value)}
-                    className="h-9 w-56 rounded-lg border border-[var(--border)] bg-[var(--surface-sub)] pl-9 pr-3 text-sm text-[var(--text-1)] placeholder-[var(--text-muted)] transition-colors focus:border-[var(--info-border)] focus:outline-none"
+                    className="h-9 w-56 rounded-lg border border-line bg-surface-2 pl-9 pr-3 text-sm text-ink placeholder-ink-4 transition-colors focus:border-blue-500/50 focus:outline-none"
                   />
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <div className="flex gap-1.5">
                   {[
-                    { k: 'todos', label: 'Todos',  cls: 'bg-[var(--info-soft)] text-[var(--info)] border-[var(--info-border)]'       },
-                    { k: 'Alta',  label: 'Alta',   cls: 'bg-[var(--ok)]/15 text-[var(--ok)] border-[var(--ok-border)]' },
-                    { k: 'Média', label: 'Média',  cls: 'bg-amber-500/15 text-[var(--warn)] border-[var(--warn-border)]'     },
-                    { k: 'Baixa', label: 'Baixa',  cls: 'bg-[var(--text-3)]/15 text-[var(--text-2)] border-[var(--border)]'     },
+                    { k: 'todos', label: 'Todos',  cls: 'bg-blue-500/15 text-blue-300 border-blue-500/30'       },
+                    { k: 'Alta',  label: 'Alta',   cls: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' },
+                    { k: 'Média', label: 'Média',  cls: 'bg-amber-500/15 text-amber-300 border-amber-500/30'     },
+                    { k: 'Baixa', label: 'Baixa',  cls: 'bg-slate-500/15 text-ink-2 border-slate-500/30'     },
                   ].map(({ k, label, cls }) => (
                     <button key={k} onClick={() => setFiltroPrio(k)}
                       className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
-                        filtroPrio === k ? cls : 'border-[var(--border)] bg-[rgba(22,32,60,0.02)] text-[var(--text-3)] hover:text-[var(--text-1)]'
+                        filtroPrio === k ? cls : 'border-line bg-raise-1 text-ink-2 hover:text-ink'
                       }`}>
                       {label}
                     </button>
@@ -924,28 +940,28 @@ export default function Dashboard() {
                 </div>
                 {produtos.length > 1 && (
                   <select value={filtroProduto} onChange={e => setFiltroProduto(e.target.value)}
-                    className="rounded-lg border border-[var(--border)] bg-[var(--surface-sub)] px-2 py-1.5 text-xs text-[var(--text-2)] transition-colors focus:border-[var(--info-border)] focus:outline-none">
+                    className="rounded-lg border border-line bg-surface-2 px-2 py-1.5 text-xs text-ink-2 transition-colors focus:border-blue-500/50 focus:outline-none [color-scheme:dark]">
                     <option value="todos">Todos produtos</option>
                     {produtos.map(p => <option key={p} value={p}>{p}</option>)}
                   </select>
                 )}
                 {ufs.length > 1 && (
                   <select value={filtroUF} onChange={e => setFiltroUF(e.target.value)}
-                    className="rounded-lg border border-[var(--border)] bg-[var(--surface-sub)] px-2 py-1.5 text-xs text-[var(--text-2)] transition-colors focus:border-[var(--info-border)] focus:outline-none">
+                    className="rounded-lg border border-line bg-surface-2 px-2 py-1.5 text-xs text-ink-2 transition-colors focus:border-blue-500/50 focus:outline-none [color-scheme:dark]">
                     <option value="todas">Todos estados</option>
                     {ufs.map(u => <option key={u} value={u}>{u}</option>)}
                   </select>
                 )}
                 <div className="flex gap-1.5">
                   {[
-                    { k: 'todos',    label: 'Todos',     cls: 'bg-[var(--text-3)]/15 text-[var(--text-2)] border-[var(--border)]'      },
-                    { k: 'pendente', label: 'Pendente',  cls: 'bg-[var(--text-3)]/15 text-[var(--text-2)] border-[var(--border)]'      },
-                    { k: 'pago',     label: 'Pago',      cls: 'bg-[var(--ok)]/15 text-[var(--ok)] border-[var(--ok-border)]'  },
-                    { k: 'nao_pago', label: 'Não pago',  cls: 'bg-[var(--danger)]/15 text-[var(--danger)] border-[var(--danger-border)]'          },
+                    { k: 'todos',    label: 'Todos',     cls: 'bg-slate-500/15 text-ink-2 border-slate-500/30'      },
+                    { k: 'pendente', label: 'Pendente',  cls: 'bg-slate-500/15 text-ink-2 border-slate-500/30'      },
+                    { k: 'pago',     label: 'Pago',      cls: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'  },
+                    { k: 'nao_pago', label: 'Não pago',  cls: 'bg-red-500/15 text-red-300 border-red-500/30'          },
                   ].map(({ k, label, cls }) => (
                     <button key={k} onClick={() => setFiltroStatus(k)}
                       className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
-                        filtroStatus === k ? cls : 'border-[var(--border)] bg-[rgba(22,32,60,0.02)] text-[var(--text-3)] hover:text-[var(--text-1)]'
+                        filtroStatus === k ? cls : 'border-line bg-raise-1 text-ink-2 hover:text-ink'
                       }`}>
                       {label}
                     </button>
@@ -953,7 +969,7 @@ export default function Dashboard() {
                 </div>
                 {(filtroPrio !== 'todos' || filtroProduto !== 'todos' || filtroUF !== 'todas' || filtroStatus !== 'todos' || search) && (
                   <button onClick={() => { setFiltroPrio('todos'); setFiltroProduto('todos'); setFiltroUF('todas'); setFiltroStatus('todos'); setSearch('') }}
-                    className="text-xs text-[var(--text-3)] underline transition-colors hover:text-[var(--text-2)]">
+                    className="text-xs text-ink-2 underline transition-colors hover:text-ink-2">
                     Limpar filtros
                   </button>
                 )}
@@ -962,7 +978,7 @@ export default function Dashboard() {
 
             <div className="max-h-[520px] overflow-auto">
               <table className="w-full text-sm">
-                <thead className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--surface-sub)]">
+                <thead className="sticky top-0 z-10 border-b border-line bg-surface-2">
                   <tr>
                     {[
                       { label: '#',              align: 'left'   },
@@ -976,7 +992,7 @@ export default function Dashboard() {
                       { label: 'Prioridade',     align: 'center' },
                       { label: 'Status',         align: 'center' },
                     ].map(({ label, align }) => (
-                      <th key={label} className={`whitespace-nowrap px-4 py-3 text-xs font-medium uppercase tracking-wider text-[var(--text-3)] text-${align}`}>
+                      <th key={label} className={`whitespace-nowrap px-4 py-3 text-xs font-medium uppercase tracking-wider text-ink-2 text-${align}`}>
                         {label}
                       </th>
                     ))}
@@ -987,23 +1003,23 @@ export default function Dashboard() {
                     <tr
                       key={d.rank}
                       onClick={() => navigate(`/devedor/${d.rank}`)}
-                      className="group cursor-pointer border-b border-white/[0.04] transition-colors last:border-0 hover:bg-blue-500/[0.06]"
+                      className="group cursor-pointer border-b border-line transition-colors last:border-0 hover:bg-blue-500/[0.06]"
                     >
-                      <td className="w-10 px-4 py-3 font-mono text-xs text-[var(--text-3)]">{d.rank}</td>
-                      <td className="px-4 py-3 font-medium text-[var(--text-1)] transition-colors group-hover:text-[var(--info)]">{d.nome}</td>
-                      <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-[var(--text-3)]">{d.cpf}</td>
-                      <td className="px-4 py-3 capitalize text-[var(--text-3)]">{d.produto}</td>
-                      <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-xs text-[var(--text-2)]">{fmtBRL(d.valor_divida)}</td>
+                      <td className="w-10 px-4 py-3 font-mono text-xs text-ink-2">{d.rank}</td>
+                      <td className="px-4 py-3 font-medium text-ink transition-colors group-hover:text-blue-300">{d.nome}</td>
+                      <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-ink-2">{d.cpf}</td>
+                      <td className="px-4 py-3 capitalize text-ink-2">{d.produto}</td>
+                      <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-xs text-ink-2">{fmtBRL(d.valor_divida)}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-right font-mono text-xs">
-                        <span className={(d.valor_esperado_recuperacao ?? 0) > 0 ? 'font-semibold text-[var(--ok)]' : 'text-[var(--text-3)]'}>
+                        <span className={(d.valor_esperado_recuperacao ?? 0) > 0 ? 'font-semibold text-emerald-400' : 'text-ink-2'}>
                           {d.valor_esperado_recuperacao != null ? fmtBRL(d.valor_esperado_recuperacao) : '—'}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right font-mono text-xs text-[var(--text-3)]">{fmtNum(d.dias_em_atraso)}</td>
+                      <td className="px-4 py-3 text-right font-mono text-xs text-ink-2">{fmtNum(d.dias_em_atraso)}</td>
                       <td className="px-4 py-3 text-right">
                         <span className={`text-sm font-bold ${
-                          d.score_recuperabilidade >= 70 ? 'text-[var(--ok)]' :
-                          d.score_recuperabilidade >= 40 ? 'text-[var(--warn)]' : 'text-[var(--text-3)]'
+                          d.score_recuperabilidade >= 70 ? 'text-emerald-400' :
+                          d.score_recuperabilidade >= 40 ? 'text-amber-400' : 'text-ink-2'
                         }`}>
                           {d.score_recuperabilidade}
                         </span>
@@ -1021,7 +1037,7 @@ export default function Dashboard() {
                                 setConfirmarForm({ valor_recuperado: '', data_pagamento: '' })
                                 setConfirmarErro('')
                               }}
-                              className="whitespace-nowrap rounded-md border border-[var(--ok-border)] bg-[var(--ok-soft)] px-2 py-0.5 text-[10px] font-semibold text-[var(--ok)] transition-colors hover:bg-[var(--ok)]/20"
+                              className="whitespace-nowrap rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300 transition-colors hover:bg-emerald-500/20"
                             >
                               + Confirmar pagamento
                             </button>
@@ -1034,18 +1050,18 @@ export default function Dashboard() {
               </table>
             </div>
             {totalPages > 1 && (
-              <div className="flex items-center justify-between border-t border-[var(--border)] bg-[var(--surface-sub)] px-6 py-3">
-                <span className="text-xs text-[var(--text-3)]">
+              <div className="flex items-center justify-between border-t border-line bg-surface-2 px-6 py-3">
+                <span className="text-xs text-ink-2">
                   {fmtNum((page - 1) * PAGE_SIZE + 1)}–{fmtNum(Math.min(page * PAGE_SIZE, filtered.length))} de {fmtNum(filtered.length)}
                 </span>
                 <div className="flex items-center gap-2">
                   <button onClick={() => setPage(p => p - 1)} disabled={page === 1}
-                    className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text-2)] transition-colors hover:bg-[rgba(22,32,60,0.035)] disabled:opacity-40">
+                    className="rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-ink-2 transition-colors hover:bg-raise-2 disabled:opacity-40">
                     ← Anterior
                   </button>
-                  <span className="px-1 text-xs font-medium text-[var(--text-3)]">{page} / {totalPages}</span>
+                  <span className="px-1 text-xs font-medium text-ink-2">{page} / {totalPages}</span>
                   <button onClick={() => setPage(p => p + 1)} disabled={page === totalPages}
-                    className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text-2)] transition-colors hover:bg-[rgba(22,32,60,0.035)] disabled:opacity-40">
+                    className="rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-ink-2 transition-colors hover:bg-raise-2 disabled:opacity-40">
                     Próxima →
                   </button>
                 </div>

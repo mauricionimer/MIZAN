@@ -1,7 +1,7 @@
+import ThemeToggle from '../components/ThemeToggle'
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { KeyRound, Eye, EyeOff, Loader2, CheckCircle2 } from 'lucide-react'
-import { LogoMark } from '../components/Logo'
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
 
@@ -47,25 +47,30 @@ export default function RedefinirSenha() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-[var(--page-auth)]">
+    <div className="min-h-screen flex flex-col items-center justify-center p-6">
+      <ThemeToggle className="fixed top-4 right-4 z-50" />
       <div className="flex items-center gap-2.5 mb-10">
-        <LogoMark className="h-5 w-5 shrink-0" />
-        <span className="text-[var(--text-1)] text-xl font-bold tracking-tight">Mizan</span>
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+          style={{ background: 'linear-gradient(135deg,#1d6aff,#1557f0)', boxShadow: '0 4px 16px rgba(29,106,255,0.30)' }}>
+          <span className="text-brand-ink font-bold text-sm">⚖</span>
+        </div>
+        <span className="text-ink text-xl font-bold tracking-tight">Mizan</span>
       </div>
 
-      <div className="w-full max-w-sm rounded-lg p-8"
+      <div className="w-full max-w-sm rounded-2xl p-8"
         style={{
           background: 'var(--surface)',
-          border: '1px solid rgba(22,32,60,0.08)',
+          border: '1px solid var(--line)',
+          boxShadow: '0 16px 48px rgba(0,0,0,0.50), 0 4px 12px rgba(0,0,0,0.30)',
         }}>
         {sucesso ? (
           <div className="text-center py-4">
-            <div className="w-14 h-14 rounded-lg flex items-center justify-center mx-auto mb-4"
-              style={{ background: 'var(--ok-soft)', border: '1px solid var(--ok-border)' }}>
-              <CheckCircle2 className="w-7 h-7 text-[var(--ok)]" />
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+              style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.20)' }}>
+              <CheckCircle2 className="w-7 h-7 text-emerald-400" />
             </div>
-            <h2 className="text-lg font-bold text-[var(--text-1)] mb-2 tracking-tight">Senha redefinida!</h2>
-            <p className="text-sm mb-7 leading-relaxed" style={{ color: 'var(--text-2)' }}>
+            <h2 className="text-lg font-bold text-ink mb-2 tracking-tight">Senha redefinida!</h2>
+            <p className="text-sm mb-7 leading-relaxed" style={{ color: 'var(--ink-2)' }}>
               Sua senha foi atualizada. Faça login com a nova senha.
             </p>
             <button onClick={() => navigate('/login')} className="btn-primary w-full py-2.5">
@@ -74,44 +79,44 @@ export default function RedefinirSenha() {
           </div>
         ) : (
           <>
-            <div className="w-12 h-12 rounded-md flex items-center justify-center mb-5"
-              style={{ background: 'var(--info-soft)', border: '1px solid var(--info-border)' }}>
-              <KeyRound className="w-6 h-6 text-[var(--info)]" />
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-5"
+              style={{ background: 'rgba(29,106,255,0.12)', border: '1px solid rgba(29,106,255,0.20)' }}>
+              <KeyRound className="w-6 h-6 text-blue-400" />
             </div>
-            <h2 className="text-lg font-bold text-[var(--text-1)] mb-1 tracking-tight">Nova senha</h2>
-            <p className="text-sm mb-7" style={{ color: 'var(--text-2)' }}>
+            <h2 className="text-lg font-bold text-ink mb-1 tracking-tight">Nova senha</h2>
+            <p className="text-sm mb-7" style={{ color: 'var(--ink-2)' }}>
               Escolha uma nova senha com no mínimo 8 caracteres, combinando letras e números.
             </p>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-2)' }}>Nova senha</label>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>Nova senha</label>
                 <div className="relative">
                   <input type={showNova ? 'text' : 'password'} required value={nova}
                     onChange={e => setNova(e.target.value)} className="input-base pr-11"
                     placeholder="mínimo 8 caracteres, letras e números" />
                   <button type="button" onClick={() => setShowNova(s => !s)}
                     className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors"
-                    style={{ color: 'var(--text-3)' }}>
+                    style={{ color: 'var(--ink-3)' }}>
                     {showNova ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-2)' }}>Confirmar nova senha</label>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>Confirmar nova senha</label>
                 <div className="relative">
                   <input type={showConf ? 'text' : 'password'} required value={confirmar}
                     onChange={e => setConfirmar(e.target.value)} className="input-base pr-11"
                     placeholder="repita a nova senha" />
                   <button type="button" onClick={() => setShowConf(s => !s)}
                     className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors"
-                    style={{ color: 'var(--text-3)' }}>
+                    style={{ color: 'var(--ink-3)' }}>
                     {showConf ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
               {erro && (
-                <div className="text-sm text-[var(--danger)] rounded-md px-4 py-3"
-                  style={{ background: 'var(--danger-soft)', border: '1px solid var(--danger-border)' }}>
+                <div className="text-sm text-red-400 rounded-xl px-4 py-3"
+                  style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.20)' }}>
                   {erro}
                 </div>
               )}

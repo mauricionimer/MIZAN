@@ -3,6 +3,9 @@ import { useEffect, useState, Component } from 'react'
 import { Loader2 } from 'lucide-react'
 import { AnalysisProvider } from './context/AnalysisContext'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { ThemeProvider } from './context/ThemeContext'
+import { AnimatePresence } from 'framer-motion'
+import PageTransition from './components/PageTransition'
 
 class ErrorBoundary extends Component {
   state = { error: null }
@@ -11,13 +14,13 @@ class ErrorBoundary extends Component {
     if (!this.state.error) return this.props.children
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-8 text-center">
-        <p className="text-[var(--text-1)] text-lg font-semibold">Algo deu errado nesta página.</p>
-        <p className="text-[var(--info)] text-sm font-mono bg-black/30 px-4 py-2 rounded-md max-w-lg break-all">
+        <p className="text-ink text-lg font-semibold">Algo deu errado nesta página.</p>
+        <p className="text-ink-2 text-sm font-mono bg-raise-3 border border-line px-4 py-2 rounded-xl max-w-lg break-all">
           {this.state.error?.message || String(this.state.error)}
         </p>
         <button
           onClick={() => window.location.reload()}
-          className="mt-2 px-5 py-2 bg-white text-blue-900 font-semibold rounded-md hover:bg-blue-50 transition-colors"
+          className="btn-primary mt-2"
         >
           Recarregar página
         </button>
@@ -53,9 +56,9 @@ function ServerWarmupBanner() {
 
   if (!show) return null
   return (
-    <div className="fixed top-0 inset-x-0 z-50 px-4 py-2.5 flex items-center justify-center gap-3 text-sm text-[var(--warn)]"
-      style={{ background: 'var(--warn-soft)', borderBottom: '1px solid var(--warn-border)', backdropFilter: 'blur(8px)' }}>
-      <Loader2 className="h-4 w-4 animate-spin text-[var(--warn)] shrink-0" />
+    <div className="fixed top-0 inset-x-0 z-50 px-4 py-2.5 flex items-center justify-center gap-3 text-sm text-amber-400"
+      style={{ background: 'rgba(245,158,11,0.10)', borderBottom: '1px solid rgba(245,158,11,0.20)', backdropFilter: 'blur(8px)' }}>
+      <Loader2 className="h-4 w-4 animate-spin text-amber-400 shrink-0" />
       <span>O servidor está acordando — a primeira requisição pode levar até 30s (plano gratuito).</span>
     </div>
   )
@@ -86,35 +89,46 @@ function RotaProtegida({ children, roles }) {
   return children
 }
 
+function RotasAnimadas() {
+  const location = useLocation()
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+          <Routes location={location} key={location.pathname}>
+            <Route path="/login" element={<PageTransition><Login /></PageTransition>} />
+            <Route path="/esqueci-senha" element={<PageTransition><EsqueciSenha /></PageTransition>} />
+            <Route path="/redefinir-senha" element={<PageTransition><RedefinirSenha /></PageTransition>} />
+            <Route path="/" element={<PageTransition><RotaProtegida><Upload /></RotaProtegida></PageTransition>} />
+            <Route path="/dashboard" element={<PageTransition><RotaProtegida><Dashboard /></RotaProtegida></PageTransition>} />
+            <Route path="/devedor/:rank" element={<PageTransition><RotaProtegida><DebtorDetail /></RotaProtegida></PageTransition>} />
+            <Route path="/feedback" element={<PageTransition><RotaProtegida><Feedback /></RotaProtegida></PageTransition>} />
+            <Route path="/bandit" element={<PageTransition><RotaProtegida roles={['comando']}><BanditDashboard /></RotaProtegida></PageTransition>} />
+            <Route path="/aprendizado" element={<PageTransition><RotaProtegida roles={['comando']}><AprendizadoDashboard /></RotaProtegida></PageTransition>} />
+            <Route path="/comando" element={<PageTransition><RotaProtegida roles={['comando']}><ComandoDashboard /></RotaProtegida></PageTransition>} />
+            <Route path="/admin" element={<PageTransition><RotaProtegida roles={['admin', 'comando']}><AdminHome /></RotaProtegida></PageTransition>} />
+            <Route path="/operador" element={<PageTransition><RotaProtegida roles={['operador']}><OperadorHome /></RotaProtegida></PageTransition>} />
+            <Route path="/admin/usuarios" element={<PageTransition><RotaProtegida roles={['admin', 'comando']}><AdminUsuarios /></RotaProtegida></PageTransition>} />
+            <Route path="/auditoria" element={<PageTransition><RotaProtegida roles={['admin', 'comando']}><Auditoria /></RotaProtegida></PageTransition>} />
+            <Route path="/alterar-senha" element={<PageTransition><RotaProtegida><AlterarSenha /></RotaProtegida></PageTransition>} />
+            <Route path="/privacidade" element={<PageTransition><Privacidade /></PageTransition>} />
+            <Route path="*" element={<Navigate to="/" replace />} /> />
+          </Routes>
+    </AnimatePresence>
+  )
+}
+
 export default function App() {
   return (
     <ErrorBoundary>
-    <AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
       <AnalysisProvider>
         <ServerWarmupBanner />
         <BrowserRouter>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/esqueci-senha" element={<EsqueciSenha />} />
-            <Route path="/redefinir-senha" element={<RedefinirSenha />} />
-            <Route path="/" element={<RotaProtegida><Upload /></RotaProtegida>} />
-            <Route path="/dashboard" element={<RotaProtegida><Dashboard /></RotaProtegida>} />
-            <Route path="/devedor/:rank" element={<RotaProtegida><DebtorDetail /></RotaProtegida>} />
-            <Route path="/feedback" element={<RotaProtegida><Feedback /></RotaProtegida>} />
-            <Route path="/bandit" element={<RotaProtegida roles={['comando']}><BanditDashboard /></RotaProtegida>} />
-            <Route path="/aprendizado" element={<RotaProtegida roles={['comando']}><AprendizadoDashboard /></RotaProtegida>} />
-            <Route path="/comando" element={<RotaProtegida roles={['comando']}><ComandoDashboard /></RotaProtegida>} />
-            <Route path="/admin" element={<RotaProtegida roles={['admin', 'comando']}><AdminHome /></RotaProtegida>} />
-            <Route path="/operador" element={<RotaProtegida roles={['operador']}><OperadorHome /></RotaProtegida>} />
-            <Route path="/admin/usuarios" element={<RotaProtegida roles={['admin', 'comando']}><AdminUsuarios /></RotaProtegida>} />
-            <Route path="/auditoria" element={<RotaProtegida roles={['admin', 'comando']}><Auditoria /></RotaProtegida>} />
-            <Route path="/alterar-senha" element={<RotaProtegida><AlterarSenha /></RotaProtegida>} />
-            <Route path="/privacidade" element={<Privacidade />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+          <RotasAnimadas />
         </BrowserRouter>
       </AnalysisProvider>
-    </AuthProvider>
+      </AuthProvider>
+    </ThemeProvider>
     </ErrorBoundary>
   )
 }

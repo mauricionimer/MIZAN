@@ -1,7 +1,7 @@
+import ThemeToggle from '../components/ThemeToggle'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Mail, Loader2, CheckCircle2 } from 'lucide-react'
-import { LogoMark } from '../components/Logo'
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
 
@@ -36,33 +36,38 @@ export default function EsqueciSenha() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-[var(--page-auth)]">
+    <div className="min-h-screen flex flex-col items-center justify-center p-6">
+      <ThemeToggle className="fixed top-4 right-4 z-50" />
       <div className="flex items-center gap-2.5 mb-10">
-        <LogoMark className="h-5 w-5 shrink-0" />
-        <span className="text-[var(--text-1)] text-xl font-bold tracking-tight">Mizan</span>
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+          style={{ background: 'linear-gradient(135deg,#1d6aff,#1557f0)', boxShadow: '0 4px 16px rgba(29,106,255,0.30)' }}>
+          <span className="text-brand-ink font-bold text-sm">⚖</span>
+        </div>
+        <span className="text-ink text-xl font-bold tracking-tight">Mizan</span>
       </div>
 
-      <div className="w-full max-w-sm rounded-lg p-8"
+      <div className="w-full max-w-sm rounded-2xl p-8"
         style={{
           background: 'var(--surface)',
-          border: '1px solid rgba(22,32,60,0.08)',
+          border: '1px solid var(--line)',
+          boxShadow: '0 16px 48px rgba(0,0,0,0.50), 0 4px 12px rgba(0,0,0,0.30)',
         }}>
         <button onClick={() => navigate('/login')}
           className="flex items-center gap-1.5 text-sm mb-7 transition-colors font-medium"
-          style={{ color: 'var(--text-2)' }}
+          style={{ color: 'var(--ink-2)' }}
           onMouseOver={e => e.currentTarget.style.color = 'white'}
-          onMouseOut={e => e.currentTarget.style.color = 'var(--text-2)'}>
+          onMouseOut={e => e.currentTarget.style.color = 'var(--ink-2)'}>
           <ArrowLeft className="w-4 h-4" /> Voltar ao login
         </button>
 
         {enviado ? (
           <div className="text-center py-4">
-            <div className="w-14 h-14 rounded-lg flex items-center justify-center mx-auto mb-4"
-              style={{ background: 'var(--ok-soft)', border: '1px solid var(--ok-border)' }}>
-              <CheckCircle2 className="w-7 h-7 text-[var(--ok)]" />
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+              style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.20)' }}>
+              <CheckCircle2 className="w-7 h-7 text-emerald-400" />
             </div>
-            <h2 className="text-lg font-bold text-[var(--text-1)] mb-2 tracking-tight">E-mail enviado!</h2>
-            <p className="text-sm leading-relaxed" style={{ color: 'var(--text-2)' }}>
+            <h2 className="text-lg font-bold text-ink mb-2 tracking-tight">E-mail enviado!</h2>
+            <p className="text-sm leading-relaxed" style={{ color: 'var(--ink-2)' }}>
               Se o e-mail estiver cadastrado, você receberá as instruções em breve. Verifique também a caixa de spam.
             </p>
             <button onClick={() => navigate('/login')} className="btn-primary mt-6 w-full py-2.5">
@@ -71,13 +76,13 @@ export default function EsqueciSenha() {
           </div>
         ) : (
           <>
-            <h2 className="text-lg font-bold text-[var(--text-1)] mb-1 tracking-tight">Esqueceu a senha?</h2>
-            <p className="text-sm mb-7 leading-relaxed" style={{ color: 'var(--text-2)' }}>
+            <h2 className="text-lg font-bold text-ink mb-1 tracking-tight">Esqueceu a senha?</h2>
+            <p className="text-sm mb-7 leading-relaxed" style={{ color: 'var(--ink-2)' }}>
               Digite seu e-mail e enviaremos um link para redefinir a senha.
             </p>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-2)' }}>E-mail</label>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>E-mail</label>
                 <input
                   type="email"
                   required
@@ -88,8 +93,8 @@ export default function EsqueciSenha() {
                 />
               </div>
               {erro && (
-                <div className="text-sm text-[var(--danger)] rounded-md px-4 py-3"
-                  style={{ background: 'var(--danger-soft)', border: '1px solid var(--danger-border)' }}>
+                <div className="text-sm text-red-400 rounded-xl px-4 py-3"
+                  style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.20)' }}>
                   {erro}
                 </div>
               )}

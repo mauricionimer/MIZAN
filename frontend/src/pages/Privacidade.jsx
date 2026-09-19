@@ -1,46 +1,51 @@
+import ThemeToggle from '../components/ThemeToggle'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Lock } from 'lucide-react'
-import { LogoMark } from '../components/Logo'
+import { ArrowLeft } from 'lucide-react'
 
 export default function Privacidade() {
   const navigate = useNavigate()
   return (
     <div className="min-h-screen py-12 px-6">
+      <ThemeToggle className="fixed top-4 right-4 z-50" />
       <div className="max-w-2xl mx-auto">
         <button onClick={() => navigate(-1)}
-          className="flex items-center gap-1.5 text-sm text-[var(--info)] hover:text-[var(--text-1)] mb-8 transition-colors font-medium">
+          className="flex items-center gap-1.5 text-sm text-blue-400 hover:text-ink mb-8 transition-colors font-medium">
           <ArrowLeft className="h-4 w-4" /> Voltar
         </button>
 
-        <div className="rounded-lg p-8 space-y-6"
+        <div className="rounded-2xl p-8 space-y-6"
           style={{
             background: 'var(--surface)',
-            border: '1px solid rgba(22,32,60,0.10)',
+            border: '1px solid var(--line)',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.50), 0 2px 8px rgba(0,0,0,0.30)',
           }}>
           <div className="flex items-center gap-3 mb-1">
-            <LogoMark className="h-5 w-5 shrink-0" />
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center"
+              style={{ background: 'linear-gradient(135deg,#1d6aff,#1557f0)' }}>
+              <span className="text-brand-ink font-bold text-sm">⚖</span>
+            </div>
             <div>
-              <h1 className="text-lg font-bold text-[var(--text-1)] tracking-tight">Política de Privacidade</h1>
-              <p className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>
+              <h1 className="text-lg font-bold text-ink tracking-tight">Política de Privacidade</h1>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
                 Última atualização: maio de 2026 · Em conformidade com a LGPD (Lei nº 13.709/2018)
               </p>
             </div>
           </div>
 
-          <div className="rounded-md px-5 py-4 flex gap-3 items-start"
-            style={{ background: 'var(--info-soft)', border: '1px solid var(--info-border)' }}>
-            <Lock className="h-4 w-4 mt-0.5 shrink-0" style={{ color: 'var(--brand)' }} />
+          <div className="rounded-xl px-5 py-4 flex gap-3 items-start"
+            style={{ background: 'rgba(29,106,255,0.08)', border: '1px solid rgba(29,106,255,0.20)' }}>
+            <span className="text-blue-400 text-lg mt-0.5">🔒</span>
             <div>
-              <p className="text-sm font-semibold text-[var(--info)]">
+              <p className="text-sm font-semibold text-blue-300">
                 Dados armazenados em servidores no Brasil, em conformidade com a LGPD.
               </p>
-              <p className="text-xs text-[var(--info)]/70 mt-1">
+              <p className="text-xs text-blue-400/70 mt-1">
                 O banco de dados do Mizan opera na região AWS São Paulo (sa-east-1). Os arquivos enviados são processados exclusivamente para geração da análise e não são retidos após a conclusão.
               </p>
             </div>
           </div>
 
-          <div className="border-t" style={{ borderColor: 'rgba(22,32,60,0.10)' }} />
+          <div className="border-t" style={{ borderColor: 'var(--line)' }} />
 
           {[
             {
@@ -81,8 +86,8 @@ export default function Privacidade() {
             },
           ].map(({ titulo, texto }) => (
             <div key={titulo}>
-              <h2 className="text-sm font-semibold text-[var(--text-1)] mb-1.5">{titulo}</h2>
-              <p className="text-sm leading-relaxed" style={{ color: 'var(--text-2)' }}>{texto}</p>
+              <h2 className="text-sm font-semibold text-ink mb-1.5">{titulo}</h2>
+              <p className="text-sm leading-relaxed" style={{ color: 'var(--ink-2)' }}>{texto}</p>
             </div>
           ))}
         </div>

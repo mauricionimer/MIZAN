@@ -1,9 +1,9 @@
 const ACCENT_COLOR = {
   default: 'transparent',
-  blue:    'var(--info)',
-  emerald: 'var(--ok)',
-  amber:   'var(--warn)',
-  violet:  '#5B3FB8',
+  blue:    '#3b82f6',
+  emerald: '#10b981',
+  amber:   '#f59e0b',
+  violet:  '#8b5cf6',
 }
 
 export default function StatCard({ label, value, sub, icon: Icon, accent = 'default' }) {
@@ -12,8 +12,8 @@ export default function StatCard({ label, value, sub, icon: Icon, accent = 'defa
   return (
     <div className="px-6 py-5 flex flex-col gap-3"
       style={{
-        background: 'rgba(22,32,60,0.02)',
-        border: '1px solid rgba(22,32,60,0.04)',
+        background: 'var(--raise-1)',
+        border: '1px solid var(--line)',
         borderLeft: `2px solid ${color}`,
         borderRadius: '0.75rem',
       }}>
@@ -23,18 +23,18 @@ export default function StatCard({ label, value, sub, icon: Icon, accent = 'defa
           fontWeight: 600,
           textTransform: 'uppercase',
           letterSpacing: '0.12em',
-          color: 'var(--text-3)',
+          color: 'var(--ink-2)',
         }}>
           {label}
         </p>
-        {Icon && <Icon className="h-3.5 w-3.5" style={{ color: 'var(--text-muted)' }} />}
+        {Icon && <Icon className="h-3.5 w-3.5" style={{ color: 'var(--ink-4)' }} />}
       </div>
       <div>
-        <p className="text-[1.75rem] font-semibold tracking-tight leading-none" style={{ color: 'var(--text-1)' }}>
+        <p className="text-[1.75rem] font-semibold tracking-tight leading-none" style={{ color: 'var(--ink)' }}>
           {value}
         </p>
         {sub && (
-          <p className="text-xs mt-1.5" style={{ color: 'var(--text-muted)' }}>{sub}</p>
+          <p className="text-xs mt-1.5" style={{ color: 'var(--ink-4)' }}>{sub}</p>
         )}
       </div>
     </div>

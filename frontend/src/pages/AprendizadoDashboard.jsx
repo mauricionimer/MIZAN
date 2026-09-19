@@ -1,3 +1,4 @@
+import ThemeToggle from '../components/ThemeToggle'
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -6,25 +7,29 @@ import {
   ShieldCheck, BarChart3, Award, Microscope, Target, XCircle,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { LogoMark } from '../components/Logo'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001'
-const MUTED = 'var(--text-3)'
-const MUTED_LIGHT = 'var(--text-2)'
-const LABEL = 'var(--text-3)'
+const MUTED = 'var(--ink-3)'
+const MUTED_LIGHT = 'var(--ink-2)'
+const LABEL = 'var(--ink-2)'
 
 const fmtPct  = (v, casas = 1) => v != null ? `${(v * 100).toFixed(casas)}%` : '—'
 const fmtData = iso => iso
   ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(iso))
   : '—'
 
-function Secao({ titulo, sub, children, right }) {
+function Secao({ icon: Icon, titulo, sub, children, right }) {
   return (
-    <div className="rounded-lg overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid rgba(22,32,60,0.10)' }}>
-      <div className="px-6 py-4 border-b flex items-center justify-between flex-wrap gap-3" style={{ borderColor: 'rgba(22,32,60,0.06)' }}>
-        <div>
-          <p className="text-sm font-semibold text-[var(--text-1)]">{titulo}</p>
-          {sub && <p className="text-xs mt-0.5" style={{ color: MUTED }}>{sub}</p>}
+    <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
+      <div className="px-6 py-4 border-b flex items-center justify-between flex-wrap gap-3" style={{ borderColor: 'var(--line)' }}>
+        <div className="flex items-center gap-3">
+          <div className="rounded-xl p-2 shrink-0" style={{ background: 'rgba(37,99,235,0.15)', color: 'var(--brand)' }}>
+            <Icon className="h-4 w-4" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-ink">{titulo}</p>
+            {sub && <p className="text-xs mt-0.5" style={{ color: MUTED }}>{sub}</p>}
+          </div>
         </div>
         {right}
       </div>
@@ -35,9 +40,9 @@ function Secao({ titulo, sub, children, right }) {
 
 function Botao({ children, onClick, disabled, variante = 'primario', ...props }) {
   const cls = {
-    primario:   'text-[var(--text-1)] hover:brightness-110',
-    secundario: 'bg-[rgba(22,32,60,0.04)] hover:bg-[rgba(22,32,60,0.08)] text-[var(--text-2)]',
-    perigo:     'bg-[var(--danger-soft)] hover:bg-[var(--danger)]/20 text-[var(--danger)]',
+    primario:   'text-ink hover:brightness-110',
+    secundario: 'bg-raise-2 hover:bg-raise-3 text-ink-2',
+    perigo:     'bg-red-500/10 hover:bg-red-500/20 text-red-300',
   }[variante]
   const style = variante === 'primario' ? { background: 'var(--brand)' } : undefined
   return (
@@ -45,7 +50,7 @@ function Botao({ children, onClick, disabled, variante = 'primario', ...props })
       onClick={onClick}
       disabled={disabled}
       style={style}
-      className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${cls}`}
+      className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${cls}`}
       {...props}
     >
       {children}
@@ -55,7 +60,7 @@ function Botao({ children, onClick, disabled, variante = 'primario', ...props })
 
 function Barra({ pct, cor = 'var(--brand)' }) {
   return (
-    <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(22,32,60,0.08)' }}>
+    <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--raise-3)' }}>
       <div className="h-full rounded-full" style={{ width: `${Math.min(Math.max(pct, 0), 100)}%`, background: cor }} />
     </div>
   )
@@ -179,12 +184,15 @@ export default function AprendizadoDashboard() {
     <div className="min-h-screen">
       <header className="navbar-glass px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/comando')} className="p-1 rounded-lg transition-colors hover:bg-[rgba(255,255,255,0.12)]" style={{ color: MUTED }}>
+          <button onClick={() => navigate('/comando')} className="p-1 rounded-lg transition-colors hover:bg-raise-2" style={{ color: MUTED }}>
             <ArrowLeft className="h-4 w-4" />
           </button>
-          <LogoMark className="h-4 w-4 shrink-0" />
-          <span className="font-semibold text-[var(--text-1)] text-sm">Mizan</span>
-          <span className="text-[var(--border-hi)] text-sm">/</span>
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center shadow-md shadow-blue-500/20"
+            style={{ background: 'linear-gradient(135deg,#1d4ed8,#2563eb)' }}>
+            <Brain className="h-3.5 w-3.5 text-brand-ink" />
+          </div>
+          <span className="font-bold text-ink text-sm">Mizan</span>
+          <span className="text-ink-4 text-sm">/</span>
           <span className="text-sm" style={{ color: MUTED_LIGHT }}>Gestão do Aprendizado</span>
         </div>
         <div className="flex items-center gap-3">
@@ -192,6 +200,7 @@ export default function AprendizadoDashboard() {
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Atualizar
           </button>
           <span className="text-sm hidden sm:block" style={{ color: MUTED }}>{usuario?.nome}</span>
+          <ThemeToggle />
           <button onClick={() => { logout(); navigate('/login') }} className="nav-link-danger">
             <LogOut className="h-4 w-4" /> Sair
           </button>
@@ -207,10 +216,10 @@ export default function AprendizadoDashboard() {
         )}
 
         {erro && (
-          <div className="rounded-lg px-5 py-4 text-sm text-[var(--danger)]" style={{ background: 'var(--danger-soft)', border: '1px solid var(--danger-border)' }}>{erro}</div>
+          <div className="rounded-2xl px-5 py-4 text-sm text-red-300" style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.25)' }}>{erro}</div>
         )}
         {msg && (
-          <div className="flex items-center gap-2 rounded-lg px-5 py-3.5 text-sm text-[var(--ok)]" style={{ background: 'var(--ok-soft)', border: '1px solid var(--ok-border)' }}>
+          <div className="flex items-center gap-2 rounded-2xl px-5 py-3.5 text-sm text-emerald-300" style={{ background: 'rgba(16,185,129,0.10)', border: '1px solid rgba(16,185,129,0.25)' }}>
             <CheckCircle2 className="h-4 w-4 shrink-0" /> {msg}
           </div>
         )}
@@ -218,14 +227,14 @@ export default function AprendizadoDashboard() {
         {!loading && (
           <>
             <div>
-              <h1 className="text-xl font-bold text-[var(--text-1)] tracking-tight">Gestão do Aprendizado</h1>
+              <h1 className="text-xl font-bold text-ink tracking-tight">Gestão do Aprendizado</h1>
               <p className="text-sm mt-1" style={{ color: MUTED_LIGHT }}>Acesso restrito ao COMANDO — versões do modelo, variáveis, drift e ciclo de retreino</p>
             </div>
 
             {/* Drift */}
             {drift && (
               drift.drift_detectado ? (
-                <div className="flex items-start gap-3 rounded-lg px-5 py-4 text-sm text-[var(--warn)]" style={{ background: 'var(--warn-soft)', border: '1px solid var(--warn-border)' }}>
+                <div className="flex items-start gap-3 rounded-2xl px-5 py-4 text-sm text-amber-300" style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.25)' }}>
                   <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
                   <div>
                     <p className="font-semibold">Possível drift do modelo detectado</p>
@@ -233,15 +242,16 @@ export default function AprendizadoDashboard() {
                   </div>
                 </div>
               ) : drift.media_recente_30d != null ? (
-                <div className="flex items-center gap-3 rounded-lg px-5 py-3.5 text-sm text-[var(--ok)]" style={{ background: 'var(--ok-soft)', border: '1px solid var(--ok-border)' }}>
+                <div className="flex items-center gap-3 rounded-2xl px-5 py-3.5 text-sm text-emerald-300" style={{ background: 'rgba(16,185,129,0.10)', border: '1px solid rgba(16,185,129,0.25)' }}>
                   <CheckCircle2 className="h-4 w-4 shrink-0" /> {drift.mensagem}
                 </div>
               ) : null
             )}
 
-            {/* Qualidade do modelo: overfitting, calibração, matriz de confusão */}
+            {/* Qualidade da IA: overfitting, calibração, matriz de confusão */}
             <Secao
-              titulo="Qualidade do modelo — overfitting e confiabilidade"
+              icon={Microscope}
+              titulo="Qualidade da IA — overfitting e confiabilidade"
               sub="O modelo está generalizando ou decorando os próprios dados de treino?"
             >
               {!qualidade?.ok ? (
@@ -252,12 +262,12 @@ export default function AprendizadoDashboard() {
                   {(() => {
                     const v = qualidade.overfitting.veredito
                     const cfg = {
-                      saudavel:             { label: 'Saudável — sem sinais de overfitting', bg: 'var(--ok-soft)', border: 'var(--ok-border)', cor: 'var(--ok)', Icon: CheckCircle2 },
-                      overfitting_moderado: { label: 'Overfitting moderado — monitorar', bg: 'var(--warn-soft)', border: 'var(--warn-border)', cor: 'var(--warn)', Icon: AlertTriangle },
-                      overfitting_severo:   { label: 'Overfitting severo — modelo não está confiável', bg: 'var(--danger-soft)', border: 'var(--danger-border)', cor: 'var(--danger)', Icon: XCircle },
+                      saudavel:             { label: 'Saudável — sem sinais de overfitting', bg: 'rgba(16,185,129,0.10)', border: 'rgba(16,185,129,0.25)', cor: '#6ee7b7', Icon: CheckCircle2 },
+                      overfitting_moderado: { label: 'Overfitting moderado — monitorar', bg: 'rgba(245,158,11,0.10)', border: 'rgba(245,158,11,0.25)', cor: '#fcd34d', Icon: AlertTriangle },
+                      overfitting_severo:   { label: 'Overfitting severo — modelo não está confiável', bg: 'rgba(239,68,68,0.10)', border: 'rgba(239,68,68,0.25)', cor: '#fca5a5', Icon: XCircle },
                     }[v]
                     return (
-                      <div className="flex items-start gap-3 rounded-lg border px-4 py-3.5 text-sm" style={{ background: cfg.bg, borderColor: cfg.border, color: cfg.cor }}>
+                      <div className="flex items-start gap-3 rounded-2xl border px-4 py-3.5 text-sm" style={{ background: cfg.bg, borderColor: cfg.border, color: cfg.cor }}>
                         <cfg.Icon className="h-4 w-4 mt-0.5 shrink-0" />
                         <div>
                           <p className="font-semibold">{cfg.label}</p>
@@ -276,14 +286,14 @@ export default function AprendizadoDashboard() {
                     <p className="section-label mb-3">Acurácia — treino × validação cruzada × holdout (nunca visto)</p>
                     <div className="grid grid-cols-3 gap-4">
                       {[
-                        { label: 'Treino (100% dos dados)', valor: qualidade.overfitting.treino_acuracia, cor: 'var(--text-3)' },
-                        { label: 'Validação cruzada', valor: qualidade.overfitting.cv_acuracia_media, cor: 'var(--info)' },
-                        { label: 'Holdout (20% nunca visto)', valor: qualidade.holdout.acuracia, cor: 'var(--ok)' },
+                        { label: 'Treino (100% dos dados)', valor: qualidade.overfitting.treino_acuracia, cor: 'var(--ink-2)' },
+                        { label: 'Validação cruzada', valor: qualidade.overfitting.cv_acuracia_media, cor: '#60a5fa' },
+                        { label: 'Holdout (20% nunca visto)', valor: qualidade.holdout.acuracia, cor: '#34d399' },
                       ].map(b => (
                         <div key={b.label}>
                           <div className="flex items-center justify-between text-xs mb-1" style={{ color: MUTED }}>
                             <span>{b.label}</span>
-                            <span className="font-bold text-[var(--text-1)]">{fmtPct(b.valor)}</span>
+                            <span className="font-bold text-ink">{fmtPct(b.valor)}</span>
                           </div>
                           <Barra pct={(b.valor ?? 0) * 100} cor={b.cor} />
                         </div>
@@ -299,27 +309,27 @@ export default function AprendizadoDashboard() {
                     <div>
                       <p className="section-label mb-3">Matriz de confusão (holdout, {qualidade.holdout.n_amostras} casos)</p>
                       <div className="grid grid-cols-2 gap-2 text-center text-sm">
-                        <div className="rounded-md p-3" style={{ background: 'var(--ok-soft)', border: '1px solid var(--ok-border)' }}>
-                          <p className="text-lg font-bold text-[var(--ok)]">{qualidade.holdout.matriz_confusao.verdadeiro_positivo}</p>
-                          <p className="text-[11px] text-[var(--ok)]/80 mt-0.5">Previu que pagava — pagou</p>
+                        <div className="rounded-xl p-3" style={{ background: 'rgba(16,185,129,0.10)', border: '1px solid rgba(16,185,129,0.22)' }}>
+                          <p className="text-lg font-bold text-emerald-300">{qualidade.holdout.matriz_confusao.verdadeiro_positivo}</p>
+                          <p className="text-[11px] text-emerald-300/80 mt-0.5">Previu que pagava — pagou</p>
                         </div>
-                        <div className="rounded-md p-3" style={{ background: 'var(--danger-soft)', border: '1px solid var(--danger-border)' }}>
-                          <p className="text-lg font-bold text-[var(--danger)]">{qualidade.holdout.matriz_confusao.falso_positivo}</p>
-                          <p className="text-[11px] text-[var(--danger)]/80 mt-0.5">Previu que pagava — não pagou</p>
+                        <div className="rounded-xl p-3" style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.22)' }}>
+                          <p className="text-lg font-bold text-red-300">{qualidade.holdout.matriz_confusao.falso_positivo}</p>
+                          <p className="text-[11px] text-red-300/80 mt-0.5">Previu que pagava — não pagou</p>
                         </div>
-                        <div className="rounded-md p-3" style={{ background: 'var(--warn-soft)', border: '1px solid var(--warn-border)' }}>
-                          <p className="text-lg font-bold text-[var(--warn)]">{qualidade.holdout.matriz_confusao.falso_negativo}</p>
-                          <p className="text-[11px] text-[var(--warn)]/80 mt-0.5">Previu que não pagava — pagou</p>
+                        <div className="rounded-xl p-3" style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.22)' }}>
+                          <p className="text-lg font-bold text-amber-300">{qualidade.holdout.matriz_confusao.falso_negativo}</p>
+                          <p className="text-[11px] text-amber-300/80 mt-0.5">Previu que não pagava — pagou</p>
                         </div>
-                        <div className="rounded-md p-3" style={{ background: 'rgba(22,32,60,0.035)', border: '1px solid rgba(22,32,60,0.08)' }}>
-                          <p className="text-lg font-bold text-[var(--text-1)]">{qualidade.holdout.matriz_confusao.verdadeiro_negativo}</p>
+                        <div className="rounded-xl p-3" style={{ background: 'var(--raise-2)', border: '1px solid var(--line)' }}>
+                          <p className="text-lg font-bold text-ink">{qualidade.holdout.matriz_confusao.verdadeiro_negativo}</p>
                           <p className="text-[11px] mt-0.5" style={{ color: MUTED }}>Previu que não pagava — não pagou</p>
                         </div>
                       </div>
                       <div className="grid grid-cols-3 gap-3 mt-3 text-center">
-                        <div><p className="text-xs" style={{ color: MUTED }}>Precisão</p><p className="font-bold text-[var(--text-1)] text-sm">{fmtPct(qualidade.holdout.precisao)}</p></div>
-                        <div><p className="text-xs" style={{ color: MUTED }}>Revocação</p><p className="font-bold text-[var(--text-1)] text-sm">{fmtPct(qualidade.holdout.revocacao)}</p></div>
-                        <div><p className="text-xs" style={{ color: MUTED }}>F1</p><p className="font-bold text-[var(--text-1)] text-sm">{fmtPct(qualidade.holdout.f1)}</p></div>
+                        <div><p className="text-xs" style={{ color: MUTED }}>Precisão</p><p className="font-bold text-ink text-sm">{fmtPct(qualidade.holdout.precisao)}</p></div>
+                        <div><p className="text-xs" style={{ color: MUTED }}>Revocação</p><p className="font-bold text-ink text-sm">{fmtPct(qualidade.holdout.revocacao)}</p></div>
+                        <div><p className="text-xs" style={{ color: MUTED }}>F1</p><p className="font-bold text-ink text-sm">{fmtPct(qualidade.holdout.f1)}</p></div>
                       </div>
                       <p className="text-[11px] mt-2 leading-relaxed" style={{ color: MUTED }}>
                         "Positivo" aqui = o modelo previu que o devedor paga. Precisão: das vezes que previu pagamento, quantas acertou.
@@ -342,7 +352,7 @@ export default function AprendizadoDashboard() {
                               <div className="flex-1">
                                 <Barra pct={f.prob_media_prevista * 100} cor="#60a5fa" />
                               </div>
-                              <span className={`w-24 text-right font-semibold shrink-0 ${diff > 0.2 ? 'text-[var(--warn)]' : ''}`} style={diff > 0.2 ? undefined : { color: MUTED_LIGHT }}>
+                              <span className={`w-24 text-right font-semibold shrink-0 ${diff > 0.2 ? 'text-amber-300' : ''}`} style={diff > 0.2 ? undefined : { color: MUTED_LIGHT }}>
                                 real {fmtPct(f.taxa_real_observada)}
                               </span>
                             </div>
@@ -357,10 +367,10 @@ export default function AprendizadoDashboard() {
                   </div>
 
                   {/* Complexidade vs volume de dados */}
-                  <div className="flex items-start gap-3 rounded-md border px-4 py-3 text-xs"
+                  <div className="flex items-start gap-3 rounded-xl border px-4 py-3 text-xs"
                     style={qualidade.complexidade_adequada
-                      ? { background: 'rgba(22,32,60,0.035)', borderColor: 'rgba(22,32,60,0.08)', color: MUTED_LIGHT }
-                      : { background: 'var(--warn-soft)', borderColor: 'var(--warn-border)', color: 'var(--warn)' }}>
+                      ? { background: 'var(--raise-2)', borderColor: 'var(--line)', color: MUTED_LIGHT }
+                      : { background: 'rgba(245,158,11,0.10)', borderColor: 'rgba(245,158,11,0.25)', color: 'rgb(var(--c-amber-300))' }}>
                     <Target className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                     <span>
                       {qualidade.n_amostras} amostras para {qualidade.n_features} variáveis do modelo
@@ -376,6 +386,7 @@ export default function AprendizadoDashboard() {
 
             {/* Versões do modelo */}
             <Secao
+              icon={GitBranch}
               titulo="Versões do modelo de crédito"
               sub={modelos ? `Ativa: ${modelos.versao_ativa} · ${modelos.total_versoes} versão(ões)` : ''}
               right={
@@ -415,22 +426,22 @@ export default function AprendizadoDashboard() {
                         <th className="px-2 py-2"></th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y" style={{ borderColor: 'rgba(22,32,60,0.06)' }}>
+                    <tbody className="divide-y" style={{ borderColor: 'var(--line)' }}>
                       {modelos.versoes.map(v => (
-                        <tr key={v.versao} style={v.ativa ? { background: 'var(--info-soft)' } : undefined}>
+                        <tr key={v.versao} style={v.ativa ? { background: 'rgba(37,99,235,0.08)' } : undefined}>
                           <td className="px-2 py-3 font-mono text-xs" style={{ color: MUTED_LIGHT }}>{v.versao}</td>
                           <td className="px-2 py-3">
                             <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
                               style={v.tipo_alvo === 'real'
-                                ? { background: 'var(--ok-soft)', color: 'var(--ok)' }
-                                : { background: 'rgba(22,32,60,0.08)', color: MUTED }}>
+                                ? { background: 'rgba(16,185,129,0.12)', color: 'rgb(var(--c-emerald-300))' }
+                                : { background: 'var(--raise-3)', color: MUTED }}>
                               {v.tipo_alvo === 'real' ? 'Dados reais' : 'Sintético'}
                             </span>
                           </td>
                           <td className="px-2 py-3 text-xs" style={{ color: MUTED }}>{fmtData(v.criado_em)}</td>
                           <td className="px-2 py-3 text-right text-xs" style={{ color: MUTED }}>{v.n_amostras_treino ?? '—'}</td>
                           <td className="px-2 py-3 text-right text-xs" style={{ color: MUTED }}>{fmtPct(v.metricas_treino?.cv_auc_media)}</td>
-                          <td className="px-2 py-3 text-right text-xs font-semibold text-[var(--text-1)]">{fmtPct(v.acuracia_real)}</td>
+                          <td className="px-2 py-3 text-right text-xs font-semibold text-ink">{fmtPct(v.acuracia_real)}</td>
                           <td className="px-2 py-3 text-right">
                             {v.ativa ? (
                               <span className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: 'var(--brand)' }}>
@@ -452,6 +463,7 @@ export default function AprendizadoDashboard() {
 
             {/* Importância das variáveis */}
             <Secao
+              icon={BarChart3}
               titulo="O que mais pesa no score"
               sub={importancia ? `${importancia.total_features} variáveis no modelo ativo` : 'Importância de cada variável no modelo ativo'}
             >
@@ -472,20 +484,21 @@ export default function AprendizadoDashboard() {
 
             <div className="grid grid-cols-2 gap-6">
               {/* Price model */}
-              <Secao titulo="Modelo de precificação" sub="Estima quanto do valor devido é recuperado quando o devedor paga">
+              <Secao icon={Award} titulo="Modelo de precificação" sub="Estima quanto do valor devido é recuperado quando o devedor paga">
                 {!priceModel?.disponivel ? (
                   <p className="text-sm" style={{ color: MUTED }}>{priceModel?.mensagem || 'Indisponível.'}</p>
                 ) : (
                   <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div><p className="text-xs" style={{ color: MUTED }}>Amostras / pagamentos</p><p className="font-bold text-[var(--text-1)]">{priceModel.n_amostras} / {priceModel.n_pagamentos}</p></div>
-                    <div><p className="text-xs" style={{ color: MUTED }}>R² médio (CV)</p><p className="font-bold text-[var(--text-1)]">{priceModel.r2_medio}</p></div>
-                    <div><p className="text-xs" style={{ color: MUTED }}>MAE médio</p><p className="font-bold text-[var(--text-1)]">{priceModel.mae_medio}</p></div>
+                    <div><p className="text-xs" style={{ color: MUTED }}>Amostras / pagamentos</p><p className="font-bold text-ink">{priceModel.n_amostras} / {priceModel.n_pagamentos}</p></div>
+                    <div><p className="text-xs" style={{ color: MUTED }}>R² médio (CV)</p><p className="font-bold text-ink">{priceModel.r2_medio}</p></div>
+                    <div><p className="text-xs" style={{ color: MUTED }}>MAE médio</p><p className="font-bold text-ink">{priceModel.mae_medio}</p></div>
                   </div>
                 )}
               </Secao>
 
               {/* Bandit: convergência + alpha */}
               <Secao
+                icon={Zap}
                 titulo="Bandit de abordagem (LinUCB)"
                 sub={convergencia ? `${convergencia.acoes_convergidas}/${convergencia.acoes_total} ações convergidas` : ''}
                 right={<Botao variante="secundario" onClick={() => navigate('/bandit')}>Ver detalhes</Botao>}
@@ -511,6 +524,7 @@ export default function AprendizadoDashboard() {
 
             {/* Retreinamento automático */}
             <Secao
+              icon={Clock}
               titulo="Retreinamento automático (scheduler)"
               sub={scheduler ? `Última verificação: ${fmtData(scheduler.ultima_verificacao)}` : ''}
               right={
@@ -521,11 +535,11 @@ export default function AprendizadoDashboard() {
               }
             >
               <div className="grid grid-cols-3 gap-4 text-sm">
-                <div><p className="text-xs" style={{ color: MUTED }}>Próxima verificação</p><p className="font-semibold text-[var(--text-1)]">{fmtData(scheduler?.proxima_verificacao)}</p></div>
-                <div><p className="text-xs" style={{ color: MUTED }}>Retreinamentos automáticos</p><p className="font-semibold text-[var(--text-1)]">{scheduler?.n_retreinamentos ?? 0}</p></div>
+                <div><p className="text-xs" style={{ color: MUTED }}>Próxima verificação</p><p className="font-semibold text-ink">{fmtData(scheduler?.proxima_verificacao)}</p></div>
+                <div><p className="text-xs" style={{ color: MUTED }}>Retreinamentos automáticos</p><p className="font-semibold text-ink">{scheduler?.n_retreinamentos ?? 0}</p></div>
                 <div>
                   <p className="text-xs" style={{ color: MUTED }}>Último resultado</p>
-                  <p className="font-semibold text-[var(--text-1)]">
+                  <p className="font-semibold text-ink">
                     {scheduler?.ultimo_resultado
                       ? (scheduler.ultimo_resultado.motivo || (scheduler.ultimo_resultado.ok ? 'Sucesso' : 'Falha'))
                       : '—'}
@@ -536,6 +550,7 @@ export default function AprendizadoDashboard() {
 
             {/* Conexão de sincronização de pagamentos */}
             <Secao
+              icon={Database}
               titulo="Sincronização com banco de dados do cliente"
               sub="Busca pagamentos confirmados de um banco externo para realimentar o aprendizado (closed-loop)"
               right={
@@ -556,10 +571,10 @@ export default function AprendizadoDashboard() {
                 <p className="text-sm" style={{ color: MUTED }}>Configuração indisponível.</p>
               ) : (
                 <div className="grid grid-cols-4 gap-4 text-sm">
-                  <div><p className="text-xs" style={{ color: MUTED }}>Status</p><p className="font-semibold" style={{ color: dbSyncCfg.ativo ? 'var(--ok)' : MUTED_LIGHT }}>{dbSyncCfg.ativo ? 'Ativo' : 'Inativo'}</p></div>
-                  <div><p className="text-xs" style={{ color: MUTED }}>Tipo</p><p className="font-semibold text-[var(--text-1)] uppercase">{dbSyncCfg.tipo}</p></div>
-                  <div><p className="text-xs" style={{ color: MUTED }}>Última sincronização</p><p className="font-semibold text-[var(--text-1)]">{fmtData(dbSyncStatus?.ultimo_sync)}</p></div>
-                  <div><p className="text-xs" style={{ color: MUTED }}>Total de sincronizações</p><p className="font-semibold text-[var(--text-1)]">{dbSyncStatus?.n_sincronizacoes ?? 0}</p></div>
+                  <div><p className="text-xs" style={{ color: MUTED }}>Status</p><p className="font-semibold" style={{ color: dbSyncCfg.ativo ? '#6ee7b7' : MUTED_LIGHT }}>{dbSyncCfg.ativo ? 'Ativo' : 'Inativo'}</p></div>
+                  <div><p className="text-xs" style={{ color: MUTED }}>Tipo</p><p className="font-semibold text-ink uppercase">{dbSyncCfg.tipo}</p></div>
+                  <div><p className="text-xs" style={{ color: MUTED }}>Última sincronização</p><p className="font-semibold text-ink">{fmtData(dbSyncStatus?.ultimo_sync)}</p></div>
+                  <div><p className="text-xs" style={{ color: MUTED }}>Total de sincronizações</p><p className="font-semibold text-ink">{dbSyncStatus?.n_sincronizacoes ?? 0}</p></div>
                 </div>
               )}
               <p className="text-xs mt-4" style={{ color: MUTED }}>
