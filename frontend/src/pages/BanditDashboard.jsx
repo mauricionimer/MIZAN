@@ -22,12 +22,12 @@ const OFERTA_LABELS = {
   desconto_30pct: '30% à vista',
   parcelado_12x:  '12x',
 }
-const CANAL_COLORS  = ['#25D366', '#60a5fa', '#fbbf24']
-const OFERTA_COLORS = ['#34d399', '#818cf8', '#fb923c', '#c4b5fd']
+const CANAL_COLORS  = ['#25D366', 'var(--royal)', 'var(--warning)']
+const OFERTA_COLORS = ['var(--success)', '#818cf8', '#fb923c', 'var(--accent-text)']
 const FASE_META = {
   exploração_inicial: { label: 'Exploração inicial', dot: 'bg-slate-400',  bg: 'var(--raise-3)', border: 'var(--line)', cor: MUTED_LIGHT },
-  aprendendo:         { label: 'Aprendendo',          dot: 'bg-amber-400', bg: 'rgba(245,158,11,0.10)', border: 'rgba(245,158,11,0.25)', cor: '#fcd34d' },
-  calibrado:          { label: 'Calibrado',           dot: 'bg-emerald-500', bg: 'rgba(16,185,129,0.10)', border: 'rgba(16,185,129,0.25)', cor: '#6ee7b7' },
+  aprendendo:         { label: 'Aprendendo',          dot: 'bg-amber-400', bg: 'rgb(var(--c-warning) / 0.10)', border: 'rgb(var(--c-warning) / 0.25)', cor: 'var(--warning)' },
+  calibrado:          { label: 'Calibrado',           dot: 'bg-emerald-500', bg: 'rgb(var(--c-success) / 0.10)', border: 'rgb(var(--c-success) / 0.25)', cor: 'var(--success)' },
 }
 
 const fmtPct = (v) => v != null ? `${(v * 100).toFixed(1)}%` : '—'
@@ -39,8 +39,8 @@ function Logo() {
 function LocalStatCard({ label, value, sub, icon: Icon, accent = 'blue' }) {
   const colors = {
     blue:    { bg: 'rgba(37,99,235,0.15)', cor: 'var(--brand)' },
-    emerald: { bg: 'rgba(16,185,129,0.15)', cor: '#6ee7b7' },
-    amber:   { bg: 'rgba(245,158,11,0.15)', cor: '#fcd34d' },
+    emerald: { bg: 'rgb(var(--c-success) / 0.15)', cor: 'var(--success)' },
+    amber:   { bg: 'rgb(var(--c-warning) / 0.15)', cor: 'var(--warning)' },
     slate:   { bg: 'var(--raise-3)', cor: MUTED_LIGHT },
   }[accent]
   return (
@@ -185,14 +185,14 @@ export default function BanditDashboard() {
         )}
 
         {erro && (
-          <div className="rounded-2xl px-5 py-4 text-sm text-red-300" style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.25)' }}>
+          <div className="rounded-2xl px-5 py-4 text-sm text-red-300" style={{ background: 'rgb(var(--c-danger) / 0.10)', border: '1px solid rgb(var(--c-danger) / 0.25)' }}>
             {erro}
           </div>
         )}
 
         {drift && (
           drift.drift_detectado ? (
-            <div className="flex items-start gap-3 rounded-2xl px-5 py-4 text-sm text-amber-300" style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.25)' }}>
+            <div className="flex items-start gap-3 rounded-2xl px-5 py-4 text-sm text-amber-300" style={{ background: 'rgb(var(--c-warning) / 0.10)', border: '1px solid rgb(var(--c-warning) / 0.25)' }}>
               <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
               <div>
                 <p className="font-semibold">Possível drift do modelo detectado</p>
@@ -203,7 +203,7 @@ export default function BanditDashboard() {
               </div>
             </div>
           ) : drift.media_recente_30d != null ? (
-            <div className="flex items-center gap-3 rounded-2xl px-5 py-3.5 text-sm text-emerald-300" style={{ background: 'rgba(16,185,129,0.10)', border: '1px solid rgba(16,185,129,0.25)' }}>
+            <div className="flex items-center gap-3 rounded-2xl px-5 py-3.5 text-sm text-emerald-300" style={{ background: 'rgb(var(--c-success) / 0.10)', border: '1px solid rgb(var(--c-success) / 0.25)' }}>
               <CheckCircle2 className="h-4 w-4 shrink-0" />
               <span>
                 Modelo estável — média recente: <strong>{drift.media_recente_30d?.toFixed(1)}</strong>, histórica: <strong>{drift.media_historica?.toFixed(1)}</strong> (diferença: {drift.diferenca?.toFixed(1)} pontos).
@@ -340,14 +340,14 @@ export default function BanditDashboard() {
                     const pct = a.recompensa_media != null ? a.recompensa_media * 100 : null
                     const isTop = i === 0 && pct != null
                     return (
-                      <tr key={a.id} style={isTop ? { background: 'rgba(16,185,129,0.06)' } : undefined}>
+                      <tr key={a.id} style={isTop ? { background: 'rgb(var(--c-success) / 0.06)' } : undefined}>
                         <td className="px-5 py-3 tabular-nums text-xs w-8" style={{ color: MUTED }}>{i + 1}</td>
                         <td className="px-5 py-3">
                           <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full"
                             style={
                               a.canal === 'whatsapp' ? { background: 'rgba(37,197,94,0.12)', color: 'rgb(var(--c-emerald-300))' } :
-                              a.canal === 'telefone' ? { background: 'rgba(59,130,246,0.12)', color: 'rgb(var(--c-blue-300))' } :
-                                                        { background: 'rgba(245,158,11,0.12)', color: 'rgb(var(--c-amber-300))' }
+                              a.canal === 'telefone' ? { background: 'rgb(var(--c-royal) / 0.12)', color: 'rgb(var(--c-blue-300))' } :
+                                                        { background: 'rgb(var(--c-warning) / 0.12)', color: 'rgb(var(--c-amber-300))' }
                             }>
                             {CANAL_LABELS[a.canal] ?? a.canal}
                           </span>
@@ -370,7 +370,7 @@ export default function BanditDashboard() {
                                 className="h-full rounded-full transition-all"
                                 style={{
                                   width: `${Math.min(pct, 100)}%`,
-                                  background: pct >= 50 ? '#10b981' : pct >= 25 ? '#f59e0b' : '#ef4444',
+                                  background: pct >= 50 ? 'var(--success)' : pct >= 25 ? 'var(--warning)' : 'var(--danger)',
                                 }}
                               />
                             )}
@@ -384,7 +384,7 @@ export default function BanditDashboard() {
             </div>
 
             {dados.total_interacoes < 50 && (
-              <div className="rounded-2xl px-5 py-4 text-sm text-amber-300" style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.25)' }}>
+              <div className="rounded-2xl px-5 py-4 text-sm text-amber-300" style={{ background: 'rgb(var(--c-warning) / 0.10)', border: '1px solid rgb(var(--c-warning) / 0.25)' }}>
                 <span className="font-semibold">O bandit ainda está aprendendo.</span>{' '}
                 Com {dados.total_interacoes} interações, os dados ainda têm alta variância.
                 Os resultados ficam mais confiáveis a partir de 50 feedbacks por ação.

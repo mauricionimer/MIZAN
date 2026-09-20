@@ -1,54 +1,50 @@
 /**
- * Marca do Mizan.
+ * Marca do Mizan — gráfico ascendente.
  *
- * Um ponto e as ondas que ele propaga: cada contato registrado reverbera no
- * modelo e volta como recomendação. O eixo simétrico remete a "mizan" (ميزان),
- * balança/equilíbrio em árabe — a origem do nome.
- *
- * Usa currentColor, então herda a cor do contexto.
+ * Três barras inclinadas subindo, em degradê de azul. Especificação em
+ * design/MIZAN_REDESIGN.md (seção 4) e design/MizanLogo.tsx — convertido
+ * para JSX porque o projeto não usa TypeScript.
  */
-export function LogoMark({ className = 'h-5 w-5' }) {
+export function LogoMark({ className = 'h-5 w-5', size, title = 'Mizan' }) {
+  const dim = size ? { width: size, height: size } : undefined
   return (
-    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
-      <circle cx="12" cy="12" r="3.3" fill="currentColor" />
-      <circle cx="12" cy="12" r="7.3" stroke="currentColor" strokeWidth="1.9"
-        strokeDasharray="34 12" strokeLinecap="round" transform="rotate(-120 12 12)" />
-      <circle cx="12" cy="12" r="11" stroke="currentColor" strokeWidth="1.9" opacity="0.3"
-        strokeDasharray="50 19" strokeLinecap="round" transform="rotate(-120 12 12)" />
+    <svg
+      viewBox="0 0 30 30"
+      className={size ? undefined : className}
+      style={dim}
+      role="img"
+      aria-label={title}
+    >
+      <polygon points="6.5,15 11.5,15 9,27 4,27" fill="#b8c0ee" />
+      <polygon points="13.5,9 18.5,9 16,27 11,27" fill="#8f9be9" />
+      <polygon points="20.5,3 25.5,3 23,27 18,27" fill="#5966d9" />
     </svg>
   )
 }
 
-export default function Logo({ wordmark = true, className = '' }) {
+/** Alias: o símbolo é chamado de MizanMark no material de design. */
+export const MizanMark = LogoMark
+
+/** Símbolo + wordmark. O wordmark é só a fonte display, peso 700. */
+export default function Logo({ size = 28, gap = 10, wordmark = true, className = '', wordClassName = '' }) {
   return (
-    <div className={`flex items-center gap-2.5 ${className}`} style={{ color: 'var(--brand)' }}>
-      <LogoMark className="h-5 w-5 shrink-0" />
+    <span className={`inline-flex items-center ${className}`} style={{ gap }}>
+      <LogoMark size={size} />
       {wordmark && (
-        <span className="font-semibold text-[15px] tracking-tight" style={{ color: 'var(--text-1)' }}>
+        <span
+          className={wordClassName}
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontWeight: 700,
+            fontSize: size * 1.05,
+            letterSpacing: '-0.03em',
+            lineHeight: 1,
+            color: 'currentColor',
+          }}
+        >
           Mizan
         </span>
       )}
-    </div>
-  )
-}
-
-/**
- * Textura de ondas concêntricas para as telas de entrada.
- * Puramente decorativa — opacidade baixa, sem interferir na leitura.
- */
-export function RippleBackdrop({ className = '' }) {
-  const aneis = Array.from({ length: 11 }, (_, i) => 60 + i * 78)
-  return (
-    <svg
-      className={`pointer-events-none absolute inset-0 h-full w-full ${className}`}
-      viewBox="0 0 1200 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true"
-    >
-      <g fill="none" stroke="var(--brand)" strokeWidth="1">
-        {aneis.map((r, i) => (
-          <ellipse key={r} cx="300" cy="760" rx={r} ry={r * 0.42}
-            opacity={0.16 - i * 0.012} />
-        ))}
-      </g>
-    </svg>
+    </span>
   )
 }

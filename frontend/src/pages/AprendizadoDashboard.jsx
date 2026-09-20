@@ -216,10 +216,10 @@ export default function AprendizadoDashboard() {
         )}
 
         {erro && (
-          <div className="rounded-2xl px-5 py-4 text-sm text-red-300" style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.25)' }}>{erro}</div>
+          <div className="rounded-2xl px-5 py-4 text-sm text-red-300" style={{ background: 'rgb(var(--c-danger) / 0.10)', border: '1px solid rgb(var(--c-danger) / 0.25)' }}>{erro}</div>
         )}
         {msg && (
-          <div className="flex items-center gap-2 rounded-2xl px-5 py-3.5 text-sm text-emerald-300" style={{ background: 'rgba(16,185,129,0.10)', border: '1px solid rgba(16,185,129,0.25)' }}>
+          <div className="flex items-center gap-2 rounded-2xl px-5 py-3.5 text-sm text-emerald-300" style={{ background: 'rgb(var(--c-success) / 0.10)', border: '1px solid rgb(var(--c-success) / 0.25)' }}>
             <CheckCircle2 className="h-4 w-4 shrink-0" /> {msg}
           </div>
         )}
@@ -234,7 +234,7 @@ export default function AprendizadoDashboard() {
             {/* Drift */}
             {drift && (
               drift.drift_detectado ? (
-                <div className="flex items-start gap-3 rounded-2xl px-5 py-4 text-sm text-amber-300" style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.25)' }}>
+                <div className="flex items-start gap-3 rounded-2xl px-5 py-4 text-sm text-amber-300" style={{ background: 'rgb(var(--c-warning) / 0.10)', border: '1px solid rgb(var(--c-warning) / 0.25)' }}>
                   <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
                   <div>
                     <p className="font-semibold">Possível drift do modelo detectado</p>
@@ -242,7 +242,7 @@ export default function AprendizadoDashboard() {
                   </div>
                 </div>
               ) : drift.media_recente_30d != null ? (
-                <div className="flex items-center gap-3 rounded-2xl px-5 py-3.5 text-sm text-emerald-300" style={{ background: 'rgba(16,185,129,0.10)', border: '1px solid rgba(16,185,129,0.25)' }}>
+                <div className="flex items-center gap-3 rounded-2xl px-5 py-3.5 text-sm text-emerald-300" style={{ background: 'rgb(var(--c-success) / 0.10)', border: '1px solid rgb(var(--c-success) / 0.25)' }}>
                   <CheckCircle2 className="h-4 w-4 shrink-0" /> {drift.mensagem}
                 </div>
               ) : null
@@ -262,9 +262,9 @@ export default function AprendizadoDashboard() {
                   {(() => {
                     const v = qualidade.overfitting.veredito
                     const cfg = {
-                      saudavel:             { label: 'Saudável — sem sinais de overfitting', bg: 'rgba(16,185,129,0.10)', border: 'rgba(16,185,129,0.25)', cor: '#6ee7b7', Icon: CheckCircle2 },
-                      overfitting_moderado: { label: 'Overfitting moderado — monitorar', bg: 'rgba(245,158,11,0.10)', border: 'rgba(245,158,11,0.25)', cor: '#fcd34d', Icon: AlertTriangle },
-                      overfitting_severo:   { label: 'Overfitting severo — modelo não está confiável', bg: 'rgba(239,68,68,0.10)', border: 'rgba(239,68,68,0.25)', cor: '#fca5a5', Icon: XCircle },
+                      saudavel:             { label: 'Saudável — sem sinais de overfitting', bg: 'rgb(var(--c-success) / 0.10)', border: 'rgb(var(--c-success) / 0.25)', cor: 'var(--success)', Icon: CheckCircle2 },
+                      overfitting_moderado: { label: 'Overfitting moderado — monitorar', bg: 'rgb(var(--c-warning) / 0.10)', border: 'rgb(var(--c-warning) / 0.25)', cor: 'var(--warning)', Icon: AlertTriangle },
+                      overfitting_severo:   { label: 'Overfitting severo — modelo não está confiável', bg: 'rgb(var(--c-danger) / 0.10)', border: 'rgb(var(--c-danger) / 0.25)', cor: 'var(--danger)', Icon: XCircle },
                     }[v]
                     return (
                       <div className="flex items-start gap-3 rounded-2xl border px-4 py-3.5 text-sm" style={{ background: cfg.bg, borderColor: cfg.border, color: cfg.cor }}>
@@ -287,8 +287,8 @@ export default function AprendizadoDashboard() {
                     <div className="grid grid-cols-3 gap-4">
                       {[
                         { label: 'Treino (100% dos dados)', valor: qualidade.overfitting.treino_acuracia, cor: 'var(--ink-2)' },
-                        { label: 'Validação cruzada', valor: qualidade.overfitting.cv_acuracia_media, cor: '#60a5fa' },
-                        { label: 'Holdout (20% nunca visto)', valor: qualidade.holdout.acuracia, cor: '#34d399' },
+                        { label: 'Validação cruzada', valor: qualidade.overfitting.cv_acuracia_media, cor: 'var(--royal)' },
+                        { label: 'Holdout (20% nunca visto)', valor: qualidade.holdout.acuracia, cor: 'var(--success)' },
                       ].map(b => (
                         <div key={b.label}>
                           <div className="flex items-center justify-between text-xs mb-1" style={{ color: MUTED }}>
@@ -309,15 +309,15 @@ export default function AprendizadoDashboard() {
                     <div>
                       <p className="section-label mb-3">Matriz de confusão (holdout, {qualidade.holdout.n_amostras} casos)</p>
                       <div className="grid grid-cols-2 gap-2 text-center text-sm">
-                        <div className="rounded-xl p-3" style={{ background: 'rgba(16,185,129,0.10)', border: '1px solid rgba(16,185,129,0.22)' }}>
+                        <div className="rounded-xl p-3" style={{ background: 'rgb(var(--c-success) / 0.10)', border: '1px solid rgb(var(--c-success) / 0.22)' }}>
                           <p className="text-lg font-bold text-emerald-300">{qualidade.holdout.matriz_confusao.verdadeiro_positivo}</p>
                           <p className="text-[11px] text-emerald-300/80 mt-0.5">Previu que pagava — pagou</p>
                         </div>
-                        <div className="rounded-xl p-3" style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.22)' }}>
+                        <div className="rounded-xl p-3" style={{ background: 'rgb(var(--c-danger) / 0.10)', border: '1px solid rgb(var(--c-danger) / 0.22)' }}>
                           <p className="text-lg font-bold text-red-300">{qualidade.holdout.matriz_confusao.falso_positivo}</p>
                           <p className="text-[11px] text-red-300/80 mt-0.5">Previu que pagava — não pagou</p>
                         </div>
-                        <div className="rounded-xl p-3" style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.22)' }}>
+                        <div className="rounded-xl p-3" style={{ background: 'rgb(var(--c-warning) / 0.10)', border: '1px solid rgb(var(--c-warning) / 0.22)' }}>
                           <p className="text-lg font-bold text-amber-300">{qualidade.holdout.matriz_confusao.falso_negativo}</p>
                           <p className="text-[11px] text-amber-300/80 mt-0.5">Previu que não pagava — pagou</p>
                         </div>
@@ -370,7 +370,7 @@ export default function AprendizadoDashboard() {
                   <div className="flex items-start gap-3 rounded-xl border px-4 py-3 text-xs"
                     style={qualidade.complexidade_adequada
                       ? { background: 'var(--raise-2)', borderColor: 'var(--line)', color: MUTED_LIGHT }
-                      : { background: 'rgba(245,158,11,0.10)', borderColor: 'rgba(245,158,11,0.25)', color: 'rgb(var(--c-amber-300))' }}>
+                      : { background: 'rgb(var(--c-warning) / 0.10)', borderColor: 'rgb(var(--c-warning) / 0.25)', color: 'rgb(var(--c-amber-300))' }}>
                     <Target className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                     <span>
                       {qualidade.n_amostras} amostras para {qualidade.n_features} variáveis do modelo
@@ -433,7 +433,7 @@ export default function AprendizadoDashboard() {
                           <td className="px-2 py-3">
                             <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
                               style={v.tipo_alvo === 'real'
-                                ? { background: 'rgba(16,185,129,0.12)', color: 'rgb(var(--c-emerald-300))' }
+                                ? { background: 'rgb(var(--c-success) / 0.12)', color: 'rgb(var(--c-emerald-300))' }
                                 : { background: 'var(--raise-3)', color: MUTED }}>
                               {v.tipo_alvo === 'real' ? 'Dados reais' : 'Sintético'}
                             </span>
@@ -571,7 +571,7 @@ export default function AprendizadoDashboard() {
                 <p className="text-sm" style={{ color: MUTED }}>Configuração indisponível.</p>
               ) : (
                 <div className="grid grid-cols-4 gap-4 text-sm">
-                  <div><p className="text-xs" style={{ color: MUTED }}>Status</p><p className="font-semibold" style={{ color: dbSyncCfg.ativo ? '#6ee7b7' : MUTED_LIGHT }}>{dbSyncCfg.ativo ? 'Ativo' : 'Inativo'}</p></div>
+                  <div><p className="text-xs" style={{ color: MUTED }}>Status</p><p className="font-semibold" style={{ color: dbSyncCfg.ativo ? 'var(--success)' : MUTED_LIGHT }}>{dbSyncCfg.ativo ? 'Ativo' : 'Inativo'}</p></div>
                   <div><p className="text-xs" style={{ color: MUTED }}>Tipo</p><p className="font-semibold text-ink uppercase">{dbSyncCfg.tipo}</p></div>
                   <div><p className="text-xs" style={{ color: MUTED }}>Última sincronização</p><p className="font-semibold text-ink">{fmtData(dbSyncStatus?.ultimo_sync)}</p></div>
                   <div><p className="text-xs" style={{ color: MUTED }}>Total de sincronizações</p><p className="font-semibold text-ink">{dbSyncStatus?.n_sincronizacoes ?? 0}</p></div>

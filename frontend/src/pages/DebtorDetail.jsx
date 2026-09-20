@@ -75,14 +75,14 @@ function ExplicacaoScore({ explicacao, loading, erro }) {
               <div key={c.variavel}>
                 <div className="flex items-center justify-between text-xs mb-1">
                   <span className="font-semibold text-ink">{labelVariavel(c.variavel)}</span>
-                  <span style={{ color: positivo ? '#34d399' : '#f87171' }} className="font-bold">
+                  <span style={{ color: positivo ? 'var(--success)' : 'var(--danger)' }} className="font-bold">
                     {positivo ? '+' : ''}{c.impacto_pontos.toFixed(1)} pts
                   </span>
                 </div>
                 <div className="h-1.5 rounded-full overflow-hidden flex" style={{ background: 'var(--raise-3)' }}>
                   <div className="h-full rounded-full" style={{
                     width: `${largura}%`,
-                    backgroundColor: positivo ? '#10b981' : '#ef4444',
+                    backgroundColor: positivo ? 'var(--success)' : 'var(--danger)',
                   }} />
                 </div>
                 <p className="text-[11px] mt-1" style={{ color: 'var(--ink-3)' }}>
@@ -109,11 +109,11 @@ function Section({ title, children }) {
 
 const CANAL_ICONS = { whatsapp: '💬', telefone: '📞', carta: '✉️' }
 const RESULTADO_CFG = {
-  contactado:     { label: 'Contactado',       color: 'text-blue-400',    bg: 'rgba(29,106,255,0.10)',   border: 'rgba(29,106,255,0.20)'  },
+  contactado:     { label: 'Contactado',       color: 'text-blue-400',    bg: 'rgb(var(--c-royal) / 0.10)',   border: 'rgb(var(--c-royal) / 0.20)'  },
   sem_resposta:   { label: 'Sem resposta',      color: 'text-ink-2',  bg: 'var(--raise-3)', border: 'var(--line)' },
-  prometeu_pagar: { label: 'Prometeu pagar',    color: 'text-amber-400',   bg: 'rgba(245,158,11,0.10)',  border: 'rgba(245,158,11,0.20)'  },
-  pagou:          { label: 'Pagou',             color: 'text-emerald-400', bg: 'rgba(16,185,129,0.10)',  border: 'rgba(16,185,129,0.20)'  },
-  nao_quis:       { label: 'Não quis negociar', color: 'text-red-400',     bg: 'rgba(239,68,68,0.10)',   border: 'rgba(239,68,68,0.18)'   },
+  prometeu_pagar: { label: 'Prometeu pagar',    color: 'text-amber-400',   bg: 'rgb(var(--c-warning) / 0.10)',  border: 'rgb(var(--c-warning) / 0.20)'  },
+  pagou:          { label: 'Pagou',             color: 'text-emerald-400', bg: 'rgb(var(--c-success) / 0.10)',  border: 'rgb(var(--c-success) / 0.20)'  },
+  nao_quis:       { label: 'Não quis negociar', color: 'text-red-400',     bg: 'rgb(var(--c-danger) / 0.10)',   border: 'rgb(var(--c-danger) / 0.18)'   },
 }
 
 function HistoricoContatos({ cpf, rec }) {
@@ -182,9 +182,9 @@ function HistoricoContatos({ cpf, rec }) {
         </div>
         <button onClick={() => setFormAberto(o => !o)}
           className="flex items-center gap-1.5 text-xs font-semibold text-blue-400 px-3 py-1.5 rounded-lg transition-colors"
-          style={{ background: 'rgba(29,106,255,0.10)', border: '1px solid rgba(29,106,255,0.20)' }}
-          onMouseOver={e => e.currentTarget.style.background = 'rgba(29,106,255,0.18)'}
-          onMouseOut={e => e.currentTarget.style.background = 'rgba(29,106,255,0.10)'}>
+          style={{ background: 'rgb(var(--c-royal) / 0.10)', border: '1px solid rgb(var(--c-royal) / 0.20)' }}
+          onMouseOver={e => e.currentTarget.style.background = 'rgb(var(--c-royal) / 0.18)'}
+          onMouseOut={e => e.currentTarget.style.background = 'rgb(var(--c-royal) / 0.10)'}>
           <Plus className="h-3.5 w-3.5" /> Registrar contato
         </button>
       </div>
@@ -233,7 +233,7 @@ function HistoricoContatos({ cpf, rec }) {
             <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>Observação (opcional)</label>
             <textarea value={form.observacao} onChange={e => set('observacao', e.target.value)} rows={2} placeholder="Detalhes do contato..." style={taStyle} />
           </div>
-          {erro && <p className="text-xs text-red-400 rounded-xl px-3 py-2" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)' }}>{erro}</p>}
+          {erro && <p className="text-xs text-red-400 rounded-xl px-3 py-2" style={{ background: 'rgb(var(--c-danger) / 0.08)', border: '1px solid rgb(var(--c-danger) / 0.18)' }}>{erro}</p>}
           <div className="flex gap-2">
             <button onClick={salvar} disabled={salvando} className="btn-primary py-1.5 disabled:opacity-50">
               {salvando ? 'Salvando...' : 'Salvar'}
@@ -252,7 +252,7 @@ function HistoricoContatos({ cpf, rec }) {
       <div>
         {loading && (
           <div className="flex items-center justify-center py-8 text-xs gap-2" style={{ color: 'var(--ink-3)' }}>
-            <div className="h-3.5 w-3.5 border-2 border-t-blue-400 rounded-full animate-spin" style={{ borderColor: 'var(--line)', borderTopColor: '#1d6aff' }} />
+            <div className="h-3.5 w-3.5 border-2 border-t-blue-400 rounded-full animate-spin" style={{ borderColor: 'var(--line)', borderTopColor: 'var(--royal)' }} />
             Carregando...
           </div>
         )}
@@ -285,15 +285,15 @@ function HistoricoContatos({ cpf, rec }) {
 }
 
 const URGENCIA_CONFIG = {
-  Alta:  { color: 'rgb(var(--c-red-400))', bg: 'rgba(239,68,68,0.10)',  border: 'rgba(239,68,68,0.20)'  },
-  Média: { color: 'rgb(var(--c-amber-400))', bg: 'rgba(245,158,11,0.10)', border: 'rgba(245,158,11,0.20)' },
-  Baixa: { color: 'rgb(var(--c-emerald-400))', bg: 'rgba(16,185,129,0.10)', border: 'rgba(16,185,129,0.20)' },
+  Alta:  { color: 'rgb(var(--c-red-400))', bg: 'rgb(var(--c-danger) / 0.10)',  border: 'rgb(var(--c-danger) / 0.20)'  },
+  Média: { color: 'rgb(var(--c-amber-400))', bg: 'rgb(var(--c-warning) / 0.10)', border: 'rgb(var(--c-warning) / 0.20)' },
+  Baixa: { color: 'rgb(var(--c-emerald-400))', bg: 'rgb(var(--c-success) / 0.10)', border: 'rgb(var(--c-success) / 0.20)' },
 }
 
 const MODO_CONFIG = {
-  exploração_inicial: { label: 'Explorando', color: 'text-amber-400',   bg: 'rgba(245,158,11,0.10)',  border: 'rgba(245,158,11,0.20)'  },
-  aprendendo:         { label: 'Aprendendo', color: 'text-blue-400',    bg: 'rgba(29,106,255,0.10)',  border: 'rgba(29,106,255,0.20)'  },
-  calibrado:          { label: 'Calibrado',  color: 'text-emerald-400', bg: 'rgba(16,185,129,0.10)', border: 'rgba(16,185,129,0.20)'  },
+  exploração_inicial: { label: 'Explorando', color: 'text-amber-400',   bg: 'rgb(var(--c-warning) / 0.10)',  border: 'rgb(var(--c-warning) / 0.20)'  },
+  aprendendo:         { label: 'Aprendendo', color: 'text-blue-400',    bg: 'rgb(var(--c-royal) / 0.10)',  border: 'rgb(var(--c-royal) / 0.20)'  },
+  calibrado:          { label: 'Calibrado',  color: 'text-emerald-400', bg: 'rgb(var(--c-success) / 0.10)', border: 'rgb(var(--c-success) / 0.20)'  },
 }
 
 function ApproachRecommendation({ devedor, rec, loading, erro }) {
@@ -316,7 +316,7 @@ function ApproachRecommendation({ devedor, rec, loading, erro }) {
       <div className="p-5 space-y-4">
         {loading && (
           <div className="flex items-center justify-center py-8 text-sm gap-2" style={{ color: 'var(--ink-3)' }}>
-            <div className="h-4 w-4 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--line)', borderTopColor: '#1d6aff' }} />
+            <div className="h-4 w-4 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--line)', borderTopColor: 'var(--royal)' }} />
             Consultando IA...
           </div>
         )}
@@ -331,13 +331,13 @@ function ApproachRecommendation({ devedor, rec, loading, erro }) {
                 <span className="text-sm font-bold" style={{ color: urgCfg.color }}>{urgencia}</span>
               </div>
               <div className="flex flex-col items-center gap-1.5 rounded-xl p-3"
-                style={{ background: 'rgba(29,106,255,0.10)', border: '1px solid rgba(29,106,255,0.20)' }}>
+                style={{ background: 'rgb(var(--c-royal) / 0.10)', border: '1px solid rgb(var(--c-royal) / 0.20)' }}>
                 <Phone className="h-4 w-4 text-blue-400" />
                 <p className="text-xs font-medium" style={{ color: 'var(--ink-2)' }}>Canal</p>
                 <span className="text-sm font-bold text-blue-400 text-center leading-tight">{rec.canal_label}</span>
               </div>
               <div className="flex flex-col items-center gap-1.5 rounded-xl p-3"
-                style={{ background: 'rgba(16,185,129,0.10)', border: '1px solid rgba(16,185,129,0.20)' }}>
+                style={{ background: 'rgb(var(--c-success) / 0.10)', border: '1px solid rgb(var(--c-success) / 0.20)' }}>
                 <Tag className="h-4 w-4 text-emerald-400" />
                 <p className="text-xs font-medium" style={{ color: 'var(--ink-2)' }}>Oferta</p>
                 <span className="text-sm font-bold text-emerald-400 text-center leading-tight">{rec.oferta_label}</span>
@@ -393,7 +393,7 @@ export default function DebtorDetail() {
   if (!result || !d) return null
 
   const score = d.score_recuperabilidade
-  const scoreColor = score >= 70 ? '#10b981' : score >= 40 ? '#f59e0b' : 'var(--ink-2)'
+  const scoreColor = score >= 70 ? 'var(--success)' : score >= 40 ? 'var(--warning)' : 'var(--ink-2)'
   const circumference = 2 * Math.PI * 38
   const dash = (score / 100) * circumference
 
@@ -427,7 +427,7 @@ export default function DebtorDetail() {
               )}
               {statusPag?.pagou === true && (
                 <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-400 px-3 py-1 rounded-full"
-                  style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.25)' }}>
+                  style={{ background: 'rgb(var(--c-success) / 0.12)', border: '1px solid rgb(var(--c-success) / 0.25)' }}>
                   <CheckCircle2 className="h-3.5 w-3.5" /> Pago
                   {statusPag.data_pagamento && <span className="font-normal text-emerald-500/70 text-xs">· {new Intl.DateTimeFormat('pt-BR').format(new Date(statusPag.data_pagamento.substring(0, 10) + 'T12:00:00'))}</span>}
                   {statusPag.valor_recuperado > 0 && <span className="font-normal text-emerald-500/70 text-xs">· {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(statusPag.valor_recuperado)}</span>}
@@ -435,7 +435,7 @@ export default function DebtorDetail() {
               )}
               {statusPag?.pagou === false && (
                 <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-400 px-3 py-1 rounded-full"
-                  style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.20)' }}>
+                  style={{ background: 'rgb(var(--c-danger) / 0.10)', border: '1px solid rgb(var(--c-danger) / 0.20)' }}>
                   <XCircle className="h-3.5 w-3.5" /> Não pago
                   {statusPag.data_pagamento && <span className="font-normal text-red-400/60 text-xs">· atualizado em {new Intl.DateTimeFormat('pt-BR').format(new Date(statusPag.data_pagamento.substring(0, 10) + 'T12:00:00'))}</span>}
                 </span>
@@ -479,9 +479,6 @@ export default function DebtorDetail() {
                 style={{ backgroundColor: `${scoreColor}18`, color: scoreColor }}>
                 {d.perfil_cluster}
               </div>
-              <p className="text-xs mt-3 text-center leading-relaxed" style={{ color: 'var(--ink-3)' }}>
-                Cluster #{d.cluster_id ?? '—'} identificado por machine learning
-              </p>
             </div>
           </div>
 

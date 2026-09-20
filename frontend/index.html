@@ -7,17 +7,18 @@
     <title>Mizan — Análise de Carteira de Crédito</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap" rel="stylesheet" />
     <script>
-      // Aplica o tema salvo antes da primeira pintura, senão a página
-      // pisca no tema errado enquanto o React monta.
+      // Aplica o tema salvo antes da primeira pintura, senão a página pisca
+      // no tema errado enquanto o React monta. Três estados: sem preferência
+      // salva, nenhum atributo é escrito e o CSS segue o tema do sistema.
       (function () {
         try {
           var t = localStorage.getItem('mizan_tema');
-          document.documentElement.setAttribute('data-theme', t === 'dark' ? 'dark' : 'light');
-        } catch (e) {
-          document.documentElement.setAttribute('data-theme', 'light');
-        }
+          if (t === 'dark' || t === 'light') {
+            document.documentElement.setAttribute('data-theme', t);
+          }
+        } catch (e) { /* modo privativo: segue o sistema */ }
       })();
     </script>
   </head>

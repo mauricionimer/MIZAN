@@ -24,21 +24,20 @@ const fmtDataCurta = iso => iso
   ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' }).format(new Date(iso))
   : '—'
 
-function KpiCard({ label, value, sub, accent = 'indigo' }) {
+function KpiCard({ label, value, accent = 'indigo' }) {
   // Régua de acento no lugar do bloco colorido com ícone: a cor identifica a
   // métrica sem tingir o card inteiro.
   const cor = {
-    indigo:  'var(--nav, #4338ca)',
-    emerald: 'rgb(var(--c-emerald-400))',
-    amber:   'rgb(var(--c-amber-400))',
-    red:     'rgb(var(--c-red-400))',
-  }[accent] ?? 'var(--nav, #4338ca)'
+    indigo:  'var(--royal)',
+    emerald: 'var(--success)',
+    amber:   'var(--warning)',
+    red:     'var(--danger)',
+  }[accent] ?? 'var(--royal)'
   return (
     <div className="card relative overflow-hidden px-5 py-4 pl-6">
       <span className="absolute left-0 inset-y-0 w-1" style={{ background: cor }} />
       <p className="text-[11px] font-semibold text-ink-2 uppercase tracking-widest">{label}</p>
-      <p className="text-2xl font-semibold mt-2 leading-none tracking-tight text-ink tabular-nums">{value}</p>
-      {sub && <p className="text-xs text-ink-3 mt-1.5">{sub}</p>}
+      <p className="tnum text-2xl font-semibold mt-2 leading-none tracking-tight text-ink">{value}</p>
     </div>
   )
 }
@@ -279,7 +278,7 @@ export default function ComandoDashboard() {
 
   return (
     <div className="min-h-screen bg-page text-ink">
-      <header className="bg-surface border-b border-line px-6 py-3.5 flex items-center justify-between sticky top-0 z-20">
+      <header className="navbar-glass px-6 py-3.5 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <LogoMark className="h-5 w-5 shrink-0" />
           <div>
@@ -353,30 +352,24 @@ export default function ComandoDashboard() {
               <KpiCard
                 label="Empresas na plataforma"
                 value={fmtNum(t?.total_empresas)}
-                sub={`${t?.n_suspeitas || 0} com atividade suspeita`}
                 icon={Building2}
                 accent="indigo"
               />
               <KpiCard
                 label="Devedores analisados"
                 value={fmtNum(t?.total_devedores)}
-                sub="total acumulado"
                 icon={Users}
                 accent="indigo"
               />
               <KpiCard
                 label="Valor face total"
                 value={fmtBRL(t?.valor_face_total)}
-                sub="carteiras analisadas"
                 icon={DollarSign}
                 accent="emerald"
               />
               <KpiCard
                 label="Valor recuperado real"
                 value={fmtBRL(t?.valor_recuperado_real)}
-                sub={t?.valor_face_total > 0
-                  ? `${((t.valor_recuperado_real / t.valor_face_total) * 100).toFixed(1)}% do valor face`
-                  : 'via feedbacks registrados'}
                 icon={TrendingUp}
                 accent={t?.valor_recuperado_real > 0 ? 'emerald' : 'amber'}
               />

@@ -11,11 +11,11 @@ function Logo() {
   return <LogoMark className="h-5 w-5 shrink-0" />
 }
 
-function ActionCard({ icon: Icon, label, desc, onClick, accent = 'blue', disabled = false }) {
+function ActionCard({ icon: Icon, label, onClick, accent = 'blue', disabled = false }) {
   const cfg = {
-    blue:    { iconBg: 'rgba(29,106,255,0.12)',  iconTx: 'text-blue-400'    },
-    emerald: { iconBg: 'rgba(16,185,129,0.12)',  iconTx: 'text-emerald-400' },
-    amber:   { iconBg: 'rgba(245,158,11,0.12)',  iconTx: 'text-amber-400'   },
+    blue:    { iconBg: 'rgb(var(--c-royal) / 0.12)',  iconTx: 'text-blue-400'    },
+    emerald: { iconBg: 'rgb(var(--c-success) / 0.12)',  iconTx: 'text-emerald-400' },
+    amber:   { iconBg: 'rgb(var(--c-warning) / 0.12)',  iconTx: 'text-amber-400'   },
     slate:   { iconBg: 'var(--raise-3)', iconTx: 'text-ink-2'   },
   }[accent]
 
@@ -29,7 +29,7 @@ function ActionCard({ icon: Icon, label, desc, onClick, accent = 'blue', disable
         border: '1px solid var(--line)',
         boxShadow: '0 2px 12px rgba(0,0,0,0.30)',
       }}
-      onMouseOver={e => { if (!disabled) { e.currentTarget.style.borderColor = 'rgba(29,106,255,0.30)'; e.currentTarget.style.boxShadow = '0 4px 24px rgba(0,0,0,0.40)' } }}
+      onMouseOver={e => { if (!disabled) { e.currentTarget.style.borderColor = 'rgb(var(--c-royal) / 0.30)'; e.currentTarget.style.boxShadow = '0 4px 24px rgba(0,0,0,0.40)' } }}
       onMouseOut={e => { if (!disabled) { e.currentTarget.style.borderColor = 'var(--line)'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.30)' } }}
     >
       <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
@@ -38,7 +38,6 @@ function ActionCard({ icon: Icon, label, desc, onClick, accent = 'blue', disable
       </div>
       <div className="flex-1 min-w-0">
         <p className="font-bold text-ink text-sm">{label}</p>
-        <p className="text-xs mt-0.5 leading-relaxed" style={{ color: 'var(--ink-3)' }}>{desc}</p>
       </div>
       {!disabled && <ChevronRight className="w-4 h-4 shrink-0" style={{ color: 'var(--ink-4)' }} />}
     </button>
@@ -92,10 +91,10 @@ export default function OperadorHome() {
 
         <motion.div variants={lista} initial="inicial" animate="entra"
           className="grid grid-cols-2 gap-4">
-          <motion.div variants={item}><ActionCard icon={Upload}      label="Analisar carteira"       desc="Enviar CSV/Excel ou sincronizar banco de dados autorizado"            onClick={() => navigate('/')}          accent="blue"    /></motion.div>
-          <motion.div variants={item}><ActionCard icon={BarChart2}   label="Ver ranking"             desc={result ? 'Ver devedores priorizados e recomendações da IA' : 'Faça uma análise primeiro para ver o ranking'} onClick={() => navigate('/dashboard')} accent="emerald" disabled={!result} /></motion.div>
-          <motion.div variants={item}><ActionCard icon={ClipboardList} label="Histórico de pagamentos" desc="Ver pagamentos registrados e status dos devedores da carteira"         onClick={() => navigate('/feedback')}  accent="amber"   /></motion.div>
-          <motion.div variants={item}><ActionCard icon={KeyRound}    label="Alterar senha"           desc="Atualizar suas credenciais de acesso ao sistema"                       onClick={() => navigate('/alterar-senha')} accent="slate" /></motion.div>
+          <motion.div variants={item}><ActionCard icon={Upload}      label="Analisar carteira"            onClick={() => navigate('/')}          accent="blue"    /></motion.div>
+          <motion.div variants={item}><ActionCard icon={BarChart2}   label="Ver ranking" onClick={() => navigate('/dashboard')} accent="emerald" disabled={!result} /></motion.div>
+          <motion.div variants={item}><ActionCard icon={ClipboardList} label="Histórico de pagamentos"         onClick={() => navigate('/feedback')}  accent="amber"   /></motion.div>
+          <motion.div variants={item}><ActionCard icon={KeyRound}    label="Alterar senha"                       onClick={() => navigate('/alterar-senha')} accent="slate" /></motion.div>
         </motion.div>
       </main>
     </div>

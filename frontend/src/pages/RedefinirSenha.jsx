@@ -64,7 +64,7 @@ export default function RedefinirSenha() {
         {sucesso ? (
           <div className="text-center py-4">
             <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
-              style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.20)' }}>
+              style={{ background: 'rgb(var(--c-success) / 0.12)', border: '1px solid rgb(var(--c-success) / 0.20)' }}>
               <CheckCircle2 className="w-7 h-7 text-emerald-400" />
             </div>
             <h2 className="text-lg font-bold text-ink mb-2 tracking-tight">Senha redefinida!</h2>
@@ -78,7 +78,7 @@ export default function RedefinirSenha() {
         ) : (
           <>
             <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-5"
-              style={{ background: 'rgba(29,106,255,0.12)', border: '1px solid rgba(29,106,255,0.20)' }}>
+              style={{ background: 'rgb(var(--c-royal) / 0.12)', border: '1px solid rgb(var(--c-royal) / 0.20)' }}>
               <KeyRound className="w-6 h-6 text-blue-400" />
             </div>
             <h2 className="text-lg font-bold text-ink mb-1 tracking-tight">Nova senha</h2>
@@ -114,7 +114,7 @@ export default function RedefinirSenha() {
               </div>
               {erro && (
                 <div className="text-sm text-red-400 rounded-xl px-4 py-3"
-                  style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.20)' }}>
+                  style={{ background: 'rgb(var(--c-danger) / 0.10)', border: '1px solid rgb(var(--c-danger) / 0.20)' }}>
                   {erro}
                 </div>
               )}

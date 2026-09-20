@@ -216,7 +216,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
       )}
       {!carregandoConexoes && erroCarregamento && (
         <div className="flex items-center justify-between p-3 rounded-xl text-sm text-amber-400"
-          style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.20)' }}>
+          style={{ background: 'rgb(var(--c-warning) / 0.08)', border: '1px solid rgb(var(--c-warning) / 0.20)' }}>
           <span>Não foi possível carregar as conexões.</span>
           <button onClick={carregarConexoes} className="ml-3 text-xs font-semibold underline whitespace-nowrap">
             Tentar novamente
@@ -226,7 +226,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
       {conexoes.map(c => (
         <div key={c.id} className="rounded-2xl overflow-hidden" style={cardStyle}>
           <div className="flex items-start gap-3 px-4 pt-4 pb-3">
-            <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'rgba(29,106,255,0.12)' }}>
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'rgb(var(--c-royal) / 0.12)' }}>
               <Database className="h-4 w-4 text-blue-400" />
             </div>
             <div className="flex-1 min-w-0">
@@ -237,7 +237,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
                   ? <span className="text-xs text-emerald-400 font-medium">Sync {fmtRelativo(c.ultimo_sync)}</span>
                   : <span className="text-xs" style={{ color: 'var(--ink-4)' }}>Nunca sincronizado</span>}
                 {c.intervalo_sync_horas && (
-                  <span className="text-xs text-blue-400 px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(29,106,255,0.10)' }}>
+                  <span className="text-xs text-blue-400 px-1.5 py-0.5 rounded-full" style={{ background: 'rgb(var(--c-royal) / 0.10)' }}>
                     {INTERVALOS_SYNC.find(o => o.value === Number(c.intervalo_sync_horas))?.label ?? `${c.intervalo_sync_horas}h`}
                   </span>
                 )}
@@ -245,7 +245,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
             </div>
             {!isOperador && (
               <button onClick={(e) => removerConexaoSalva(c.id, e)} className="transition-colors shrink-0" style={{ color: 'var(--ink-4)' }}
-                onMouseOver={e => e.currentTarget.style.color = '#f87171'}
+                onMouseOver={e => e.currentTarget.style.color = 'var(--danger)'}
                 onMouseOut={e => e.currentTarget.style.color = 'var(--ink-4)'}>
                 <X className="h-4 w-4" />
               </button>
@@ -254,7 +254,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
           <div className="px-4 pb-4 flex gap-2">
             <button onClick={(e) => sincronizarConexaoSalva(c.id, e)} disabled={sincronizandoId !== null}
               className={`flex-1 py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-colors ${sincronizandoId === c.id ? 'opacity-60 cursor-not-allowed' : ''}`}
-              style={{ background: sincronizandoId === c.id ? 'rgba(29,106,255,0.10)' : 'rgba(29,106,255,0.20)', color: 'rgb(var(--c-blue-400))', border: '1px solid rgba(29,106,255,0.25)' }}>
+              style={{ background: sincronizandoId === c.id ? 'rgb(var(--c-royal) / 0.10)' : 'rgb(var(--c-royal) / 0.20)', color: 'rgb(var(--c-blue-400))', border: '1px solid rgb(var(--c-royal) / 0.25)' }}>
               <RefreshCw className={`h-4 w-4 ${sincronizandoId === c.id ? 'animate-spin' : ''}`} />
               {sincronizandoId === c.id ? 'Sincronizando...' : 'Sincronizar com o banco de dados'}
             </button>
@@ -272,7 +272,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
       ))}
       {syncMsg && (
         <div className={`flex items-center gap-2 p-3 rounded-2xl text-sm ${syncMsg.tipo === 'ok' ? 'text-emerald-400' : 'text-red-400'}`}
-          style={{ background: syncMsg.tipo === 'ok' ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)', border: `1px solid ${syncMsg.tipo === 'ok' ? 'rgba(16,185,129,0.20)' : 'rgba(239,68,68,0.18)'}` }}>
+          style={{ background: syncMsg.tipo === 'ok' ? 'rgb(var(--c-success) / 0.08)' : 'rgb(var(--c-danger) / 0.08)', border: `1px solid ${syncMsg.tipo === 'ok' ? 'rgb(var(--c-success) / 0.20)' : 'rgb(var(--c-danger) / 0.18)'}` }}>
           {syncMsg.tipo === 'ok' ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <XCircle className="h-4 w-4 shrink-0" />}
           {syncMsg.texto}
         </div>
@@ -281,7 +281,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
         <button onClick={() => { setModo('nova'); setConexaoSalvaId(null); setForm({ tipo: 'postgres', host: '', porta: '', banco: '', usuario: '', senha: '', query: 'SELECT * FROM devedores', nome_fonte: '', intervalo_sync_horas: 1, writeback_habilitado: false, coluna_writeback: '', valor_pago: 'pago', valor_nao_pago: '' }); setErro(null) }}
           className="w-full py-3 rounded-2xl border-2 border-dashed text-sm flex items-center justify-center gap-2 transition-colors"
           style={{ borderColor: 'var(--line)', color: 'var(--ink-3)' }}
-          onMouseOver={e => { e.currentTarget.style.borderColor = 'rgba(29,106,255,0.40)'; e.currentTarget.style.color = '#60a5fa' }}
+          onMouseOver={e => { e.currentTarget.style.borderColor = 'rgb(var(--c-royal) / 0.40)'; e.currentTarget.style.color = 'var(--royal)' }}
           onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--line)'; e.currentTarget.style.color = 'var(--ink-3)' }}>
           <Plug className="h-4 w-4" /> Conectar um novo banco de dados
         </button>
@@ -311,7 +311,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
           ← Bancos salvos
         </button>
       )}
-      <div className="rounded-xl p-4" style={{ background: 'rgba(29,106,255,0.08)', border: '1px solid rgba(29,106,255,0.20)' }}>
+      <div className="rounded-xl p-4" style={{ background: 'rgb(var(--c-royal) / 0.08)', border: '1px solid rgb(var(--c-royal) / 0.20)' }}>
         {conexaoSalvaId ? (
           <div className="flex items-center gap-2">
             <Database className="h-4 w-4 text-blue-400 shrink-0" />
@@ -324,7 +324,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
           <>
             <label className="block text-xs font-semibold text-blue-400 mb-1">Nome da conexão *</label>
             <input value={form.nome_fonte} onChange={e => set('nome_fonte', e.target.value)} placeholder="ex: banco_principal, clientes_producao..." autoComplete="off"
-              className={inp()} style={{ ...INP_DARK, borderColor: 'rgba(29,106,255,0.30)' }} />
+              className={inp()} style={{ ...INP_DARK, borderColor: 'rgb(var(--c-royal) / 0.30)' }} />
             <p className="text-xs text-blue-400/60 mt-1.5">Identifica esta conexão. Depois de salva, basta clicar em <strong>Sincronizar</strong> para atualizar os dados sem preencher nada novamente.</p>
           </>
         )}
@@ -432,13 +432,13 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
         )}
       </div>
       {erro && (
-        <div className="flex items-start gap-2 p-3 rounded-xl text-red-400 text-sm" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)' }}>
+        <div className="flex items-start gap-2 p-3 rounded-xl text-red-400 text-sm" style={{ background: 'rgb(var(--c-danger) / 0.08)', border: '1px solid rgb(var(--c-danger) / 0.18)' }}>
           <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" /><span>{erro}</span>
         </div>
       )}
       <button onClick={conectar} disabled={loadingConexao}
         className="w-full py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.97] text-ink disabled:opacity-50"
-        style={{ background: loadingConexao ? 'var(--raise-3)' : 'linear-gradient(135deg,#1d6aff,#1557f0)', boxShadow: loadingConexao ? 'none' : '0 4px 16px rgba(29,106,255,0.25)' }}>
+        style={{ background: loadingConexao ? 'var(--raise-3)' : 'var(--royal)', boxShadow: 'none' }}>
         {loadingConexao ? <><Loader2 className="h-4 w-4 animate-spin" /> Conectando...</> : <><Plug className="h-4 w-4" /> Conectar</>}
       </button>
     </div>
@@ -447,17 +447,17 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
   // ── Seleção de tabela ──
   if (etapa === 'tabelas') return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 p-3 rounded-xl text-emerald-400" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.20)' }}>
+      <div className="flex items-center gap-2 p-3 rounded-xl text-emerald-400" style={{ background: 'rgb(var(--c-success) / 0.08)', border: '1px solid rgb(var(--c-success) / 0.20)' }}>
         <CheckCircle2 className="h-4 w-4 shrink-0" />
         <span className="text-sm font-medium">Conectado! {tabelas.length} tabelas encontradas.</span>
         <button onClick={() => setEtapa('conexao')} className="ml-auto text-xs underline" style={{ color: 'var(--ink-3)' }}>Voltar</button>
       </div>
       {conexaoSalvaId ? (
-        <div className="flex items-center gap-1.5 text-xs text-emerald-400 px-3 py-2 rounded-lg" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.15)' }}>
+        <div className="flex items-center gap-1.5 text-xs text-emerald-400 px-3 py-2 rounded-lg" style={{ background: 'rgb(var(--c-success) / 0.08)', border: '1px solid rgb(var(--c-success) / 0.15)' }}>
           <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> Conexão salva — será atualizada após a análise.
         </div>
       ) : form.nome_fonte.trim() ? (
-        <div className="flex items-center gap-1.5 text-xs text-blue-400 px-3 py-2 rounded-lg" style={{ background: 'rgba(29,106,255,0.08)', border: '1px solid rgba(29,106,255,0.15)' }}>
+        <div className="flex items-center gap-1.5 text-xs text-blue-400 px-3 py-2 rounded-lg" style={{ background: 'rgb(var(--c-royal) / 0.08)', border: '1px solid rgb(var(--c-royal) / 0.15)' }}>
           <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
           Conexão será salva como <strong className="ml-1">"{form.nome_fonte}"</strong> automaticamente após a análise.
         </div>
@@ -469,20 +469,20 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
           <button key={t} onClick={() => selecionarTabela(t)} disabled={loadingTeste}
             className="text-left px-3 py-2.5 rounded-xl text-sm tabular-nums truncate transition-colors disabled:opacity-50"
             style={{ border: '1px solid var(--line)', color: 'var(--ink-2)' }}
-            onMouseOver={e => { e.currentTarget.style.borderColor = 'rgba(29,106,255,0.40)'; e.currentTarget.style.background = 'rgba(29,106,255,0.08)'; e.currentTarget.style.color = 'white' }}
+            onMouseOver={e => { e.currentTarget.style.borderColor = 'rgb(var(--c-royal) / 0.40)'; e.currentTarget.style.background = 'rgb(var(--c-royal) / 0.08)'; e.currentTarget.style.color = 'white' }}
             onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--line)'; e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--ink-2)' }}>
             {t}
           </button>
         ))}
       </div>
-      {erro && <div className="flex items-start gap-2 p-3 rounded-xl text-red-400 text-sm" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)' }}><AlertCircle className="h-4 w-4 mt-0.5 shrink-0" /><span>{erro}</span></div>}
+      {erro && <div className="flex items-start gap-2 p-3 rounded-xl text-red-400 text-sm" style={{ background: 'rgb(var(--c-danger) / 0.08)', border: '1px solid rgb(var(--c-danger) / 0.18)' }}><AlertCircle className="h-4 w-4 mt-0.5 shrink-0" /><span>{erro}</span></div>}
     </div>
   )
 
   // ── Mapeamento de colunas ──
   if (etapa === 'mapeamento') return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 p-3 rounded-xl text-emerald-400" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.20)' }}>
+      <div className="flex items-center gap-2 p-3 rounded-xl text-emerald-400" style={{ background: 'rgb(var(--c-success) / 0.08)', border: '1px solid rgb(var(--c-success) / 0.20)' }}>
         <CheckCircle2 className="h-4 w-4 shrink-0" />
         <div className="text-sm"><span className="font-medium">Conectado com sucesso.</span> <span style={{ color: 'var(--ink-2)' }}>{teste.total_colunas} colunas encontradas.</span></div>
         <button onClick={() => { setEtapa('conexao'); setTeste(null) }} className="ml-auto text-xs underline" style={{ color: 'var(--ink-3)' }}>Voltar</button>
@@ -504,8 +504,8 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
                 </div>
                 <select value={mapa[campo.key] || ''} onChange={e => setMapa(m => ({ ...m, [campo.key]: e.target.value || undefined }))}
                   className="text-xs rounded-lg px-2 py-1.5 focus:outline-none"
-                  style={mapeado ? { background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.20)', color: 'rgb(var(--c-emerald-400))' }
-                    : campo.obrigatorio ? { background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.20)', color: 'rgb(var(--c-red-400))' }
+                  style={mapeado ? { background: 'rgb(var(--c-success) / 0.08)', border: '1px solid rgb(var(--c-success) / 0.20)', color: 'rgb(var(--c-emerald-400))' }
+                    : campo.obrigatorio ? { background: 'rgb(var(--c-danger) / 0.08)', border: '1px solid rgb(var(--c-danger) / 0.20)', color: 'rgb(var(--c-red-400))' }
                     : { ...INP_DARK }}>
                   <option value="">{campo.obrigatorio ? '— selecionar —' : `— padrão: ${campo.hint} —`}</option>
                   {teste.colunas.map(col => <option key={col} value={col}>{col}</option>)}
@@ -544,20 +544,20 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
       )}
       {!conexaoSalvaId && (
         (form.nome_fonte.trim() || nomeParaSalvar.trim()) ? (
-          <div className="flex items-center gap-2 p-3 rounded-xl text-xs text-blue-400" style={{ background: 'rgba(29,106,255,0.08)', border: '1px solid rgba(29,106,255,0.15)' }}>
+          <div className="flex items-center gap-2 p-3 rounded-xl text-xs text-blue-400" style={{ background: 'rgb(var(--c-royal) / 0.08)', border: '1px solid rgb(var(--c-royal) / 0.15)' }}>
             <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
             Conexão será salva como <strong className="ml-1">"{form.nome_fonte.trim() || nomeParaSalvar.trim()}"</strong> automaticamente ao analisar.
           </div>
         ) : (
-          <div className="p-3 rounded-xl space-y-2" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.20)' }}>
+          <div className="p-3 rounded-xl space-y-2" style={{ background: 'rgb(var(--c-warning) / 0.08)', border: '1px solid rgb(var(--c-warning) / 0.20)' }}>
             <p className="text-xs font-semibold text-amber-400">Quer salvar esta conexão para reutilizar depois?</p>
             <input value={nomeParaSalvar} onChange={e => setNomeParaSalvar(e.target.value)} placeholder="Nome da conexão (ex: banco_principal)..."
-              className="w-full rounded-lg px-3 py-1.5 text-xs focus:outline-none" style={{ background: 'var(--surface-2)', border: '1px solid rgba(245,158,11,0.25)', color: 'var(--ink)' }} />
+              className="w-full rounded-lg px-3 py-1.5 text-xs focus:outline-none" style={{ background: 'var(--surface-2)', border: '1px solid rgb(var(--c-warning) / 0.25)', color: 'var(--ink)' }} />
             <p className="text-xs text-amber-500/60">Preenchendo aqui, a conexão é salva automaticamente ao clicar em Analisar carteira.</p>
           </div>
         )
       )}
-      {erro && <div className="flex items-start gap-2 p-3 rounded-xl text-red-400 text-sm" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)' }}><AlertCircle className="h-4 w-4 mt-0.5 shrink-0" /><span>{erro}</span></div>}
+      {erro && <div className="flex items-start gap-2 p-3 rounded-xl text-red-400 text-sm" style={{ background: 'rgb(var(--c-danger) / 0.08)', border: '1px solid rgb(var(--c-danger) / 0.18)' }}><AlertCircle className="h-4 w-4 mt-0.5 shrink-0" /><span>{erro}</span></div>}
       <button onClick={analisar} disabled={loadingAnalise} className="btn-primary w-full py-3 disabled:opacity-50">
         <ChevronRight className="h-4 w-4" /> Analisar carteira
       </button>
@@ -647,7 +647,7 @@ export default function Upload() {
       <div className="mb-12 text-center relative z-10">
         <div className="relative inline-block mb-5">
           <div className="absolute inset-0 rounded-full blur-3xl scale-[2] opacity-20"
-            style={{ background: 'radial-gradient(circle, #1d6aff, #1557f0)' }} />
+            style={{ background: 'var(--royal)' }} />
           <LogoMark className="h-6 w-6 shrink-0" />
         </div>
         <h1 className="text-4xl font-extrabold text-ink tracking-tight mb-2">Mizan</h1>
@@ -704,11 +704,11 @@ export default function Upload() {
               onDrop={onDrop} onDragOver={onDragOver} onDragLeave={onDragLeave}
               className="border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-all duration-200 select-none"
               style={isDragging
-                ? { borderColor: '#1d6aff', background: 'rgba(29,106,255,0.08)' }
+                ? { borderColor: 'var(--royal)', background: 'rgb(var(--c-royal) / 0.08)' }
                 : file
-                  ? { borderColor: 'rgba(16,185,129,0.40)', background: 'rgba(16,185,129,0.05)' }
+                  ? { borderColor: 'rgb(var(--c-success) / 0.40)', background: 'rgb(var(--c-success) / 0.05)' }
                   : { borderColor: 'var(--line)' }}
-              onMouseOver={e => { if (!isDragging && !file) e.currentTarget.style.borderColor = 'rgba(29,106,255,0.40)' }}
+              onMouseOver={e => { if (!isDragging && !file) e.currentTarget.style.borderColor = 'rgb(var(--c-royal) / 0.40)' }}
               onMouseOut={e => { if (!isDragging && !file) e.currentTarget.style.borderColor = 'var(--line)' }}>
               <input ref={inputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={(e) => handleFile(e.target.files[0])} />
               {file ? (
@@ -720,7 +720,7 @@ export default function Upload() {
                 </div>
               ) : (
                 <div className="flex flex-col items-center gap-3">
-                  <UploadCloud className={`h-10 w-10 transition-colors ${isDragging ? 'text-blue-400' : ''}`} style={{ color: isDragging ? '#60a5fa' : 'var(--ink-4)' }} />
+                  <UploadCloud className={`h-10 w-10 transition-colors ${isDragging ? 'text-blue-400' : ''}`} style={{ color: isDragging ? 'var(--royal)' : 'var(--ink-4)' }} />
                   <div>
                     <p className="font-medium" style={{ color: 'var(--ink-2)' }}>Arraste o arquivo aqui</p>
                     <p className="text-sm mt-0.5" style={{ color: 'var(--ink-3)' }}>ou clique para selecionar</p>
@@ -730,13 +730,13 @@ export default function Upload() {
               )}
             </div>
             {error && (
-              <div className="mt-4 flex items-start gap-2 p-3 rounded-2xl text-red-400 text-sm" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)' }}>
+              <div className="mt-4 flex items-start gap-2 p-3 rounded-2xl text-red-400 text-sm" style={{ background: 'rgb(var(--c-danger) / 0.08)', border: '1px solid rgb(var(--c-danger) / 0.18)' }}>
                 <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" /><span>{error}</span>
               </div>
             )}
             <button onClick={analisar} disabled={!file || loading}
               className="mt-5 w-full py-3 rounded-2xl font-semibold text-sm text-ink flex items-center justify-center gap-2 transition-all duration-200 disabled:opacity-50"
-              style={(!file || loading) ? { background: 'var(--raise-3)' } : { background: 'linear-gradient(135deg,#1d6aff,#1557f0)', boxShadow: '0 4px 16px rgba(29,106,255,0.25)' }}>
+              style={(!file || loading) ? { background: 'var(--raise-3)' } : { background: 'var(--royal)' }}>
               {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> Analisando carteira...</> : 'Analisar carteira'}
             </button>
             <p className="mt-4 text-center text-xs" style={{ color: 'var(--ink-4)' }}>
@@ -771,9 +771,9 @@ export default function Upload() {
                 { num: '3', cor: 'emerald', titulo: 'Defina sua estratégia',  desc: 'Simule preços de compra de carteira e veja o retorno esperado da operação.', icon: '📊' },
                 { num: '4', cor: 'amber',   titulo: 'Registre os resultados', desc: 'A cada contato registrado, a IA aprende e melhora as recomendações.',        icon: '🎯' },
               ].map(({ num, cor, titulo, desc, icon }) => {
-                const colors = { blue: 'rgba(29,106,255,0.15)', indigo: 'rgba(99,102,241,0.15)', emerald: 'rgba(16,185,129,0.12)', amber: 'rgba(245,158,11,0.12)' }
-                const borders = { blue: 'rgba(29,106,255,0.25)', indigo: 'rgba(99,102,241,0.25)', emerald: 'rgba(16,185,129,0.20)', amber: 'rgba(245,158,11,0.20)' }
-                const badges  = { blue: '#1d6aff', indigo: '#6366f1', emerald: '#10b981', amber: '#f59e0b' }
+                const colors = { blue: 'rgb(var(--c-royal) / 0.15)', indigo: 'rgb(var(--c-royal) / 0.15)', emerald: 'rgb(var(--c-success) / 0.12)', amber: 'rgb(var(--c-warning) / 0.12)' }
+                const borders = { blue: 'rgb(var(--c-royal) / 0.25)', indigo: 'rgb(var(--c-royal) / 0.25)', emerald: 'rgb(var(--c-success) / 0.20)', amber: 'rgb(var(--c-warning) / 0.20)' }
+                const badges  = { blue: 'var(--royal)', indigo: 'var(--accent-text)', emerald: 'var(--success)', amber: 'var(--warning)' }
                 return (
                   <div key={num} className="rounded-xl p-4" style={{ background: colors[cor], border: `1px solid ${borders[cor]}` }}>
                     <div className="flex items-center gap-2 mb-3">
@@ -813,9 +813,9 @@ export default function Upload() {
                 </div>
                 <button onClick={() => abrirCarteira(c.id)} disabled={!!abrindo}
                   className="flex items-center gap-1.5 text-xs font-medium text-blue-400 hover:text-blue-300 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-                  style={{ background: 'rgba(29,106,255,0.10)', border: '1px solid rgba(29,106,255,0.20)' }}
-                  onMouseOver={e => e.currentTarget.style.background = 'rgba(29,106,255,0.18)'}
-                  onMouseOut={e => e.currentTarget.style.background = 'rgba(29,106,255,0.10)'}>
+                  style={{ background: 'rgb(var(--c-royal) / 0.10)', border: '1px solid rgb(var(--c-royal) / 0.20)' }}
+                  onMouseOver={e => e.currentTarget.style.background = 'rgb(var(--c-royal) / 0.18)'}
+                  onMouseOut={e => e.currentTarget.style.background = 'rgb(var(--c-royal) / 0.10)'}>
                   {abrindo === c.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FolderOpen className="h-3.5 w-3.5" />}
                   Abrir
                 </button>

@@ -24,8 +24,10 @@ import { LogoMark } from '../components/Logo'
 const BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
 
 const AGING_ORDER = ['0-29 dias', '30-59 dias', '60-89 dias', '90-179 dias', '180+ dias']
-const AGING_COLORS  = ['#10b981', '#3b82f6', '#f59e0b', '#f97316', '#ef4444']
-const CLUSTER_COLORS = ['#3b82f6', '#60a5fa', '#10b981', '#f59e0b', '#ef4444', '#6366f1', '#14b8a6']
+// Gráficos usam --chart-1..5 (brief, seção 5): os tokens invertem por tema,
+// então as séries seguem legíveis no claro e no escuro.
+const AGING_COLORS   = ['var(--chart-2)', 'var(--chart-1)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)']
+const CLUSTER_COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)']
 
 const fmtBRL = (v) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v)
@@ -87,27 +89,23 @@ function StatusBadge({ cpf, statusMap }) {
 }
 
 /* ───────────────────────── KPI card (chic minimal) ───────────────────────── */
-function KpiCard({ label, value, sub, danger = false, icon: Icon, accent }) {
-  const accentColor = { blue: '#3b82f6', amber: '#f59e0b', violet: '#8b5cf6', emerald: '#10b981' }[accent] ?? 'var(--raise-3)'
+function KpiCard({ label, value, danger = false, icon: Icon, accent }) {
+  const cor = {
+    blue: 'var(--royal)', amber: 'var(--warning)',
+    violet: 'var(--accent-text)', emerald: 'var(--success)',
+  }[accent] ?? 'var(--text-muted)'
   return (
-    <div className="px-6 py-5 flex flex-col gap-3 rounded-xl transition-colors"
-      style={{
-        background: 'var(--raise-1)',
-        border: '1px solid var(--line)',
-        borderLeft: `2px solid ${accentColor}`,
-      }}>
+    <div className="card px-6 py-5 flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--ink-2)' }}>
+        <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-muted)' }}>
           {label}
         </p>
-        {Icon && <Icon className="h-3.5 w-3.5" style={{ color: 'var(--ink-4)' }} />}
+        {Icon && <Icon className="h-3.5 w-3.5" style={{ color: cor }} />}
       </div>
-      <div>
-        <p className="text-[1.75rem] font-semibold tracking-tight leading-none" style={{ color: danger ? '#f87171' : 'var(--ink)' }}>
-          {value}
-        </p>
-        {sub && <p className="text-xs mt-1.5" style={{ color: 'var(--ink-4)' }}>{sub}</p>}
-      </div>
+      <p className="tnum text-[1.75rem] font-semibold tracking-tight leading-none"
+        style={{ color: danger ? 'var(--danger)' : 'var(--text)' }}>
+        {value}
+      </p>
     </div>
   )
 }
@@ -200,7 +198,7 @@ const CustomBarTooltip = ({ active, payload, label }) => {
 
 function Slider({ label, hint, value, min, max, step, onChange, color = 'blue' }) {
   const pct = ((value - min) / (max - min)) * 100
-  const trackColor = color === 'emerald' ? '#10b981' : '#3b82f6'
+  const trackColor = color === 'emerald' ? 'var(--success)' : 'var(--royal)'
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between">
@@ -221,7 +219,7 @@ function Slider({ label, hint, value, min, max, step, onChange, color = 'blue' }
 function PricingCard({ label, value, sub, highlight = false, accent = null, icon: Icon }) {
   const lucroCard = accent === 'emerald'
   const box = highlight
-    ? 'border-blue-500/40 bg-blue-600/15 shadow-[0_0_0_1px_rgba(59,130,246,0.25),0_8px_28px_-8px_rgba(59,130,246,0.4)]'
+    ? 'border-blue-500/40 bg-blue-600/15 shadow-[0_0_0_1px_rgb(var(--c-royal) / 0.25),0_8px_28px_-8px_rgb(var(--c-royal) / 0.4)]'
     : lucroCard
       ? 'border-emerald-500/30 bg-emerald-500/[0.08]'
       : 'border-line bg-raise-1'
@@ -521,16 +519,14 @@ export default function Dashboard() {
       )}
 
       {/* ───── Sidebar ───── */}
-      <aside className="fixed inset-y-0 left-0 z-30 flex w-60 flex-col border-r border-line bg-surface-2">
+      <aside className="panel-surface fixed inset-y-0 left-0 z-30 flex w-60 flex-col border-r">
         <div className="flex h-16 items-center gap-2.5 px-5">
-          {/* Empresa cliente mantém a própria inicial; sem white-label, a marca. */}
-          {empresaConfig?.nome_exibicao ? (
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg shadow-md"
-              style={{ background: 'var(--brand)' }}>
-              <span className="text-sm font-bold text-brand-ink">{nomeEmpresa.charAt(0).toUpperCase()}</span>
-            </div>
+          {/* A marca do Mizan, salvo quando a empresa cliente tem foto própria. */}
+          {empresaConfig?.foto_url ? (
+            <img src={empresaConfig.foto_url} alt={nomeEmpresa}
+              className="h-8 w-8 rounded object-cover" />
           ) : (
-            <LogoMark className="h-5 w-5 shrink-0" />
+            <LogoMark size={26} />
           )}
           <span className="truncate text-[15px] font-bold tracking-tight text-ink">{nomeEmpresa}</span>
         </div>
@@ -571,7 +567,7 @@ export default function Dashboard() {
       <div className="flex flex-1 flex-col pl-60">
 
         {/* Top bar */}
-        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-line bg-surface-2/80 px-8 backdrop-blur-xl">
+        <header className="navbar-glass flex h-16 items-center justify-between px-8">
           <div className="flex items-center gap-2 text-sm">
             <span className="font-semibold text-ink">{nomeEmpresa}</span>
             <span className="text-ink-4">/</span>
@@ -638,9 +634,9 @@ export default function Dashboard() {
           <motion.div variants={lista} initial="inicial" animate="entra"
             className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <motion.div variants={item}><KpiCard label="Total de Devedores"     value={fmtNum(resumo.total_devedores)}  icon={Users}       accent="blue"    /></motion.div>
-            <motion.div variants={item}><KpiCard label="Valor de Face"           value={fmtBRL(resumo.total_em_risco)}   sub="valor nominal da carteira"   icon={TrendingDown} accent="amber"   /></motion.div>
-            <motion.div variants={item}><KpiCard label="Score Médio"             value={resumo.score_medio.toFixed(1)}   sub="recuperabilidade (0–100)"    icon={BarChart2}    accent="violet"  /></motion.div>
-            <motion.div variants={item}><KpiCard label="Devedores Prioritários" value={fmtNum(prioritarios)}             sub="score ≥ 70"                  icon={Star}         accent="emerald" /></motion.div>
+            <motion.div variants={item}><KpiCard label="Valor de Face"           value={fmtBRL(resumo.total_em_risco)}   icon={TrendingDown} accent="amber"   /></motion.div>
+            <motion.div variants={item}><KpiCard label="Score Médio"             value={resumo.score_medio.toFixed(1)}    icon={BarChart2}    accent="violet"  /></motion.div>
+            <motion.div variants={item}><KpiCard label="Devedores Prioritários" value={fmtNum(prioritarios)}                  icon={Star}         accent="emerald" /></motion.div>
           </motion.div>
 
           {/* ── Precificação ── */}
@@ -666,16 +662,11 @@ export default function Dashboard() {
                 <motion.div variants={lista} initial="inicial" animate="entra"
                   className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5 lg:col-span-4">
                   <motion.div variants={item}><PricingCard label="Valor Esperado de Recuperação" value={fmtBRL(pricing.ver)}
-                    sub={resumo.taxa_recuperacao_esperada != null ? `${fmtPct(resumo.taxa_recuperacao_esperada)} do valor de face` : 'do valor de face'}
                     icon={ArrowUpRight} /></motion.div>
-                  <motion.div variants={item}><PricingCard label="Valor Líquido (após custos)" value={fmtBRL(pricing.liquido)}
-                    sub={`custos estimados: ${fmtBRL(pricing.ver - pricing.liquido)}`} icon={Percent} /></motion.div>
-                  <motion.div variants={item}><PricingCard label="Preço Sugerido de Compra" value={fmtBRL(pricing.preco)}
-                    sub={`${fmtPct(pricing.desconto)} de desconto sobre o face`} highlight icon={Tag} /></motion.div>
-                  <motion.div variants={item}><PricingCard label="Lucro Final (líquido)" value={fmtBRL(pricing.lucro)}
-                    sub={`retorno de ${pricing.retorno.toFixed(1)}% sobre o preço pago`} accent="emerald" icon={Banknote} /></motion.div>
-                  <motion.div variants={item}><PricingCard label="Taxa de Recuperação Estimada" value={`${pricing.taxaRecuperacao.toFixed(1)}%`}
-                    sub="do valor de face" icon={TrendingUp} /></motion.div>
+                  <motion.div variants={item}><PricingCard label="Valor Líquido (após custos)" value={fmtBRL(pricing.liquido)} icon={Percent} /></motion.div>
+                  <motion.div variants={item}><PricingCard label="Preço Sugerido de Compra" value={fmtBRL(pricing.preco)} highlight icon={Tag} /></motion.div>
+                  <motion.div variants={item}><PricingCard label="Lucro Final (líquido)" value={fmtBRL(pricing.lucro)} accent="emerald" icon={Banknote} /></motion.div>
+                  <motion.div variants={item}><PricingCard label="Taxa de Recuperação Estimada" value={`${pricing.taxaRecuperacao.toFixed(1)}%`} icon={TrendingUp} /></motion.div>
                 </motion.div>
               </div>
 
@@ -796,7 +787,7 @@ export default function Dashboard() {
                   <tbody>
                     {perf.metricas_por_faixa.map(f => {
                       const taxa = f.taxa_pagamento ?? 0
-                      const barColor = taxa >= 60 ? '#10b981' : taxa >= 30 ? '#f59e0b' : '#ef4444'
+                      const barColor = taxa >= 60 ? 'var(--success)' : taxa >= 30 ? 'var(--warning)' : 'var(--danger)'
                       return (
                         <tr key={f.faixa} className="border-b border-line transition-colors last:border-0 hover:bg-raise-1">
                           <td className="py-3 pl-0 pr-4 text-sm font-medium text-ink">{f.faixa}</td>

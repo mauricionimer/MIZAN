@@ -31,7 +31,7 @@ export default function Privacidade() {
           </div>
 
           <div className="rounded-xl px-5 py-4 flex gap-3 items-start"
-            style={{ background: 'rgba(29,106,255,0.08)', border: '1px solid rgba(29,106,255,0.20)' }}>
+            style={{ background: 'rgb(var(--c-royal) / 0.08)', border: '1px solid rgb(var(--c-royal) / 0.20)' }}>
             <span className="text-blue-400 text-lg mt-0.5">🔒</span>
             <div>
               <p className="text-sm font-semibold text-blue-300">

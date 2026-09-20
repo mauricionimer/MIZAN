@@ -107,7 +107,7 @@ export default function AlterarSenha() {
           }}>
           <div className="flex items-center gap-3 mb-2">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-              style={{ background: 'rgba(29,106,255,0.12)', border: '1px solid rgba(29,106,255,0.20)' }}>
+              style={{ background: 'rgb(var(--c-royal) / 0.12)', border: '1px solid rgb(var(--c-royal) / 0.20)' }}>
               <KeyRound className="w-5 h-5 text-blue-400" />
             </div>
             <div>
@@ -121,7 +121,7 @@ export default function AlterarSenha() {
           {sucesso ? (
             <div className="text-center py-6">
               <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
-                style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.20)' }}>
+                style={{ background: 'rgb(var(--c-success) / 0.12)', border: '1px solid rgb(var(--c-success) / 0.20)' }}>
                 <CheckCircle2 className="w-7 h-7 text-emerald-400" />
               </div>
               <h2 className="text-base font-bold text-ink mb-1 tracking-tight">Senha alterada!</h2>
@@ -138,7 +138,7 @@ export default function AlterarSenha() {
                 <Campo label="Confirmar nova senha" campo="confirmar" show={showConfirmar} setShow={setShowConfirmar} />
                 {erro && (
                   <div className="text-red-400 rounded-xl px-4 py-3 text-sm"
-                    style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.20)' }}>
+                    style={{ background: 'rgb(var(--c-danger) / 0.10)', border: '1px solid rgb(var(--c-danger) / 0.20)' }}>
                     {erro}
                   </div>
                 )}
@@ -182,7 +182,7 @@ function DeletarConta({ onDeleted }) {
       ) : (
         <div className="space-y-3">
           <div className="text-sm text-red-400 rounded-xl px-4 py-3 leading-relaxed"
-            style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.20)' }}>
+            style={{ background: 'rgb(var(--c-danger) / 0.10)', border: '1px solid rgb(var(--c-danger) / 0.20)' }}>
             Isso removerá permanentemente sua conta, conexões salvas e histórico de contatos.{' '}
             <strong>Essa ação não pode ser desfeita.</strong>
           </div>

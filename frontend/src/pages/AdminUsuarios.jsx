@@ -141,9 +141,9 @@ function CardPermissoes({ conexao, operadores, token }) {
               </p>
               <div className="space-y-1.5">
                 {comAcesso.map(op => (
-                  <div key={op.id} className="flex items-center justify-between py-1 px-3 rounded-xl" style={{ background: 'rgba(16,185,129,0.06)' }}>
+                  <div key={op.id} className="flex items-center justify-between py-1 px-3 rounded-xl" style={{ background: 'rgb(var(--c-success) / 0.06)' }}>
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-emerald-400 shrink-0" style={{ background: 'rgba(16,185,129,0.15)' }}>
+                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-emerald-400 shrink-0" style={{ background: 'rgb(var(--c-success) / 0.15)' }}>
                         {(op.nome || op.email)[0].toUpperCase()}
                       </div>
                       <div className="min-w-0">
@@ -154,7 +154,7 @@ function CardPermissoes({ conexao, operadores, token }) {
                     <button onClick={() => revogar(op)} disabled={salvando === op.id} title="Revogar acesso"
                       className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-40 shrink-0 ml-2"
                       style={{ color: 'var(--ink-3)' }}
-                      onMouseOver={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; e.currentTarget.style.color = '#f87171' }}
+                      onMouseOver={e => { e.currentTarget.style.background = 'rgb(var(--c-danger) / 0.08)'; e.currentTarget.style.color = 'var(--danger)' }}
                       onMouseOut={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--ink-3)' }}>
                       <X className="w-3.5 h-3.5" />{salvando === op.id ? '...' : 'Remover'}
                     </button>
@@ -184,7 +184,7 @@ function CardPermissoes({ conexao, operadores, token }) {
                     </div>
                     <button onClick={() => conceder(op)} disabled={salvando === op.id} title="Conceder acesso"
                       className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-blue-400 transition-colors disabled:opacity-40 shrink-0 ml-2"
-                      onMouseOver={e => e.currentTarget.style.background = 'rgba(29,106,255,0.10)'}
+                      onMouseOver={e => e.currentTarget.style.background = 'rgb(var(--c-royal) / 0.10)'}
                       onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
                       <Plus className="w-3.5 h-3.5" />{salvando === op.id ? '...' : 'Adicionar'}
                     </button>
@@ -276,7 +276,7 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
     <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--line)', boxShadow: '0 2px 12px rgba(0,0,0,0.40)' }}>
       <div className="px-5 py-4 border-b flex items-center justify-between gap-3" style={{ borderColor: 'var(--line)' }}>
         <div className="relative shrink-0">
-          <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center" style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.20)' }}>
+          <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center" style={{ background: 'rgb(var(--c-royal) / 0.12)', border: '1px solid rgb(var(--c-royal) / 0.20)' }}>
             {cfg?.foto_url
               ? <img src={cfg.foto_url} alt={nomeExibicao} className="w-full h-full object-cover" />
               : <Building2 className="w-4 h-4 text-indigo-400" />}
@@ -285,7 +285,7 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
             className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center cursor-pointer transition-colors shadow"
             style={{ background: '#475569' }}
             title="Trocar foto"
-            onMouseOver={e => e.currentTarget.style.background = '#6366f1'}
+            onMouseOver={e => e.currentTarget.style.background = 'var(--accent-text)'}
             onMouseOut={e => e.currentTarget.style.background = '#475569'}>
             {salvandoFoto
               ? <span className="text-ink text-[8px]">...</span>
@@ -299,7 +299,7 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
             <div className="flex gap-1.5 items-center">
               <input autoFocus type="text" value={nomeEdit} onChange={e => setNomeEdit(e.target.value)}
                 className="flex-1 text-sm rounded-lg px-2.5 py-1 focus:outline-none"
-                style={{ background: 'var(--surface-2)', border: '1px solid rgba(99,102,241,0.30)', color: 'var(--ink)' }}
+                style={{ background: 'var(--surface-2)', border: '1px solid rgb(var(--c-royal) / 0.30)', color: 'var(--ink)' }}
                 placeholder="Nome de exibição" />
               <input type="color" value={corEdit} onChange={e => setCorEdit(e.target.value)}
                 title="Cor de destaque" className="w-7 h-7 rounded-md cursor-pointer shrink-0 bg-transparent"
@@ -324,7 +324,7 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
               </div>
               <button onClick={() => { setNomeEdit(nomeExibicao); setCorEdit(cfg?.cor_primaria || '#2563eb'); setEditNome(true) }}
                 className="p-1 rounded transition-colors" title="Editar nome e cor" style={{ color: 'var(--ink-4)' }}
-                onMouseOver={e => e.currentTarget.style.color = '#a5b4fc'}
+                onMouseOver={e => e.currentTarget.style.color = 'var(--accent-text)'}
                 onMouseOut={e => e.currentTarget.style.color = 'var(--ink-4)'}>
                 <Pencil className="w-3 h-3" />
               </button>
@@ -336,14 +336,14 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
         <div className="flex items-center gap-2 shrink-0">
           <button onClick={() => { setShowInput(s => !s); setErro('') }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-indigo-400 transition-colors"
-            style={{ background: 'rgba(99,102,241,0.10)', border: '1px solid rgba(99,102,241,0.20)' }}
-            onMouseOver={e => e.currentTarget.style.background = 'rgba(99,102,241,0.18)'}
-            onMouseOut={e => e.currentTarget.style.background = 'rgba(99,102,241,0.10)'}>
+            style={{ background: 'rgb(var(--c-royal) / 0.10)', border: '1px solid rgb(var(--c-royal) / 0.20)' }}
+            onMouseOver={e => e.currentTarget.style.background = 'rgb(var(--c-royal) / 0.18)'}
+            onMouseOut={e => e.currentTarget.style.background = 'rgb(var(--c-royal) / 0.10)'}>
             <Plus className="w-3.5 h-3.5" /> Adicionar usuário
           </button>
           <button onClick={handleDeletar} title="Excluir empresa"
             className="p-1.5 rounded-lg transition-colors" style={{ color: 'var(--ink-4)' }}
-            onMouseOver={e => { e.currentTarget.style.color = '#f87171'; e.currentTarget.style.background = 'rgba(239,68,68,0.08)' }}
+            onMouseOver={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.background = 'rgb(var(--c-danger) / 0.08)' }}
             onMouseOut={e => { e.currentTarget.style.color = 'var(--ink-4)'; e.currentTarget.style.background = 'transparent' }}>
             <Trash2 className="w-4 h-4" />
           </button>
@@ -356,7 +356,7 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
           <input type="email" required value={emailInput} onChange={e => { setEmailInput(e.target.value); setErro('') }}
             placeholder="email@dominio.com (já cadastrado no sistema)"
             className="flex-1 text-sm rounded-xl px-3 py-2 focus:outline-none"
-            style={{ background: 'var(--surface-2)', border: '1px solid rgba(99,102,241,0.25)', color: 'var(--ink)' }} />
+            style={{ background: 'var(--surface-2)', border: '1px solid rgb(var(--c-royal) / 0.25)', color: 'var(--ink)' }} />
           <button type="submit" disabled={adicionando} className="px-3 py-2 bg-indigo-600 text-brand-ink text-xs font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors whitespace-nowrap">
             {adicionando ? 'Adicionando...' : 'Confirmar'}
           </button>
@@ -366,7 +366,7 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
         </form>
       )}
 
-      {erro && <p className="px-5 py-2 text-xs text-red-400 border-b" style={{ background: 'rgba(239,68,68,0.08)', borderColor: 'rgba(239,68,68,0.15)' }}>{erro}</p>}
+      {erro && <p className="px-5 py-2 text-xs text-red-400 border-b" style={{ background: 'rgb(var(--c-danger) / 0.08)', borderColor: 'rgb(var(--c-danger) / 0.15)' }}>{erro}</p>}
 
       <div>
         {membros.length === 0 ? (
@@ -387,7 +387,7 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
                 <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${ROLE_BADGE[u.role] ?? 'bg-raise-2 text-ink-2'}`}>{u.role}</span>
                 <button onClick={() => handleRemover(u.id)} title="Remover da empresa"
                   className="p-1.5 rounded-lg transition-colors" style={{ color: 'var(--ink-4)' }}
-                  onMouseOver={e => { e.currentTarget.style.color = '#f87171'; e.currentTarget.style.background = 'rgba(239,68,68,0.08)' }}
+                  onMouseOver={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.background = 'rgb(var(--c-danger) / 0.08)' }}
                   onMouseOut={e => { e.currentTarget.style.color = 'var(--ink-4)'; e.currentTarget.style.background = 'transparent' }}>
                   <UserMinus className="w-4 h-4" />
                 </button>
@@ -580,8 +580,8 @@ export default function AdminUsuarios() {
           </div>
         )}
 
-        {msg && <div className="mb-5 text-emerald-400 rounded-xl px-4 py-3 text-sm" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.20)' }}>{msg}</div>}
-        {erro && <div className="mb-5 text-red-400 rounded-xl px-4 py-3 text-sm" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)' }}>{erro}</div>}
+        {msg && <div className="mb-5 text-emerald-400 rounded-xl px-4 py-3 text-sm" style={{ background: 'rgb(var(--c-success) / 0.08)', border: '1px solid rgb(var(--c-success) / 0.20)' }}>{msg}</div>}
+        {erro && <div className="mb-5 text-red-400 rounded-xl px-4 py-3 text-sm" style={{ background: 'rgb(var(--c-danger) / 0.08)', border: '1px solid rgb(var(--c-danger) / 0.18)' }}>{erro}</div>}
 
         {/* ── ABA USUÁRIOS ── */}
         {aba === 'usuarios' && (
@@ -622,7 +622,7 @@ export default function AdminUsuarios() {
                       <div className="flex gap-2 items-center">
                         <input type="text" value={nomeEmpresaEdit} onChange={e => setNomeEmpresaEdit(e.target.value)} placeholder="Nome de exibição"
                           className="flex-1 text-sm rounded-xl px-3 py-2 focus:outline-none"
-                          style={{ background: 'var(--surface-2)', border: '1px solid rgba(29,106,255,0.30)', color: 'var(--ink)' }}
+                          style={{ background: 'var(--surface-2)', border: '1px solid rgb(var(--c-royal) / 0.30)', color: 'var(--ink)' }}
                         />
                         <input type="color" value={corEmpresaEdit} onChange={e => setCorEmpresaEdit(e.target.value)}
                           title="Cor de destaque da empresa"
@@ -647,7 +647,7 @@ export default function AdminUsuarios() {
                 </div>
 
                 {msgBrand && (
-                  <p className="mt-3 text-xs text-emerald-400 rounded-lg px-3 py-2" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.15)' }}>
+                  <p className="mt-3 text-xs text-emerald-400 rounded-lg px-3 py-2" style={{ background: 'rgb(var(--c-success) / 0.08)', border: '1px solid rgb(var(--c-success) / 0.15)' }}>
                     {msgBrand}
                   </p>
                 )}
@@ -706,7 +706,7 @@ export default function AdminUsuarios() {
                     )}
                     <p className="text-xs mt-1" style={{ color: 'var(--ink-3)' }}>Usuários da mesma empresa compartilham dados entre si.</p>
                   </div>
-                  {formErro && <p className="col-span-2 text-sm text-red-400 rounded-xl px-4 py-2" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)' }}>{formErro}</p>}
+                  {formErro && <p className="col-span-2 text-sm text-red-400 rounded-xl px-4 py-2" style={{ background: 'rgb(var(--c-danger) / 0.08)', border: '1px solid rgb(var(--c-danger) / 0.18)' }}>{formErro}</p>}
                   <div className="col-span-2 flex gap-3 justify-end pt-1">
                     <button type="button" onClick={() => setShowForm(false)}
                       className="px-4 py-2 text-sm rounded-xl transition-colors" style={{ color: 'var(--ink-2)' }}

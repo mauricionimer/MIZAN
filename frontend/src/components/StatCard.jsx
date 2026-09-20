@@ -1,42 +1,35 @@
-const ACCENT_COLOR = {
-  default: 'transparent',
-  blue:    '#3b82f6',
-  emerald: '#10b981',
-  amber:   '#f59e0b',
-  violet:  '#8b5cf6',
+// KPI conforme o brief (seção 5): card, rótulo em maiúsculas pequeno, número
+// grande com tabular-nums e ícone tingido no canto. Sem legenda descritiva
+// embaixo do número — a seção 7 do brief pede a remoção dessas frases.
+const ACCENT = {
+  default: 'var(--text-muted)',
+  blue:    'var(--royal)',
+  emerald: 'var(--success)',
+  amber:   'var(--warning)',
+  violet:  'var(--accent-text)',
 }
 
-export default function StatCard({ label, value, sub, icon: Icon, accent = 'default' }) {
-  const color = ACCENT_COLOR[accent] ?? 'transparent'
+export default function StatCard({ label, value, icon: Icon, accent = 'default' }) {
+  const cor = ACCENT[accent] ?? ACCENT.default
 
   return (
-    <div className="px-6 py-5 flex flex-col gap-3"
-      style={{
-        background: 'var(--raise-1)',
-        border: '1px solid var(--line)',
-        borderLeft: `2px solid ${color}`,
-        borderRadius: '0.75rem',
-      }}>
+    <div className="card px-6 py-5 flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <p style={{
           fontSize: '10px',
           fontWeight: 600,
           textTransform: 'uppercase',
           letterSpacing: '0.12em',
-          color: 'var(--ink-2)',
+          color: 'var(--text-muted)',
         }}>
           {label}
         </p>
-        {Icon && <Icon className="h-3.5 w-3.5" style={{ color: 'var(--ink-4)' }} />}
+        {Icon && <Icon className="h-3.5 w-3.5" style={{ color: cor }} />}
       </div>
-      <div>
-        <p className="text-[1.75rem] font-semibold tracking-tight leading-none" style={{ color: 'var(--ink)' }}>
-          {value}
-        </p>
-        {sub && (
-          <p className="text-xs mt-1.5" style={{ color: 'var(--ink-4)' }}>{sub}</p>
-        )}
-      </div>
+      <p className="tnum text-[1.75rem] font-semibold tracking-tight leading-none"
+        style={{ color: 'var(--text)' }}>
+        {value}
+      </p>
     </div>
   )
 }

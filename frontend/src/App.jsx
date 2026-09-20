@@ -57,7 +57,7 @@ function ServerWarmupBanner() {
   if (!show) return null
   return (
     <div className="fixed top-0 inset-x-0 z-50 px-4 py-2.5 flex items-center justify-center gap-3 text-sm text-amber-400"
-      style={{ background: 'rgba(245,158,11,0.10)', borderBottom: '1px solid rgba(245,158,11,0.20)', backdropFilter: 'blur(8px)' }}>
+      style={{ background: 'rgb(var(--c-warning) / 0.10)', borderBottom: '1px solid rgb(var(--c-warning) / 0.20)', backdropFilter: 'blur(8px)' }}>
       <Loader2 className="h-4 w-4 animate-spin text-amber-400 shrink-0" />
       <span>O servidor está acordando — a primeira requisição pode levar até 30s (plano gratuito).</span>
     </div>

@@ -114,7 +114,7 @@ function ImportacaoLote({ token }) {
       </div>
 
       {erro && (
-        <div className="flex items-start gap-2 rounded-xl px-4 py-3" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)' }}>
+        <div className="flex items-start gap-2 rounded-xl px-4 py-3" style={{ background: 'rgb(var(--c-danger) / 0.08)', border: '1px solid rgb(var(--c-danger) / 0.18)' }}>
           <XCircle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
           <p className="text-sm text-red-300">{erro}</p>
         </div>
@@ -271,7 +271,7 @@ export default function Feedback() {
 
         {/* Operador: só visualiza, não registra */}
         {isOperador && (
-          <div className="rounded-2xl px-6 py-8 flex flex-col items-center text-center gap-3" style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.18)' }}>
+          <div className="rounded-2xl px-6 py-8 flex flex-col items-center text-center gap-3" style={{ background: 'rgb(var(--c-royal) / 0.08)', border: '1px solid rgb(var(--c-royal) / 0.18)' }}>
             <div className="w-12 h-12 rounded-2xl bg-blue-500/15 flex items-center justify-center">
               <ClipboardList className="h-6 w-6 text-blue-300" />
             </div>
@@ -363,13 +363,13 @@ export default function Feedback() {
                   </div>
 
                   {sucesso && (
-                    <div className="flex items-start gap-2 rounded-xl px-4 py-3" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.20)' }}>
+                    <div className="flex items-start gap-2 rounded-xl px-4 py-3" style={{ background: 'rgb(var(--c-success) / 0.08)', border: '1px solid rgb(var(--c-success) / 0.20)' }}>
                       <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
                       <p className="text-sm text-emerald-300 font-medium">{sucesso}</p>
                     </div>
                   )}
                   {erro && (
-                    <div className="flex items-start gap-2 rounded-xl px-4 py-3" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)' }}>
+                    <div className="flex items-start gap-2 rounded-xl px-4 py-3" style={{ background: 'rgb(var(--c-danger) / 0.08)', border: '1px solid rgb(var(--c-danger) / 0.18)' }}>
                       <XCircle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
                       <p className="text-sm text-red-300">{erro}</p>
                     </div>
@@ -435,7 +435,7 @@ export default function Feedback() {
           </>
         )}
 
-        <div className="rounded-2xl px-5 py-4 flex gap-3" style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.18)' }}>
+        <div className="rounded-2xl px-5 py-4 flex gap-3" style={{ background: 'rgb(var(--c-royal) / 0.08)', border: '1px solid rgb(var(--c-royal) / 0.18)' }}>
           <CheckCircle2 className="h-5 w-5 text-blue-300 shrink-0 mt-0.5" />
           <div className="text-sm text-blue-200 space-y-0.5">
             <p className="font-semibold">Como funciona</p>

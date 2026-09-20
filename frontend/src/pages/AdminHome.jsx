@@ -15,11 +15,11 @@ function Logo() {
   return <LogoMark className="h-5 w-5 shrink-0" />
 }
 
-function ActionCard({ icon: Icon, label, desc, onClick, accent = 'blue', full = false }) {
+function ActionCard({ icon: Icon, label, onClick, accent = 'blue', full = false }) {
   const cfg = {
-    blue:    { iconBg: 'rgba(29,106,255,0.12)',  iconTx: 'text-blue-400'    },
-    violet:  { iconBg: 'rgba(139,92,246,0.12)',  iconTx: 'text-violet-400'  },
-    emerald: { iconBg: 'rgba(16,185,129,0.12)',  iconTx: 'text-emerald-400' },
+    blue:    { iconBg: 'rgb(var(--c-royal) / 0.12)',  iconTx: 'text-blue-400'    },
+    violet:  { iconBg: 'rgb(var(--c-royal) / 0.12)',  iconTx: 'text-violet-400'  },
+    emerald: { iconBg: 'rgb(var(--c-success) / 0.12)',  iconTx: 'text-emerald-400' },
     slate:   { iconBg: 'var(--raise-3)', iconTx: 'text-ink-2'   },
   }[accent]
 
@@ -32,7 +32,7 @@ function ActionCard({ icon: Icon, label, desc, onClick, accent = 'blue', full = 
         border: '1px solid var(--line)',
         boxShadow: '0 2px 12px rgba(0,0,0,0.30)',
       }}
-      onMouseOver={e => { e.currentTarget.style.borderColor = 'rgba(29,106,255,0.30)'; e.currentTarget.style.boxShadow = '0 4px 24px rgba(0,0,0,0.40)' }}
+      onMouseOver={e => { e.currentTarget.style.borderColor = 'rgb(var(--c-royal) / 0.30)'; e.currentTarget.style.boxShadow = '0 4px 24px rgba(0,0,0,0.40)' }}
       onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--line)'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.30)' }}
     >
       <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
@@ -41,7 +41,6 @@ function ActionCard({ icon: Icon, label, desc, onClick, accent = 'blue', full = 
       </div>
       <div className="flex-1 min-w-0">
         <p className="font-bold text-ink text-sm">{label}</p>
-        <p className="text-xs mt-0.5 leading-relaxed" style={{ color: 'var(--ink-3)' }}>{desc}</p>
       </div>
       <ChevronRight className="w-4 h-4 shrink-0 transition-colors" style={{ color: 'var(--ink-4)' }} />
     </button>
@@ -76,7 +75,7 @@ export default function AdminHome() {
           <span className="font-bold text-ink text-sm">{empresa}</span>
           <span className="text-ink-4 text-sm">·</span>
           <span className="px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1 shrink-0"
-            style={{ background: 'rgba(139,92,246,0.12)', color: 'rgb(var(--c-violet-400))', border: '1px solid rgba(139,92,246,0.20)' }}>
+            style={{ background: 'rgb(var(--c-royal) / 0.12)', color: 'rgb(var(--c-violet-400))', border: '1px solid rgb(var(--c-royal) / 0.20)' }}>
             <Shield className="w-3 h-3" /> Admin
           </span>
         </div>
@@ -108,10 +107,10 @@ export default function AdminHome() {
 
         <motion.div variants={lista} initial="inicial" animate="entra"
           className="grid grid-cols-2 gap-4">
-          <motion.div variants={item}><ActionCard icon={Upload}   label="Analisar carteira"  desc="Enviar CSV/Excel ou conectar banco de dados para análise com IA" onClick={() => navigate('/')}               accent="blue"    /></motion.div>
-          <motion.div variants={item}><ActionCard icon={Users}    label="Gerenciar equipe"   desc="Operadores, permissões de banco e configurações da empresa"      onClick={() => navigate('/admin/usuarios')} accent="violet"  /></motion.div>
-          <motion.div variants={item}><ActionCard icon={Database} label="Bancos de dados"    desc="Cadastrar conexões e configurar sincronizações automáticas"      onClick={() => navigate('/')}               accent="emerald" /></motion.div>
-          <motion.div variants={item}><ActionCard icon={KeyRound} label="Alterar senha"      desc="Atualizar suas credenciais de acesso ao sistema"                 onClick={() => navigate('/alterar-senha')}  accent="slate"   /></motion.div>
+          <motion.div variants={item}><ActionCard icon={Upload}   label="Analisar carteira" onClick={() => navigate('/')}               accent="blue"    /></motion.div>
+          <motion.div variants={item}><ActionCard icon={Users}    label="Gerenciar equipe"      onClick={() => navigate('/admin/usuarios')} accent="violet"  /></motion.div>
+          <motion.div variants={item}><ActionCard icon={Database} label="Bancos de dados"      onClick={() => navigate('/')}               accent="emerald" /></motion.div>
+          <motion.div variants={item}><ActionCard icon={KeyRound} label="Alterar senha"                 onClick={() => navigate('/alterar-senha')}  accent="slate"   /></motion.div>
         </motion.div>
 
         <div className="mt-6">
@@ -119,7 +118,7 @@ export default function AdminHome() {
             onClick={() => navigate('/dashboard')}
             className="w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-colors text-sm"
             style={{ border: '1px dashed var(--line)', color: 'var(--ink-3)' }}
-            onMouseOver={e => { e.currentTarget.style.borderColor = 'rgba(29,106,255,0.30)'; e.currentTarget.style.color = 'var(--ink-2)' }}
+            onMouseOver={e => { e.currentTarget.style.borderColor = 'rgb(var(--c-royal) / 0.30)'; e.currentTarget.style.color = 'var(--ink-2)' }}
             onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--line)'; e.currentTarget.style.color = 'var(--ink-3)' }}
           >
             <span className="flex items-center gap-2">
