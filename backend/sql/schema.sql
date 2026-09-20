@@ -201,7 +201,7 @@ CREATE TABLE IF NOT EXISTS empresa_config (
 );
 
 ALTER TABLE empresa_config ADD COLUMN IF NOT EXISTS extra JSONB DEFAULT '{}'::jsonb;
-ALTER TABLE empresa_config DISABLE ROW LEVEL SECURITY;
+ALTER TABLE empresa_config ENABLE ROW LEVEL SECURITY;
 
 -- ── Índices ──────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_predicoes_cpf        ON predicoes(cpf);
@@ -218,15 +218,33 @@ CREATE INDEX IF NOT EXISTS idx_conexoes_empresa     ON conexoes_db(empresa_id);
 CREATE INDEX IF NOT EXISTS idx_usuarios_email       ON usuarios(email);
 CREATE INDEX IF NOT EXISTS idx_reset_tokens_token   ON reset_tokens(token);
 
--- ── RLS desabilitado (backend usa service role key) ──────────
-ALTER TABLE carteiras     DISABLE ROW LEVEL SECURITY;
-ALTER TABLE predicoes     DISABLE ROW LEVEL SECURITY;
-ALTER TABLE feedbacks     DISABLE ROW LEVEL SECURITY;
-ALTER TABLE usuarios      DISABLE ROW LEVEL SECURITY;
-ALTER TABLE conexoes_db   DISABLE ROW LEVEL SECURITY;
-ALTER TABLE contatos      DISABLE ROW LEVEL SECURITY;
-ALTER TABLE recomendacoes DISABLE ROW LEVEL SECURITY;
-ALTER TABLE bandit_estado DISABLE ROW LEVEL SECURITY;
-ALTER TABLE auditoria     DISABLE ROW LEVEL SECURITY;
-ALTER TABLE reset_tokens  DISABLE ROW LEVEL SECURITY;
-ALTER TABLE api_keys      DISABLE ROW LEVEL SECURITY;
+-- ── RLS habilitado em todas as tabelas ───────────────────────
+-- Estas tabelas guardam CPF, dívida, renda, credenciais e a trilha de
+-- auditoria. O backend fala com o banco usando a service role key, que
+-- ignora RLS por definição, então ligar RLS não afeta a aplicação.
+--
+-- O que RLS protege é o outro caminho: a anon key é pública por natureza
+-- (vai para o navegador em qualquer front que use Supabase) e o papel
+-- `anon` tem as permissões padrão de SELECT/INSERT nestas tabelas. Sem
+-- RLS, quem tiver a anon key lê e escreve na base inteira pelo PostgREST.
+-- Com RLS ligado e nenhuma política permissiva, tudo é negado.
+--
+-- Conferido em 20/09/2026 no banco de produção: RLS ligado nas 12 tabelas,
+-- zero políticas em pg_policies, e uma consulta com a anon key devolve 200
+-- com lista vazia.
+--
+-- Este arquivo já mandou DISABLE nestas linhas. Rodá-lo de novo desligaria
+-- a proteção nas doze tabelas de uma vez. Se algum dia for preciso expor
+-- alguma tabela ao `anon`, crie uma política específica em vez de desligar
+-- o RLS.
+ALTER TABLE carteiras     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE predicoes     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE feedbacks     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE usuarios      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE conexoes_db   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE contatos      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE recomendacoes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE bandit_estado ENABLE ROW LEVEL SECURITY;
+ALTER TABLE auditoria     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE reset_tokens  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE api_keys      ENABLE ROW LEVEL SECURITY;
