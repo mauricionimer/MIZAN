@@ -107,7 +107,7 @@ export default function Auditoria() {
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div className="w-7 h-7 rounded-lg flex items-center justify-center shadow-md shadow-blue-500/20"
-            style={{ background: 'linear-gradient(135deg,#1d4ed8,#2563eb)' }}>
+            style={{ background: 'var(--royal)' }}>
             <ShieldCheck className="h-3.5 w-3.5 text-brand-ink" />
           </div>
           <span className="font-bold text-ink text-sm">Mizan</span>

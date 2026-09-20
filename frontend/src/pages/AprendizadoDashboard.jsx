@@ -40,11 +40,11 @@ function Secao({ icon: Icon, titulo, sub, children, right }) {
 
 function Botao({ children, onClick, disabled, variante = 'primario', ...props }) {
   const cls = {
-    primario:   'text-ink hover:brightness-110',
+    primario:   'text-on-brand hover:brightness-110',
     secundario: 'bg-raise-2 hover:bg-raise-3 text-ink-2',
     perigo:     'bg-red-500/10 hover:bg-red-500/20 text-red-300',
   }[variante]
-  const style = variante === 'primario' ? { background: 'var(--brand)' } : undefined
+  const style = variante === 'primario' ? { background: 'var(--royal)' } : undefined
   return (
     <button
       onClick={onClick}
@@ -188,7 +188,7 @@ export default function AprendizadoDashboard() {
             <ArrowLeft className="h-4 w-4" />
           </button>
           <div className="w-7 h-7 rounded-lg flex items-center justify-center shadow-md shadow-blue-500/20"
-            style={{ background: 'linear-gradient(135deg,#1d4ed8,#2563eb)' }}>
+            style={{ background: 'var(--royal)' }}>
             <Brain className="h-3.5 w-3.5 text-brand-ink" />
           </div>
           <span className="font-bold text-ink text-sm">Mizan</span>
@@ -370,7 +370,7 @@ export default function AprendizadoDashboard() {
                   <div className="flex items-start gap-3 rounded-xl border px-4 py-3 text-xs"
                     style={qualidade.complexidade_adequada
                       ? { background: 'var(--raise-2)', borderColor: 'var(--line)', color: MUTED_LIGHT }
-                      : { background: 'rgb(var(--c-warning) / 0.10)', borderColor: 'rgb(var(--c-warning) / 0.25)', color: 'rgb(var(--c-amber-300))' }}>
+                      : { background: 'rgb(var(--c-warning) / 0.10)', borderColor: 'rgb(var(--c-warning) / 0.25)', color: 'rgb(var(--c-warning))' }}>
                     <Target className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                     <span>
                       {qualidade.n_amostras} amostras para {qualidade.n_features} variáveis do modelo
@@ -433,7 +433,7 @@ export default function AprendizadoDashboard() {
                           <td className="px-2 py-3">
                             <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
                               style={v.tipo_alvo === 'real'
-                                ? { background: 'rgb(var(--c-success) / 0.12)', color: 'rgb(var(--c-emerald-300))' }
+                                ? { background: 'rgb(var(--c-success) / 0.12)', color: 'rgb(var(--c-success))' }
                                 : { background: 'var(--raise-3)', color: MUTED }}>
                               {v.tipo_alvo === 'real' ? 'Dados reais' : 'Sintético'}
                             </span>

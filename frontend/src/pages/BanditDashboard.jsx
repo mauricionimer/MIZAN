@@ -60,7 +60,7 @@ function LocalStatCard({ label, value, sub, icon: Icon, accent = 'blue' }) {
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
   return (
-    <div className="rounded-xl shadow-lg p-3 text-xs" style={{ background: '#111d34', border: '1px solid var(--line)' }}>
+    <div className="rounded-xl shadow-lg p-3 text-xs" style={{ background: 'var(--raised)', border: '1px solid var(--line)' }}>
       <p className="font-semibold text-ink mb-1">{label}</p>
       <p style={{ color: MUTED_LIGHT }}>Taxa de recuperação: <span className="font-bold text-emerald-300">{fmtPct(payload[0].value / 100)}</span></p>
       {payload[0].payload.tentativas != null && (
@@ -345,9 +345,9 @@ export default function BanditDashboard() {
                         <td className="px-5 py-3">
                           <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full"
                             style={
-                              a.canal === 'whatsapp' ? { background: 'rgba(37,197,94,0.12)', color: 'rgb(var(--c-emerald-300))' } :
-                              a.canal === 'telefone' ? { background: 'rgb(var(--c-royal) / 0.12)', color: 'rgb(var(--c-blue-300))' } :
-                                                        { background: 'rgb(var(--c-warning) / 0.12)', color: 'rgb(var(--c-amber-300))' }
+                              a.canal === 'whatsapp' ? { background: 'rgba(37,197,94,0.12)', color: 'rgb(var(--c-success))' } :
+                              a.canal === 'telefone' ? { background: 'rgb(var(--c-royal) / 0.12)', color: 'rgb(var(--c-royal))' } :
+                                                        { background: 'rgb(var(--c-warning) / 0.12)', color: 'rgb(var(--c-warning))' }
                             }>
                             {CANAL_LABELS[a.canal] ?? a.canal}
                           </span>

@@ -75,7 +75,7 @@ export default function AdminHome() {
           <span className="font-bold text-ink text-sm">{empresa}</span>
           <span className="text-ink-4 text-sm">·</span>
           <span className="px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1 shrink-0"
-            style={{ background: 'rgb(var(--c-royal) / 0.12)', color: 'rgb(var(--c-violet-400))', border: '1px solid rgb(var(--c-royal) / 0.20)' }}>
+            style={{ background: 'rgb(var(--c-royal) / 0.12)', color: 'rgb(var(--c-royal))', border: '1px solid rgb(var(--c-royal) / 0.20)' }}>
             <Shield className="w-3 h-3" /> Admin
           </span>
         </div>

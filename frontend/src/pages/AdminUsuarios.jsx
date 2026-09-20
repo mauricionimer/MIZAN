@@ -214,7 +214,7 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
   const [cfg, setCfg]           = useState(null)
   const [editNome, setEditNome] = useState(false)
   const [nomeEdit, setNomeEdit] = useState('')
-  const [corEdit, setCorEdit]   = useState('#2563eb')
+  const [corEdit, setCorEdit]   = useState('#5966d9')
   const [salvandoNome, setSalvandoNome] = useState(false)
   const [salvandoFoto, setSalvandoFoto] = useState(false)
   const [msgBrand, setMsgBrand] = useState('')
@@ -283,10 +283,10 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
           </div>
           <label
             className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center cursor-pointer transition-colors shadow"
-            style={{ background: '#475569' }}
+            style={{ background: 'var(--raised)' }}
             title="Trocar foto"
             onMouseOver={e => e.currentTarget.style.background = 'var(--accent-text)'}
-            onMouseOut={e => e.currentTarget.style.background = '#475569'}>
+            onMouseOut={e => e.currentTarget.style.background = 'var(--raised)'}>
             {salvandoFoto
               ? <span className="text-ink text-[8px]">...</span>
               : <Camera className="w-2.5 h-2.5 text-ink" />}
@@ -317,12 +317,12 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
               <div>
                 <p className="font-bold text-ink text-sm flex items-center gap-1.5">
                   {nomeExibicao}
-                  <span className="inline-block w-2 h-2 rounded-full border border-line-2 shrink-0" style={{ background: cfg?.cor_primaria || '#2563eb' }} />
+                  <span className="inline-block w-2 h-2 rounded-full border border-line-2 shrink-0" style={{ background: cfg?.cor_primaria || '#5966d9' }} />
                 </p>
                 {cfg?.nome_exibicao && <p className="text-xs" style={{ color: 'var(--ink-3)' }}>ID: {empresa.empresa_id}</p>}
                 <p className="text-xs" style={{ color: 'var(--ink-3)' }}>{membros.length} membro{membros.length !== 1 ? 's' : ''}</p>
               </div>
-              <button onClick={() => { setNomeEdit(nomeExibicao); setCorEdit(cfg?.cor_primaria || '#2563eb'); setEditNome(true) }}
+              <button onClick={() => { setNomeEdit(nomeExibicao); setCorEdit(cfg?.cor_primaria || '#5966d9'); setEditNome(true) }}
                 className="p-1 rounded transition-colors" title="Editar nome e cor" style={{ color: 'var(--ink-4)' }}
                 onMouseOver={e => e.currentTarget.style.color = 'var(--accent-text)'}
                 onMouseOut={e => e.currentTarget.style.color = 'var(--ink-4)'}>
@@ -424,7 +424,7 @@ export default function AdminUsuarios() {
   // Branding da empresa
   const [editandoBrand, setEditandoBrand] = useState(false)
   const [nomeEmpresaEdit, setNomeEmpresaEdit] = useState('')
-  const [corEmpresaEdit, setCorEmpresaEdit] = useState('#2563eb')
+  const [corEmpresaEdit, setCorEmpresaEdit] = useState('#5966d9')
   const [salvandoBrand, setSalvandoBrand] = useState(false)
   const [msgBrand, setMsgBrand] = useState('')
   const fotoInputRef = useRef(null)
@@ -483,7 +483,7 @@ export default function AdminUsuarios() {
 
   function abrirEdicaoBrand() {
     setNomeEmpresaEdit(empresaConfig?.nome_exibicao || usuario?.empresa_id || '')
-    setCorEmpresaEdit(empresaConfig?.cor_primaria || '#2563eb')
+    setCorEmpresaEdit(empresaConfig?.cor_primaria || '#5966d9')
     setEditandoBrand(true)
   }
 
@@ -639,7 +639,7 @@ export default function AdminUsuarios() {
                         <p className="font-bold text-ink text-base truncate">{empresaConfig?.nome_exibicao || usuario?.empresa_id}</p>
                         <p className="text-xs mt-0.5 flex items-center gap-1.5" style={{ color: 'var(--ink-3)' }}>
                           ID: {usuario?.empresa_id}
-                          <span className="inline-block w-2.5 h-2.5 rounded-full border border-line-2" style={{ background: empresaConfig?.cor_primaria || '#2563eb' }} />
+                          <span className="inline-block w-2.5 h-2.5 rounded-full border border-line-2" style={{ background: empresaConfig?.cor_primaria || '#5966d9' }} />
                         </p>
                       </>
                     )}
@@ -724,7 +724,7 @@ export default function AdminUsuarios() {
               <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--line)', boxShadow: '0 2px 12px rgba(0,0,0,0.40)' }}>
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b" style={{ background: '#111d34', borderColor: 'var(--line)' }}>
+                    <tr className="border-b" style={{ background: 'var(--raised)', borderColor: 'var(--line)' }}>
                       <th className="text-left px-5 py-3.5 text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--ink-3)' }}>Nome</th>
                       <th className="text-left px-5 py-3.5 text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--ink-3)' }}>E-mail</th>
                       {isComando && <th className="text-left px-5 py-3.5 text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--ink-3)' }}>Empresa</th>}

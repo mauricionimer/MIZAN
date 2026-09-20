@@ -25,7 +25,7 @@
     /* bordas */
     --border-subtle:#e2e7f4; --border:#d2daed; --border-strong:#b4bde0;
     /* texto */
-    --text:#141a38; --text-2:#464e79; --text-muted:#676f9b;
+    --text:#141a38; --text-2:#464e79; --text-muted:#626993;
     /* marca / ação */
     --accent-text:#4353c4; --royal:#5966d9; --royal-hover:#4a56c4; --royal-pressed:#3d48a8;
     --royal-soft:#e6ebfe; --lilac:#8b96b8; --on-brand:#ffffff;
@@ -33,9 +33,9 @@
     --deep:#dfe8fc; --panel-ink:#17214d; --panel-2:#46527f;
     --panel-line:rgba(89,102,217,.16); --panel-hover:rgba(23,33,77,.05);
     /* status */
-    --success:#147d54; --success-soft:#e3f6ee;
-    --warning:#c98a04; --warning-soft:#fdf3dd;
-    --danger:#c9333f;  --danger-soft:#fbe7e8;
+    --success:#12714c; --success-soft:#e3f6ee;
+    --warning:#8f6203; --warning-soft:#fdf3dd;
+    --danger:#c4323d;  --danger-soft:#fbe7e8;
     /* gráficos */
     --chart-1:#5966d9; --chart-2:#1f9d6b; --chart-3:#d99a12; --chart-4:#8b96b8; --chart-5:#d64550;
     /* foco / sombras */
@@ -46,25 +46,11 @@
 
     /* Famílias de cor do Tailwind, ligadas aos tokens semânticos. Em RGB
        separado para o Tailwind poder aplicar opacidade (<alpha-value>). */
-    --c-success: 20 125 84;      --c-success-soft: 227 246 238;
-    --c-danger:  201 51 63;      --c-danger-soft:  251 231 232;
+    --c-success: 18 113 76;      --c-success-soft: 227 246 238;
+    --c-danger:  196 50 61;      --c-danger-soft:  251 231 232;
     --c-royal:   67 83 196;      --c-royal-soft:   230 235 254;
-    --c-warning: 201 138 4;      --c-warning-soft: 253 243 221;
-    --c-neutral: 103 111 155;    --c-neutral-soft: 234 239 249;
-
-    /* acentos do Tailwind, na paleta clara */
-    --c-emerald-200: 20 125 84;   --c-emerald-300: 20 125 84;   --c-emerald-400: 20 125 84;
-    --c-emerald-900: 227 246 238; --c-emerald-950: 227 246 238;
-    --c-red-200: 201 51 63;       --c-red-300: 201 51 63;       --c-red-400: 201 51 63;
-    --c-red-900: 251 231 232;     --c-red-950: 251 231 232;
-    --c-blue-200: 67 83 196;      --c-blue-300: 67 83 196;      --c-blue-400: 67 83 196;
-    --c-blue-900: 230 235 254;    --c-blue-950: 230 235 254;
-    --c-amber-200: 201 138 4;     --c-amber-300: 201 138 4;     --c-amber-400: 201 138 4;
-    --c-amber-900: 253 243 221;   --c-amber-950: 253 243 221;
-    --c-violet-200: 67 83 196;    --c-violet-300: 67 83 196;    --c-violet-400: 67 83 196;
-    --c-indigo-200: 67 83 196;    --c-indigo-300: 67 83 196;    --c-indigo-400: 67 83 196;
-    --c-rose-300: 201 51 63;      --c-rose-400: 201 51 63;
-    --c-orange-400: 201 138 4;
+    --c-warning: 143 98 3;       --c-warning-soft: 253 243 221;
+    --c-neutral: 98 105 147;     --c-neutral-soft: 234 239 249;
 
     /* raio — levemente arredondado em tudo (brief, seção 3) */
     --radius:4px; --radius-lg:6px;
@@ -106,8 +92,8 @@
     /* texto */
     --text:#f4f2fa; --text-2:#aeb8d4; --text-muted:#868fb0;
     /* marca / ação */
-    --accent-text:#9aa4ee; --royal:#6b77e3; --royal-hover:#818bea; --royal-pressed:#5966d9;
-    --royal-soft:#1e2650; --lilac:#a9b4cf; --on-brand:#ffffff;
+    --accent-text:#9aa4ee; --royal:#6b77e3; --royal-hover:#818bea; --royal-pressed:#8f99ee;
+    --royal-soft:#1e2650; --lilac:#a9b4cf; --on-brand:#080b16;
     /* superfície da marca (login/nav/sidebar) */
     --deep:#0c1230; --panel-ink:#ffffff; --panel-2:#aab4d4;
     --panel-line:rgba(169,180,207,.16); --panel-hover:rgba(255,255,255,.06);
@@ -128,20 +114,6 @@
     --c-royal:   154 164 238;    --c-royal-soft:   30 38 80;
     --c-warning: 240 180 41;     --c-warning-soft: 58 44 10;
     --c-neutral: 134 143 176;    --c-neutral-soft: 26 33 64;
-
-    /* acentos do Tailwind, na paleta escura */
-    --c-emerald-200: 52 201 141;  --c-emerald-300: 52 201 141;  --c-emerald-400: 52 201 141;
-    --c-emerald-900: 16 54 42;    --c-emerald-950: 16 54 42;
-    --c-red-200: 241 109 117;     --c-red-300: 241 109 117;     --c-red-400: 241 109 117;
-    --c-red-900: 58 22 24;        --c-red-950: 58 22 24;
-    --c-blue-200: 154 164 238;    --c-blue-300: 154 164 238;    --c-blue-400: 154 164 238;
-    --c-blue-900: 30 38 80;       --c-blue-950: 30 38 80;
-    --c-amber-200: 240 180 41;    --c-amber-300: 240 180 41;    --c-amber-400: 240 180 41;
-    --c-amber-900: 58 44 10;      --c-amber-950: 58 44 10;
-    --c-violet-200: 154 164 238;  --c-violet-300: 154 164 238;  --c-violet-400: 154 164 238;
-    --c-indigo-200: 154 164 238;  --c-indigo-300: 154 164 238;  --c-indigo-400: 154 164 238;
-    --c-rose-300: 241 109 117;    --c-rose-400: 241 109 117;
-    --c-orange-400: 240 180 41;
     color-scheme: dark;
     }
   }
@@ -154,8 +126,8 @@
     /* texto */
     --text:#f4f2fa; --text-2:#aeb8d4; --text-muted:#868fb0;
     /* marca / ação */
-    --accent-text:#9aa4ee; --royal:#6b77e3; --royal-hover:#818bea; --royal-pressed:#5966d9;
-    --royal-soft:#1e2650; --lilac:#a9b4cf; --on-brand:#ffffff;
+    --accent-text:#9aa4ee; --royal:#6b77e3; --royal-hover:#818bea; --royal-pressed:#8f99ee;
+    --royal-soft:#1e2650; --lilac:#a9b4cf; --on-brand:#080b16;
     /* superfície da marca (login/nav/sidebar) */
     --deep:#0c1230; --panel-ink:#ffffff; --panel-2:#aab4d4;
     --panel-line:rgba(169,180,207,.16); --panel-hover:rgba(255,255,255,.06);
@@ -176,20 +148,6 @@
     --c-royal:   154 164 238;    --c-royal-soft:   30 38 80;
     --c-warning: 240 180 41;     --c-warning-soft: 58 44 10;
     --c-neutral: 134 143 176;    --c-neutral-soft: 26 33 64;
-
-    /* acentos do Tailwind, na paleta escura */
-    --c-emerald-200: 52 201 141;  --c-emerald-300: 52 201 141;  --c-emerald-400: 52 201 141;
-    --c-emerald-900: 16 54 42;    --c-emerald-950: 16 54 42;
-    --c-red-200: 241 109 117;     --c-red-300: 241 109 117;     --c-red-400: 241 109 117;
-    --c-red-900: 58 22 24;        --c-red-950: 58 22 24;
-    --c-blue-200: 154 164 238;    --c-blue-300: 154 164 238;    --c-blue-400: 154 164 238;
-    --c-blue-900: 30 38 80;       --c-blue-950: 30 38 80;
-    --c-amber-200: 240 180 41;    --c-amber-300: 240 180 41;    --c-amber-400: 240 180 41;
-    --c-amber-900: 58 44 10;      --c-amber-950: 58 44 10;
-    --c-violet-200: 154 164 238;  --c-violet-300: 154 164 238;  --c-violet-400: 154 164 238;
-    --c-indigo-200: 154 164 238;  --c-indigo-300: 154 164 238;  --c-indigo-400: 154 164 238;
-    --c-rose-300: 241 109 117;    --c-rose-400: 241 109 117;
-    --c-orange-400: 240 180 41;
     color-scheme: dark;
   }
 

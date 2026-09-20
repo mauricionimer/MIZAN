@@ -285,9 +285,9 @@ function HistoricoContatos({ cpf, rec }) {
 }
 
 const URGENCIA_CONFIG = {
-  Alta:  { color: 'rgb(var(--c-red-400))', bg: 'rgb(var(--c-danger) / 0.10)',  border: 'rgb(var(--c-danger) / 0.20)'  },
-  Média: { color: 'rgb(var(--c-amber-400))', bg: 'rgb(var(--c-warning) / 0.10)', border: 'rgb(var(--c-warning) / 0.20)' },
-  Baixa: { color: 'rgb(var(--c-emerald-400))', bg: 'rgb(var(--c-success) / 0.10)', border: 'rgb(var(--c-success) / 0.20)' },
+  Alta:  { color: 'rgb(var(--c-danger))', bg: 'rgb(var(--c-danger) / 0.10)',  border: 'rgb(var(--c-danger) / 0.20)'  },
+  Média: { color: 'rgb(var(--c-warning))', bg: 'rgb(var(--c-warning) / 0.10)', border: 'rgb(var(--c-warning) / 0.20)' },
+  Baixa: { color: 'rgb(var(--c-success))', bg: 'rgb(var(--c-success) / 0.10)', border: 'rgb(var(--c-success) / 0.20)' },
 }
 
 const MODO_CONFIG = {
