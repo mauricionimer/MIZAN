@@ -38,7 +38,7 @@ function Logo() {
 
 function LocalStatCard({ label, value, sub, icon: Icon, accent = 'blue' }) {
   const colors = {
-    blue:    { bg: 'rgba(37,99,235,0.15)', cor: 'var(--brand)' },
+    blue:    { bg: 'rgb(var(--c-royal) / 0.15)', cor: 'rgb(var(--c-royal))' },
     emerald: { bg: 'rgb(var(--c-success) / 0.15)', cor: 'var(--success)' },
     amber:   { bg: 'rgb(var(--c-warning) / 0.15)', cor: 'var(--warning)' },
     slate:   { bg: 'var(--raise-3)', cor: MUTED_LIGHT },

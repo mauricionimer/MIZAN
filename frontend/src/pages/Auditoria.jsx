@@ -6,6 +6,7 @@ import { buscarAuditoria } from '../api'
 import {
   ArrowLeft, LogOut, ShieldCheck, Download, Loader2, Filter, RefreshCw, ChevronDown,
 } from 'lucide-react'
+import { LogoMark } from '../components/Logo'
 
 const ACAO_LABEL = {
   carteira_criada:        'Carteira criada',
@@ -106,10 +107,7 @@ export default function Auditoria() {
           <button onClick={() => navigate(isComando ? '/comando' : '/admin')} className="p-1 rounded-lg transition-colors hover:bg-raise-2" style={{ color: 'var(--ink-3)' }}>
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center shadow-md shadow-blue-500/20"
-            style={{ background: 'var(--royal)' }}>
-            <ShieldCheck className="h-3.5 w-3.5 text-brand-ink" />
-          </div>
+          <LogoMark className="h-5 w-5 shrink-0" />
           <span className="font-bold text-ink text-sm">Mizan</span>
           <span className="text-ink-4 text-sm">/</span>
           <span className="text-sm" style={{ color: 'var(--ink-2)' }}>Auditoria</span>

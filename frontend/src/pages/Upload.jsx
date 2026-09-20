@@ -254,7 +254,9 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
           <div className="px-4 pb-4 flex gap-2">
             <button onClick={(e) => sincronizarConexaoSalva(c.id, e)} disabled={sincronizandoId !== null}
               className={`flex-1 py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-colors ${sincronizandoId === c.id ? 'opacity-60 cursor-not-allowed' : ''}`}
-              style={{ background: sincronizandoId === c.id ? 'rgb(var(--c-royal) / 0.10)' : 'rgb(var(--c-royal) / 0.20)', color: 'rgb(var(--c-royal))', border: '1px solid rgb(var(--c-royal) / 0.25)' }}>
+              style={sincronizandoId === c.id
+                ? { background: 'var(--raise-2)', color: 'var(--ink-3)', border: '1px solid var(--line)' }
+                : { background: 'var(--royal)', color: 'var(--on-brand)', border: '1px solid transparent' }}>
               <RefreshCw className={`h-4 w-4 ${sincronizandoId === c.id ? 'animate-spin' : ''}`} />
               {sincronizandoId === c.id ? 'Sincronizando...' : 'Sincronizar com o banco de dados'}
             </button>

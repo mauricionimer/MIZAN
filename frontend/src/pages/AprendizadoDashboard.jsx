@@ -7,6 +7,7 @@ import {
   ShieldCheck, BarChart3, Award, Microscope, Target, XCircle,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { LogoMark } from '../components/Logo'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001'
 const MUTED = 'var(--ink-3)'
@@ -23,7 +24,7 @@ function Secao({ icon: Icon, titulo, sub, children, right }) {
     <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
       <div className="px-6 py-4 border-b flex items-center justify-between flex-wrap gap-3" style={{ borderColor: 'var(--line)' }}>
         <div className="flex items-center gap-3">
-          <div className="rounded-xl p-2 shrink-0" style={{ background: 'rgba(37,99,235,0.15)', color: 'var(--brand)' }}>
+          <div className="rounded-xl p-2 shrink-0" style={{ background: 'rgb(var(--c-royal) / 0.15)', color: 'rgb(var(--c-royal))' }}>
             <Icon className="h-4 w-4" />
           </div>
           <div>
@@ -58,7 +59,7 @@ function Botao({ children, onClick, disabled, variante = 'primario', ...props })
   )
 }
 
-function Barra({ pct, cor = 'var(--brand)' }) {
+function Barra({ pct, cor = 'rgb(var(--c-royal))' }) {
   return (
     <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--raise-3)' }}>
       <div className="h-full rounded-full" style={{ width: `${Math.min(Math.max(pct, 0), 100)}%`, background: cor }} />
@@ -187,10 +188,7 @@ export default function AprendizadoDashboard() {
           <button onClick={() => navigate('/comando')} className="p-1 rounded-lg transition-colors hover:bg-raise-2" style={{ color: MUTED }}>
             <ArrowLeft className="h-4 w-4" />
           </button>
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center shadow-md shadow-blue-500/20"
-            style={{ background: 'var(--royal)' }}>
-            <Brain className="h-3.5 w-3.5 text-brand-ink" />
-          </div>
+          <LogoMark className="h-5 w-5 shrink-0" />
           <span className="font-bold text-ink text-sm">Mizan</span>
           <span className="text-ink-4 text-sm">/</span>
           <span className="text-sm" style={{ color: MUTED_LIGHT }}>Gestão do Aprendizado</span>
@@ -444,7 +442,7 @@ export default function AprendizadoDashboard() {
                           <td className="px-2 py-3 text-right text-xs font-semibold text-ink">{fmtPct(v.acuracia_real)}</td>
                           <td className="px-2 py-3 text-right">
                             {v.ativa ? (
-                              <span className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: 'var(--brand)' }}>
+                              <span className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: 'var(--accent-text)' }}>
                                 <ShieldCheck className="h-3.5 w-3.5" /> Ativa
                               </span>
                             ) : (
