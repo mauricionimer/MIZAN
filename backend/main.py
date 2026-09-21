@@ -2025,6 +2025,37 @@ def _ler_google_sheets(conn: ConexaoDB) -> pd.DataFrame:
 PREMISSA_RECUPERACAO_SE_PAGAR_PADRAO = 1.0
 
 
+# Colunas de predicoes acrescentadas depois que o sistema já estava no ar. Não
+# há migração automática no boot: o ALTER TABLE de sql/schema.sql é rodado à
+# mão no Supabase. Se o código subir antes do SQL, o insert inteiro falharia e
+# nenhuma análise seria gravada — perder o enriquecimento é ruim, perder a
+# carteira é bem pior. Aqui a gravação cai para o conjunto antigo de colunas e
+# avisa no log, em vez de derrubar a análise.
+_COLUNAS_PREDICAO_OPCIONAIS = ("probabilidade_pagamento", "origem_taxa")
+
+
+def _inserir_predicoes(db, linhas: list[dict]):
+    """Insere predições; se uma coluna nova ainda não existir, tenta sem ela."""
+    try:
+        return db.table("predicoes").insert(linhas).execute()
+    except Exception as e:
+        citadas = [c for c in _COLUNAS_PREDICAO_OPCIONAIS if c in str(e)]
+        if not citadas:
+            raise
+        # O PostgREST reclama de uma coluna por vez. Tirar só a citada levaria a
+        # uma nova falha na coluna seguinte, então removemos todas as opcionais
+        # de uma vez: uma tentativa, resultado garantido.
+        print(
+            f"[Supabase] Coluna ausente em predicoes: {citadas}. Gravando sem "
+            f"{list(_COLUNAS_PREDICAO_OPCIONAIS)} — rode os ALTER TABLE de sql/schema.sql."
+        )
+        enxutas = [
+            {k: v for k, v in linha.items() if k not in _COLUNAS_PREDICAO_OPCIONAIS}
+            for linha in linhas
+        ]
+        return db.table("predicoes").insert(enxutas).execute()
+
+
 def _premissa_recuperacao_se_pagar(empresa_id: str | None) -> float:
     """Lê a premissa da empresa; cai no padrão declarado se não houver."""
     if not empresa_id:
@@ -2263,7 +2294,7 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
         ]
         pred_id_map: dict[str, str] = {}
         for i in range(0, len(predicoes_rows), 500):
-            res_pred = db.table("predicoes").insert(predicoes_rows[i:i+500]).execute()
+            res_pred = _inserir_predicoes(db, predicoes_rows[i:i+500])
             for row in (res_pred.data or []):
                 if row.get("cpf") and row.get("id"):
                     pred_id_map[str(row["cpf"])] = row["id"]
