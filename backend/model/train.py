@@ -250,6 +250,40 @@ def _gerar_labels_clusters(df_cl: pd.DataFrame, n_clusters: int) -> dict[int, st
     return labels
 
 
+def _registrar_versao(versao: str, n_amostras: int, metricas: dict) -> None:
+    """Registra a baseline sintética em versions.json como versão de primeira classe.
+
+    Sem isso, treinar sobrescrevia mizan_model.pkl sem deixar rastro: ninguém
+    conseguia dizer depois com que dado o modelo em produção foi treinado, nem
+    voltar para a versão anterior. O tipo de alvo fica marcado como 'simulado'
+    para a interface poder avisar que as métricas não são desempenho medido.
+    """
+    import json
+
+    caminho = MODEL_DIR / "versions.json"
+    try:
+        dados = json.loads(caminho.read_text()) if caminho.exists() else {}
+    except (OSError, ValueError):
+        dados = {}
+    versoes = dados.get("versoes") or []
+    versoes.append({
+        "versao":            versao,
+        "criado_em":         _dt.now().astimezone().isoformat(),
+        "n_amostras":        n_amostras,
+        "n_feedbacks_reais": 0,
+        "tipo_alvo":         "simulado",
+        "metricas":          metricas,
+        "promovido":         True,
+        "promovido_em":      _dt.now().astimezone().isoformat(),
+    })
+    dados["versoes"] = versoes
+    dados["versao_ativa"] = versao
+    try:
+        caminho.write_text(json.dumps(dados, indent=1, ensure_ascii=False))
+    except OSError as e:
+        print(f"[train] Não foi possível registrar a versão: {e}")
+
+
 def _gerar_dados_sinteticos(n: int = 3000, seed: int = 42) -> pd.DataFrame:
     """Gera carteira sintética com distribuições realistas para crédito brasileiro."""
     rng = np.random.default_rng(seed)
@@ -365,6 +399,7 @@ def _treinar_com_df(df: pd.DataFrame) -> None:
     cv  = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
     acc = cross_val_score(clf, X_clf, y, cv=cv, scoring="accuracy")
     print(f"      CV Acurácia: {acc.mean():.2%} ± {acc.std():.2%}")
+    auc = None
     if len(np.unique(y)) == 2:
         auc = cross_val_score(clf, X_clf, y, cv=cv, scoring="roc_auc")
         print(f"      CV AUC-ROC:  {auc.mean():.3f} ± {auc.std():.3f}")
@@ -393,9 +428,8 @@ def _treinar_com_df(df: pd.DataFrame) -> None:
 
     print("[6/6] Salvando modelos")
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
-    joblib.dump(clf_to_save, MODEL_DIR / "mizan_model.pkl")
-    joblib.dump(kmeans, MODEL_DIR / "kmeans.pkl")
-    joblib.dump({
+    versao = f"vs_{_dt.now().strftime('%Y%m%d_%H%M%S')}"
+    meta = {
         "scaler":               scaler,
         "cat_cols":             cat_cols,
         "features_numericas":   features_numericas,
@@ -406,8 +440,26 @@ def _treinar_com_df(df: pd.DataFrame) -> None:
         "cluster_labels":       cluster_labels,
         "k":                    k_ideal,
         "model_version":        MODEL_VERSION,
-    }, MODEL_DIR / "scaler.pkl")
-    print(f"\nConcluído. Arquivos salvos em: {MODEL_DIR}")
+        "versao":               versao,
+    }
+    # Ativo (o que o score.py carrega) e cópia versionada, para dar para voltar.
+    for destino in (MODEL_DIR / "mizan_model.pkl", MODEL_DIR / f"mizan_model_{versao}.pkl"):
+        joblib.dump(clf_to_save, destino)
+    for destino in (MODEL_DIR / "kmeans.pkl", MODEL_DIR / f"kmeans_{versao}.pkl"):
+        joblib.dump(kmeans, destino)
+    for destino in (MODEL_DIR / "scaler.pkl", MODEL_DIR / f"scaler_{versao}.pkl"):
+        joblib.dump(meta, destino)
+
+    _metricas = {
+        "cv_acuracia_media": round(float(acc.mean()), 4),
+        "cv_acuracia_std":   round(float(acc.std()), 4),
+        "n_splits":          n_splits,
+    }
+    if auc is not None:
+        _metricas["cv_auc_media"] = round(float(auc.mean()), 4)
+        _metricas["cv_auc_std"]   = round(float(auc.std()), 4)
+    _registrar_versao(versao, n_amostras=int(n_tot), metricas=_metricas)
+    print(f"\nConcluído. Versão {versao} salva em: {MODEL_DIR}")
 
 
 def treinar(caminho: str) -> None:
