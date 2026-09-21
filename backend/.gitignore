@@ -5,3 +5,6 @@ __pycache__/
 usuarios.json
 db_sync_config.json
 model/bandit.pkl
+
+# Base pública baixada sob demanda pelo script de validação — não versionar.
+validacao/german_credit.csv

@@ -26,7 +26,6 @@ import joblib
 import numpy as np
 import pandas as pd
 from sklearn.calibration import CalibratedClassifierCV
-from sklearn.frozen import FrozenEstimator
 from sklearn.cluster import KMeans
 from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.model_selection import StratifiedKFold, TimeSeriesSplit, cross_val_score, train_test_split
@@ -452,11 +451,17 @@ def retreinar(
     X_clf = np.column_stack([X_scaled, clusters])
     # min_leaf conservador: evita overfitting em datasets pequenos
     min_leaf = max(5, min(20, n_amostras // 50))
-    clf = HistGradientBoostingClassifier(
+    params_clf = dict(
+
         max_iter=200, max_depth=4, learning_rate=0.05,
+
         min_samples_leaf=min_leaf, l2_regularization=1.0,
+
         class_weight="balanced", random_state=42,
+
     )
+
+    clf = HistGradientBoostingClassifier(**params_clf)
     clf.fit(X_clf, y)
 
     print("\n[5.5/6] Avaliando com cross-validation + holdout real...")
@@ -487,25 +492,28 @@ def retreinar(
         print("\n[DRY RUN] Avaliação concluída. Nenhum arquivo salvo.")
         return {"ok": True, "dry_run": True, "metricas": metricas, "n_amostras": n_amostras}
 
-    # Calibração de probabilidade (Platt scaling) quando há amostras suficientes
+    # Calibração de probabilidade (Platt scaling) quando há dados suficientes.
+    #
+    # Usa validação cruzada em vez de separar um holdout. A calibração é
+    # monotônica — não muda ordenação —, então o custo de calibrar não está no
+    # Platt, está em treinar o modelo base com menos dados. Medido na base
+    # pública German Credit (validacao/validar_pipeline.py), guardar 20% para
+    # calibrar custava 6,2 pontos de KS; com cv=5 o modelo aprende de tudo e
+    # calibra por cross-fitting. Em base grande as duas empatam; em base
+    # pequena, que é a situação de um cliente nos primeiros meses, o cv ganha.
     clf_to_save = clf
     if n_amostras >= 150 and len(np.unique(y)) == 2:
         try:
-            X_tr, X_cal, y_tr, y_cal = train_test_split(
-                X_clf, y, test_size=0.2, stratify=y, random_state=42,
+            n_folds = max(2, min(5, int(y.sum()), int(n_amostras - y.sum())))
+            clf_to_save = CalibratedClassifierCV(
+                HistGradientBoostingClassifier(**params_clf),
+                method="sigmoid", cv=n_folds,
             )
-            clf_base = HistGradientBoostingClassifier(
-                max_iter=200, max_depth=4, learning_rate=0.05,
-                min_samples_leaf=min_leaf, l2_regularization=1.0,
-                class_weight="balanced", random_state=42,
-            )
-            clf_base.fit(X_tr, y_tr)
-            clf_to_save = CalibratedClassifierCV(FrozenEstimator(clf_base), method="sigmoid")
-            clf_to_save.fit(X_cal, y_cal)
-            print("      Calibração Platt aplicada.")
+            clf_to_save.fit(X_clf, y)
+            print(f"      Calibração Platt aplicada (cv={n_folds}).")
         except Exception as _ce:
             print(f"      Calibração ignorada: {_ce}")
-
+            clf_to_save = clf
     print("\n[6/6] Salvando modelo versionado...")
     versoes = _carregar_versoes()
     versao  = _proxima_versao(versoes)

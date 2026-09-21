@@ -56,7 +56,23 @@
    },
    "promovido": true,
    "promovido_em": "2026-09-21T23:02:33.397359+00:00"
+  },
+  {
+   "versao": "vs_20260921_231839",
+   "criado_em": "2026-09-21T23:18:40.020130+00:00",
+   "n_amostras": 3000,
+   "n_feedbacks_reais": 0,
+   "tipo_alvo": "simulado",
+   "metricas": {
+    "cv_acuracia_media": 0.9733,
+    "cv_acuracia_std": 0.0068,
+    "n_splits": 5,
+    "cv_auc_media": 0.9977,
+    "cv_auc_std": 0.0013
+   },
+   "promovido": true,
+   "promovido_em": "2026-09-21T23:18:40.020152+00:00"
   }
  ],
- "versao_ativa": "vs_20260921_230233"
+ "versao_ativa": "vs_20260921_231839"
 }
