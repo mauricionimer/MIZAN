@@ -73,6 +73,78 @@ def _matriz_confusao_dict(y_true, y_pred) -> dict:
     }
 
 
+def _ks_gini(y_true, y_proba) -> dict:
+    """KS e Gini — o vocabulário que uma mesa de crédito usa para julgar modelo.
+
+    KS (Kolmogorov-Smirnov): maior distância entre as curvas acumuladas de quem
+    pagou e de quem não pagou, em escala 0–100. Responde "o modelo separa os
+    dois grupos?", que é a pergunta que importa numa operação de fila: não se
+    liga para a carteira inteira, liga-se para o topo dela.
+
+    Gini: derivado do AUC por Gini = 2 × AUC − 1, em escala 0–100. Mesma
+    informação do AUC, no vocabulário que o mercado pede.
+
+    Réguas conforme o material de referência (design/MIZAN_REDESIGN não cobre
+    isso; vem do documento de fundamentos de crédito):
+      KS   < 20 fraco · 20–30 regular · 30–40 bom · 40–50 forte · > 50 suspeito
+      Gini < 20 fraco · 20–40 regular · 40–60 bom · > 60 forte
+
+    KS acima de 50 costuma indicar vazamento de dados — alguma variável que
+    carrega a resposta —, por isso é sinalizado como suspeito, não como ótimo.
+    """
+    y_true = np.asarray(y_true).astype(int)
+    y_proba = np.asarray(y_proba, dtype=float)
+
+    if len(np.unique(y_true)) < 2:
+        return {"ok": False, "motivo": "Holdout tem uma única classe; KS e Gini não se aplicam."}
+
+    ordem = np.argsort(y_proba)
+    y_ord = y_true[ordem]
+
+    n_bons = int(y_ord.sum())          # pagou
+    n_maus = int(len(y_ord) - n_bons)  # não pagou
+    if n_bons == 0 or n_maus == 0:
+        return {"ok": False, "motivo": "Holdout sem os dois desfechos; KS e Gini não se aplicam."}
+
+    acum_bons = np.cumsum(y_ord) / n_bons
+    acum_maus = np.cumsum(1 - y_ord) / n_maus
+    distancias = np.abs(acum_bons - acum_maus)
+    ks = round(float(distancias.max()) * 100, 1)
+
+    auc = float(roc_auc_score(y_true, y_proba))
+    gini = round((2 * auc - 1) * 100, 1)
+
+    if ks > 50:
+        leitura_ks = "suspeito"
+    elif ks >= 40:
+        leitura_ks = "forte"
+    elif ks >= 30:
+        leitura_ks = "bom"
+    elif ks >= 20:
+        leitura_ks = "regular"
+    else:
+        leitura_ks = "fraco"
+
+    if gini >= 60:
+        leitura_gini = "forte"
+    elif gini >= 40:
+        leitura_gini = "bom"
+    elif gini >= 20:
+        leitura_gini = "regular"
+    else:
+        leitura_gini = "fraco"
+
+    return {
+        "ok": True,
+        "ks": ks,
+        "ks_leitura": leitura_ks,
+        "gini": gini,
+        "gini_leitura": leitura_gini,
+        "n_pagou": n_bons,
+        "n_nao_pagou": n_maus,
+    }
+
+
 def _calibracao_por_faixa(y_true, y_proba, n_faixas: int = 5) -> list[dict]:
     """
     Reliability diagram simplificado: divide as previsões em faixas de probabilidade
@@ -192,5 +264,6 @@ def avaliar_qualidade() -> dict:
             "brier_score": brier,
             "matriz_confusao": _matriz_confusao_dict(y_ho, y_pred_ho),
         },
+        "separacao": _ks_gini(y_ho, y_proba_ho),
         "calibracao_por_faixa": _calibracao_por_faixa(y_ho, y_proba_ho),
     }

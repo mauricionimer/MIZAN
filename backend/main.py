@@ -2025,13 +2025,31 @@ def _ler_google_sheets(conn: ConexaoDB) -> pd.DataFrame:
 PREMISSA_RECUPERACAO_SE_PAGAR_PADRAO = 1.0
 
 
+def _psi_da_carteira(scores: list) -> dict:
+    """PSI desta carteira contra a distribuição de score congelada no treino.
+
+    Roda a cada análise porque é aí que existe a população atual. Nunca derruba
+    a análise: sem referência utilizável, devolve o motivo e a tela mostra isso
+    em vez de um número.
+    """
+    try:
+        import joblib
+
+        from model.psi import calcular
+        from model.score import MODEL_DIR as _SCORE_DIR
+        meta = joblib.load(_SCORE_DIR / "scaler.pkl")
+        return calcular(scores, meta.get("psi_referencia"))
+    except Exception as e:
+        return {"ok": False, "motivo": f"Não foi possível calcular o PSI: {e}"}
+
+
 # Colunas de predicoes acrescentadas depois que o sistema já estava no ar. Não
 # há migração automática no boot: o ALTER TABLE de sql/schema.sql é rodado à
 # mão no Supabase. Se o código subir antes do SQL, o insert inteiro falharia e
 # nenhuma análise seria gravada — perder o enriquecimento é ruim, perder a
 # carteira é bem pior. Aqui a gravação cai para o conjunto antigo de colunas e
 # avisa no log, em vez de derrubar a análise.
-_COLUNAS_PREDICAO_OPCIONAIS = ("probabilidade_pagamento", "origem_taxa")
+_COLUNAS_PREDICAO_OPCIONAIS = ("probabilidade_pagamento", "origem_taxa", "perda_esperada", "lgd")
 
 
 def _inserir_predicoes(db, linhas: list[dict]):
@@ -2174,10 +2192,20 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
         ).round(4)
         resultado["origem_taxa"] = "premissa"
 
+    _ead = resultado["valor_divida"].fillna(0).astype(float).clip(lower=0)
     resultado["valor_esperado_recuperacao"] = (
-        resultado["valor_divida"].fillna(0).astype(float).clip(lower=0)
-        * resultado["taxa_recuperacao_prevista"].astype(float)
+        _ead * resultado["taxa_recuperacao_prevista"].astype(float)
     ).round(2)
+
+    # Perda esperada, no vocabulário de Basileia que a mesa de risco usa:
+    #   EAD  exposição — o saldo devedor, que aqui é dado, não estimativa,
+    #        porque o default já aconteceu
+    #   LGD  perda dado o default — 1 menos a taxa de recuperação
+    #   EL   perda esperada — EAD × LGD
+    # Numa carteira já inadimplente não há PD a prever: o que interessa é
+    # quanto do exposto não volta.
+    resultado["lgd"] = (1 - resultado["taxa_recuperacao_prevista"].astype(float)).clip(0, 1).round(4)
+    resultado["perda_esperada"] = (_ead - resultado["valor_esperado_recuperacao"]).round(2)
 
     resultado_sorted = resultado.sort_values("score_recuperabilidade", ascending=False).reset_index(drop=True)
     resultado_sorted.insert(0, "rank", range(1, len(resultado_sorted) + 1))
@@ -2227,6 +2255,14 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
         "criado_por":       _usuario_email or "",
         "criado_em":        datetime.utcnow().isoformat(),
         "precificacao_ml":  _precificacao_ml,
+        # Esta carteira ainda parece com aquela em que o modelo aprendeu?
+        "psi":              _psi_da_carteira(resultado["score_recuperabilidade"].tolist()),
+        # Perda esperada da carteira — o número que vai para a provisão.
+        "ead_total":            round(total_em_risco, 2),
+        "perda_esperada_total": round(total_em_risco - ver_total, 2),
+        "lgd_medio_ponderado":  round(
+            (total_em_risco - ver_total) / total_em_risco, 4
+        ) if total_em_risco else 0.0,
     }
 
     try:
@@ -2289,7 +2325,9 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
              "aviso_dados": str(d.get("aviso_dados") or ""),
              "taxa_recuperacao_prevista": _py(d.get("taxa_recuperacao_prevista")),
              "probabilidade_pagamento": _py(d.get("probabilidade_pagamento")),
-             "origem_taxa": str(d.get("origem_taxa") or "")}
+             "origem_taxa": str(d.get("origem_taxa") or ""),
+             "perda_esperada": _py(d.get("perda_esperada")),
+             "lgd": _py(d.get("lgd"))}
             for d in devedores
         ]
         pred_id_map: dict[str, str] = {}

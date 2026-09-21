@@ -233,17 +233,17 @@ export default function AprendizadoDashboard() {
                 Fica antes de qualquer métrica de propósito: número de modelo
                 treinado em dado insuficiente não deve ser lido sem a ressalva. */}
             {qualidade?.procedencia && qualidade.procedencia.nivel !== 'ok' && (
-              <div className="flex items-start gap-3 rounded-2xl px-5 py-4 text-sm text-amber-300"
-                style={{ background: 'rgb(var(--c-warning) / 0.10)', border: '1px solid rgb(var(--c-warning) / 0.25)' }}>
-                <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+              <div className="flex items-start gap-3 rounded-2xl px-5 py-4 text-sm"
+                style={{ background: 'rgb(var(--c-warning) / 0.10)', border: '1px solid rgb(var(--c-warning) / 0.25)', color: 'var(--ink)' }}>
+                <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-400" />
                 <div>
                   <p className="font-semibold">
                     {qualidade.procedencia.nivel === 'sintetico'
                       ? 'Modelo em calibração inicial'
                       : 'Modelo com base real insuficiente'}
                   </p>
-                  <p className="opacity-90 mt-0.5">{qualidade.procedencia.aviso}</p>
-                  <p className="opacity-75 mt-1.5 text-xs tnum">
+                  <p className="mt-0.5" style={{ color: 'var(--ink-2)' }}>{qualidade.procedencia.aviso}</p>
+                  <p className="mt-1.5 text-xs tnum" style={{ color: 'var(--ink-2)' }}>
                     Versão ativa: {qualidade.procedencia.versao_ativa}
                     {qualidade.procedencia.n_feedbacks_reais != null && (
                       <> · {qualidade.procedencia.n_feedbacks_reais} de {qualidade.procedencia.minimo_recomendado} resultados reais</>
@@ -302,6 +302,47 @@ export default function AprendizadoDashboard() {
                       </div>
                     )
                   })()}
+
+                  {/* KS e Gini — o vocabulário que uma mesa de crédito usa.
+                      Vêm antes da acurácia porque é o que se pergunta primeiro. */}
+                  {qualidade.separacao && (
+                    <div>
+                      <p className="section-label mb-3">Separação — o modelo afasta quem paga de quem não paga?</p>
+                      {qualidade.separacao.ok ? (
+                        <div className="grid grid-cols-2 gap-4">
+                          {[
+                            { sigla: 'KS', valor: qualidade.separacao.ks, leitura: qualidade.separacao.ks_leitura,
+                              regua: '< 20 fraco · 30–40 bom · > 50 suspeito' },
+                            { sigla: 'Gini', valor: qualidade.separacao.gini, leitura: qualidade.separacao.gini_leitura,
+                              regua: '< 20 fraco · 40–60 bom · > 60 forte' },
+                          ].map(m => {
+                            const cor = m.leitura === 'suspeito' ? 'var(--warning)'
+                              : m.leitura === 'fraco' ? 'var(--danger)'
+                              : m.leitura === 'regular' ? 'var(--ink-2)' : 'var(--success)'
+                            return (
+                              <div key={m.sigla} className="rounded-xl p-4" style={{ background: 'var(--raise-2)' }}>
+                                <div className="flex items-baseline justify-between">
+                                  <span className="section-label">{m.sigla}</span>
+                                  <span className="text-xs font-semibold" style={{ color: cor }}>{m.leitura}</span>
+                                </div>
+                                <p className="tnum text-2xl font-bold mt-1" style={{ color: cor }}>{m.valor}</p>
+                                <p className="text-xs mt-1" style={{ color: MUTED }}>{m.regua}</p>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-xs" style={{ color: MUTED }}>{qualidade.separacao.motivo}</p>
+                      )}
+                      {qualidade.separacao.ok && qualidade.separacao.ks_leitura === 'suspeito' && (
+                        <p className="text-xs mt-2" style={{ color: 'var(--warning)' }}>
+                          KS acima de 50 costuma indicar vazamento de dados — alguma variável carregando a
+                          resposta. Em modelo treinado em dados simulados é esperado, porque o gerador cria o
+                          alvo a partir das mesmas variáveis que o modelo lê.
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   {/* Treino vs CV vs Holdout */}
                   <div>

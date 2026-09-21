@@ -250,6 +250,28 @@ def _gerar_labels_clusters(df_cl: pd.DataFrame, n_clusters: int) -> dict[int, st
     return labels
 
 
+def _referencia_psi(clf, X_clf):
+    """Distribuição de score do modelo sobre o próprio treino, em faixas.
+
+    É a fotografia contra a qual o PSI compara as carteiras analisadas depois.
+    Falhar aqui não pode derrubar o treino: sem referência o PSI apenas não é
+    calculado, e a tela diz isso.
+    """
+    try:
+        # train.py roda dos dois jeitos: como script (`python model/train.py`,
+        # com model/ no path) e como módulo do pacote. Cada forma enxerga um
+        # caminho de import diferente.
+        try:
+            from model.psi import construir_referencia
+        except ImportError:
+            from psi import construir_referencia
+        scores = (clf.predict_proba(X_clf)[:, 1] * 100).round(1).tolist()
+        return construir_referencia(scores)
+    except Exception as e:
+        print(f"[train] Não foi possível gravar a referência de PSI: {e}")
+        return {"ok": False, "motivo": str(e)}
+
+
 def _registrar_versao(versao: str, n_amostras: int, metricas: dict) -> None:
     """Registra a baseline sintética em versions.json como versão de primeira classe.
 
@@ -441,6 +463,9 @@ def _treinar_com_df(df: pd.DataFrame) -> None:
         "k":                    k_ideal,
         "model_version":        MODEL_VERSION,
         "versao":               versao,
+        # Distribuição de score do treino, congelada para o PSI comparar depois.
+        # Sem isto não há contra o que medir deslocamento de população.
+        "psi_referencia":       _referencia_psi(clf_to_save, X_clf),
     }
     # Ativo (o que o score.py carrega) e cópia versionada, para dar para voltar.
     for destino in (MODEL_DIR / "mizan_model.pkl", MODEL_DIR / f"mizan_model_{versao}.pkl"):

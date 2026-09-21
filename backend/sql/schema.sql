@@ -55,6 +55,12 @@ ALTER TABLE predicoes ADD COLUMN IF NOT EXISTS taxa_recuperacao_prevista NUMERIC
 ALTER TABLE predicoes ADD COLUMN IF NOT EXISTS probabilidade_pagamento   NUMERIC(5,4);
 ALTER TABLE predicoes ADD COLUMN IF NOT EXISTS origem_taxa               TEXT DEFAULT '';
 
+-- Perda esperada no vocabulário de Basileia. Numa carteira já inadimplente o
+-- default aconteceu, então não há PD a prever: EAD é o próprio saldo devedor,
+-- LGD é 1 menos a taxa de recuperação, e EL = EAD × LGD.
+ALTER TABLE predicoes ADD COLUMN IF NOT EXISTS perda_esperada            NUMERIC(15,2);
+ALTER TABLE predicoes ADD COLUMN IF NOT EXISTS lgd                       NUMERIC(5,4);
+
 -- ── Feedbacks ────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS feedbacks (
   id               UUID DEFAULT gen_random_uuid() PRIMARY KEY,

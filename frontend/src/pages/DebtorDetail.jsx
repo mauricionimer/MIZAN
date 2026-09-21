@@ -59,8 +59,37 @@ function ExplicacaoScore({ explicacao, loading, erro }) {
   const relevantes = explicacao.contribuicoes.filter(c => Math.abs(c.impacto_pontos) >= 0.1).slice(0, 6)
   const maiorImpacto = Math.max(1, ...relevantes.map(c => Math.abs(c.impacto_pontos)))
 
+  const rc = explicacao.reason_codes
+
   return (
     <div>
+      {/* Reason codes: a leitura em linguagem de negócio, antes do detalhe
+          numérico. É o que vai para o operador, para o devedor e, se
+          precisar, para o regulador — sem expor peso de modelo. */}
+      {rc && (rc.desfavoraveis?.length > 0 || rc.favoraveis?.length > 0 || rc.motivo) && (
+        <div className="mb-5 rounded-xl p-4" style={{ background: 'var(--raise-2)' }}>
+          <p className="section-label mb-3">Principais motivos</p>
+          {rc.motivo ? (
+            <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-3)' }}>{rc.motivo}</p>
+          ) : (
+            <div className="space-y-2.5">
+              {rc.desfavoraveis?.map(m => (
+                <div key={`d-${m.variavel}`} className="flex items-start gap-2.5">
+                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: 'var(--danger)' }} />
+                  <span className="text-sm" style={{ color: 'var(--ink)' }}>{m.motivo}</span>
+                </div>
+              ))}
+              {rc.favoraveis?.map(m => (
+                <div key={`f-${m.variavel}`} className="flex items-start gap-2.5">
+                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: 'var(--success)' }} />
+                  <span className="text-sm" style={{ color: 'var(--ink)' }}>{m.motivo}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <p className="text-xs mb-4 leading-relaxed" style={{ color: 'var(--ink-2)' }}>
         Comparação com o devedor médio da base de treino — o que empurrou este score para cima ou para baixo.
       </p>

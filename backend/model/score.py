@@ -188,6 +188,113 @@ def _pontuar_registro(registro: dict, meta: dict, scaler, clf, kmeans, cluster_f
 _FEATURES_DERIVADAS = {"comprometimento_renda", "log_valor_divida", "log_renda", "valor_por_dia"}
 
 
+# ── Reason codes ────────────────────────────────────────────────────────────
+# Tradução das variáveis do modelo para linguagem que vai ao operador, ao
+# devedor e, se preciso, ao regulador — sem expor peso de modelo.
+#
+# Cada variável tem duas leituras, porque o mesmo fator pode pesar nos dois
+# sentidos: 'negativo' quando derrubou o score, 'positivo' quando sustentou.
+# Só entram variáveis que o modelo de fato usa; o que não estiver aqui cai no
+# nome da própria variável, para nunca sumir da explicação silenciosamente.
+REASON_CODES: dict[str, dict[str, str]] = {
+    "dias_em_atraso": {
+        "negativo": "Tempo de inadimplência elevado",
+        "positivo": "Atraso recente, ainda no início da régua",
+    },
+    "score_bureau": {
+        "negativo": "Histórico restritivo no mercado",
+        "positivo": "Histórico favorável no mercado",
+    },
+    "valor_divida": {
+        "negativo": "Valor da dívida acima do perfil da carteira",
+        "positivo": "Valor da dívida dentro do perfil da carteira",
+    },
+    "renda_estimada": {
+        "negativo": "Renda estimada abaixo do perfil da carteira",
+        "positivo": "Renda estimada compatível com a dívida",
+    },
+    "comprometimento_renda": {
+        "negativo": "Dívida alta em relação à renda estimada",
+        "positivo": "Dívida proporcional à renda estimada",
+    },
+    "tentativas_contato": {
+        "negativo": "Muitas tentativas de contato sem desfecho",
+        "positivo": "Poucas tentativas de contato até aqui",
+    },
+    "promessa_quebrada": {
+        "negativo": "Acordo anterior não cumprido",
+        "positivo": "Sem acordo descumprido no histórico",
+    },
+    "produto": {
+        "negativo": "Modalidade de crédito com recuperação historicamente menor",
+        "positivo": "Modalidade de crédito com recuperação historicamente maior",
+    },
+    "status": {
+        "negativo": "Situação cadastral desfavorável",
+        "positivo": "Situação cadastral favorável",
+    },
+    "uf": {
+        "negativo": "Região com recuperação historicamente menor",
+        "positivo": "Região com recuperação historicamente maior",
+    },
+    "mes_analise": {
+        "negativo": "Época do ano desfavorável à cobrança",
+        "positivo": "Época do ano favorável à cobrança",
+    },
+}
+
+# Abaixo disso a variável não explica nada de útil e só polui a leitura.
+IMPACTO_MINIMO_REASON_CODE = 1.0
+
+# Quantos motivos mostrar. Três é o que cabe numa justificativa legível sem
+# virar despejo de modelo.
+MAX_REASON_CODES = 3
+
+
+def _reason_codes(contribuicoes: list[dict], limite: int = MAX_REASON_CODES) -> dict:
+    """Converte as contribuições numéricas nos motivos que puxaram o score.
+
+    Separa em dois grupos porque são perguntas diferentes: o que derrubou
+    (o que o devedor precisaria mudar) e o que sustentou (o que pesa a favor).
+    """
+    def traduzir(c: dict) -> dict:
+        impacto = c["impacto_pontos"]
+        sentido = "negativo" if impacto < 0 else "positivo"
+        textos = REASON_CODES.get(c["variavel"])
+        return {
+            "variavel": c["variavel"],
+            "motivo": textos[sentido] if textos else c["variavel"].replace("_", " ").capitalize(),
+            "impacto_pontos": impacto,
+            "traduzido": textos is not None,
+        }
+
+    relevantes = [c for c in contribuicoes if abs(c["impacto_pontos"]) >= IMPACTO_MINIMO_REASON_CODE]
+    negativos = sorted([c for c in relevantes if c["impacto_pontos"] < 0],
+                       key=lambda c: c["impacto_pontos"])[:limite]
+    positivos = sorted([c for c in relevantes if c["impacto_pontos"] > 0],
+                       key=lambda c: -c["impacto_pontos"])[:limite]
+
+    saida = {
+        "desfavoraveis": [traduzir(c) for c in negativos],
+        "favoraveis": [traduzir(c) for c in positivos],
+        "impacto_minimo": IMPACTO_MINIMO_REASON_CODE,
+    }
+
+    # Score saturado (0 ou 100) zera toda contribuição: com a nota no teto ou
+    # no chão, trocar uma variável sozinha não move nada, e o método ceteris
+    # paribus não tem o que medir. Acontece sobretudo com modelo treinado em
+    # dados simulados, que separa artificialmente bem. Melhor dizer isso do que
+    # devolver uma lista vazia sem explicação.
+    if not saida["desfavoraveis"] and not saida["favoraveis"]:
+        saida["motivo"] = (
+            "Nenhuma variável isolada altera este score de forma relevante. "
+            "Ocorre quando a nota está no extremo da escala: com o score saturado, "
+            "mudar um fator por vez não desloca o resultado. A explicação volta a "
+            "existir quando o modelo produzir notas mais graduadas."
+        )
+    return saida
+
+
 def explicar_predicao(registro: dict) -> dict:
     """
     Explicação local do score de UM devedor: para cada variável do modelo, compara o
@@ -250,4 +357,5 @@ def explicar_predicao(registro: dict) -> dict:
         "score": score_real,
         "cluster_id": cluster_real,
         "contribuicoes": contribuicoes,
+        "reason_codes": _reason_codes(contribuicoes),
     }

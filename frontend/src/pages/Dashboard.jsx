@@ -699,6 +699,60 @@ export default function Dashboard() {
                 <span><span className="font-medium text-ink-2">Retorno</span> = Lucro ÷ Preço</span>
               </div>
 
+              {/* Perda esperada — EAD, LGD e EL, o vocabulário de provisão.
+                  Numa carteira já inadimplente não há PD a prever: o default
+                  aconteceu, e o que interessa é quanto do exposto não volta. */}
+              {resumo?.perda_esperada_total != null && (
+                <div className="mt-5 border-t border-line pt-4">
+                  <p className="section-label mb-3">Perda esperada da carteira</p>
+                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                    {[
+                      { sigla: 'EAD', rotulo: 'Exposição', valor: fmtBRL(resumo.ead_total),
+                        nota: 'saldo devedor — dado, não estimativa' },
+                      { sigla: 'LGD', rotulo: 'Perda dado o default',
+                        valor: `${((resumo.lgd_medio_ponderado ?? 0) * 100).toFixed(1)}%`,
+                        nota: 'média ponderada pela exposição' },
+                      { sigla: 'EL', rotulo: 'Perda esperada', valor: fmtBRL(resumo.perda_esperada_total),
+                        nota: 'EAD × LGD', destaque: true },
+                      { sigla: 'VER', rotulo: 'Recuperação esperada',
+                        valor: fmtBRL(resumo.valor_esperado_recuperacao_total),
+                        nota: 'EAD − EL' },
+                    ].map(m => (
+                      <div key={m.sigla} className="card px-4 py-3">
+                        <div className="flex items-baseline gap-2">
+                          <span className="section-label">{m.sigla}</span>
+                          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{m.rotulo}</span>
+                        </div>
+                        <p className="tnum text-lg font-semibold mt-1"
+                          style={{ color: m.destaque ? 'var(--danger)' : 'var(--text)' }}>
+                          {m.valor}
+                        </p>
+                        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{m.nota}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* PSI — esta carteira ainda parece com a do treino? */}
+              {resumo?.psi && (
+                <div className="mt-4">
+                  {resumo.psi.ok ? (
+                    <p className="text-xs" style={{
+                      color: resumo.psi.nivel === 'critico' ? 'var(--danger)'
+                        : resumo.psi.nivel === 'atencao' ? 'var(--warning)' : 'var(--text-muted)',
+                    }}>
+                      <span className="font-semibold">PSI {resumo.psi.psi}</span> — {resumo.psi.leitura}
+                      {' '}(atenção acima de {resumo.psi.corte_atencao}, crítico acima de {resumo.psi.corte_critico})
+                    </p>
+                  ) : (
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                      <span className="font-semibold">PSI indisponível</span> — {resumo.psi.motivo}
+                    </p>
+                  )}
+                </div>
+              )}
+
               {!resumo?.precificacao_ml && (
                 <p className="mt-3 text-xs" style={{ color: 'var(--text-muted)' }}>
                   Sem resultados reais suficientes, a taxa de recuperação não é medida: ela é a
