@@ -2015,6 +2015,36 @@ def _ler_google_sheets(conn: ConexaoDB) -> pd.DataFrame:
     return pd.DataFrame(dados)
 
 
+# Premissa: quanto do saldo devedor entra quando o devedor efetivamente paga.
+# 1.0 = pagamento integral. É o que o sistema já assumia de forma implícita ao
+# usar score/100 como taxa de recuperação; agora fica declarado, visível e
+# ajustável por empresa em empresa_config.extra.recuperacao_se_pagar.
+#
+# Não há valor "de mercado" chutado aqui de propósito: enquanto a empresa não
+# declarar o seu, vale 1.0 e a interface mostra que é premissa, não medição.
+PREMISSA_RECUPERACAO_SE_PAGAR_PADRAO = 1.0
+
+
+def _premissa_recuperacao_se_pagar(empresa_id: str | None) -> float:
+    """Lê a premissa da empresa; cai no padrão declarado se não houver."""
+    if not empresa_id:
+        return PREMISSA_RECUPERACAO_SE_PAGAR_PADRAO
+    try:
+        res = (
+            get_db().table("empresa_config")
+            .select("extra").eq("empresa_id", empresa_id).limit(1).execute()
+        )
+        extra = (res.data or [{}])[0].get("extra") or {}
+        valor = float(extra.get("recuperacao_se_pagar"))
+    except (TypeError, ValueError, KeyError, IndexError, AttributeError):
+        return PREMISSA_RECUPERACAO_SE_PAGAR_PADRAO
+    except Exception:
+        return PREMISSA_RECUPERACAO_SE_PAGAR_PADRAO
+    if not (0 < valor <= 1):
+        return PREMISSA_RECUPERACAO_SE_PAGAR_PADRAO
+    return valor
+
+
 def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _usuario_email: str = None, _empresa_id: str = None, _carteira_id_existente: str = None) -> dict:
     """Executa o pipeline de scoring em um DataFrame já carregado e persiste no Supabase."""
     # Aplica CAMPO_ALIASES para mapear colunas de qualquer fonte (CSV, Excel, DB)
@@ -2075,25 +2105,48 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro na análise: {e}")
 
-    # Tenta usar o price model de regressão para estimar a taxa de recuperação real.
-    # Fallback para score/100 se o modelo ainda não existir (poucos feedbacks).
+    # ── Taxa de recuperação: duas grandezas distintas ───────────────────────
+    # O sistema tratava como uma só o que são duas perguntas diferentes:
+    #
+    #   probabilidade_pagamento  P(o devedor paga alguma coisa)  → classificador
+    #   recuperacao_se_pagar     quanto do saldo entra quando paga → premissa/modelo
+    #
+    # A taxa de recuperação ESPERADA é o produto das duas, e é ela que
+    # multiplica o saldo devedor para virar valor esperado de recuperação.
+    #
+    # Com o price model treinado, ele já devolve a taxa esperada incondicional
+    # (quem não pagou entra no treino com 0), então não se multiplica de novo
+    # pela probabilidade — seria contar duas vezes.
+    #
+    # Sem ele, a taxa vem de uma premissa declarada por empresa, e o campo
+    # origem_taxa registra qual dos dois caminhos produziu o número, para a
+    # interface poder dizer em que o valor se apoia.
+    resultado["probabilidade_pagamento"] = (
+        resultado["score_recuperabilidade"].astype(float) / 100
+    ).clip(0, 1).round(4)
+
     _precificacao_ml = False
     try:
         from model.price_model import prever as _prever_taxa
         _taxas = _prever_taxa(resultado.to_dict("records"))
         if _taxas is not None:
             resultado["taxa_recuperacao_prevista"] = _taxas
-            resultado["valor_esperado_recuperacao"] = (
-                resultado["valor_divida"].fillna(0).astype(float).clip(lower=0) * _taxas
-            ).round(2)
+            resultado["origem_taxa"] = "modelo"
             _precificacao_ml = True
     except Exception:
         pass
+
     if not _precificacao_ml:
-        resultado["taxa_recuperacao_prevista"] = resultado["score_recuperabilidade"] / 100
-        resultado["valor_esperado_recuperacao"] = (
-            resultado["score_recuperabilidade"] / 100 * resultado["valor_divida"]
-        ).round(2)
+        _rec_se_pagar = _premissa_recuperacao_se_pagar(_empresa_id)
+        resultado["taxa_recuperacao_prevista"] = (
+            resultado["probabilidade_pagamento"] * _rec_se_pagar
+        ).round(4)
+        resultado["origem_taxa"] = "premissa"
+
+    resultado["valor_esperado_recuperacao"] = (
+        resultado["valor_divida"].fillna(0).astype(float).clip(lower=0)
+        * resultado["taxa_recuperacao_prevista"].astype(float)
+    ).round(2)
 
     resultado_sorted = resultado.sort_values("score_recuperabilidade", ascending=False).reset_index(drop=True)
     resultado_sorted.insert(0, "rank", range(1, len(resultado_sorted) + 1))
@@ -2203,7 +2256,9 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
              "perfil_cluster": d.get("perfil_cluster"), "cluster_id": _py(d.get("cluster_id")),
              "dados_incompletos": bool(d.get("dados_incompletos", False)),
              "aviso_dados": str(d.get("aviso_dados") or ""),
-             "taxa_recuperacao_prevista": _py(d.get("taxa_recuperacao_prevista"))}
+             "taxa_recuperacao_prevista": _py(d.get("taxa_recuperacao_prevista")),
+             "probabilidade_pagamento": _py(d.get("probabilidade_pagamento")),
+             "origem_taxa": str(d.get("origem_taxa") or "")}
             for d in devedores
         ]
         pred_id_map: dict[str, str] = {}
@@ -3270,9 +3325,56 @@ def admin_modelo_qualidade(credentials: HTTPAuthorizationCredentials = Security(
     _exigir_comando(credentials)
     from model.diagnostico import avaliar_qualidade
     try:
-        return avaliar_qualidade()
+        resultado = avaliar_qualidade()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao avaliar qualidade do modelo: {e}")
+
+    # Procedência do modelo ativo. A interface precisa disso para dizer em que
+    # dado o score se apoia: um banco desconfia mais de quem não mostra a régua
+    # do que de quem admite estar em calibração inicial.
+    resultado["procedencia"] = _procedencia_modelo_ativo()
+    return resultado
+
+
+def _procedencia_modelo_ativo() -> dict:
+    """Origem e confiabilidade declarada do modelo que está decidendo hoje."""
+    from model.retrain import MIN_FEEDBACKS_DEFAULT
+    try:
+        from model.retrain import _carregar_versoes
+        versoes = _carregar_versoes()
+        ativa = versoes.get("versao_ativa", "v1_inicial")
+        meta = next((v for v in versoes.get("versoes", []) if v.get("versao") == ativa), {})
+    except Exception:
+        ativa, meta = "v1_inicial", {}
+
+    n = meta.get("n_feedbacks_reais")
+    if n is None:
+        n = meta.get("n_amostras")
+    tipo_alvo = meta.get("tipo_alvo") or "simulado"
+    sintetico = tipo_alvo != "real"
+
+    if sintetico:
+        nivel = "sintetico"
+        aviso = ("Modelo em calibração inicial: treinado em dados simulados, sem "
+                 "nenhum resultado real registrado. Os scores ordenam a carteira "
+                 "segundo premissas declaradas, não segundo histórico desta base.")
+    elif n is not None and n < MIN_FEEDBACKS_DEFAULT:
+        nivel = "insuficiente"
+        aviso = (f"Modelo treinado com apenas {n} resultado(s) real(is), abaixo do "
+                 f"mínimo de {MIN_FEEDBACKS_DEFAULT}. As métricas têm alta variância "
+                 f"e não devem ser apresentadas como desempenho do modelo.")
+    else:
+        nivel = "ok"
+        aviso = ""
+
+    return {
+        "versao_ativa": ativa,
+        "tipo_alvo": tipo_alvo,
+        "n_feedbacks_reais": n,
+        "minimo_recomendado": MIN_FEEDBACKS_DEFAULT,
+        "nivel": nivel,       # sintetico | insuficiente | ok
+        "aviso": aviso,
+    }
 
 
 @app.get("/admin/price-model")
@@ -3670,6 +3772,8 @@ async def listar_modelos(
 
 class PromoverIn(BaseModel):
     versao: str
+    # Promover versão abaixo do mínimo de amostras exige confirmação explícita.
+    forcar: bool = False
 
 
 @app.post("/admin/retreinar")
@@ -3705,15 +3809,25 @@ async def admin_promover(
     _exigir_comando(credentials)
 
     try:
-        from model.retrain import promover_versao
-        promover_versao(payload.versao)
+        from model.retrain import promover_versao, VersaoInsuficiente
+        promover_versao(payload.versao, forcar=payload.forcar)
         _score_cache.clear()
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except VersaoInsuficiente as e:
+        # 409: o pedido é válido, mas conflita com o estado dos dados.
+        raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao promover: {e}")
 
-    return {"ok": True, "versao_promovida": payload.versao}
+    _registrar_auditoria(
+        acao="modelo_promovido",
+        entidade="modelo",
+        entidade_id=payload.versao,
+        usuario_email=_usuario_autenticado(credentials).get("email", ""),
+        detalhes={"versao": payload.versao, "forcado": payload.forcar},
+    )
+    return {"ok": True, "versao_promovida": payload.versao, "forcado": payload.forcar}
 
 
 @app.get("/admin/retreinar/status")

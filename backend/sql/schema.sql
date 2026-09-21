@@ -47,6 +47,14 @@ ALTER TABLE predicoes ADD COLUMN IF NOT EXISTS dados_incompletos         BOOLEAN
 ALTER TABLE predicoes ADD COLUMN IF NOT EXISTS aviso_dados               TEXT DEFAULT '';
 ALTER TABLE predicoes ADD COLUMN IF NOT EXISTS taxa_recuperacao_prevista NUMERIC(5,4);
 
+-- Separa as duas grandezas que o sistema tratava como uma só:
+--   probabilidade_pagamento  P(o devedor paga alguma coisa) — do classificador
+--   taxa_recuperacao_prevista  taxa esperada sobre o saldo (1 − LGD)
+-- origem_taxa registra se a taxa veio do price model ('modelo') ou da premissa
+-- declarada da empresa ('premissa'), para a interface dizer em que ela se apoia.
+ALTER TABLE predicoes ADD COLUMN IF NOT EXISTS probabilidade_pagamento   NUMERIC(5,4);
+ALTER TABLE predicoes ADD COLUMN IF NOT EXISTS origem_taxa               TEXT DEFAULT '';
+
 -- ── Feedbacks ────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS feedbacks (
   id               UUID DEFAULT gen_random_uuid() PRIMARY KEY,

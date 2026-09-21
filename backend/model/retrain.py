@@ -308,7 +308,38 @@ def _promover(versao: str, clf, kmeans, meta: dict) -> None:
         pass
 
 
-def promover_versao(versao: str) -> None:
+class VersaoInsuficiente(Exception):
+    """Versão existe, mas não tem amostras suficientes para virar modelo ativo."""
+
+
+def _amostras_da_versao(versao: str) -> int | None:
+    """Nº de amostras reais com que a versão foi treinada, ou None se desconhecido."""
+    for v in _carregar_versoes().get("versoes", []):
+        if v.get("versao") == versao:
+            n = v.get("n_feedbacks_reais")
+            if n is None:
+                n = v.get("n_amostras")
+            return int(n) if n is not None else None
+    return None
+
+
+def promover_versao(versao: str, forcar: bool = False) -> None:
+    """Torna `versao` o modelo ativo.
+
+    O retreino automático já exige MIN_FEEDBACKS_DEFAULT amostras, mas esta
+    função — usada pelo botão "Promover" da tela de Aprendizado — não exigia
+    nada além dos arquivos existirem. Dava para promover um modelo treinado em
+    dez linhas e ele virava o que decide a fila de cobrança em produção.
+    Agora vale o mesmo mínimo, e furar exige `forcar=True` de forma explícita.
+    """
+    n = _amostras_da_versao(versao)
+    if not forcar and n is not None and n < MIN_FEEDBACKS_DEFAULT:
+        raise VersaoInsuficiente(
+            f"A versão {versao} foi treinada com {n} amostra(s); o mínimo para "
+            f"virar modelo ativo é {MIN_FEEDBACKS_DEFAULT}. Abaixo disso as "
+            f"métricas não têm significado estatístico."
+        )
+
     paths = {
         "clf":    MODEL_DIR / f"mizan_model_{versao}.pkl",
         "kmeans": MODEL_DIR / f"kmeans_{versao}.pkl",

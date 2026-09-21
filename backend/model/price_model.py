@@ -1,12 +1,22 @@
 """
 Modelo de precificação de carteira — Mizan.
 
-Prevê a taxa de recuperação real (valor_recuperado / valor_divida) usando
-regressão calibrada com feedbacks reais. Substitui o proxy score/100 na
-fórmula VER = Σ(valor_divida × taxa) com uma estimativa baseada em dados.
+Prevê a taxa de recuperação esperada (valor_recuperado / valor_divida) usando
+regressão calibrada com feedbacks reais. Substitui a premissa declarada na
+fórmula VER = Σ(valor_divida × taxa) por uma estimativa baseada em dados.
 
-O classificador binário (pagou/não pagou) continua separado — este modelo
-aprende QUANTO se recupera quando paga, que é uma pergunta diferente.
+IMPORTANTE — o alvo é INCONDICIONAL. Em `treinar`, quem não pagou entra na
+amostra com taxa 0.0, não é descartado. Ou seja, a previsão já embute a
+probabilidade de pagamento:
+
+    taxa_prevista ≈ P(paga) × E[recuperado / dívida | paga]
+
+Logo `valor_divida × taxa_prevista` é o valor esperado de recuperação, e
+multiplicar de novo pela probabilidade do classificador contaria duas vezes.
+
+Em termos de Basileia: `valor_divida` é o EAD, `taxa_prevista` é a taxa de
+recuperação (1 − LGD) e `valor_divida × (1 − taxa_prevista)` é a perda
+esperada sobre essa dívida.
 """
 
 import os

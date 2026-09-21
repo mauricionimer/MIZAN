@@ -679,7 +679,15 @@ export default function Dashboard() {
                     <span><span className="font-medium text-ink-2">VER</span> = Σ (valor_dívida × <span className="font-medium text-emerald-400">taxa_ML</span>)</span>
                   </>
                 ) : (
-                  <span><span className="font-medium text-ink-2">VER</span> = Σ (valor_dívida × score/100)</span>
+                  <>
+                    <span className="inline-flex items-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-300">
+                      ⚠ Premissa
+                    </span>
+                    <span>
+                      <span className="font-medium text-ink-2">VER</span> = Σ (valor_dívida ×{' '}
+                      <span className="font-medium text-amber-400">P(paga)</span> × recuperação_se_pagar)
+                    </span>
+                  </>
                 )}
                 <span className="text-ink-4">›</span>
                 <span><span className="font-medium text-ink-2">Líquido</span> = VER × (1 − {custoCobranca}%)</span>
@@ -690,6 +698,14 @@ export default function Dashboard() {
                 <span className="text-ink-4">›</span>
                 <span><span className="font-medium text-ink-2">Retorno</span> = Lucro ÷ Preço</span>
               </div>
+
+              {!resumo?.precificacao_ml && (
+                <p className="mt-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+                  Sem resultados reais suficientes, a taxa de recuperação não é medida: ela é a
+                  probabilidade de pagamento multiplicada pela premissa de quanto entra quando o
+                  devedor paga. A premissa é declarada por empresa e pode ser ajustada.
+                </p>
+              )}
             </section>
           )}
 

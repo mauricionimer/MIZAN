@@ -229,6 +229,30 @@ export default function AprendizadoDashboard() {
               <p className="text-sm mt-1" style={{ color: MUTED_LIGHT }}>Acesso restrito ao COMANDO — versões do modelo, variáveis, drift e ciclo de retreino</p>
             </div>
 
+            {/* Procedência do modelo ativo — em que dado o score se apoia.
+                Fica antes de qualquer métrica de propósito: número de modelo
+                treinado em dado insuficiente não deve ser lido sem a ressalva. */}
+            {qualidade?.procedencia && qualidade.procedencia.nivel !== 'ok' && (
+              <div className="flex items-start gap-3 rounded-2xl px-5 py-4 text-sm text-amber-300"
+                style={{ background: 'rgb(var(--c-warning) / 0.10)', border: '1px solid rgb(var(--c-warning) / 0.25)' }}>
+                <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-semibold">
+                    {qualidade.procedencia.nivel === 'sintetico'
+                      ? 'Modelo em calibração inicial'
+                      : 'Modelo com base real insuficiente'}
+                  </p>
+                  <p className="opacity-90 mt-0.5">{qualidade.procedencia.aviso}</p>
+                  <p className="opacity-75 mt-1.5 text-xs tnum">
+                    Versão ativa: {qualidade.procedencia.versao_ativa}
+                    {qualidade.procedencia.n_feedbacks_reais != null && (
+                      <> · {qualidade.procedencia.n_feedbacks_reais} de {qualidade.procedencia.minimo_recomendado} resultados reais</>
+                    )}
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Drift */}
             {drift && (
               drift.drift_detectado ? (
