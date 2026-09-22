@@ -258,14 +258,14 @@ const RESULTADO_CFG = {
   nao_quis:       { label: 'Não quis negociar', color: 'text-red-400',     bg: 'rgb(var(--c-danger) / 0.10)',   border: 'rgb(var(--c-danger) / 0.18)'   },
 }
 
-function HistoricoContatos({ cpf, rec }) {
+function HistoricoContatos({ cpf, rec, propostas }) {
   const [contatos, setContatos]     = useState([])
   const [loading, setLoading]       = useState(true)
   const [formAberto, setFormAberto] = useState(false)
   const [salvando, setSalvando]     = useState(false)
   const [erro, setErro]             = useState(null)
   const [form, setForm] = useState({
-    canal: 'whatsapp', resultado: 'contactado',
+    canal: 'whatsapp', resultado: 'contactado', oferta: '',
     data_contato: new Date().toISOString().slice(0, 10), observacao: '',
     valor_recuperado: '', desconto_oferecido_pct: '',
   })
@@ -278,6 +278,10 @@ function HistoricoContatos({ cpf, rec }) {
   async function salvar() {
     setSalvando(true); setErro(null)
     const payload = { cpf, canal: form.canal, resultado: form.resultado, data_contato: form.data_contato, observacao: form.observacao }
+    // A oferta que o operador apresentou é o que o bandit precisa aprender.
+    // acao_bandit_id continua indo como retaguarda, para o caso de o contato
+    // ter saído da recomendação do próprio bandit, sem escolha na tela.
+    if (form.oferta) payload.oferta = form.oferta
     if (rec?.acao_id != null) payload.acao_bandit_id = rec.acao_id
     if (form.valor_recuperado) payload.valor_recuperado = parseFloat(form.valor_recuperado)
     if (form.desconto_oferecido_pct) payload.desconto_oferecido_pct = parseFloat(form.desconto_oferecido_pct)
@@ -295,7 +299,7 @@ function HistoricoContatos({ cpf, rec }) {
         const res = await registrarContato(payload)
         setContatos(prev => [res.contato, ...prev])
         setFormAberto(false)
-        setForm({ canal: 'whatsapp', resultado: 'contactado', data_contato: new Date().toISOString().slice(0, 10), observacao: '', valor_recuperado: '', desconto_oferecido_pct: '' })
+        setForm({ canal: 'whatsapp', resultado: 'contactado', oferta: '', data_contato: new Date().toISOString().slice(0, 10), observacao: '', valor_recuperado: '', desconto_oferecido_pct: '' })
       } catch (e) {
         const isRede = e?.message === 'Failed to fetch' || e?.message?.includes('Failed to fetch')
         const esperas = [35, 20]
@@ -356,6 +360,23 @@ function HistoricoContatos({ cpf, rec }) {
               <option value="pagou">Pagou</option>
               <option value="nao_quis">Não quis negociar</option>
             </select>
+          </div>
+          {/* Sem isto o sistema não sabe QUAL oferta foi negociada, e a chance
+              de pagamento por tipo de oferta nunca sai da estimativa do modelo.
+              A lista vem das propostas que esta mesma tela calculou. */}
+          <div>
+            <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>
+              Oferta apresentada
+            </label>
+            <select value={form.oferta} onChange={e => set('oferta', e.target.value)} style={selectStyle}>
+              <option value="">Nenhuma / outra</option>
+              {(propostas?.propostas ?? []).filter(p => p.oferta).map(p => (
+                <option key={p.oferta} value={p.oferta}>{p.rotulo}</option>
+              ))}
+            </select>
+            <p className="text-[11px] mt-1.5" style={{ color: 'var(--ink-3)' }}>
+              Registrar a oferta é o que ensina o sistema qual funciona nesta carteira.
+            </p>
           </div>
           {(form.resultado === 'pagou' || form.resultado === 'prometeu_pagar') && (
             <div className="grid grid-cols-2 gap-3">
@@ -695,7 +716,7 @@ export default function DebtorDetail() {
             )}
 
             <ApproachRecommendation devedor={d} rec={rec} loading={recLoading} erro={recErro} />
-            <HistoricoContatos cpf={d.cpf} rec={rec} />
+            <HistoricoContatos cpf={d.cpf} rec={rec} propostas={propostas} />
           </div>
         </div>
       </main>

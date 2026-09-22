@@ -128,6 +128,24 @@ class LinUCB:
 # Serialização para JSON (Supabase)
 # ---------------------------------------------------------------------------
 
+def acao_id_de(canal: "str | None", oferta: "str | None") -> "int | None":
+    """Id da ação do bandit para um par canal × oferta.
+
+    É por aqui que a oferta escolhida na tela vira aprendizado: sem esse
+    mapeamento o operador registra "ofereci 12x" e o bandit não tem como
+    saber a qual das doze ações isso corresponde.
+    """
+    canal = (canal or "").strip().lower()
+    oferta = (oferta or "").strip().lower()
+    for a in ACOES:
+        if a["canal"] == canal and a["oferta"] == oferta:
+            return a["id"]
+    return None
+
+
+OFERTAS = [o for o in dict.fromkeys(a["oferta"] for a in ACOES)]
+
+
 def _bandit_para_json(bandit: LinUCB) -> dict:
     return {
         "A":                    [a.tolist() for a in bandit.A],

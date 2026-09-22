@@ -1155,6 +1155,20 @@ class ContatoIn(BaseModel):
     valor_recuperado: Optional[float] = Field(None, ge=0)
     desconto_oferecido_pct: Optional[float] = Field(None, ge=0, le=100)
     acao_bandit_id: Optional[int] = None
+    # Qual das ofertas do catálogo foi apresentada. É o que liga a escolha do
+    # operador ao aprendizado: sem ela, o bandit só aprende sobre a oferta que
+    # ele mesmo recomendou, não sobre a que foi de fato negociada.
+    oferta: Optional[str] = None
+
+    @field_validator('oferta')
+    @classmethod
+    def _val_oferta(cls, v):
+        if v is None or v == '':
+            return None
+        from model.bandit import OFERTAS
+        if v not in OFERTAS:
+            raise ValueError(f'Oferta inválida. Use: {", ".join(OFERTAS)}.')
+        return v
 
     @field_validator('canal')
     @classmethod
@@ -1243,18 +1257,48 @@ def registrar_contato(body: ContatoIn, credentials: HTTPAuthorizationCredentials
             if _emp:
                 _rec_q = _rec_q.eq("empresa_id", _emp)
             rec_res = _rec_q.order("created_at", desc=True).limit(1).execute()
-            if rec_res.data:
-                acao_id  = body.acao_bandit_id if body.acao_bandit_id is not None else rec_res.data[0]["acao_id"]
-                contexto = rec_res.data[0]["contexto"]
-                recomp   = _CONTATO_RECOMPENSA[body.resultado]
+            anterior = rec_res.data[0] if rec_res.data else None
+
+            # A oferta que o operador diz ter apresentado tem precedência
+            # sobre a que o bandit havia recomendado: é ela que foi negociada.
+            from model.bandit import acao_id_de, registrar_resultado
+            acao_id = acao_id_de(body.canal, body.oferta) if body.oferta else None
+            if acao_id is None:
+                acao_id = body.acao_bandit_id
+            if acao_id is None and anterior:
+                acao_id = anterior["acao_id"]
+
+            # Sem recomendação prévia não havia contexto, e o loop inteiro era
+            # pulado — por isso o aprendizado nunca saía do lugar quando o
+            # operador negociava direto pela tela de propostas. O contexto é
+            # reconstruído da predição quando falta.
+            contexto = anterior["contexto"] if anterior else None
+            pred_r = None
+            if contexto is None or _CONTATO_RECOMPENSA[body.resultado] is None:
+                pred_r = (db.table("predicoes")
+                          .select("cpf, nome, produto, uf, valor_divida, renda_estimada, "
+                                  "dias_em_atraso, score_recuperabilidade")
+                          .eq("cpf", body.cpf)
+                          .order("created_at", desc=True).limit(1).execute())
+            if contexto is None and pred_r and pred_r.data:
+                from model.bandit import construir_contexto
+                _p = pred_r.data[0]
+                _vd = float(_p.get("valor_divida") or 0)
+                _rd = float(_p.get("renda_estimada") or 0)
+                contexto = construir_contexto(
+                    {**_p, "comprometimento_renda": (_vd / _rd) if _rd > 0 else 1.0}
+                ).tolist()
+
+            if acao_id is not None and contexto is not None:
+                recomp = _CONTATO_RECOMPENSA[body.resultado]
                 if recomp is None:
-                    pred_r = (db.table("predicoes").select("valor_divida").eq("cpf", body.cpf)
-                              .order("created_at", desc=True).limit(1).execute())
-                    vd = float(pred_r.data[0].get("valor_divida") or 0) if pred_r.data else 0
+                    vd = float(pred_r.data[0].get("valor_divida") or 0) if (pred_r and pred_r.data) else 0
                     recomp = min(1.0, float(body.valor_recuperado or 0) / vd) if vd > 0 and body.valor_recuperado else 0.5
-                from model.bandit import registrar_resultado
                 registrar_resultado(acao_id=acao_id, contexto=contexto, recompensa=recomp,
                                     empresa_id=_emp)
+            else:
+                print(f"[Bandit/Contato] Sem ação ou contexto para CPF {body.cpf}: "
+                      f"acao_id={acao_id}, contexto={'ok' if contexto else 'ausente'}")
         except Exception as _be:
             print(f"[Bandit/Contato] {_be}")
 
