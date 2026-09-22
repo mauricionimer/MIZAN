@@ -21,7 +21,7 @@ import pandas as pd
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.cluster import KMeans
 from sklearn.ensemble import HistGradientBoostingClassifier
-from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test_split
+from sklearn.model_selection import StratifiedKFold, cross_val_score
 from sklearn.preprocessing import RobustScaler
 
 # Mesma regra dos módulos irmãos (score, bandit, price_model, retrain): com
