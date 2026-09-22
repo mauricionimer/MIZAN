@@ -91,6 +91,44 @@ checar(
 
 
 # ---------------------------------------------------------------------------
+# 1b. Quem é async de verdade tira o trabalho pesado do event loop
+# ---------------------------------------------------------------------------
+
+# Estes ficaram async porque precisam de `await file.read()` — mas o que vem
+# depois (parsear planilha, pontuar carteira, gravar no Supabase) é bloqueante
+# e tem de rodar em asyncio.to_thread, senão o await não adianta nada.
+PRECISAM_TO_THREAD = {
+    "analisar", "upload_csv", "upload_empresa_foto", "feedback_lote",
+    "sincronizar_conexao", "scheduler_verificar_agora", "auto_sync_executar",
+    "db_sync_executar",
+}
+
+
+def _chama_to_thread(node) -> bool:
+    for n in ast.walk(node):
+        if (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                and n.func.attr == "to_thread"):
+            return True
+    return False
+
+
+_tree = ast.parse((AQUI / "main.py").read_text())
+_assincronos = {n.name: n for n in ast.walk(_tree)
+                if isinstance(n, ast.AsyncFunctionDef)}
+sem_thread = sorted(
+    nome for nome in PRECISAM_TO_THREAD
+    if nome in _assincronos and not _chama_to_thread(_assincronos[nome])
+)
+ausentes = sorted(PRECISAM_TO_THREAD - set(_assincronos))
+checar(not sem_thread, "endpoint async manda o trabalho pesado para threadpool",
+       "ainda bloqueiam o event loop: " + ", ".join(sem_thread) if sem_thread else
+       f"{len(PRECISAM_TO_THREAD)} conferidos")
+checar(not ausentes, "a lista conferida corresponde ao código",
+       "sumiram ou deixaram de ser async: " + ", ".join(ausentes) if ausentes else
+       "nenhum nome órfão")
+
+
+# ---------------------------------------------------------------------------
 # 2. O bandit não perde feedback concorrente
 # ---------------------------------------------------------------------------
 

@@ -1477,33 +1477,38 @@ async def upload_empresa_foto(file: UploadFile = File(...), empresa_id_alvo: Opt
         raise HTTPException(status_code=400, detail="Informe a empresa a configurar.")
 
     conteudo = await file.read()
-    if len(conteudo) > 5 * 1024 * 1024:
-        raise HTTPException(status_code=413, detail="Foto muito grande. Máximo: 5 MB.")
-    ext = (file.filename or "").rsplit(".", 1)[-1].lower()
-    if ext not in ("jpg", "jpeg", "png", "webp", "gif"):
-        raise HTTPException(status_code=400, detail="Formato não suportado. Use JPG, PNG ou WebP.")
 
-    db = get_db()
-    caminho = f"empresa-fotos/{empresa_id}.{ext}"
-    try:
-        db.storage.from_("mizan-public").upload(
-            caminho, conteudo,
-            {"content-type": file.content_type or f"image/{ext}", "upsert": "true"},
-        )
-        foto_url = db.storage.from_("mizan-public").get_public_url(caminho)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao salvar foto: {e}")
+    def _processar():
+        if len(conteudo) > 5 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="Foto muito grande. Máximo: 5 MB.")
+        ext = (file.filename or "").rsplit(".", 1)[-1].lower()
+        if ext not in ("jpg", "jpeg", "png", "webp", "gif"):
+            raise HTTPException(status_code=400, detail="Formato não suportado. Use JPG, PNG ou WebP.")
 
-    updates = {"foto_url": foto_url, "updated_by": payload.get("email", ""), "updated_at": datetime.utcnow().isoformat()}
-    existing = db.table("empresa_config").select("id").eq("empresa_id", empresa_id).limit(1).execute()
-    if existing.data:
-        db.table("empresa_config").update(updates).eq("empresa_id", empresa_id).execute()
-    else:
-        db.table("empresa_config").insert({"empresa_id": empresa_id, **updates}).execute()
+        db = get_db()
+        caminho = f"empresa-fotos/{empresa_id}.{ext}"
+        try:
+            db.storage.from_("mizan-public").upload(
+                caminho, conteudo,
+                {"content-type": file.content_type or f"image/{ext}", "upsert": "true"},
+            )
+            foto_url = db.storage.from_("mizan-public").get_public_url(caminho)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Erro ao salvar foto: {e}")
 
-    _registrar_auditoria("foto_empresa_atualizada", "empresa", empresa_id,
-                         payload.get("email"), empresa_id, {"foto_url": foto_url}, payload["sub"])
-    return {"ok": True, "foto_url": foto_url}
+        updates = {"foto_url": foto_url, "updated_by": payload.get("email", ""), "updated_at": datetime.utcnow().isoformat()}
+        existing = db.table("empresa_config").select("id").eq("empresa_id", empresa_id).limit(1).execute()
+        if existing.data:
+            db.table("empresa_config").update(updates).eq("empresa_id", empresa_id).execute()
+        else:
+            db.table("empresa_config").insert({"empresa_id": empresa_id, **updates}).execute()
+
+        _registrar_auditoria("foto_empresa_atualizada", "empresa", empresa_id,
+                             payload.get("email"), empresa_id, {"foto_url": foto_url}, payload["sub"])
+        return {"ok": True, "foto_url": foto_url}
+
+    # Upload para o storage e gravação no Supabase são bloqueantes.
+    return await asyncio.to_thread(_processar)
 
 
 @app.get("/conexoes/{conexao_id}/permissoes")
@@ -1882,16 +1887,20 @@ async def upload_csv(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="O arquivo deve ser um CSV.")
 
     contents = await file.read()
-    try:
-        df = _read_csv_auto(contents)
-    except Exception as e:
-        raise HTTPException(status_code=422, detail=f"Erro ao processar CSV: {e}")
 
-    return {
-        "filename": file.filename,
-        "rows": len(df),
-        "columns": df.columns.tolist(),
-    }
+    def _processar():
+        try:
+            df = _read_csv_auto(contents)
+        except Exception as e:
+            raise HTTPException(status_code=422, detail=f"Erro ao processar CSV: {e}")
+        return {
+            "filename": file.filename,
+            "rows": len(df),
+            "columns": df.columns.tolist(),
+        }
+
+    # Parsear CSV é CPU-bound: fora do event loop, senão segura todo mundo.
+    return await asyncio.to_thread(_processar)
 
 
 @app.post("/analisar")
@@ -1915,15 +1924,21 @@ async def analisar(
     contents = await file.read()
     if len(contents) > 25 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="Arquivo muito grande. Limite: 25 MB.")
-    try:
-        if nome.endswith(".csv"):
-            df = _read_csv_auto(contents)
-        else:
-            df = pd.read_excel(io.BytesIO(contents))
-    except Exception as e:
-        raise HTTPException(status_code=422, detail=f"Erro ao ler arquivo: {e}")
 
-    return _analisar_df(df, file.filename, _usuario_id=uid, _usuario_email=uemail, _empresa_id=eid)
+    def _processar():
+        try:
+            if nome.endswith(".csv"):
+                df = _read_csv_auto(contents)
+            else:
+                df = pd.read_excel(io.BytesIO(contents))
+        except Exception as e:
+            raise HTTPException(status_code=422, detail=f"Erro ao ler arquivo: {e}")
+        return _analisar_df(df, file.filename, _usuario_id=uid, _usuario_email=uemail, _empresa_id=eid)
+
+    # O caminho pesado do sistema: ler a planilha, pontuar a carteira inteira e
+    # gravar as predições. Segundos de trabalho bloqueante numa carteira grande
+    # — no event loop, congelaria todas as outras requisições até terminar.
+    return await asyncio.to_thread(_processar)
 
 
 def _external_connect_args(conn: ConexaoDB) -> dict:
@@ -2945,138 +2960,144 @@ async def feedback_lote(
 
     nome = (file.filename or "").lower()
     contents = await file.read()
-    try:
-        if nome.endswith(".csv"):
-            df = _read_csv_auto(contents)
-        elif nome.endswith((".xlsx", ".xls")):
-            df = pd.read_excel(io.BytesIO(contents))
-        else:
-            raise HTTPException(status_code=400, detail="Arquivo deve ser CSV ou Excel (.csv / .xlsx).")
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=422, detail=f"Erro ao ler arquivo: {e}")
 
-    df.columns = [str(c).lower().strip().replace(" ", "_") for c in df.columns]
-
-    # Aceita aliases de coluna comuns
-    if "cpf" not in df.columns:
-        for alias in ["documento", "doc", "cnpj", "nr_cpf"]:
-            if alias in df.columns:
-                df = df.rename(columns={alias: "cpf"})
-                break
-    if "pagou" not in df.columns:
-        for alias in ["pagamento", "pago", "status_pagamento", "situacao"]:
-            if alias in df.columns:
-                df = df.rename(columns={alias: "pagou"})
-                break
-
-    faltantes = [c for c in ["cpf", "pagou"] if c not in df.columns]
-    if faltantes:
-        raise HTTPException(status_code=422, detail=f"Colunas obrigatórias ausentes: {faltantes}. Encontradas: {df.columns.tolist()}")
-
-    db = get_db()
-
-    _cart_ids_empresa: list = []
-    if empresa:
+    def _processar():
         try:
-            _c = db.table("carteiras").select("id").eq("empresa_id", empresa).limit(100).execute()
-            _cart_ids_empresa = [c["id"] for c in (_c.data or [])]
-        except Exception:
-            _cart_ids_empresa = []
-
-    n_ok = 0
-    n_erro = 0
-    detalhes = []
-
-    for idx, row in df.iterrows():
-        linha = int(idx) + 2
-        cpf_raw = str(row.get("cpf", "")).strip()
-        cpf = cpf_raw.replace(".", "").replace("-", "").replace("/", "")
-
-        if not cpf or len(cpf) < 3:
-            detalhes.append({"linha": linha, "cpf": cpf_raw, "ok": False, "erro": "CPF inválido"})
-            n_erro += 1
-            continue
-
-        p = row.get("pagou")
-        if p is None or (isinstance(p, float) and pd.isna(p)):
-            detalhes.append({"linha": linha, "cpf": cpf, "ok": False, "erro": "Campo 'pagou' vazio"})
-            n_erro += 1
-            continue
-        pagou = p.strip().lower() in ("true", "1", "sim", "s", "yes", "verdadeiro") if isinstance(p, str) else bool(p)
-
-        # valor_recuperado — aceita coluna "valor" também
-        vr_raw = row.get("valor_recuperado") or row.get("valor") or 0
-        try:
-            valor_recuperado = float(str(vr_raw).replace(",", ".")) if vr_raw and not (isinstance(vr_raw, float) and pd.isna(vr_raw)) else 0.0
-        except Exception:
-            valor_recuperado = 0.0
-
-        # data_pagamento — aceita "data" também, múltiplos formatos
-        data_pag = None
-        dp = row.get("data_pagamento") or row.get("data")
-        if dp is not None and not (isinstance(dp, float) and pd.isna(dp)):
-            try:
-                if isinstance(dp, str):
-                    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%Y/%m/%d"):
-                        try:
-                            data_pag = datetime.strptime(dp.strip(), fmt).date().isoformat()
-                            break
-                        except ValueError:
-                            pass
-                else:
-                    data_pag = pd.Timestamp(dp).date().isoformat()
-            except Exception:
-                pass
-
-        try:
-            pred_q = (
-                db.table("predicoes")
-                .select("id, score_recuperabilidade, valor_divida")
-                .eq("cpf", cpf)
-            )
-            # Sem este recorte, o CPF poderia casar com a predição de outra
-            # empresa e o feedback iria parar na carteira errada.
-            if _cart_ids_empresa:
-                pred_q = pred_q.in_("carteira_id", _cart_ids_empresa)
-            pred_res = pred_q.order("created_at", desc=True).limit(1).execute()
-            predicao_id = pred_res.data[0]["id"] if pred_res.data else None
-
-            fb_row = {"cpf": cpf, "pagou": pagou, "valor_recuperado": valor_recuperado, "empresa": empresa}
-            if data_pag:
-                fb_row["data_pagamento"] = data_pag
-            if predicao_id:
-                fb_row["predicao_id"] = predicao_id
-
-            res = db.table("feedbacks").insert(fb_row).execute()
-            feedback_id = res.data[0]["id"]
-
-            _fechar_loop_bandit(
-                db, cpf, pagou, valor_recuperado,
-                pred_res.data[0] if pred_res.data else None,
-            )
-
-            detalhes.append({"linha": linha, "cpf": cpf, "ok": True, "feedback_id": feedback_id})
-            n_ok += 1
-
+            if nome.endswith(".csv"):
+                df = _read_csv_auto(contents)
+            elif nome.endswith((".xlsx", ".xls")):
+                df = pd.read_excel(io.BytesIO(contents))
+            else:
+                raise HTTPException(status_code=400, detail="Arquivo deve ser CSV ou Excel (.csv / .xlsx).")
+        except HTTPException:
+            raise
         except Exception as e:
-            detalhes.append({"linha": linha, "cpf": cpf, "ok": False, "erro": str(e)})
-            n_erro += 1
+            raise HTTPException(status_code=422, detail=f"Erro ao ler arquivo: {e}")
 
-    _eid = empresa_info.get("empresa_id") or (empresa_info.get("jwt") or {}).get("empresa_id") or ""
-    if n_ok > 0:
-        _registrar_auditoria(
-            acao="feedback_importado",
-            entidade="feedback",
-            usuario_email=empresa_info.get("email") or (empresa_info.get("jwt") or {}).get("email"),
-            empresa_id=_eid,
-            detalhes={"importados": n_ok, "erros": n_erro},
-        )
-        _cache_del_prefix(f"pagamentos:{_eid}")
-        _cache_del_prefix(f"perf:{_eid}")
-        _cache_del_prefix(f"fb_status:{_eid}")
-    return {"total": n_ok + n_erro, "importados": n_ok, "erros": n_erro, "detalhes": detalhes}
+        df.columns = [str(c).lower().strip().replace(" ", "_") for c in df.columns]
+
+        # Aceita aliases de coluna comuns
+        if "cpf" not in df.columns:
+            for alias in ["documento", "doc", "cnpj", "nr_cpf"]:
+                if alias in df.columns:
+                    df = df.rename(columns={alias: "cpf"})
+                    break
+        if "pagou" not in df.columns:
+            for alias in ["pagamento", "pago", "status_pagamento", "situacao"]:
+                if alias in df.columns:
+                    df = df.rename(columns={alias: "pagou"})
+                    break
+
+        faltantes = [c for c in ["cpf", "pagou"] if c not in df.columns]
+        if faltantes:
+            raise HTTPException(status_code=422, detail=f"Colunas obrigatórias ausentes: {faltantes}. Encontradas: {df.columns.tolist()}")
+
+        db = get_db()
+
+        _cart_ids_empresa: list = []
+        if empresa:
+            try:
+                _c = db.table("carteiras").select("id").eq("empresa_id", empresa).limit(100).execute()
+                _cart_ids_empresa = [c["id"] for c in (_c.data or [])]
+            except Exception:
+                _cart_ids_empresa = []
+
+        n_ok = 0
+        n_erro = 0
+        detalhes = []
+
+        for idx, row in df.iterrows():
+            linha = int(idx) + 2
+            cpf_raw = str(row.get("cpf", "")).strip()
+            cpf = cpf_raw.replace(".", "").replace("-", "").replace("/", "")
+
+            if not cpf or len(cpf) < 3:
+                detalhes.append({"linha": linha, "cpf": cpf_raw, "ok": False, "erro": "CPF inválido"})
+                n_erro += 1
+                continue
+
+            p = row.get("pagou")
+            if p is None or (isinstance(p, float) and pd.isna(p)):
+                detalhes.append({"linha": linha, "cpf": cpf, "ok": False, "erro": "Campo 'pagou' vazio"})
+                n_erro += 1
+                continue
+            pagou = p.strip().lower() in ("true", "1", "sim", "s", "yes", "verdadeiro") if isinstance(p, str) else bool(p)
+
+            # valor_recuperado — aceita coluna "valor" também
+            vr_raw = row.get("valor_recuperado") or row.get("valor") or 0
+            try:
+                valor_recuperado = float(str(vr_raw).replace(",", ".")) if vr_raw and not (isinstance(vr_raw, float) and pd.isna(vr_raw)) else 0.0
+            except Exception:
+                valor_recuperado = 0.0
+
+            # data_pagamento — aceita "data" também, múltiplos formatos
+            data_pag = None
+            dp = row.get("data_pagamento") or row.get("data")
+            if dp is not None and not (isinstance(dp, float) and pd.isna(dp)):
+                try:
+                    if isinstance(dp, str):
+                        for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%Y/%m/%d"):
+                            try:
+                                data_pag = datetime.strptime(dp.strip(), fmt).date().isoformat()
+                                break
+                            except ValueError:
+                                pass
+                    else:
+                        data_pag = pd.Timestamp(dp).date().isoformat()
+                except Exception:
+                    pass
+
+            try:
+                pred_q = (
+                    db.table("predicoes")
+                    .select("id, score_recuperabilidade, valor_divida")
+                    .eq("cpf", cpf)
+                )
+                # Sem este recorte, o CPF poderia casar com a predição de outra
+                # empresa e o feedback iria parar na carteira errada.
+                if _cart_ids_empresa:
+                    pred_q = pred_q.in_("carteira_id", _cart_ids_empresa)
+                pred_res = pred_q.order("created_at", desc=True).limit(1).execute()
+                predicao_id = pred_res.data[0]["id"] if pred_res.data else None
+
+                fb_row = {"cpf": cpf, "pagou": pagou, "valor_recuperado": valor_recuperado, "empresa": empresa}
+                if data_pag:
+                    fb_row["data_pagamento"] = data_pag
+                if predicao_id:
+                    fb_row["predicao_id"] = predicao_id
+
+                res = db.table("feedbacks").insert(fb_row).execute()
+                feedback_id = res.data[0]["id"]
+
+                _fechar_loop_bandit(
+                    db, cpf, pagou, valor_recuperado,
+                    pred_res.data[0] if pred_res.data else None,
+                )
+
+                detalhes.append({"linha": linha, "cpf": cpf, "ok": True, "feedback_id": feedback_id})
+                n_ok += 1
+
+            except Exception as e:
+                detalhes.append({"linha": linha, "cpf": cpf, "ok": False, "erro": str(e)})
+                n_erro += 1
+
+        _eid = empresa_info.get("empresa_id") or (empresa_info.get("jwt") or {}).get("empresa_id") or ""
+        if n_ok > 0:
+            _registrar_auditoria(
+                acao="feedback_importado",
+                entidade="feedback",
+                usuario_email=empresa_info.get("email") or (empresa_info.get("jwt") or {}).get("email"),
+                empresa_id=_eid,
+                detalhes={"importados": n_ok, "erros": n_erro},
+            )
+            _cache_del_prefix(f"pagamentos:{_eid}")
+            _cache_del_prefix(f"perf:{_eid}")
+            _cache_del_prefix(f"fb_status:{_eid}")
+        return {"total": n_ok + n_erro, "importados": n_ok, "erros": n_erro, "detalhes": detalhes}
+
+    # Parse da planilha mais uma gravação no Supabase por linha do lote:
+    # trabalho bloqueante que cresce com o arquivo, então sai do event loop.
+    return await asyncio.to_thread(_processar)
 
 
 @app.get("/performance")
