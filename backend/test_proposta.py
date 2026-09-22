@@ -166,6 +166,20 @@ checar(all(p.cabe_no_bolso is None for p in av_sem_margem.propostas if not p.a_v
 checar("capacidade de pagamento" in av_sem_margem.aviso,
        "e o aviso diz que o teste não rodou", av_sem_margem.aviso[:60])
 
+# Sem saber se cabe no bolso, o motor não pode coroar ninguém: apontar a
+# parcela de maior valor esperado sem verificar capacidade é pior do que não
+# apontar nada — foi o que a tela mostrou, sugerindo R$ 2.000/mês às cegas.
+checar(av_sem_margem.recomendada is None,
+       "sem margem, nenhuma proposta é marcada como sugerida",
+       av_sem_margem.recomendada.rotulo if av_sem_margem.recomendada else "nenhuma")
+checar("informe as despesas" in av_sem_margem.aviso,
+       "e o aviso diz o que fazer para destravar")
+checar(all(len(p.observacao) < 60 for p in av_sem_margem.propostas),
+       "a observação de cada proposta fica curta, sem repetir o motivo inteiro",
+       f"maior tem {max(len(p.observacao) for p in av_sem_margem.propostas)} caracteres")
+# com margem, continua recomendando normalmente
+checar(av_1.recomendada is not None, "com margem conhecida, a recomendação volta")
+
 # PoP igual para todas: o motor precisa admitir que não está discriminando
 av_igual = avaliar(montar_propostas(DIVIDA_1, ARQ_1), MARGEM_1,
                    [0.4, 0.4, 0.4, 0.4], origem_pop="modelo")
@@ -173,6 +187,27 @@ checar(not av_igual.pop_discrimina, "detecta que a PoP é a mesma para todas")
 checar("não distingue as ofertas por probabilidade" in av_igual.aviso,
        "e avisa que a ordenação não separa por probabilidade")
 checar(av_1.pop_discrimina, "com PoP por oferta, marca que está discriminando")
+
+
+# ===========================================================================
+# Formatação de moeda
+# ===========================================================================
+print("\n— Formatação —")
+
+from model.proposta import _brl  # noqa: E402
+
+checar(_brl(2000.0) == "R$ 2.000,00", "milhar com ponto, centavo com vírgula", _brl(2000.0))
+checar(_brl(1234567.89) == "R$ 1.234.567,89", "mais de um separador de milhar", _brl(1234567.89))
+checar(_brl(333.33) == "R$ 333,33", "sem milhar", _brl(333.33))
+
+# O bug que só apareceu ao renderizar a tela: trocar os separadores com
+# replace encadeado convertia o ponto final da frase em vírgula.
+obs = avaliar(montar_propostas(12000.0, ARQ_1), Margem(400.0, "informada"),
+              POP_1, origem_pop="ref")
+frase = next(p.observacao for p in obs.propostas if p.cabe_no_bolso is False)
+checar(frase.endswith("."), "a observação termina em ponto, não em vírgula", repr(frase[-28:]))
+checar("R$ 2.000,00" in frase and "R$ 400,00" in frase,
+       "e os valores continuam no formato brasileiro", frase)
 
 
 # ===========================================================================

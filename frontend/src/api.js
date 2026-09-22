@@ -86,6 +86,22 @@ export async function buscarExplicacaoScore(cpf) {
   return res.json()
 }
 
+export async function buscarPropostas(cpf, despesasMensais = null) {
+  const token = _getToken()
+  const qs = despesasMensais != null && despesasMensais !== ''
+    ? `?despesas_mensais=${encodeURIComponent(despesasMensais)}`
+    : ''
+  const res = await fetch(`${BASE}/predicoes/${encodeURIComponent(cpf)}/propostas${qs}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  _handle401(res)
+  if (!res.ok) {
+    const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
+    throw new Error(detail)
+  }
+  return res.json()
+}
+
 export async function testarDB(params) {
   const token = _getToken()
   const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }

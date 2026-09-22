@@ -1,10 +1,10 @@
 import ThemeToggle from '../components/ThemeToggle'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Phone, Tag, Zap, MessageSquare, Brain, Plus, ClipboardList, CheckCircle2, XCircle, Clock } from 'lucide-react'
+import { ArrowLeft, Phone, Tag, Zap, MessageSquare, Brain, Plus, ClipboardList, CheckCircle2, XCircle, Clock, Wallet, AlertTriangle } from 'lucide-react'
 import { useAnalysis } from '../context/AnalysisContext'
 import PriorityBadge from '../components/PriorityBadge'
-import { buscarRecomendacao, registrarContato, listarContatos, buscarStatusFeedbacks, buscarExplicacaoScore, traduzirErroRede } from '../api'
+import { buscarRecomendacao, registrarContato, listarContatos, buscarStatusFeedbacks, buscarExplicacaoScore, buscarPropostas, traduzirErroRede } from '../api'
 import { LogoMark } from '../components/Logo'
 
 const fmtBRL = (v) => v != null ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v) : '—'
@@ -45,6 +45,110 @@ function fmtValorExplicacao(v) {
   if (typeof v === 'boolean') return v ? 'sim' : 'não'
   if (typeof v === 'number') return Number.isInteger(v) ? fmtNum(v) : v.toFixed(1)
   return String(v)
+}
+
+function Propostas({ dados, loading, erro, despesas, setDespesas, onRecalcular }) {
+  if (loading) return <p className="text-sm" style={{ color: 'var(--ink-3)' }}>Montando propostas...</p>
+  if (erro)    return <p className="text-sm" style={{ color: 'var(--ink-3)' }}>Propostas indisponíveis: {erro}</p>
+  if (!dados || !Array.isArray(dados.propostas)) return null
+
+  const margem = dados.margem
+  const teto   = dados.parcela_maxima
+  const recomendadaLabel = dados.recomendada?.rotulo
+  const alternativaLabel = dados.alternativa_a_vista?.rotulo
+
+  return (
+    <div>
+      {/* Margem livre primeiro: é ela que decide quais propostas sobram. */}
+      <div className="mb-4 rounded-xl p-4" style={{ background: 'var(--raise-2)' }}>
+        <div className="flex items-start gap-2.5">
+          <Wallet className="h-4 w-4 mt-0.5 shrink-0" style={{ color: 'var(--c-royal)' }} />
+          <div className="flex-1">
+            <p className="section-label mb-1">Margem livre mensal</p>
+            {margem?.valor != null ? (
+              <p className="text-sm" style={{ color: 'var(--ink)' }}>
+                {fmtBRL(margem.valor)} por mês
+                {teto != null && <span style={{ color: 'var(--ink-3)' }}> · parcela máxima {fmtBRL(teto)}</span>}
+              </p>
+            ) : (
+              <p className="text-sm" style={{ color: 'var(--ink-2)' }}>{margem?.motivo || 'Não calculada.'}</p>
+            )}
+          </div>
+        </div>
+
+        {/* O operador costuma descobrir a despesa na própria ligação. */}
+        <div className="mt-3 flex items-center gap-2">
+          <input
+            type="number" min="0" step="50" value={despesas}
+            onChange={e => setDespesas(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') onRecalcular() }}
+            placeholder="Despesas mensais informadas"
+            className="flex-1 rounded-lg px-3 py-2 text-sm"
+            style={{ background: 'var(--raise-3)', border: '1px solid var(--line)', color: 'var(--ink)' }}
+          />
+          <button onClick={onRecalcular} className="btn-secondary text-sm px-3 py-2">Recalcular</button>
+        </div>
+      </div>
+
+      {dados.aviso && (
+        <div className="mb-4 flex items-start gap-2.5 rounded-xl p-3"
+          style={{ background: 'rgb(var(--c-warning) / 0.08)', border: '1px solid rgb(var(--c-warning) / 0.18)' }}>
+          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" style={{ color: 'var(--warning)' }} />
+          <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-2)' }}>{dados.aviso}</p>
+        </div>
+      )}
+
+      <div className="space-y-2.5">
+        {dados.propostas.map((p) => {
+          const recomendada = p.rotulo === recomendadaLabel
+          const alternativa = p.rotulo === alternativaLabel && !recomendada
+          const naoCabe     = p.cabe_no_bolso === false
+          return (
+            <div key={p.rotulo} className="rounded-xl p-3.5"
+              style={{
+                background: recomendada ? 'rgb(var(--c-success) / 0.07)' : 'var(--raise-2)',
+                border: recomendada ? '1px solid rgb(var(--c-success) / 0.28)' : '1px solid var(--line)',
+                opacity: naoCabe ? 0.62 : 1,
+              }}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>{p.rotulo}</span>
+                    {recomendada && (
+                      <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
+                        style={{ background: 'rgb(var(--c-success) / 0.16)', color: 'var(--success)' }}>Sugerida</span>
+                    )}
+                    {alternativa && (
+                      <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
+                        style={{ background: 'var(--raise-3)', color: 'var(--ink-2)' }}>Alternativa</span>
+                    )}
+                  </div>
+                  <p className="text-xs mt-1" style={{ color: 'var(--ink-2)' }}>
+                    {p.n_parcelas > 1 ? `${p.n_parcelas}x de ${fmtBRL(p.parcela)}` : `À vista: ${fmtBRL(p.valor_cobrado)}`}
+                    {p.desconto_pct > 0 && ` · ${Number(p.desconto_pct).toFixed(0)}% de desconto`}
+                  </p>
+                  <p className="text-[11px] mt-1 leading-relaxed" style={{ color: naoCabe ? 'var(--danger)' : 'var(--ink-3)' }}>
+                    {p.observacao}
+                  </p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-[10px] uppercase tracking-wide" style={{ color: 'var(--ink-3)' }}>Valor esperado</p>
+                  <p className="text-sm font-semibold tabular-nums" style={{ color: 'var(--ink)' }}>
+                    {fmtBRL(p.valor_esperado)}
+                  </p>
+                  {p.pop != null && (
+                    <p className="text-[11px] tabular-nums" style={{ color: 'var(--ink-3)' }}>
+                      {fmtPct(p.pop)} de chance
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 function ExplicacaoScore({ explicacao, loading, erro }) {
@@ -402,6 +506,10 @@ export default function DebtorDetail() {
   const [explicacao, setExplicacao]           = useState(null)
   const [explicacaoLoading, setExplicacaoLoading] = useState(true)
   const [explicacaoErro, setExplicacaoErro]       = useState(null)
+  const [propostas, setPropostas]             = useState(null)
+  const [propostasLoading, setPropostasLoading] = useState(true)
+  const [propostasErro, setPropostasErro]       = useState(null)
+  const [despesas, setDespesas]                 = useState('')
 
   useEffect(() => {
     if (!result) { navigate('/'); return }
@@ -417,7 +525,22 @@ export default function DebtorDetail() {
     buscarStatusFeedbacks(carteiraId).then(map => setStatusPag(map[String(d.cpf)] ?? null)).catch(() => {})
     setExplicacaoLoading(true)
     buscarExplicacaoScore(d.cpf).then(setExplicacao).catch(e => setExplicacaoErro(e.message)).finally(() => setExplicacaoLoading(false))
+    setPropostasLoading(true)
+    setPropostasErro(null)
+    buscarPropostas(d.cpf).then(setPropostas).catch(e => setPropostasErro(e.message)).finally(() => setPropostasLoading(false))
   }, [d?.cpf, carteiraId])
+
+  // O operador informa a despesa que o devedor declarou na ligação e a
+  // margem é refeita na hora — sem isso o teste de capacidade não roda.
+  function recalcularPropostas() {
+    if (!d?.cpf) return
+    setPropostasLoading(true)
+    setPropostasErro(null)
+    buscarPropostas(d.cpf, despesas === '' ? null : despesas)
+      .then(setPropostas)
+      .catch(e => setPropostasErro(e.message))
+      .finally(() => setPropostasLoading(false))
+  }
 
   if (!result || !d) return null
 
@@ -518,6 +641,14 @@ export default function DebtorDetail() {
               <DataRow label="Produto" value={d.produto} />
               <DataRow label="Status" value={d.status} />
               <DataRow label="UF" value={d.uf} />
+            </Section>
+
+            <Section title="Propostas de renegociação">
+              <Propostas
+                dados={propostas} loading={propostasLoading} erro={propostasErro}
+                despesas={despesas} setDespesas={setDespesas}
+                onRecalcular={recalcularPropostas}
+              />
             </Section>
 
             <Section title="Por que esse score?">

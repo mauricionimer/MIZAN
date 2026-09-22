@@ -188,6 +188,13 @@ def montar_propostas(divida: float, arquetipos: "list[dict] | None" = None,
 # Avaliação: cabe no bolso? qual rende mais?
 # ---------------------------------------------------------------------------
 
+def _brl(valor: float) -> str:
+    """R$ no formato brasileiro. Trocar os separadores com replace encadeado
+    converte também o ponto final da frase — foi o que acontecia aqui."""
+    inteiro, _, centavos = f"{valor:,.2f}".partition(".")
+    return f"R$ {inteiro.replace(',', '.')},{centavos}"
+
+
 @dataclass
 class Avaliacao:
     propostas: "list[Proposta]" = field(default_factory=list)
@@ -237,25 +244,22 @@ def avaliar(propostas: "list[Proposta]", margem: Margem,
             p.observacao = "Pagamento único: não compromete a renda mensal."
         elif teto is None:
             p.cabe_no_bolso = None
-            p.observacao = margem.motivo or "Margem livre desconhecida."
+            p.observacao = "Capacidade de pagamento não verificada."
         else:
             p.cabe_no_bolso = p.parcela <= teto
-            p.observacao = (
-                f"Parcela de R$ {p.parcela:,.2f} dentro da margem de R$ {teto:,.2f}."
-                if p.cabe_no_bolso else
-                f"Parcela de R$ {p.parcela:,.2f} acima da margem de R$ {teto:,.2f}."
-            ).replace(",", "@").replace(".", ",").replace("@", ".")
+            dentro = "dentro da" if p.cabe_no_bolso else "acima da"
+            p.observacao = (f"Parcela de {_brl(p.parcela)} {dentro} "
+                            f"margem de {_brl(teto)}.")
 
     com_ev = [p for p in propostas if p.valor_esperado is not None]
     pops = {round(p.pop, 6) for p in com_ev if p.pop is not None}
     discrimina = len(pops) > 1
 
+    # Só existe recomendação depois de passar pelo teste de capacidade. Sem
+    # margem conhecida o motor ordena por valor esperado, mas não elege uma
+    # "sugerida": apontar a parcela de maior valor sem saber se ela cabe no
+    # orçamento é pior do que não apontar nada.
     elegiveis = [p for p in com_ev if p.cabe_no_bolso is True and not p.a_vista]
-    if not elegiveis:
-        # Sem margem conhecida não dá para reprovar ninguém por capacidade;
-        # a referência só descarta proposta que comprovadamente não cabe.
-        elegiveis = [p for p in com_ev if p.cabe_no_bolso is not False and not p.a_vista]
-
     recomendada = max(elegiveis, key=lambda p: p.valor_esperado) if elegiveis else None
     a_vista = [p for p in com_ev if p.a_vista]
     alternativa = max(a_vista, key=lambda p: p.valor_esperado) if a_vista else None
@@ -264,8 +268,8 @@ def avaliar(propostas: "list[Proposta]", margem: Margem,
     if not margem.conhecida:
         avisos.append(
             (margem.motivo or "Margem livre desconhecida.")
-            + " As propostas foram ordenadas por valor esperado, mas nenhuma passou "
-              "pelo teste de capacidade de pagamento."
+            + " Sem ela nenhuma proposta passa pelo teste de capacidade de pagamento, "
+              "então nenhuma é sugerida — informe as despesas para saber qual cabe."
         )
     if com_ev and not discrimina:
         avisos.append(
