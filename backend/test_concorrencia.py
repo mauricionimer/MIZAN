@@ -138,12 +138,12 @@ Path(os.environ["MIZAN_DATA_DIR"], "model").mkdir(parents=True, exist_ok=True)
 import numpy as np                                          # noqa: E402
 from model import bandit as B                               # noqa: E402
 
-B._salvar_supabase = lambda b: None                         # isola de rede
-B._carregar_supabase = lambda: None
-B.BANDIT_FILE = Path(os.environ["MIZAN_DATA_DIR"]) / "model" / "bandit.pkl"
+B._salvar_supabase = lambda e, b: None                      # isola de rede
+B._carregar_supabase = lambda e: None
 
 N = 40
 CTX = [0.5] * B.D
+EMP = "empresa_teste"
 
 # O atualizar real faz "self.n_tentativas[a] += 1" e "self.A[a] += ...".
 # Nenhum dos dois é atômico — são ler, somar, gravar. Abaixo é a MESMA
@@ -170,16 +170,16 @@ class _SemLock:
 
 
 def _rodar(com_lock: bool) -> int:
-    B._bandit_cache, B._bandit_cache_ts = B.LinUCB(), time.monotonic()
+    B._bandit_cache[EMP], B._bandit_cache_ts[EMP] = B.LinUCB(), time.monotonic()
     original = B._bandit_lock
     if not com_lock:
         B._bandit_lock = _SemLock()
     try:
         with ThreadPoolExecutor(max_workers=N) as ex:
-            list(ex.map(lambda _: B.registrar_resultado(0, CTX, 0.5), range(N)))
+            list(ex.map(lambda _: B.registrar_resultado(0, CTX, 0.5, EMP), range(N)))
     finally:
         B._bandit_lock = original
-    return sum(B._bandit_cache.n_tentativas)
+    return sum(B._bandit_cache[EMP].n_tentativas)
 
 
 _atualizar_original = B.LinUCB.atualizar
@@ -196,12 +196,12 @@ checar(sem_lock < N, "sem o lock a corrida realmente acontece",
        f"{N - sem_lock} de {N} feedbacks perdidos — senão este teste não provaria nada")
 
 # o lock não pode ter quebrado o caminho normal
-B._bandit_cache, B._bandit_cache_ts = B.LinUCB(), time.monotonic()
-B.registrar_resultado(3, CTX, 0.8)
-checar(B._bandit_cache.n_tentativas[3] == 1, "feedback isolado continua funcionando")
+B._bandit_cache[EMP], B._bandit_cache_ts[EMP] = B.LinUCB(), time.monotonic()
+B.registrar_resultado(3, CTX, 0.8, EMP)
+checar(B._bandit_cache[EMP].n_tentativas[3] == 1, "feedback isolado continua funcionando")
 rec = B.recomendar({"score_recuperabilidade": 60, "dias_em_atraso": 90,
                     "valor_divida": 5000, "renda_estimada": 3000,
-                    "produto": "cartao", "uf": "GO"})
+                    "produto": "cartao", "uf": "GO"}, EMP)
 checar(0 <= rec["acao_id"] < B.N_ACOES, "recomendar continua funcionando sob lock",
        rec["label"])
 

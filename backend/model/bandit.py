@@ -7,8 +7,12 @@ Algoritmo: LinUCB (Linear Upper Confidence Bound)
   Ações (12): 3 canais × 4 ofertas
   Recompensa: valor_recuperado / valor_divida  (0 se não pagou)
 
-Persistência: Supabase (tabela bandit_estado) + arquivo local bandit.pkl como fallback.
-Cache em memória com TTL de 5 min para sincronizar entre replicas via Supabase.
+Escopo: um bandit por empresa. Cada cliente aprende a própria política e os
+feedbacks de um nunca influenciam as recomendações do outro.
+
+Persistência: Supabase (bandit_estado, uma linha por empresa) + arquivo local
+bandit_<empresa>.pkl como fallback. Cache em memória por empresa, TTL de 5 min,
+para sincronizar entre réplicas via Supabase.
 """
 
 import os
@@ -21,7 +25,6 @@ import numpy as np
 
 _DATA_DIR_STR = os.getenv("MIZAN_DATA_DIR", "")
 MODEL_DIR   = Path(_DATA_DIR_STR) / "model" if _DATA_DIR_STR else Path(__file__).parent
-BANDIT_FILE = MODEL_DIR / "bandit.pkl"
 
 # ---------------------------------------------------------------------------
 # Definição das 12 ações  (canal × oferta)
@@ -141,24 +144,42 @@ def _bandit_de_json(data: dict) -> LinUCB:
 # Persistência no Supabase
 # ---------------------------------------------------------------------------
 
-def _salvar_supabase(bandit: LinUCB) -> None:
+# Cada empresa aprende a sua própria política: o que funciona na carteira de
+# um banco não vale para a de outro, e misturar os feedbacks vazaria
+# comportamento de um cliente para outro. Quem chega sem empresa no contexto
+# cai numa chave separada, nunca na de um cliente real.
+EMPRESA_PADRAO = "_global"
+
+
+def _chave(empresa_id: "str | None") -> str:
+    return (empresa_id or "").strip().lower() or EMPRESA_PADRAO
+
+
+def _arquivo_bandit(empresa_id: "str | None") -> Path:
+    seguro = "".join(c if c.isalnum() or c in "-_" else "_" for c in _chave(empresa_id))
+    return MODEL_DIR / f"bandit_{seguro}.pkl"
+
+
+def _salvar_supabase(empresa_id: "str | None", bandit: LinUCB) -> None:
     try:
         import sys as _sys
         _sys.path.insert(0, str(Path(__file__).parent.parent))
         from db import get_db
         get_db().table("bandit_estado").upsert(
-            {"id": 1, "estado": _bandit_para_json(bandit)}
+            {"empresa_id": _chave(empresa_id), "estado": _bandit_para_json(bandit)},
+            on_conflict="empresa_id",
         ).execute()
     except Exception as e:
         print(f"[Bandit] Aviso: falha ao salvar no Supabase: {e}")
 
 
-def _carregar_supabase() -> "LinUCB | None":
+def _carregar_supabase(empresa_id: "str | None") -> "LinUCB | None":
     try:
         import sys as _sys
         _sys.path.insert(0, str(Path(__file__).parent.parent))
         from db import get_db
-        res = get_db().table("bandit_estado").select("estado").eq("id", 1).execute()
+        res = (get_db().table("bandit_estado").select("estado")
+               .eq("empresa_id", _chave(empresa_id)).limit(1).execute())
         if res.data:
             return _bandit_de_json(res.data[0]["estado"])
     except Exception as e:
@@ -229,8 +250,8 @@ def construir_contexto(devedor: dict) -> np.ndarray:
 # Singleton em memória com TTL — sincroniza entre replicas via Supabase
 # ---------------------------------------------------------------------------
 
-_bandit_cache: "LinUCB | None" = None
-_bandit_cache_ts: float = 0.0
+_bandit_cache: "dict[str, LinUCB]" = {}
+_bandit_cache_ts: "dict[str, float]" = {}
 _BANDIT_TTL: float = 300.0  # 5 minutos
 
 # O bandit é um objeto global com ciclo ler -> alterar -> gravar
@@ -242,47 +263,49 @@ _BANDIT_TTL: float = 300.0  # 5 minutos
 _bandit_lock = threading.RLock()
 
 
-def carregar_bandit() -> LinUCB:
-    global _bandit_cache, _bandit_cache_ts
+def carregar_bandit(empresa_id: "str | None") -> LinUCB:
+    chave = _chave(empresa_id)
     with _bandit_lock:
         agora = time.monotonic()
-        if _bandit_cache is not None and (agora - _bandit_cache_ts) < _BANDIT_TTL:
-            return _bandit_cache
+        em_cache = _bandit_cache.get(chave)
+        if em_cache is not None and (agora - _bandit_cache_ts.get(chave, 0.0)) < _BANDIT_TTL:
+            return em_cache
         # Cache expirado ou primeira carga — recarrega do Supabase
-        bandit = _carregar_supabase()
+        bandit = _carregar_supabase(chave)
         if bandit is None:
             # Supabase indisponível: usa cache em memória se existir, senão arquivo local
-            if _bandit_cache is not None:
-                return _bandit_cache
-            bandit = joblib.load(BANDIT_FILE) if BANDIT_FILE.exists() else LinUCB()
-        _bandit_cache = bandit
-        _bandit_cache_ts = agora
-        return _bandit_cache
+            if em_cache is not None:
+                return em_cache
+            arq = _arquivo_bandit(chave)
+            bandit = joblib.load(arq) if arq.exists() else LinUCB()
+        _bandit_cache[chave] = bandit
+        _bandit_cache_ts[chave] = agora
+        return bandit
 
 
-def salvar_bandit(bandit: LinUCB) -> None:
-    global _bandit_cache, _bandit_cache_ts
+def salvar_bandit(empresa_id: "str | None", bandit: LinUCB) -> None:
+    chave = _chave(empresa_id)
     with _bandit_lock:
         try:
-            joblib.dump(bandit, BANDIT_FILE)
+            joblib.dump(bandit, _arquivo_bandit(chave))
         except Exception:
             pass
-        _bandit_cache    = bandit
-        _bandit_cache_ts = time.monotonic()  # reseta TTL após salvar
-        _salvar_supabase(bandit)
+        _bandit_cache[chave]    = bandit
+        _bandit_cache_ts[chave] = time.monotonic()  # reseta TTL após salvar
+        _salvar_supabase(chave, bandit)
 
 
 # ---------------------------------------------------------------------------
 # Interface pública
 # ---------------------------------------------------------------------------
 
-def recomendar(devedor: dict) -> dict:
+def recomendar(devedor: dict, empresa_id: "str | None") -> dict:
     contexto = construir_contexto(devedor)
     # Leitura sob lock: atualizar() altera A, b e os contadores in-place, então
     # sem isso uma recomendação poderia ler A já atualizado e b ainda antigo.
     # Medido em 0,2ms — serializar aqui não é gargalo.
     with _bandit_lock:
-        bandit = carregar_bandit()
+        bandit = carregar_bandit(empresa_id)
         acao_id, scores = bandit.recomendar(contexto)
         total_interacoes = sum(bandit.n_tentativas)
         n_acao           = bandit.n_tentativas[acao_id]
@@ -329,7 +352,8 @@ def recomendar(devedor: dict) -> dict:
     }
 
 
-def registrar_resultado(acao_id: int, contexto: list[float], recompensa: float) -> None:
+def registrar_resultado(acao_id: int, contexto: list[float], recompensa: float,
+                        empresa_id: "str | None") -> None:
     if not (0 <= acao_id < N_ACOES):
         print(f"[Bandit] ERRO: acao_id inválido: {acao_id} (válidos: 0–{N_ACOES-1}). Feedback ignorado.")
         return
@@ -337,29 +361,29 @@ def registrar_resultado(acao_id: int, contexto: list[float], recompensa: float) 
     if len(ctx) != D:
         print(
             f"[Bandit] ERRO: contexto com {len(ctx)} dimensões (esperado D={D}). "
-            "Feedback ignorado. Se D mudou, execute: DELETE FROM bandit_estado WHERE id = 1;"
+            "Feedback ignorado. Se D mudou, execute: DELETE FROM bandit_estado;"
         )
         return
     # Ler, alterar e gravar precisam ser uma operação só: sem isso, dois
     # feedbacks simultâneos leem o mesmo estado e o último sobrescreve o outro.
     with _bandit_lock:
-        bandit = carregar_bandit()
+        bandit = carregar_bandit(empresa_id)
         bandit.atualizar(acao_id, ctx, float(np.clip(recompensa, 0.0, 1.0)))
-        salvar_bandit(bandit)
+        salvar_bandit(empresa_id, bandit)
 
 
 # ---------------------------------------------------------------------------
 # Funções de monitoramento
 # ---------------------------------------------------------------------------
 
-def convergencia_stats() -> list[dict]:
+def convergencia_stats(empresa_id: "str | None") -> list[dict]:
     """
     Calcula incerteza (diagonal de A^{-1}) por ação para monitorar convergência.
     Incerteza alta = bandit ainda explorando. Abaixo de 0.01 com ≥10 tentativas = convergido.
     """
     result = []
     with _bandit_lock:
-        bandit = carregar_bandit()
+        bandit = carregar_bandit(empresa_id)
         for a in range(bandit.n_acoes):
             A_inv   = np.linalg.inv(bandit.A[a])
             theta   = A_inv @ bandit.b[a]
@@ -379,11 +403,11 @@ def convergencia_stats() -> list[dict]:
     return result
 
 
-def ajustar_alpha(novo_alpha: float) -> float:
+def ajustar_alpha(novo_alpha: float, empresa_id: "str | None") -> float:
     """Ajusta o parâmetro de exploração e persiste. Retorna o valor efetivo aplicado."""
     alpha_efetivo = float(np.clip(novo_alpha, 0.1, 5.0))
     with _bandit_lock:
-        bandit = carregar_bandit()
+        bandit = carregar_bandit(empresa_id)
         bandit.alpha = alpha_efetivo
-        salvar_bandit(bandit)
+        salvar_bandit(empresa_id, bandit)
     return alpha_efetivo

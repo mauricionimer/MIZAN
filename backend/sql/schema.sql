@@ -156,19 +156,40 @@ CREATE TABLE IF NOT EXISTS recomendacoes (
   id         UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   cpf        TEXT NOT NULL,
+  empresa_id TEXT DEFAULT '',
   acao_id    INTEGER,
   canal      TEXT,
   oferta     TEXT,
   score_ucb  NUMERIC(10,6),
   contexto   JSONB
 );
+-- O mesmo CPF pode dever a mais de um cliente. Sem empresa_id, o feedback de
+-- um banco treinaria o bandit com a recomendação feita pelo outro.
+ALTER TABLE recomendacoes ADD COLUMN IF NOT EXISTS empresa_id TEXT DEFAULT '';
 
 -- ── Estado do bandit LinUCB ──────────────────────────────────
+-- Uma linha por empresa: cada cliente aprende a própria política de cobrança
+-- e o que um aprende nunca aparece nas recomendações do outro.
 CREATE TABLE IF NOT EXISTS bandit_estado (
-  id         INTEGER PRIMARY KEY DEFAULT 1,
+  id         BIGSERIAL PRIMARY KEY,
+  empresa_id TEXT NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   estado     JSONB
 );
+
+-- Migração de bancos que já tinham o bandit global (uma linha só, id fixo em 1).
+-- Idempotente: em base nova cada passo é no-op.
+ALTER TABLE bandit_estado ADD COLUMN IF NOT EXISTS empresa_id TEXT;
+UPDATE bandit_estado SET empresa_id = '_global'
+ WHERE empresa_id IS NULL OR empresa_id = '';
+ALTER TABLE bandit_estado ALTER COLUMN empresa_id SET NOT NULL;
+-- o upsert do backend usa on_conflict="empresa_id" e precisa da restrição
+CREATE UNIQUE INDEX IF NOT EXISTS bandit_estado_empresa_key ON bandit_estado (empresa_id);
+-- o id era fixo em 1; com várias empresas tem de andar sozinho
+CREATE SEQUENCE IF NOT EXISTS bandit_estado_id_seq OWNED BY bandit_estado.id;
+SELECT setval('bandit_estado_id_seq',
+              GREATEST(COALESCE((SELECT MAX(id) FROM bandit_estado), 0), 1));
+ALTER TABLE bandit_estado ALTER COLUMN id SET DEFAULT nextval('bandit_estado_id_seq');
 
 -- ── Auditoria ────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS auditoria (
@@ -226,6 +247,7 @@ CREATE INDEX IF NOT EXISTS idx_carteiras_empresa    ON carteiras(empresa_id);
 CREATE INDEX IF NOT EXISTS idx_contatos_cpf         ON contatos(cpf);
 CREATE INDEX IF NOT EXISTS idx_contatos_empresa     ON contatos(empresa_id);
 CREATE INDEX IF NOT EXISTS idx_recomendacoes_cpf    ON recomendacoes(cpf);
+CREATE INDEX IF NOT EXISTS idx_recomendacoes_emp    ON recomendacoes(empresa_id, cpf);
 CREATE INDEX IF NOT EXISTS idx_auditoria_empresa    ON auditoria(empresa_id);
 CREATE INDEX IF NOT EXISTS idx_conexoes_usuario     ON conexoes_db(usuario_id);
 CREATE INDEX IF NOT EXISTS idx_conexoes_empresa     ON conexoes_db(empresa_id);

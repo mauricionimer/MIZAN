@@ -494,6 +494,18 @@ def _bloquear_autoconexao(conn: ConexaoDB) -> None:
 
 
 
+def _empresa_do_bandit(payload: dict, empresa_id: "str | None") -> str:
+    """Empresa cujo bandit a rota administrativa vai ler ou alterar.
+
+    O bandit é por empresa. COMANDO pode inspecionar o de um cliente
+    específico passando ?empresa_id=; sem isso, usa a própria — mesmo padrão
+    já adotado em /analisar.
+    """
+    if empresa_id:
+        return empresa_id.strip().lower()
+    return (payload.get("empresa_id") or "").strip().lower()
+
+
 def _exigir_comando(credentials: HTTPAuthorizationCredentials) -> dict:
     try:
         payload = validar_token(credentials.credentials)
@@ -744,7 +756,8 @@ def _aging_label(dias: int) -> str:
     return "180+ dias"
 
 
-def _fechar_loop_bandit(db, cpf: str, pagou: bool, valor_recuperado: float, pred_data: dict | None) -> None:
+def _fechar_loop_bandit(db, cpf: str, pagou: bool, valor_recuperado: float, pred_data: dict | None,
+                        empresa_id: str | None) -> None:
     """
     Atualiza o bandit com o resultado do feedback.
     Se não há recomendação prévia registrada, usa offline learning:
@@ -762,14 +775,17 @@ def _fechar_loop_bandit(db, cpf: str, pagou: bool, valor_recuperado: float, pred
         recompensa = 0.0
 
     try:
-        rec_res = (
+        # Escopo por empresa: o mesmo CPF pode dever a mais de um cliente, e
+        # sem o filtro o feedback de um treinaria o bandit com a recomendação
+        # feita pelo outro.
+        rec_q = (
             db.table("recomendacoes")
             .select("acao_id, contexto")
             .eq("cpf", cpf)
-            .order("created_at", desc=True)
-            .limit(1)
-            .execute()
         )
+        if empresa_id:
+            rec_q = rec_q.eq("empresa_id", empresa_id)
+        rec_res = rec_q.order("created_at", desc=True).limit(1).execute()
         if rec_res.data:
             acao_id  = rec_res.data[0]["acao_id"]
             contexto = rec_res.data[0]["contexto"]
@@ -779,14 +795,15 @@ def _fechar_loop_bandit(db, cpf: str, pagou: bool, valor_recuperado: float, pred
             renda   = float(pred_data.get("renda_estimada") or 0)
             comp    = valor_d / renda if renda > 0 else 1.0
             devedor_ctx = {**pred_data, "comprometimento_renda": comp}
-            rec_virtual = _bandit_rec(devedor_ctx)
+            rec_virtual = _bandit_rec(devedor_ctx, empresa_id)
             acao_id     = rec_virtual["acao_id"]
             contexto    = rec_virtual["contexto"]
             print(f"[Bandit] Offline learning CPF {cpf}: acao={acao_id} recompensa={recompensa:.2f}")
         else:
             return
 
-        registrar_resultado(acao_id=acao_id, contexto=contexto, recompensa=recompensa)
+        registrar_resultado(acao_id=acao_id, contexto=contexto, recompensa=recompensa,
+                            empresa_id=empresa_id)
     except Exception as _be:
         print(f"[Bandit] Erro ao fechar loop (CPF {cpf}): {_be}")
 
@@ -1220,8 +1237,12 @@ def registrar_contato(body: ContatoIn, credentials: HTTPAuthorizationCredentials
     # Fecha o loop do bandit: aprende com o resultado real do contato
     if body.resultado in _CONTATO_RECOMPENSA:
         try:
-            rec_res = (db.table("recomendacoes").select("acao_id, contexto")
-                       .eq("cpf", body.cpf).order("created_at", desc=True).limit(1).execute())
+            _emp = payload.get("empresa_id", "")
+            _rec_q = (db.table("recomendacoes").select("acao_id, contexto")
+                      .eq("cpf", body.cpf))
+            if _emp:
+                _rec_q = _rec_q.eq("empresa_id", _emp)
+            rec_res = _rec_q.order("created_at", desc=True).limit(1).execute()
             if rec_res.data:
                 acao_id  = body.acao_bandit_id if body.acao_bandit_id is not None else rec_res.data[0]["acao_id"]
                 contexto = rec_res.data[0]["contexto"]
@@ -1232,7 +1253,8 @@ def registrar_contato(body: ContatoIn, credentials: HTTPAuthorizationCredentials
                     vd = float(pred_r.data[0].get("valor_divida") or 0) if pred_r.data else 0
                     recomp = min(1.0, float(body.valor_recuperado or 0) / vd) if vd > 0 and body.valor_recuperado else 0.5
                 from model.bandit import registrar_resultado
-                registrar_resultado(acao_id=acao_id, contexto=contexto, recompensa=recomp)
+                registrar_resultado(acao_id=acao_id, contexto=contexto, recompensa=recomp,
+                                    empresa_id=_emp)
         except Exception as _be:
             print(f"[Bandit/Contato] {_be}")
 
@@ -2694,6 +2716,7 @@ def receber_feedback(
         db, payload.cpf, payload.pagou,
         float(payload.valor_recuperado or 0),
         pred_res.data[0] if pred_res.data else None,
+        empresa_nome,
     )
 
     # Write-back: só para admin/comando — operador não pode alterar banco externo diretamente
@@ -2814,6 +2837,7 @@ def confirmar_pagamento(
                 db, cpf, True,
                 float(body.valor_recuperado or 0),
                 pred_res.data[0] if (pred_res and pred_res.data) else None,
+                empresa_id,
             )
         except Exception as _be:
             print(f"[Confirmar] Aviso — _fechar_loop_bandit falhou (não crítico): {_be}")
@@ -2926,6 +2950,7 @@ def webhook_pagamento(body: WebhookPagamentoIn, request: Request):
         db, body.cpf, body.pagou,
         float(body.valor_recuperado or 0),
         pred_res.data[0] if pred_res.data else None,
+        empresa,
     )
 
     _cache_del_prefix(f"fb_status:{empresa}")
@@ -3072,6 +3097,7 @@ async def feedback_lote(
                 _fechar_loop_bandit(
                     db, cpf, pagou, valor_recuperado,
                     pred_res.data[0] if pred_res.data else None,
+                    empresa,
                 )
 
                 detalhes.append({"linha": linha, "cpf": cpf, "ok": True, "feedback_id": feedback_id})
@@ -3572,11 +3598,12 @@ def recomendacao_devedor(cpf: str, credentials: HTTPAuthorizationCredentials = S
     devedor = {**pred, "comprometimento_renda": comprometimento}
 
     from model.bandit import recomendar as _bandit_recomendar
-    rec = _bandit_recomendar(devedor)
+    rec = _bandit_recomendar(devedor, empresa_id)
 
     try:
         db.table("recomendacoes").insert({
             "cpf":      cpf,
+            "empresa_id": empresa_id,
             "acao_id":  rec["acao_id"],
             "canal":    rec["canal"],
             "oferta":   rec["oferta"],
@@ -3636,14 +3663,17 @@ def explicar_score_devedor(cpf: str, credentials: HTTPAuthorizationCredentials =
 
 @app.get("/admin/bandit/stats")
 def bandit_stats(
+    empresa_id: Optional[str] = None,
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     """Estatísticas do bandit por ação: tentativas, recompensa média, convergência."""
-    _exigir_comando(credentials)
+    payload = _exigir_comando(credentials)
+    _emp = _empresa_do_bandit(payload, empresa_id)
     from model.bandit import carregar_bandit
-    bandit = carregar_bandit()
+    bandit = carregar_bandit(_emp)
     total = sum(bandit.n_tentativas)
     return {
+        "empresa_id": _emp,
         "total_interacoes": total,
         "alpha": bandit.alpha,
         "fase": "exploração_inicial" if total == 0 else "aprendendo" if total < 50 else "calibrado",
@@ -3682,16 +3712,19 @@ def feature_importance(
 
 @app.get("/admin/bandit/convergencia")
 def bandit_convergencia(
+    empresa_id: Optional[str] = None,
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     """Incerteza e convergência por ação do bandit. Incerteza < 0.01 com ≥10 tentativas = convergido."""
-    _exigir_comando(credentials)
+    payload = _exigir_comando(credentials)
     from model.bandit import convergencia_stats, carregar_bandit
-    bandit = carregar_bandit()
+    _emp   = _empresa_do_bandit(payload, empresa_id)
+    bandit = carregar_bandit(_emp)
     total  = sum(bandit.n_tentativas)
-    acoes  = convergencia_stats()
+    acoes  = convergencia_stats(_emp)
     n_conv = sum(1 for a in acoes if a["convergido"])
     return {
+        "empresa_id": _emp,
         "total_interacoes": total,
         "alpha":            bandit.alpha,
         "acoes_convergidas": n_conv,
@@ -3703,16 +3736,18 @@ def bandit_convergencia(
 @app.patch("/admin/bandit/alpha")
 def ajustar_alpha_bandit(
     body: dict,
+    empresa_id: Optional[str] = None,
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     """Ajusta o parâmetro de exploração do bandit (0.1 – 5.0). Valor alto = mais exploração."""
-    _exigir_comando(credentials)
+    payload = _exigir_comando(credentials)
     novo_alpha = body.get("alpha")
     if novo_alpha is None:
         raise HTTPException(status_code=422, detail="Campo 'alpha' obrigatório.")
+    _emp = _empresa_do_bandit(payload, empresa_id)
     from model.bandit import ajustar_alpha
-    alpha_efetivo = ajustar_alpha(float(novo_alpha))
-    return {"ok": True, "alpha": alpha_efetivo}
+    alpha_efetivo = ajustar_alpha(float(novo_alpha), _emp)
+    return {"ok": True, "alpha": alpha_efetivo, "empresa_id": _emp}
 
 
 @app.get("/predicoes/historico/{cpf}")
