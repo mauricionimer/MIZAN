@@ -137,9 +137,18 @@ function Propostas({ dados, loading, erro, despesas, setDespesas, onRecalcular }
                     {fmtBRL(p.valor_esperado)}
                   </p>
                   {p.pop != null && (
-                    <p className="text-[11px] tabular-nums" style={{ color: 'var(--ink-3)' }}>
-                      {fmtPct(p.pop)} de chance
-                    </p>
+                    <>
+                      <p className="text-[11px] tabular-nums" style={{ color: 'var(--ink-3)' }}>
+                        {fmtPct(p.pop)} de chance
+                      </p>
+                      {/* 65% do modelo e 65% de vinte renegociações reais não
+                          valem o mesmo — a origem precisa estar à vista. */}
+                      <p className="text-[10px]" style={{ color: 'var(--ink-3)', opacity: 0.8 }}>
+                        {p.origem_pop === 'bandit'
+                          ? (p.pop_observacoes === 1 ? '1 caso real' : `${p.pop_observacoes} casos reais`)
+                          : 'estimativa do modelo'}
+                      </p>
+                    </>
                   )}
                 </div>
               </div>

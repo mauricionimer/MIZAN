@@ -3691,11 +3691,11 @@ def propostas_devedor(
     divida = float(pred.get("valor_divida") or 0)
     propostas = montar_propostas(divida)
 
-    # A probabilidade de pagamento do modelo é única por devedor, não por
-    # oferta: a referência usa uma PoP por proposta, vinda de um modelo
-    # treinado em resultado de renegociação, que exige feedback real que o
-    # Mizan ainda não tem. Até lá a mesma PoP vale para todas, e o motor
-    # avisa que a ordenação não está separando as ofertas por probabilidade.
+    # A probabilidade do modelo é uma por devedor, igual para toda oferta.
+    # Ela serve de ponto de partida; o que distingue uma proposta da outra por
+    # probabilidade é o feedback real de renegociação, que o bandit acumula
+    # por tipo de oferta. Onde já existe histórico, ele manda; onde não
+    # existe, a estimativa é exatamente a do modelo.
     pop = pred.get("probabilidade_pagamento")
     if pop is None:
         score = float(pred.get("score_recuperabilidade") or 0)
@@ -3705,7 +3705,16 @@ def propostas_devedor(
         pop = float(pop)
         origem_pop = "modelo"
 
-    aval = avaliar(propostas, margem, [pop] * len(propostas), origem_pop, politica)
+    try:
+        from model.bandit import pop_por_oferta as _pop_oferta
+        pops_oferta = _pop_oferta(empresa_id, pop)
+    except Exception as _e:
+        # Bandit indisponível não pode derrubar a proposta: cai na do modelo.
+        print(f"[Propostas] PoP por oferta indisponível: {_e}")
+        pops_oferta = None
+
+    aval = avaliar(propostas, margem, [pop] * len(propostas), origem_pop,
+                   politica, pop_por_oferta=pops_oferta)
     return {
         "cpf": cpf,
         "nome": pred.get("nome"),

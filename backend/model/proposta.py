@@ -134,10 +134,12 @@ class Proposta:
     rotulo: str
     desconto_pct: float
     n_parcelas: int              # 1 = à vista
+    oferta: str = ""             # id da oferta no bandit, quando houver
     valor_cobrado: float = 0.0   # dívida já com desconto — o que o banco recupera
     parcela: float = 0.0
     pop: "float | None" = None   # probabilidade de pagamento desta proposta
     origem_pop: str = ""
+    pop_observacoes: int = 0     # feedbacks reais por trás da PoP
     valor_esperado: "float | None" = None
     cabe_no_bolso: "bool | None" = None   # None = não foi possível verificar
     observacao: str = ""
@@ -147,14 +149,22 @@ class Proposta:
         return self.n_parcelas <= 1
 
 
-# Os quatro arquétipos da simulação da referência: rápida sem desconto, longa
-# sem desconto, desconto moderado e quitação à vista. Prazos e descontos são
-# ponto de partida — cada banco ajusta os seus.
+# Os quatro arquétipos seguem a forma da simulação da referência — duas
+# parceladas e duas de quitação com desconto — mas usam o MESMO catálogo de
+# ofertas do bandit (model/bandit.py: ACOES). Sem isso o produto teria dois
+# vocabulários de oferta: o bandit aprenderia sobre "parcelado_12x" enquanto
+# a tela propõe "12x com 30% de desconto", e o aprendizado nunca chegaria na
+# proposta. Prazos e descontos continuam ponto de partida, ajustáveis por
+# banco; o campo "oferta" é que amarra proposta e aprendizado.
 ARQUETIPOS_PADRAO = [
-    {"rotulo": "Rápida, sem desconto",   "desconto_pct": 0.0,  "n_parcelas": 6},
-    {"rotulo": "Longa, sem desconto",    "desconto_pct": 0.0,  "n_parcelas": 36},
-    {"rotulo": "Desconto moderado",      "desconto_pct": 30.0, "n_parcelas": 12},
-    {"rotulo": "Quitação à vista",       "desconto_pct": 60.0, "n_parcelas": 1},
+    {"rotulo": "Parcelado em 4x, sem desconto", "desconto_pct": 0.0,
+     "n_parcelas": 4,  "oferta": "parcelado_4x"},
+    {"rotulo": "Parcelado em 12x",              "desconto_pct": 0.0,
+     "n_parcelas": 12, "oferta": "parcelado_12x"},
+    {"rotulo": "10% de desconto à vista",       "desconto_pct": 10.0,
+     "n_parcelas": 1,  "oferta": "avista_10pct"},
+    {"rotulo": "30% de desconto à vista",       "desconto_pct": 30.0,
+     "n_parcelas": 1,  "oferta": "desconto_30pct"},
 ]
 
 
@@ -176,6 +186,7 @@ def montar_propostas(divida: float, arquetipos: "list[dict] | None" = None,
         total_parcelado = cobrado * (1 + juros / 100 * n)
         propostas.append(Proposta(
             rotulo=a.get("rotulo", ""),
+            oferta=a.get("oferta", ""),
             desconto_pct=desconto,
             n_parcelas=n,
             valor_cobrado=cobrado,
@@ -221,7 +232,8 @@ class Avaliacao:
 def avaliar(propostas: "list[Proposta]", margem: Margem,
             pop_por_proposta: "list[float] | None" = None,
             origem_pop: str = "",
-            politica: "PoliticaProposta | None" = None) -> Avaliacao:
+            politica: "PoliticaProposta | None" = None,
+            pop_por_oferta: "dict | None" = None) -> Avaliacao:
     """Aplica o filtro de capacidade de pagamento e ordena por valor esperado.
 
     A decisão é a da referência: entre as propostas que cabem no bolso, vence
@@ -233,7 +245,14 @@ def avaliar(propostas: "list[Proposta]", margem: Margem,
     teto = parcela_maxima(margem, politica)
 
     for i, p in enumerate(propostas):
-        if pop_por_proposta is not None and i < len(pop_por_proposta):
+        # A PoP por oferta vem do feedback real (bandit) e tem precedência:
+        # é a única que distingue uma proposta da outra por probabilidade.
+        estimativa = (pop_por_oferta or {}).get(p.oferta) if p.oferta else None
+        if estimativa is not None:
+            p.pop = float(estimativa.get("pop"))
+            p.origem_pop = estimativa.get("origem", "")
+            p.pop_observacoes = int(estimativa.get("n_tentativas") or 0)
+        elif pop_por_proposta is not None and i < len(pop_por_proposta):
             p.pop = float(pop_por_proposta[i])
             p.origem_pop = origem_pop
         p.valor_esperado = (round(p.valor_cobrado * p.pop, 2)
@@ -274,10 +293,20 @@ def avaliar(propostas: "list[Proposta]", margem: Margem,
     if com_ev and not discrimina:
         avisos.append(
             "Todas as propostas usam a mesma probabilidade de pagamento, porque ainda "
-            "não há feedback real suficiente para estimar uma chance por tipo de oferta. "
-            "Enquanto isso, a ordenação por valor esperado apenas favorece a proposta de "
-            "maior valor — ela não distingue as ofertas por probabilidade."
+            "não há feedback real por tipo de oferta. Enquanto isso, a ordenação por "
+            "valor esperado apenas favorece a proposta de maior valor — ela não "
+            "distingue as ofertas por probabilidade. Cada renegociação registrada "
+            "alimenta essa estimativa."
         )
+    elif com_ev:
+        n_obs = sum(p.pop_observacoes for p in com_ev)
+        das_ofertas = sum(1 for p in com_ev if p.origem_pop == "bandit")
+        if n_obs:
+            avisos.append(
+                f"A chance de pagamento vem de {n_obs} renegociação(ões) já registrada(s), "
+                f"em {das_ofertas} de {len(com_ev)} ofertas. Onde ainda não há histórico, "
+                "vale a probabilidade do modelo."
+            )
 
     return Avaliacao(propostas=propostas, recomendada=recomendada,
                      alternativa_a_vista=alternativa, margem=margem,

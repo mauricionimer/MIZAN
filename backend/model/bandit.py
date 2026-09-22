@@ -81,6 +81,11 @@ class LinUCB:
         self.b       = [np.zeros(d)    for _ in range(n_acoes)]
         self.n_tentativas         = [0]   * n_acoes
         self.recompensa_acumulada = [0.0] * n_acoes
+        # recompensa_acumulada/n_tentativas é TAXA DE RECUPERAÇÃO esperada,
+        # não probabilidade de pagamento: quem pagou metade da dívida entra
+        # como 0,5. Para a PoP — P(pagou | oferta) — é preciso contar quantos
+        # pagaram alguma coisa, que é o que n_pagamentos guarda.
+        self.n_pagamentos         = [0]   * n_acoes
 
     def recomendar(self, contexto: np.ndarray) -> tuple[int, list[float]]:
         x      = contexto.astype(float)
@@ -99,14 +104,20 @@ class LinUCB:
         self.b[acao] += recompensa * x
         self.n_tentativas[acao]         += 1
         self.recompensa_acumulada[acao] += recompensa
+        if recompensa > 0:
+            self.n_pagamentos[acao]     += 1
 
     def stats(self) -> list[dict]:
         return [
             {
                 **ACOES[a],
                 "n_tentativas":     self.n_tentativas[a],
+                "n_pagamentos":     self.n_pagamentos[a],
                 "recompensa_media": round(
                     self.recompensa_acumulada[a] / self.n_tentativas[a], 4
+                ) if self.n_tentativas[a] > 0 else None,
+                "taxa_pagamento":   round(
+                    self.n_pagamentos[a] / self.n_tentativas[a], 4
                 ) if self.n_tentativas[a] > 0 else None,
             }
             for a in range(self.n_acoes)
@@ -123,6 +134,7 @@ def _bandit_para_json(bandit: LinUCB) -> dict:
         "b":                    [b.tolist() for b in bandit.b],
         "n_tentativas":         bandit.n_tentativas,
         "recompensa_acumulada": bandit.recompensa_acumulada,
+        "n_pagamentos":         bandit.n_pagamentos,
         "alpha":                bandit.alpha,
         "n_acoes":              bandit.n_acoes,
         "d":                    bandit.d,
@@ -137,6 +149,10 @@ def _bandit_de_json(data: dict) -> LinUCB:
     bandit.b                    = [np.array(b) for b in data["b"]]
     bandit.n_tentativas         = data["n_tentativas"]
     bandit.recompensa_acumulada = data["recompensa_acumulada"]
+    # Estado gravado antes deste contador existir não sabe quantos pagaram.
+    # Zerar seria mentir para menos, então fica ausente e a PoP daquelas
+    # ofertas segue vindo do modelo até chegar feedback novo.
+    bandit.n_pagamentos = data.get("n_pagamentos") or [0] * bandit.n_acoes
     return bandit
 
 
@@ -375,6 +391,57 @@ def registrar_resultado(acao_id: int, contexto: list[float], recompensa: float,
 # ---------------------------------------------------------------------------
 # Funções de monitoramento
 # ---------------------------------------------------------------------------
+
+# Quantas observações "de mentira" o modelo vale ao estimar a PoP de uma
+# oferta. Com zero feedback real, a estimativa é exatamente a do modelo; com
+# K observações reais, fica na metade do caminho entre modelo e taxa medida;
+# com muitas, a taxa medida domina.
+#
+# Isto é escolha de engenharia, não vem da referência técnica: ela diz que a
+# PoP sai de um modelo treinado em resultado de renegociação, sem dizer como
+# estimá-la com pouco dado. A suavização existe para não deixar "1 pagamento
+# em 1 tentativa" virar 100% de chance, que é o que uma taxa crua faria.
+K_SUAVIZACAO_POP = 10.0
+
+
+def pop_por_oferta(empresa_id: "str | None", pop_base: float,
+                   k: float = K_SUAVIZACAO_POP) -> dict:
+    """Probabilidade de pagamento por tipo de oferta, a partir do feedback real.
+
+    Agrega os três canais: a pergunta aqui é "qual a chance de pagar com esta
+    oferta", não "por qual canal falar" — essa segunda o bandit responde
+    separadamente em recomendar().
+
+    Cada oferta volta com a origem e o número de observações que a sustentam,
+    para a tela poder mostrar em que a estimativa se apoia em vez de exibir um
+    número solto.
+    """
+    pop_base = float(min(1.0, max(0.0, pop_base)))
+    with _bandit_lock:
+        bandit = carregar_bandit(empresa_id)
+        tentativas = list(bandit.n_tentativas)
+        pagamentos = list(bandit.n_pagamentos)
+
+    agregado: dict = {}
+    for a in ACOES:
+        o = agregado.setdefault(a["oferta"], {"n_tentativas": 0, "n_pagamentos": 0})
+        o["n_tentativas"] += tentativas[a["id"]]
+        o["n_pagamentos"] += pagamentos[a["id"]]
+
+    saida = {}
+    for oferta, o in agregado.items():
+        n, pagos = o["n_tentativas"], o["n_pagamentos"]
+        pop = (pagos + k * pop_base) / (n + k) if (n + k) > 0 else pop_base
+        saida[oferta] = {
+            "pop":            round(float(min(1.0, max(0.0, pop))), 4),
+            "origem":         "bandit" if n > 0 else "modelo",
+            "n_tentativas":   n,
+            "n_pagamentos":   pagos,
+            "taxa_observada": round(pagos / n, 4) if n > 0 else None,
+            "pop_base":       round(pop_base, 4),
+        }
+    return saida
+
 
 def convergencia_stats(empresa_id: "str | None") -> list[dict]:
     """

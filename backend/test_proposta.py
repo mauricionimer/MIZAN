@@ -190,6 +190,99 @@ checar(av_1.pop_discrimina, "com PoP por oferta, marca que está discriminando")
 
 
 # ===========================================================================
+# PoP por oferta, vinda do feedback real
+# ===========================================================================
+print("\n— PoP por oferta (bandit) —")
+
+import os as _os, tempfile as _tmp  # noqa: E402
+_os.environ["MIZAN_DATA_DIR"] = _tmp.mkdtemp()
+Path(_os.environ["MIZAN_DATA_DIR"], "model").mkdir(parents=True, exist_ok=True)
+from model import bandit as B  # noqa: E402
+from model.proposta import ARQUETIPOS_PADRAO  # noqa: E402
+
+B._salvar_supabase = lambda e, b: None
+B._carregar_supabase = lambda e: None
+CTX = [0.5] * B.D
+EMP = "banco_teste"
+
+# O catálogo de ofertas tem de ser o mesmo dos dois lados, senão o bandit
+# aprende sobre uma oferta e a tela propõe outra.
+checar({a["oferta"] for a in ARQUETIPOS_PADRAO} == {a["oferta"] for a in B.ACOES},
+       "proposta e bandit usam o mesmo catálogo de ofertas")
+
+# Sem feedback nenhum: a estimativa é exatamente a do modelo
+pops = B.pop_por_oferta(EMP, 0.65)
+checar(all(abs(v["pop"] - 0.65) < 1e-9 for v in pops.values()),
+       "sem feedback, a PoP de toda oferta é a do modelo",
+       f'{sorted({v["pop"] for v in pops.values()})}')
+checar(all(v["origem"] == "modelo" for v in pops.values()),
+       "e a origem diz que veio do modelo, não do histórico")
+
+# 20 renegociações com desconto de 30%, 16 pagaram (ação 6 = telefone + 30%)
+for i in range(20):
+    B.registrar_resultado(6, CTX, 0.9 if i < 16 else 0.0, EMP)
+pops = B.pop_por_oferta(EMP, 0.65)
+d30 = pops["desconto_30pct"]
+
+checar(d30["origem"] == "bandit", "com histórico, a oferta passa a vir do bandit")
+checar(d30["n_tentativas"] == 20 and d30["n_pagamentos"] == 16,
+       "conta tentativas e pagamentos separadamente",
+       f'{d30["n_pagamentos"]}/{d30["n_tentativas"]}')
+checar(perto(d30["taxa_observada"], 0.80, tol=0.001), "taxa observada de 80%",
+       str(d30["taxa_observada"]))
+# suavização: entre o modelo (0,65) e o observado (0,80), puxado pela evidência
+checar(0.65 < d30["pop"] < 0.80, "a estimativa fica entre o modelo e o observado",
+       f'{d30["pop"]}')
+checar(pops["parcelado_4x"]["pop"] == 0.65,
+       "oferta sem histórico continua na probabilidade do modelo")
+
+# "1 de 1" não pode virar 100%
+B2 = "outro_banco"
+B.registrar_resultado(2, CTX, 1.0, B2)     # ação 2 = whatsapp + desconto_30pct
+um_de_um = B.pop_por_oferta(B2, 0.30)["desconto_30pct"]
+checar(um_de_um["pop"] < 0.45,
+       "um único pagamento não vira certeza", f'pop={um_de_um["pop"]} com 1 observação')
+checar(um_de_um["taxa_observada"] == 1.0,
+       "embora a taxa crua seja 100% — é a suavização que segura")
+
+# a recompensa parcial não infla a PoP: quem pagou metade pagou
+B3 = "terceiro"
+for _ in range(10):
+    B.registrar_resultado(1, CTX, 0.5, B3)   # 10 pagamentos parciais
+est = B.pop_por_oferta(B3, 0.20)["parcelado_4x"]
+checar(est["taxa_observada"] == 1.0,
+       "pagamento parcial conta como pagamento na PoP", str(est["taxa_observada"]))
+bandit3 = B.carregar_bandit(B3)
+checar(perto(bandit3.recompensa_acumulada[1] / 10, 0.5, tol=0.001),
+       "mas a taxa de recuperação continua 0,5 — são grandezas diferentes",
+       f"{bandit3.recompensa_acumulada[1] / 10}")
+
+# --- e agora o ponto: a PoP passa a DISCRIMINAR as propostas
+props = montar_propostas(12000.0)
+aval = avaliar(props, Margem(3000.0, "informada"), [0.65] * 4, "modelo",
+               pop_por_oferta=B.pop_por_oferta(EMP, 0.65))
+pops_usadas = {p.pop for p in aval.propostas}
+checar(len(pops_usadas) > 1, "com histórico, as propostas deixam de ter a mesma PoP",
+       str(sorted(pops_usadas)))
+checar(aval.pop_discrimina, "e o motor marca que está discriminando por probabilidade")
+checar("renegociação" in aval.aviso and "modelo" in aval.aviso,
+       "o aviso diz em quanto histórico a estimativa se apoia", aval.aviso[:90])
+d30_prop = next(p for p in aval.propostas if p.oferta == "desconto_30pct")
+checar(d30_prop.origem_pop == "bandit" and d30_prop.pop_observacoes == 20,
+       "a proposta carrega origem e evidência para a tela mostrar",
+       f"{d30_prop.origem_pop}, {d30_prop.pop_observacoes} obs")
+
+# estado gravado antes do contador existir não pode quebrar nem mentir
+antigo = B._bandit_para_json(B.carregar_bandit(EMP))
+del antigo["n_pagamentos"]
+recuperado = B._bandit_de_json(antigo)
+checar(recuperado.n_pagamentos == [0] * B.N_ACOES,
+       "estado antigo, sem o contador, volta zerado em vez de estourar")
+checar(recuperado.n_tentativas == B.carregar_bandit(EMP).n_tentativas,
+       "e o resto do estado antigo é preservado")
+
+
+# ===========================================================================
 # Formatação de moeda
 # ===========================================================================
 print("\n— Formatação —")
