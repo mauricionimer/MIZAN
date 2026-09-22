@@ -60,6 +60,9 @@ ALTER TABLE predicoes ADD COLUMN IF NOT EXISTS origem_taxa               TEXT DE
 -- LGD é 1 menos a taxa de recuperação, e EL = EAD × LGD.
 ALTER TABLE predicoes ADD COLUMN IF NOT EXISTS perda_esperada            NUMERIC(15,2);
 ALTER TABLE predicoes ADD COLUMN IF NOT EXISTS lgd                       NUMERIC(5,4);
+-- Despesas fixas mensais do devedor: insumo da margem livre. Sem elas o
+-- motor de renegociação não consegue testar se a parcela cabe no bolso.
+ALTER TABLE predicoes ADD COLUMN IF NOT EXISTS despesas_mensais          NUMERIC(15,2);
 
 -- ── Feedbacks ────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS feedbacks (

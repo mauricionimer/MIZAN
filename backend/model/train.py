@@ -56,11 +56,20 @@ ALIASES: dict[str, str] = {
     'produto_financeiro': 'produto',
     'tipo_produto':       'produto',
     'tipo_divida':        'produto',
+    # Despesas fixas mensais: sem elas não há margem livre, e sem margem livre
+    # o motor de renegociação não consegue testar se a parcela cabe no bolso.
+    'despesas':           'despesas_mensais',
+    'despesa_mensal':     'despesas_mensais',
+    'despesas_fixas':     'despesas_mensais',
+    'gastos_fixos':       'despesas_mensais',
+    'gastos_mensais':     'despesas_mensais',
+    'despesasmensais':    'despesas_mensais',
 }
 
 # Colunas que nunca devem ser features do modelo
 _COLS_EXCLUIR = {
     'cpf', 'nome', 'pagou', 'rank', 'score_recuperabilidade',
+    'despesas_mensais',
     'cluster_id', 'perfil_cluster', 'recomendacao', 'abordagem',
     'motivo_prioridade', 'carteira_id', 'created_at', 'id',
 }

@@ -2088,7 +2088,8 @@ def _psi_da_carteira(scores: list) -> dict:
 # nenhuma análise seria gravada — perder o enriquecimento é ruim, perder a
 # carteira é bem pior. Aqui a gravação cai para o conjunto antigo de colunas e
 # avisa no log, em vez de derrubar a análise.
-_COLUNAS_PREDICAO_OPCIONAIS = ("probabilidade_pagamento", "origem_taxa", "perda_esperada", "lgd")
+_COLUNAS_PREDICAO_OPCIONAIS = ("probabilidade_pagamento", "origem_taxa", "perda_esperada",
+                               "lgd", "despesas_mensais")
 
 
 def _inserir_predicoes(db, linhas: list[dict]):
@@ -2131,6 +2132,27 @@ def _premissa_recuperacao_se_pagar(empresa_id: str | None) -> float:
     if not (0 < valor <= 1):
         return PREMISSA_RECUPERACAO_SE_PAGAR_PADRAO
     return valor
+
+
+def _politica_proposta(empresa_id: "str | None"):
+    """Política de renegociação da empresa; cai no padrão declarado se não houver.
+
+    Buffer da margem e teto de comprometimento são regra do banco, não
+    constante do Mizan — a própria referência os descreve como "regra do
+    banco diz". Por isso ficam em empresa_config.extra.
+    """
+    from model.proposta import PoliticaProposta
+    if not empresa_id:
+        return PoliticaProposta()
+    try:
+        res = (
+            get_db().table("empresa_config")
+            .select("extra").eq("empresa_id", empresa_id).limit(1).execute()
+        )
+        extra = (res.data or [{}])[0].get("extra") or {}
+        return PoliticaProposta.de_config(extra)
+    except Exception:
+        return PoliticaProposta()
 
 
 def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _usuario_email: str = None, _empresa_id: str = None, _carteira_id_existente: str = None) -> dict:
@@ -2366,7 +2388,8 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
              "probabilidade_pagamento": _py(d.get("probabilidade_pagamento")),
              "origem_taxa": str(d.get("origem_taxa") or ""),
              "perda_esperada": _py(d.get("perda_esperada")),
-             "lgd": _py(d.get("lgd"))}
+             "lgd": _py(d.get("lgd")),
+             "despesas_mensais": _py(d.get("despesas_mensais"))}
             for d in devedores
         ]
         pred_id_map: dict[str, str] = {}
@@ -3614,6 +3637,81 @@ def recomendacao_devedor(cpf: str, credentials: HTTPAuthorizationCredentials = S
         print(f"[Bandit] Erro ao salvar recomendacao: {_e}")
 
     return {**rec, "cpf": cpf, "nome": pred.get("nome")}
+
+
+@app.get("/predicoes/{cpf}/propostas")
+def propostas_devedor(
+    cpf: str,
+    despesas_mensais: Optional[float] = None,
+    credentials: HTTPAuthorizationCredentials = Security(bearer),
+):
+    """Monta as propostas de renegociação para o CPF, com margem livre e valor esperado.
+
+    Filtra pelo que cabe no bolso do devedor e ordena por valor esperado —
+    a decisão descrita na referência técnica. As propostas que não cabem
+    continuam na resposta, marcadas, para o operador ver por que foram
+    descartadas em vez de receber uma lista sem explicação.
+    """
+    payload = _usuario_autenticado(credentials)
+    empresa_id = payload.get("empresa_id", "")
+    db = get_db()
+
+    role = payload.get("role", "")
+    if not empresa_id and role != "comando":
+        raise HTTPException(status_code=403, detail="Acesso negado: usuário sem empresa definida.")
+
+    q = (
+        db.table("predicoes")
+        .select("cpf, nome, valor_divida, renda_estimada, dias_em_atraso, "
+                "score_recuperabilidade, probabilidade_pagamento, carteira_id")
+        .eq("cpf", cpf)
+        .order("created_at", desc=True)
+    )
+    if empresa_id:
+        cart_res = db.table("carteiras").select("id").eq("empresa_id", empresa_id).execute()
+        cart_ids = [c["id"] for c in (cart_res.data or [])]
+        if not cart_ids:
+            raise HTTPException(status_code=404, detail=f"Nenhuma predição encontrada para CPF: {cpf}")
+        q = q.in_("carteira_id", cart_ids)
+    pred_res = q.limit(1).execute()
+    if not pred_res.data:
+        raise HTTPException(status_code=404, detail=f"Nenhuma predição encontrada para CPF: {cpf}")
+
+    pred = pred_res.data[0]
+    from model.proposta import avaliar, calcular_margem, montar_propostas
+
+    politica = _politica_proposta(empresa_id)
+    # A carteira pode trazer as despesas; a query string permite ao operador
+    # informar na hora, quando o devedor declara na ligação.
+    despesas = despesas_mensais
+    if despesas is None:
+        despesas = pred.get("despesas_mensais")
+    margem = calcular_margem(pred.get("renda_estimada"), despesas, politica)
+
+    divida = float(pred.get("valor_divida") or 0)
+    propostas = montar_propostas(divida)
+
+    # A probabilidade de pagamento do modelo é única por devedor, não por
+    # oferta: a referência usa uma PoP por proposta, vinda de um modelo
+    # treinado em resultado de renegociação, que exige feedback real que o
+    # Mizan ainda não tem. Até lá a mesma PoP vale para todas, e o motor
+    # avisa que a ordenação não está separando as ofertas por probabilidade.
+    pop = pred.get("probabilidade_pagamento")
+    if pop is None:
+        score = float(pred.get("score_recuperabilidade") or 0)
+        pop = max(0.0, min(1.0, score / 100))
+        origem_pop = "score"
+    else:
+        pop = float(pop)
+        origem_pop = "modelo"
+
+    aval = avaliar(propostas, margem, [pop] * len(propostas), origem_pop, politica)
+    return {
+        "cpf": cpf,
+        "nome": pred.get("nome"),
+        "valor_divida": divida,
+        **aval.para_json(),
+    }
 
 
 @app.get("/predicoes/{cpf}/explicacao")
