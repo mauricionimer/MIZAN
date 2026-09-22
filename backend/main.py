@@ -106,7 +106,9 @@ def _cache_set(key: str, val):
 def _cache_del_prefix(prefix: str):
     for k in list(_cache_store):
         if k.startswith(prefix):
-            del _cache_store[k]
+            # pop em vez de del: em threadpool outra requisição pode já ter
+            # removido a mesma chave entre o list() e aqui.
+            _cache_store.pop(k, None)
 
 # ---------------------------------------------------------------------------
 # Criptografia de senhas salvas
@@ -2033,11 +2035,11 @@ def _psi_da_carteira(scores: list) -> dict:
     em vez de um número.
     """
     try:
-        import joblib
-
         from model.psi import calcular
-        from model.score import MODEL_DIR as _SCORE_DIR
-        meta = joblib.load(_SCORE_DIR / "scaler.pkl")
+        from model.score import _carregar_modelos
+        # Usa o cache de modelos do score.py em vez de reler scaler.pkl do
+        # disco: a análise já carregou esses artefatos para pontuar a carteira.
+        _, _, meta = _carregar_modelos()
         return calcular(scores, meta.get("psi_referencia"))
     except Exception as e:
         return {"ok": False, "motivo": f"Não foi possível calcular o PSI: {e}"}
@@ -2392,7 +2394,7 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
 
 
 @app.post("/listar-tabelas")
-async def listar_tabelas(conn: ConexaoDB, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+def listar_tabelas(conn: ConexaoDB, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """Lista as tabelas disponíveis no banco externo — sem precisar escrever SQL."""
     _usuario_autenticado(credentials)
     _resolver_credenciais(conn)
@@ -2431,7 +2433,7 @@ async def listar_tabelas(conn: ConexaoDB, credentials: HTTPAuthorizationCredenti
 
 
 @app.post("/testar-db")
-async def testar_db(conn: ConexaoDB, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+def testar_db(conn: ConexaoDB, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """Testa conexão, executa query limitada e retorna colunas + preview + mapeamento sugerido."""
     _usuario_autenticado(credentials)
     _resolver_credenciais(conn)
@@ -2489,7 +2491,7 @@ async def testar_db(conn: ConexaoDB, credentials: HTTPAuthorizationCredentials =
 
 
 @app.post("/analisar/db")
-async def analisar_db(conn: ConexaoDB, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+def analisar_db(conn: ConexaoDB, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """Analisa uma carteira carregada diretamente de um banco de dados externo."""
     _payload = _usuario_autenticado(credentials)  # valida o token ANTES de conectar
     _resolver_credenciais(conn)
@@ -2625,7 +2627,7 @@ def _writeback_pagamento(empresa_id: str, cpf: str, pagou: bool) -> str | None:
 
 
 @app.post("/feedback")
-async def receber_feedback(
+def receber_feedback(
     payload: FeedbackIn,
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
@@ -2695,7 +2697,7 @@ async def receber_feedback(
 
 
 @app.post("/devedores/{cpf}/confirmar-pagamento")
-async def confirmar_pagamento(
+def confirmar_pagamento(
     cpf: str,
     body: ConfirmarPagamentoIn,
     credentials: HTTPAuthorizationCredentials = Security(bearer),
@@ -2857,7 +2859,7 @@ async def confirmar_pagamento(
 
 
 @app.post("/webhook/pagamento")
-async def webhook_pagamento(body: WebhookPagamentoIn, request: Request):
+def webhook_pagamento(body: WebhookPagamentoIn, request: Request):
     """
     Webhook para receber pagamentos em tempo real do sistema do cliente.
     Autenticação: header X-API-Key com a api_key cadastrada no Mizan.
@@ -3078,7 +3080,7 @@ async def feedback_lote(
 
 
 @app.get("/performance")
-async def performance(
+def performance(
     credentials: HTTPAuthorizationCredentials = Security(bearer),
     carteira_id: Optional[str] = None,
 ):
@@ -3211,7 +3213,7 @@ async def performance(
 
 
 @app.get("/performance/pagamentos")
-async def performance_pagamentos(
+def performance_pagamentos(
     credentials: HTTPAuthorizationCredentials = Security(bearer),
     carteira_id: Optional[str] = None,
 ):
@@ -3306,7 +3308,7 @@ async def performance_pagamentos(
 
 
 @app.get("/feedbacks/status")
-async def feedbacks_status(
+def feedbacks_status(
     credentials: HTTPAuthorizationCredentials = Security(bearer),
     carteira_id: Optional[str] = None,
 ):
@@ -3465,7 +3467,7 @@ def admin_price_model_stats(credentials: HTTPAuthorizationCredentials = Security
 
 
 @app.get("/admin/drift")
-async def detectar_drift(credentials: HTTPAuthorizationCredentials = Security(bearer)):
+def detectar_drift(credentials: HTTPAuthorizationCredentials = Security(bearer)):
     _exigir_comando(credentials)
     db = get_db()
 
@@ -3512,7 +3514,7 @@ async def detectar_drift(credentials: HTTPAuthorizationCredentials = Security(be
 
 
 @app.get("/recomendacao/{cpf}")
-async def recomendacao_devedor(cpf: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+def recomendacao_devedor(cpf: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """
     Retorna a melhor abordagem de cobrança para o CPF via LinUCB.
     Salva a recomendação no Supabase para fechar o loop de aprendizado via POST /feedback.
@@ -3567,7 +3569,7 @@ async def recomendacao_devedor(cpf: str, credentials: HTTPAuthorizationCredentia
 
 
 @app.get("/predicoes/{cpf}/explicacao")
-async def explicar_score_devedor(cpf: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+def explicar_score_devedor(cpf: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """
     Explica por que ESSE CPF específico recebeu o score que recebeu: para cada variável,
     mostra o quanto ela empurrou o score para cima ou para baixo em relação ao devedor
@@ -3612,7 +3614,7 @@ async def explicar_score_devedor(cpf: str, credentials: HTTPAuthorizationCredent
 
 
 @app.get("/admin/bandit/stats")
-async def bandit_stats(
+def bandit_stats(
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     """Estatísticas do bandit por ação: tentativas, recompensa média, convergência."""
@@ -3629,7 +3631,7 @@ async def bandit_stats(
 
 
 @app.get("/admin/feature-importance")
-async def feature_importance(
+def feature_importance(
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     """Retorna a importância de cada feature no modelo ativo — mostra o que drive o score."""
@@ -3658,7 +3660,7 @@ async def feature_importance(
 
 
 @app.get("/admin/bandit/convergencia")
-async def bandit_convergencia(
+def bandit_convergencia(
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     """Incerteza e convergência por ação do bandit. Incerteza < 0.01 com ≥10 tentativas = convergido."""
@@ -3678,7 +3680,7 @@ async def bandit_convergencia(
 
 
 @app.patch("/admin/bandit/alpha")
-async def ajustar_alpha_bandit(
+def ajustar_alpha_bandit(
     body: dict,
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
@@ -3693,7 +3695,7 @@ async def ajustar_alpha_bandit(
 
 
 @app.get("/predicoes/historico/{cpf}")
-async def historico_score_devedor(
+def historico_score_devedor(
     cpf: str,
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
@@ -3726,7 +3728,7 @@ async def historico_score_devedor(
 
 
 @app.get("/admin/modelos")
-async def listar_modelos(
+def listar_modelos(
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     """
@@ -3846,7 +3848,7 @@ class PromoverIn(BaseModel):
 
 
 @app.post("/admin/retreinar")
-async def admin_retreinar(
+def admin_retreinar(
     min_feedbacks: int = 30,
     auto_promover: bool = False,
     credentials: HTTPAuthorizationCredentials = Security(bearer),
@@ -3870,7 +3872,7 @@ async def admin_retreinar(
 
 
 @app.post("/admin/retreinar/promover")
-async def admin_promover(
+def admin_promover(
     payload: PromoverIn,
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
@@ -3900,7 +3902,7 @@ async def admin_promover(
 
 
 @app.get("/admin/retreinar/status")
-async def admin_status_retreinamento(
+def admin_status_retreinamento(
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     """Lista versões de modelo disponíveis e a versão ativa."""
@@ -3916,7 +3918,7 @@ async def admin_status_retreinamento(
 
 
 @app.get("/admin/scheduler/status")
-async def scheduler_status(
+def scheduler_status(
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     """Estado atual do scheduler: última verificação, próxima, quantos retreinamentos automáticos."""
@@ -3946,7 +3948,7 @@ async def scheduler_verificar_agora(
 
 
 @app.get("/admin/auto-sync/status")
-async def auto_sync_status(
+def auto_sync_status(
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     """Estado do auto-sync de conexões: última execução, conexões sincronizadas, erros."""
@@ -3983,7 +3985,7 @@ class DBSyncConfigIn(BaseModel):
 
 
 @app.get("/admin/db-sync/config")
-async def db_sync_get_config(
+def db_sync_get_config(
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     """Retorna config atual da sincronização automática (senha omitida)."""
@@ -3994,7 +3996,7 @@ async def db_sync_get_config(
 
 
 @app.post("/admin/db-sync/config")
-async def db_sync_set_config(
+def db_sync_set_config(
     payload: DBSyncConfigIn,
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
@@ -4022,7 +4024,7 @@ async def db_sync_executar(
 
 
 @app.get("/admin/db-sync/status")
-async def db_sync_status(
+def db_sync_status(
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     """Retorna status da última sincronização."""
@@ -4038,7 +4040,7 @@ async def db_sync_status(
 
 
 @app.get("/auditoria")
-async def listar_auditoria(
+def listar_auditoria(
     entidade: Optional[str] = None,
     entidade_id: Optional[str] = None,
     usuario_email: Optional[str] = None,

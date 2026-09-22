@@ -12,6 +12,7 @@ Cache em memória com TTL de 5 min para sincronizar entre replicas via Supabase.
 """
 
 import os
+import threading
 import time
 from pathlib import Path
 
@@ -232,33 +233,43 @@ _bandit_cache: "LinUCB | None" = None
 _bandit_cache_ts: float = 0.0
 _BANDIT_TTL: float = 300.0  # 5 minutos
 
+# O bandit é um objeto global com ciclo ler -> alterar -> gravar
+# (registrar_resultado, ajustar_alpha). Enquanto os endpoints eram async sem
+# await, o event loop serializava tudo sozinho; rodando em threadpool, duas
+# requisições simultâneas se sobrescreveriam e um feedback seria perdido.
+# RLock porque registrar_resultado chama carregar_bandit e salvar_bandit,
+# que também pegam o lock.
+_bandit_lock = threading.RLock()
+
 
 def carregar_bandit() -> LinUCB:
     global _bandit_cache, _bandit_cache_ts
-    agora = time.monotonic()
-    if _bandit_cache is not None and (agora - _bandit_cache_ts) < _BANDIT_TTL:
-        return _bandit_cache
-    # Cache expirado ou primeira carga — recarrega do Supabase
-    bandit = _carregar_supabase()
-    if bandit is None:
-        # Supabase indisponível: usa cache em memória se existir, senão arquivo local
-        if _bandit_cache is not None:
+    with _bandit_lock:
+        agora = time.monotonic()
+        if _bandit_cache is not None and (agora - _bandit_cache_ts) < _BANDIT_TTL:
             return _bandit_cache
-        bandit = joblib.load(BANDIT_FILE) if BANDIT_FILE.exists() else LinUCB()
-    _bandit_cache = bandit
-    _bandit_cache_ts = agora
-    return _bandit_cache
+        # Cache expirado ou primeira carga — recarrega do Supabase
+        bandit = _carregar_supabase()
+        if bandit is None:
+            # Supabase indisponível: usa cache em memória se existir, senão arquivo local
+            if _bandit_cache is not None:
+                return _bandit_cache
+            bandit = joblib.load(BANDIT_FILE) if BANDIT_FILE.exists() else LinUCB()
+        _bandit_cache = bandit
+        _bandit_cache_ts = agora
+        return _bandit_cache
 
 
 def salvar_bandit(bandit: LinUCB) -> None:
     global _bandit_cache, _bandit_cache_ts
-    try:
-        joblib.dump(bandit, BANDIT_FILE)
-    except Exception:
-        pass
-    _bandit_cache    = bandit
-    _bandit_cache_ts = time.monotonic()  # reseta TTL após salvar
-    _salvar_supabase(bandit)
+    with _bandit_lock:
+        try:
+            joblib.dump(bandit, BANDIT_FILE)
+        except Exception:
+            pass
+        _bandit_cache    = bandit
+        _bandit_cache_ts = time.monotonic()  # reseta TTL após salvar
+        _salvar_supabase(bandit)
 
 
 # ---------------------------------------------------------------------------
@@ -266,13 +277,18 @@ def salvar_bandit(bandit: LinUCB) -> None:
 # ---------------------------------------------------------------------------
 
 def recomendar(devedor: dict) -> dict:
-    bandit   = carregar_bandit()
     contexto = construir_contexto(devedor)
-    acao_id, scores = bandit.recomendar(contexto)
-    acao     = ACOES[acao_id]
+    # Leitura sob lock: atualizar() altera A, b e os contadores in-place, então
+    # sem isso uma recomendação poderia ler A já atualizado e b ainda antigo.
+    # Medido em 0,2ms — serializar aqui não é gargalo.
+    with _bandit_lock:
+        bandit = carregar_bandit()
+        acao_id, scores = bandit.recomendar(contexto)
+        total_interacoes = sum(bandit.n_tentativas)
+        n_acao           = bandit.n_tentativas[acao_id]
+        recomp_acumulada = bandit.recompensa_acumulada[acao_id]
 
-    total_interacoes = sum(bandit.n_tentativas)
-    n_acao           = bandit.n_tentativas[acao_id]
+    acao = ACOES[acao_id]
 
     if total_interacoes == 0:
         modo          = "exploração_inicial"
@@ -288,7 +304,7 @@ def recomendar(devedor: dict) -> dict:
             "ainda tem poucas amostras — o sistema está explorando para calibrar."
         )
     else:
-        recomp_media  = bandit.recompensa_acumulada[acao_id] / n_acao
+        recomp_media  = recomp_acumulada / n_acao
         modo          = "calibrado"
         justificativa = (
             f"Baseado em {n_acao} interações com perfis similares, "
@@ -324,9 +340,12 @@ def registrar_resultado(acao_id: int, contexto: list[float], recompensa: float) 
             "Feedback ignorado. Se D mudou, execute: DELETE FROM bandit_estado WHERE id = 1;"
         )
         return
-    bandit = carregar_bandit()
-    bandit.atualizar(acao_id, ctx, float(np.clip(recompensa, 0.0, 1.0)))
-    salvar_bandit(bandit)
+    # Ler, alterar e gravar precisam ser uma operação só: sem isso, dois
+    # feedbacks simultâneos leem o mesmo estado e o último sobrescreve o outro.
+    with _bandit_lock:
+        bandit = carregar_bandit()
+        bandit.atualizar(acao_id, ctx, float(np.clip(recompensa, 0.0, 1.0)))
+        salvar_bandit(bandit)
 
 
 # ---------------------------------------------------------------------------
@@ -338,31 +357,33 @@ def convergencia_stats() -> list[dict]:
     Calcula incerteza (diagonal de A^{-1}) por ação para monitorar convergência.
     Incerteza alta = bandit ainda explorando. Abaixo de 0.01 com ≥10 tentativas = convergido.
     """
-    bandit = carregar_bandit()
     result = []
-    for a in range(bandit.n_acoes):
-        A_inv   = np.linalg.inv(bandit.A[a])
-        theta   = A_inv @ bandit.b[a]
-        incerteza = float(np.mean(np.diag(A_inv)))
-        recomp_media = (
-            bandit.recompensa_acumulada[a] / bandit.n_tentativas[a]
-            if bandit.n_tentativas[a] > 0 else None
-        )
-        result.append({
-            **ACOES[a],
-            "n_tentativas":     bandit.n_tentativas[a],
-            "recompensa_media": round(recomp_media, 4) if recomp_media is not None else None,
-            "theta_norm":       round(float(np.linalg.norm(theta)), 4),
-            "incerteza_media":  round(incerteza, 6),
-            "convergido":       incerteza < 0.01 and bandit.n_tentativas[a] >= 10,
-        })
+    with _bandit_lock:
+        bandit = carregar_bandit()
+        for a in range(bandit.n_acoes):
+            A_inv   = np.linalg.inv(bandit.A[a])
+            theta   = A_inv @ bandit.b[a]
+            incerteza = float(np.mean(np.diag(A_inv)))
+            recomp_media = (
+                bandit.recompensa_acumulada[a] / bandit.n_tentativas[a]
+                if bandit.n_tentativas[a] > 0 else None
+            )
+            result.append({
+                **ACOES[a],
+                "n_tentativas":     bandit.n_tentativas[a],
+                "recompensa_media": round(recomp_media, 4) if recomp_media is not None else None,
+                "theta_norm":       round(float(np.linalg.norm(theta)), 4),
+                "incerteza_media":  round(incerteza, 6),
+                "convergido":       incerteza < 0.01 and bandit.n_tentativas[a] >= 10,
+            })
     return result
 
 
 def ajustar_alpha(novo_alpha: float) -> float:
     """Ajusta o parâmetro de exploração e persiste. Retorna o valor efetivo aplicado."""
     alpha_efetivo = float(np.clip(novo_alpha, 0.1, 5.0))
-    bandit = carregar_bandit()
-    bandit.alpha = alpha_efetivo
-    salvar_bandit(bandit)
+    with _bandit_lock:
+        bandit = carregar_bandit()
+        bandit.alpha = alpha_efetivo
+        salvar_bandit(bandit)
     return alpha_efetivo

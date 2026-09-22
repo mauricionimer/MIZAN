@@ -1,4 +1,5 @@
 import os
+import threading
 from pathlib import Path
 
 import joblib
@@ -16,7 +17,13 @@ _FEATURES_V2 = [
 ]
 _CATS_V2 = ["produto", "status", "uf"]
 
+# Guarda os três artefatos sob UMA chave: inserir uma chave em dict é atômico
+# sob o GIL, então quem lê no fast path nunca vê o cache preenchido pela metade.
+# (Outros módulos só chamam _cache.clear(), nunca leem as chaves.)
 _cache: dict = {}
+# Sem o lock, duas requisições simultâneas em cold start fariam o joblib.load
+# em duplicado — ~800ms cada.
+_cache_lock = threading.Lock()
 
 
 def _normalizar_colunas(df: pd.DataFrame) -> pd.DataFrame:
@@ -45,26 +52,31 @@ def _adicionar_derivadas(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _carregar_modelos() -> tuple:
-    if _cache:
-        return _cache["clf"], _cache["kmeans"], _cache["meta"]
+    modelos = _cache.get("modelos")
+    if modelos is not None:
+        return modelos
 
-    arquivos = {
-        "mizan_model.pkl": MODEL_DIR / "mizan_model.pkl",
-        "kmeans.pkl":      MODEL_DIR / "kmeans.pkl",
-        "scaler.pkl":      MODEL_DIR / "scaler.pkl",
-    }
-    ausentes = [nome for nome, path in arquivos.items() if not path.exists()]
-    if ausentes:
-        raise FileNotFoundError(2, "No such file or directory", str(MODEL_DIR / ausentes[0]))
+    with _cache_lock:
+        # Outra thread pode ter carregado enquanto esperávamos o lock.
+        modelos = _cache.get("modelos")
+        if modelos is not None:
+            return modelos
 
-    clf    = joblib.load(arquivos["mizan_model.pkl"])
-    kmeans = joblib.load(arquivos["kmeans.pkl"])
-    meta   = joblib.load(arquivos["scaler.pkl"])
+        arquivos = {
+            "mizan_model.pkl": MODEL_DIR / "mizan_model.pkl",
+            "kmeans.pkl":      MODEL_DIR / "kmeans.pkl",
+            "scaler.pkl":      MODEL_DIR / "scaler.pkl",
+        }
+        ausentes = [nome for nome, path in arquivos.items() if not path.exists()]
+        if ausentes:
+            raise FileNotFoundError(2, "No such file or directory", str(MODEL_DIR / ausentes[0]))
 
-    _cache["clf"]    = clf
-    _cache["kmeans"] = kmeans
-    _cache["meta"]   = meta
-    return clf, kmeans, meta
+        clf    = joblib.load(arquivos["mizan_model.pkl"])
+        kmeans = joblib.load(arquivos["kmeans.pkl"])
+        meta   = joblib.load(arquivos["scaler.pkl"])
+
+        _cache["modelos"] = (clf, kmeans, meta)
+        return clf, kmeans, meta
 
 
 def _preprocessar_para_score(df: pd.DataFrame, meta: dict) -> pd.DataFrame:
