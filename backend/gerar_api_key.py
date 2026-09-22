@@ -7,6 +7,21 @@ A chave em texto aparece UMA vez, aqui na tela. O banco recebe só o hash —
 é isso que impede um dump ou um acesso de leitura de virar credencial
 funcional. Se a chave se perder, gera-se outra; não há como recuperá-la a
 partir do banco, e isso é intencional.
+
+Sem acesso a um terminal (pelo celular, por exemplo), o mesmo pode ser feito
+só com SQL, direto no editor do Supabase — e é até melhor, porque a chave
+não passa por lugar nenhum além da própria tela:
+
+    WITH nova AS (
+      SELECT 'mizan_' || encode(gen_random_bytes(24), 'hex') AS chave
+    ), gravada AS (
+      INSERT INTO api_keys (empresa_nome, empresa_id, rotulo, api_key_hash, ativa)
+      SELECT 'MIZAN', 'mizan', 'chave rotacionada',
+             encode(digest(nova.chave, 'sha256'), 'hex'), true
+      FROM nova
+      RETURNING id
+    )
+    SELECT nova.chave AS copie_esta_chave FROM nova, gravada;
 """
 import hashlib
 import secrets
