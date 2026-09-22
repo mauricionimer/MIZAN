@@ -808,6 +808,56 @@ def _fechar_loop_bandit(db, cpf: str, pagou: bool, valor_recuperado: float, pred
         print(f"[Bandit] Erro ao fechar loop (CPF {cpf}): {_be}")
 
 
+# Colunas da api_keys que a aplicação precisa. Nunca inclui api_key: a chave
+# em texto não tem por que circular na memória do processo nem nos logs.
+_COLS_API_KEY = "id, empresa_nome, empresa_id, rotulo, ativa, created_at, ultimo_uso"
+
+
+def _hash_api_key(chave: str) -> str:
+    """SHA-256 da chave, que é o que fica guardado no banco.
+
+    Guardar a chave em texto significa que qualquer dump, backup ou acesso de
+    leitura ao banco entrega credencial funcional. Guardando o hash, o banco
+    consegue reconhecer uma chave apresentada mas não consegue produzi-la.
+    """
+    import hashlib
+    return hashlib.sha256((chave or "").encode("utf-8")).hexdigest()
+
+
+def _buscar_api_key(db, token: str) -> "dict | None":
+    """Linha da chave apresentada, ou None. Procura pelo hash."""
+    try:
+        res = (db.table("api_keys").select(_COLS_API_KEY)
+               .eq("api_key_hash", _hash_api_key(token))
+               .eq("ativa", True).limit(1).execute())
+        if res.data:
+            return res.data[0]
+    except Exception as e:
+        # Coluna de hash ainda não existe (migração não rodou): cai no texto.
+        if "api_key_hash" not in str(e):
+            raise
+    # Retaguarda para chave gravada antes da migração do hash. Some sozinha
+    # quando o texto for limpo do banco.
+    try:
+        res = (db.table("api_keys").select(_COLS_API_KEY)
+               .eq("api_key", token).eq("ativa", True).limit(1).execute())
+        return res.data[0] if res.data else None
+    except Exception:
+        return None
+
+
+def _marcar_uso_api_key(db, linha: dict) -> None:
+    """Registra o último uso. Sem isso não dá para saber se uma chave ainda
+    está em uso antes de revogá-la — que foi exatamente a dúvida que travou a
+    revogação da primeira chave."""
+    try:
+        db.table("api_keys").update(
+            {"ultimo_uso": datetime.utcnow().isoformat()}
+        ).eq("id", linha["id"]).execute()
+    except Exception:
+        pass  # rastro de uso nunca pode derrubar uma requisição válida
+
+
 def _validar_api_key(credentials: HTTPAuthorizationCredentials) -> dict:
     """Aceita JWT do frontend OU api_key legada do Supabase."""
     token = credentials.credentials
@@ -821,16 +871,11 @@ def _validar_api_key(credentials: HTTPAuthorizationCredentials) -> dict:
 
     # Fallback: api_key legada no Supabase
     db = get_db()
-    res = (
-        db.table("api_keys")
-        .select("*")
-        .eq("api_key", token)
-        .eq("ativa", True)
-        .execute()
-    )
-    if not res.data:
+    linha = _buscar_api_key(db, token)
+    if not linha:
         raise HTTPException(status_code=401, detail="Não autorizado. Faça login ou use uma API key válida.")
-    return res.data[0]
+    _marcar_uso_api_key(db, linha)
+    return linha
 
 def _exigir_admin(credentials: HTTPAuthorizationCredentials):
     info = _validar_api_key(credentials)
@@ -2976,14 +3021,15 @@ def webhook_pagamento(body: WebhookPagamentoIn, request: Request):
         raise HTTPException(status_code=401, detail="Header X-API-Key obrigatório.")
 
     db = get_db()
-    key_res = db.table("api_keys").select("*").eq("api_key", api_key).eq("ativa", True).execute()
-    if not key_res.data:
+    linha_key = _buscar_api_key(db, api_key)
+    if not linha_key:
         raise HTTPException(status_code=401, detail="API key inválida ou inativa.")
+    _marcar_uso_api_key(db, linha_key)
 
     empresa = (
         body.empresa
-        or key_res.data[0].get("empresa_id")
-        or key_res.data[0].get("empresa_nome", "webhook")
+        or linha_key.get("empresa_id")
+        or linha_key.get("empresa_nome", "webhook")
     )
 
     # Restringe a busca da predição às carteiras da empresa, se houver

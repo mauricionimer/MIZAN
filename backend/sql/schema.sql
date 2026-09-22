@@ -218,13 +218,37 @@ CREATE TABLE IF NOT EXISTS reset_tokens (
 );
 
 -- ── API Keys (legado) ────────────────────────────────────────
+-- Guarda o SHA-256 da chave, nunca a chave. Assim um dump, um backup ou um
+-- acesso de leitura ao banco não entregam credencial funcional: dá para
+-- reconhecer a chave apresentada, não para produzi-la.
 CREATE TABLE IF NOT EXISTS api_keys (
   id           UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   created_at   TIMESTAMPTZ DEFAULT NOW(),
-  empresa_nome TEXT NOT NULL UNIQUE,
-  api_key      TEXT NOT NULL UNIQUE,
+  empresa_nome TEXT NOT NULL,
+  empresa_id   TEXT,
+  rotulo       TEXT,
+  api_key      TEXT,            -- legado; fica NULL depois da migração
+  api_key_hash TEXT,
+  ultimo_uso   TIMESTAMPTZ,
   ativa        BOOLEAN DEFAULT TRUE
 );
+
+-- Migração de bases que guardavam a chave em texto. Idempotente.
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS api_key_hash TEXT;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS empresa_id   TEXT;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS rotulo       TEXT;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS ultimo_uso   TIMESTAMPTZ;
+UPDATE api_keys SET api_key_hash = encode(digest(api_key, 'sha256'), 'hex')
+ WHERE api_key_hash IS NULL AND api_key IS NOT NULL;
+-- empresa_id em minúscula: é como o resto do sistema normaliza
+UPDATE api_keys SET empresa_id = lower(empresa_nome)
+ WHERE empresa_id IS NULL OR empresa_id = '';
+-- Uma empresa passa a poder ter mais de uma chave: é o que torna possível
+-- criar a nova, migrar quem usa e só então revogar a velha, sem queda.
+ALTER TABLE api_keys DROP CONSTRAINT IF EXISTS api_keys_empresa_nome_key;
+CREATE UNIQUE INDEX IF NOT EXISTS api_keys_hash_key ON api_keys (api_key_hash);
+ALTER TABLE api_keys ALTER COLUMN api_key DROP NOT NULL;
 
 -- ── Configuração / branding por empresa ─────────────────────
 CREATE TABLE IF NOT EXISTS empresa_config (
