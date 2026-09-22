@@ -15,8 +15,6 @@ import {
   CheckCircle2, XCircle, TrendingUp, Home, Clock, X,
   LayoutDashboard,
 } from 'lucide-react'
-import * as XLSX from 'xlsx'
-import { gerarRelatorioPDF } from '../utils/gerarPDF'
 import { useAnalysis } from '../context/AnalysisContext'
 import { useAuth } from '../context/AuthContext'
 import { LogoMark } from '../components/Logo'
@@ -144,7 +142,11 @@ function exportCSV(ranking) {
   URL.revokeObjectURL(url)
 }
 
-function exportExcel(ranking, resumo) {
+// O SheetJS sozinho pesa mais que o resto da tela inteira, e o gerador de PDF
+// carrega jspdf + html2canvas. Nenhum dos dois é usado até alguém clicar em
+// exportar, então entram por import dinâmico em vez de no carregamento da página.
+async function exportExcel(ranking, resumo) {
+  const XLSX = await import('xlsx')
   const dados = ranking.map(d => ({
     'Rank':                    d.rank,
     'Nome':                    d.nome ?? '',
@@ -418,10 +420,11 @@ export default function Dashboard() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
-  function exportPDF() {
+  async function exportPDF() {
     setExporting(true)
     try {
-      gerarRelatorioPDF(result, pricing, custoCobranca, retornoAlvo)
+      const { gerarRelatorioPDF } = await import('../utils/gerarPDF')
+      await gerarRelatorioPDF(result, pricing, custoCobranca, retornoAlvo)
     } finally {
       setExporting(false)
     }

@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
-import { useEffect, useState, Component } from 'react'
+import { useEffect, useState, Component, lazy, Suspense } from 'react'
 import { Loader2 } from 'lucide-react'
 import { AnalysisProvider } from './context/AnalysisContext'
 import { AuthProvider, useAuth } from './context/AuthContext'
@@ -64,22 +64,25 @@ function ServerWarmupBanner() {
   )
 }
 
-import Upload from './pages/Upload'
-import Dashboard from './pages/Dashboard'
-import DebtorDetail from './pages/DebtorDetail'
-import Feedback from './pages/Feedback'
-import BanditDashboard from './pages/BanditDashboard'
-import AprendizadoDashboard from './pages/AprendizadoDashboard'
-import ComandoDashboard from './pages/ComandoDashboard'
-import AdminHome from './pages/AdminHome'
-import OperadorHome from './pages/OperadorHome'
-import AdminUsuarios from './pages/AdminUsuarios'
-import Auditoria from './pages/Auditoria'
-import AlterarSenha from './pages/AlterarSenha'
-import EsqueciSenha from './pages/EsqueciSenha'
-import RedefinirSenha from './pages/RedefinirSenha'
-import Login from './pages/Login'
-import Privacidade from './pages/Privacidade'
+// Cada página vira um chunk próprio: o navegador baixa só a tela que o
+// usuário abriu, em vez de todo o sistema no primeiro acesso. Recharts,
+// xlsx e jspdf saem do caminho crítico junto com as telas que os usam.
+const Upload = lazy(() => import('./pages/Upload'))
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const DebtorDetail = lazy(() => import('./pages/DebtorDetail'))
+const Feedback = lazy(() => import('./pages/Feedback'))
+const BanditDashboard = lazy(() => import('./pages/BanditDashboard'))
+const AprendizadoDashboard = lazy(() => import('./pages/AprendizadoDashboard'))
+const ComandoDashboard = lazy(() => import('./pages/ComandoDashboard'))
+const AdminHome = lazy(() => import('./pages/AdminHome'))
+const OperadorHome = lazy(() => import('./pages/OperadorHome'))
+const AdminUsuarios = lazy(() => import('./pages/AdminUsuarios'))
+const Auditoria = lazy(() => import('./pages/Auditoria'))
+const AlterarSenha = lazy(() => import('./pages/AlterarSenha'))
+const EsqueciSenha = lazy(() => import('./pages/EsqueciSenha'))
+const RedefinirSenha = lazy(() => import('./pages/RedefinirSenha'))
+const Login = lazy(() => import('./pages/Login'))
+const Privacidade = lazy(() => import('./pages/Privacidade'))
 
 function RotaProtegida({ children, roles }) {
   const { autenticado, usuario } = useAuth()
@@ -89,10 +92,23 @@ function RotaProtegida({ children, roles }) {
   return children
 }
 
+// Aparece enquanto o chunk da página está sendo baixado. Discreto de
+// propósito: em conexão normal isso dura poucas centenas de milissegundos e
+// um spinner grande piscando ficaria pior do que o vazio.
+function TelaCarregando() {
+  return (
+    <div className="min-h-screen flex items-center justify-center" role="status" aria-live="polite">
+      <Loader2 className="h-6 w-6 animate-spin text-ink-3" />
+      <span className="sr-only">Carregando página…</span>
+    </div>
+  )
+}
+
 function RotasAnimadas() {
   const location = useLocation()
   return (
     <AnimatePresence mode="wait" initial={false}>
+      <Suspense fallback={<TelaCarregando />}>
           <Routes location={location} key={location.pathname}>
             <Route path="/login" element={<PageTransition><Login /></PageTransition>} />
             <Route path="/esqueci-senha" element={<PageTransition><EsqueciSenha /></PageTransition>} />
@@ -110,8 +126,9 @@ function RotasAnimadas() {
             <Route path="/auditoria" element={<PageTransition><RotaProtegida roles={['admin', 'comando']}><Auditoria /></RotaProtegida></PageTransition>} />
             <Route path="/alterar-senha" element={<PageTransition><RotaProtegida><AlterarSenha /></RotaProtegida></PageTransition>} />
             <Route path="/privacidade" element={<PageTransition><Privacidade /></PageTransition>} />
-            <Route path="*" element={<Navigate to="/" replace />} /> />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+      </Suspense>
     </AnimatePresence>
   )
 }
