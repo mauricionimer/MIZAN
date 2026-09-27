@@ -2357,7 +2357,20 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
     resultado["lgd"] = (1 - resultado["taxa_recuperacao_prevista"].astype(float)).clip(0, 1).round(4)
     resultado["perda_esperada"] = (_ead - resultado["valor_esperado_recuperacao"]).round(2)
 
-    resultado_sorted = resultado.sort_values("score_recuperabilidade", ascending=False).reset_index(drop=True)
+    # A fila é ordenada por VALOR ESPERADO, não por score.
+    #
+    # O score é probabilidade de pagar; o banco quer valor recuperado, e quem
+    # paga com mais frequência costuma dever menos. Medido em backtest (ver
+    # backtest.py) numa carteira onde o pagamento segue exatamente o score:
+    # trabalhando 10% da base, a fila por valor esperado recupera 39,2% do
+    # total contra 32,8% de "maior dívida primeiro" — enquanto a fila por
+    # score puro recupera 15,8%, perdendo até para a prática mais simples da
+    # operação. Ordenar por probabilidade manda o operador ligar primeiro
+    # para quem paga fácil e deve pouco.
+    _ordem = ("valor_esperado_recuperacao"
+              if "valor_esperado_recuperacao" in resultado.columns
+              else "score_recuperabilidade")
+    resultado_sorted = resultado.sort_values(_ordem, ascending=False).reset_index(drop=True)
     resultado_sorted.insert(0, "rank", range(1, len(resultado_sorted) + 1))
 
     # Oferta vetorizada (substitui iterrows — ~100× mais rápido em carteiras grandes)
