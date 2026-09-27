@@ -195,13 +195,32 @@ verifique botões que resetam cor.
 ---
 
 ## 9. Checklist de aceite
-- [ ] Tokens colados; toggle claro/escuro funcionando (via `data-theme` no `<html>`).
-- [ ] Bricolage Grotesque em toda a UI; números com `tabular-nums`.
-- [ ] Raio ~4px em botões/inputs/cards/badges.
-- [ ] Nova logo (gráfico ascendente) em login, nav, sidebar e favicon.
-- [ ] Login em fundo azul cheio, logo grande à esquerda, card à direita,
+
+Conferido contra o código em 27/09/2026; a coluna diz onde cada item está.
+
+- [x] Tokens colados; toggle claro/escuro funcionando (via `data-theme` no `<html>`).
+      → `src/context/ThemeContext.jsx` (sistema/claro/escuro), `src/components/ThemeToggle.jsx`.
+- [x] Bricolage Grotesque em toda a UI; números com `tabular-nums`.
+      → fonte em `index.html` e `--font-display`; utilitário `.tnum` em `index.css`.
+- [x] Raio ~4px em botões/inputs/cards/badges.
+      → `--radius:4px` / `--radius-lg:6px`, ligados a todo `borderRadius` do Tailwind.
+- [x] Nova logo (gráfico ascendente) em login, nav, sidebar e favicon.
+      → `src/components/Logo.jsx` e `public/favicon.svg`.
+- [x] Login em fundo azul cheio, logo grande à esquerda, card à direita,
       empilhando no mobile; sem textos de marketing.
-- [ ] Nav e sidebar em `--deep` com texto claro nos dois temas.
-- [ ] Botões com cor explícita (sem texto some no modo escuro do SO).
-- [ ] Nada de lógica/rotas/API alteradas — só visual.
-- [ ] Contraste AA de texto nos dois temas.
+      → `.login-shell` usa `var(--deep)`; `.login-stack` é `space-between` e
+      vira coluna abaixo de 820px.
+- [x] Nav e sidebar em `--deep` com texto claro nos dois temas.
+      → `.navbar-glass` / `.panel-surface` redeclaram `--text`/`--ink` para os
+      tokens de painel no próprio escopo, então os descendentes invertem sem
+      classe extra. Aplicado em 11 telas. O app não tem sidebar: o layout
+      ficou em barra superior.
+- [x] Botões com cor explícita (sem texto some no modo escuro do SO).
+      → `.btn-primary` / `.btn-secondary` em `index.css`, com estados
+      hover/active/focus-visible/disabled.
+- [x] Nada de lógica/rotas/API alteradas — só visual.
+      → o commit do redesign não toca `backend/` nem `src/services/api.js`.
+- [x] Contraste AA de texto nos dois temas.
+
+Ponta solta conhecida: `--bg-auth` (em `index.css`) ficou definido e sem uso —
+o login passou a ler `--deep` direto.

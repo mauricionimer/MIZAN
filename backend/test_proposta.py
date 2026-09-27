@@ -133,14 +133,14 @@ checar(props_2[1].parcela * 12 > props_2[1].valor_cobrado,
 # ===========================================================================
 print("\n— Margem livre —")
 
-# "R$ 4.500 (Renda) − R$ 2.500 (Despesas fixas) − 30% Buffer = R$ 1.400"
+# "R$ 4.500 (Renda) - R$ 2.500 (Despesas fixas) - 30% Buffer = R$ 1.400"
 m = calcular_margem(4500, 2500)
 checar(perto(m.valor, 1400.0), "reproduz o cálculo de margem da referência", f"R$ {m.valor}")
 
 # "Parcela não pode comprometer mais que 30% da margem livre" -> R$ 1.000 vira R$ 300
 politica_30 = PoliticaProposta(buffer_margem_pct=0.0, comprometimento_max_pct=30.0)
 m2 = calcular_margem(5000, 4000, politica_30)
-checar(perto(m2.valor, 1000.0), "margem sem buffer = renda − despesas", f"R$ {m2.valor}")
+checar(perto(m2.valor, 1000.0), "margem sem buffer = renda - despesas", f"R$ {m2.valor}")
 checar(perto(parcela_maxima(m2, politica_30), 300.0),
        "teto de 30% da margem livre", f"R$ {parcela_maxima(m2, politica_30)}")
 

@@ -413,7 +413,7 @@ export default function AprendizadoDashboard() {
                               <span className="w-16 shrink-0" style={{ color: MUTED }}>Faixa {i + 1}</span>
                               <span className="w-20 shrink-0" style={{ color: MUTED_LIGHT }}>prev. {fmtPct(f.prob_media_prevista)}</span>
                               <div className="flex-1">
-                                <Barra pct={f.prob_media_prevista * 100} cor="#60a5fa" />
+                                <Barra pct={f.prob_media_prevista * 100} />
                               </div>
                               <span className={`w-24 text-right font-semibold shrink-0 ${diff > 0.2 ? 'text-amber-300' : ''}`} style={diff > 0.2 ? undefined : { color: MUTED_LIGHT }}>
                                 real {fmtPct(f.taxa_real_observada)}
