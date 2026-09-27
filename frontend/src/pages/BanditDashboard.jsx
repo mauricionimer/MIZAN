@@ -23,7 +23,7 @@ const OFERTA_LABELS = {
   parcelado_12x:  '12x',
 }
 const CANAL_COLORS  = ['#25D366', 'var(--royal)', 'var(--warning)']
-const OFERTA_COLORS = ['var(--success)', '#818cf8', '#fb923c', 'var(--accent-text)']
+const OFERTA_COLORS = ['var(--success)', 'var(--royal)', 'var(--warning)', 'var(--lilac)']
 const FASE_META = {
   exploração_inicial: { label: 'Exploração inicial', dot: 'bg-slate-400',  bg: 'var(--raise-3)', border: 'var(--line)', cor: MUTED_LIGHT },
   aprendendo:         { label: 'Aprendendo',          dot: 'bg-amber-400', bg: 'rgb(var(--c-warning) / 0.10)', border: 'rgb(var(--c-warning) / 0.25)', cor: 'var(--warning)' },
