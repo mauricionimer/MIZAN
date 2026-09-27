@@ -39,7 +39,7 @@ aleatorio = _ks_gini(y, rng.random(3000))
 checa("KS de modelo aleatório fica perto de zero", aleatorio["ks"] < 10, f"KS={aleatorio['ks']}")
 checa("Gini de modelo aleatório fica perto de zero", abs(aleatorio["gini"]) < 10, f"Gini={aleatorio['gini']}")
 
-checa("Gini é coerente com AUC (2×AUC−1)",
+checa("Gini é coerente com AUC (2×AUC-1)",
       abs(perfeito["gini"] - 100.0) < 0.1)
 
 checa("classe única é recusada, não estimada",
