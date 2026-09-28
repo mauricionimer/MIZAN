@@ -8,3 +8,7 @@ model/bandit.pkl
 
 # Base pública baixada sob demanda pelo script de validação — não versionar.
 validacao/german_credit.csv
+
+# Estado do bandit por empresa: artefato de execução, não de código.
+# Em produção vive no Supabase; em teste é lixo que não deve ser versionado.
+model/bandit_*.pkl

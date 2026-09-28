@@ -27,6 +27,12 @@ from auth import criar_token                  # noqa: E402
 
 B._salvar_supabase = lambda e, b: None
 B._carregar_supabase = lambda e: None
+# joblib.dump escreveria bandit_<empresa>.pkl dentro do repositório
+_salvar_real = B.salvar_bandit
+B.salvar_bandit = lambda emp, bandit: (
+    B._bandit_cache.__setitem__(B._chave(emp), bandit),
+    B._bandit_cache_ts.__setitem__(B._chave(emp), __import__('time').monotonic()),
+)
 
 falhas = 0
 
