@@ -1995,6 +1995,63 @@ async def upload_csv(file: UploadFile = File(...)):
     return await asyncio.to_thread(_processar)
 
 
+@app.post("/backtest")
+async def rodar_backtest(
+    file: UploadFile = File(...),
+    credentials: HTTPAuthorizationCredentials = Security(bearer),
+):
+    """Backtest de carteira histórica: o Mizan teria recuperado mais?
+
+    Recebe uma carteira em que a cobrança já aconteceu e o desfecho é
+    conhecido, pontua como se fosse antes e compara a fila que o Mizan
+    formaria com a que a operação usa hoje.
+
+    NÃO GRAVA NADA. A carteira histórica de um cliente entra para ser
+    analisada, não para virar base: nenhuma carteira é criada, nenhuma
+    predição é persistida, nenhum feedback é registrado. O resultado volta
+    na resposta e morre ali.
+    """
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") not in ("admin", "comando"):
+        raise HTTPException(
+            status_code=403,
+            detail="Backtest é restrito a admin e comando: ele analisa a carteira "
+                   "histórica de um cliente, fora do fluxo de cobrança.",
+        )
+
+    nome = (file.filename or "").lower()
+    if not (nome.endswith(".csv") or nome.endswith(".xlsx") or nome.endswith(".xls")):
+        raise HTTPException(status_code=400, detail="Arquivo deve ser CSV ou Excel (.csv / .xlsx / .xls).")
+
+    contents = await file.read()
+    if len(contents) > 25 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Arquivo muito grande. Limite: 25 MB.")
+
+    def _processar():
+        try:
+            if nome.endswith(".csv"):
+                df = _read_csv_auto(contents)
+            else:
+                df = pd.read_excel(io.BytesIO(contents))
+        except Exception as e:
+            raise HTTPException(status_code=422, detail=f"Erro ao ler arquivo: {e}")
+
+        from backtest import rodar
+        try:
+            resultado = rodar(df)
+        except ValueError as e:
+            # Coluna faltando ou carteira sem os dois desfechos: é erro de
+            # entrada do usuário, e a mensagem já diz o que falta.
+            raise HTTPException(status_code=422, detail=str(e))
+        except FileNotFoundError:
+            raise HTTPException(status_code=503, detail="Modelos não encontrados no servidor.")
+        resultado["arquivo"] = file.filename
+        return resultado
+
+    # Pontuar a carteira inteira é trabalho pesado: fora do event loop.
+    return await asyncio.to_thread(_processar)
+
+
 @app.post("/analisar")
 async def analisar(
     file: UploadFile = File(...),

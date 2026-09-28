@@ -102,6 +102,23 @@ export async function buscarPropostas(cpf, despesasMensais = null) {
   return res.json()
 }
 
+export async function rodarBacktest(file) {
+  const token = _getToken()
+  const fd = new FormData()
+  fd.append('file', file)
+  const res = await fetch(`${BASE}/backtest`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: fd,
+  })
+  _handle401(res)
+  if (!res.ok) {
+    const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
+    throw new Error(detail)
+  }
+  return res.json()
+}
+
 export async function testarDB(params) {
   const token = _getToken()
   const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }

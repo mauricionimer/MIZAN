@@ -83,6 +83,7 @@ const EsqueciSenha = lazy(() => import('./pages/EsqueciSenha'))
 const RedefinirSenha = lazy(() => import('./pages/RedefinirSenha'))
 const Login = lazy(() => import('./pages/Login'))
 const Privacidade = lazy(() => import('./pages/Privacidade'))
+const Backtest = lazy(() => import('./pages/Backtest'))
 
 function RotaProtegida({ children, roles }) {
   const { autenticado, usuario } = useAuth()
@@ -123,6 +124,7 @@ function RotasAnimadas() {
             <Route path="/admin" element={<PageTransition><RotaProtegida roles={['admin', 'comando']}><AdminHome /></RotaProtegida></PageTransition>} />
             <Route path="/operador" element={<PageTransition><RotaProtegida roles={['operador']}><OperadorHome /></RotaProtegida></PageTransition>} />
             <Route path="/admin/usuarios" element={<PageTransition><RotaProtegida roles={['admin', 'comando']}><AdminUsuarios /></RotaProtegida></PageTransition>} />
+            <Route path="/backtest" element={<PageTransition><RotaProtegida roles={['admin', 'comando']}><Backtest /></RotaProtegida></PageTransition>} />
             <Route path="/auditoria" element={<PageTransition><RotaProtegida roles={['admin', 'comando']}><Auditoria /></RotaProtegida></PageTransition>} />
             <Route path="/alterar-senha" element={<PageTransition><RotaProtegida><AlterarSenha /></RotaProtegida></PageTransition>} />
             <Route path="/privacidade" element={<PageTransition><Privacidade /></PageTransition>} />
