@@ -725,25 +725,6 @@ def comando_carteiras(
         return res.data or []
 
 
-def _calcular_oferta(score: float, valor_divida: float) -> dict:
-    score = float(score or 0)
-    valor = float(valor_divida or 0)
-    if score >= 75:
-        desc, parcelas, estrategia = 0,  3,  "Cobrança padrão — sem desconto necessário"
-    elif score >= 50:
-        desc, parcelas, estrategia = 15, 6,  "Desconto de 15% + parcelamento em até 6x"
-    elif score >= 30:
-        desc, parcelas, estrategia = 35, 12, "Desconto de 35% + parcelamento em até 12x"
-    else:
-        desc, parcelas, estrategia = 55, 24, "Proposta de quitação com 55% de desconto"
-    return {
-        "desconto_sugerido_pct": desc,
-        "valor_proposta":        round(valor * (1 - desc / 100), 2),
-        "parcelas_max":          parcelas,
-        "estrategia_oferta":     estrategia,
-    }
-
-
 def _aging_label(dias: int) -> str:
     if dias < 30:
         return "0-29 dias"
@@ -2373,22 +2354,59 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
     resultado_sorted = resultado.sort_values(_ordem, ascending=False).reset_index(drop=True)
     resultado_sorted.insert(0, "rank", range(1, len(resultado_sorted) + 1))
 
-    # Oferta vetorizada (substitui iterrows — ~100× mais rápido em carteiras grandes)
-    _s = resultado_sorted["score_recuperabilidade"].fillna(0).astype(float)
-    _v = resultado_sorted["valor_divida"].fillna(0).astype(float).clip(lower=0) if "valor_divida" in resultado_sorted.columns else 0.0
-    _desc = np.select([_s >= 75, _s >= 50, _s >= 30], [0, 15, 35], default=55)
+    # Oferta sugerida: o mesmo catálogo de arquétipos que a tela do devedor
+    # usa (model/proposta.py), escolhido por maior valor esperado.
+    #
+    # A versão anterior era uma escada de limiares — score acima de 75 não
+    # ganha desconto, acima de 50 ganha 15% em 6x, e assim por diante. Aqueles
+    # números não vieram de lugar nenhum, e o Excel exportado trazia uma oferta
+    # enquanto a tela do devedor trazia outra, calculada de verdade.
+    #
+    # Aqui a conta é vetorizada, uma coluna por arquétipo, porque rodar o
+    # motor linha a linha numa carteira de dezenas de milhares custaria caro.
+    # A verificação de capacidade de pagamento não entra: ela exige a margem
+    # livre do devedor, que a carteira quase nunca traz. Quem abre o devedor
+    # vê a análise completa, com margem e o porquê de cada proposta.
+    from model.proposta import ARQUETIPOS_PADRAO
+
+    _v = (resultado_sorted["valor_divida"].fillna(0).astype(float).clip(lower=0)
+          if "valor_divida" in resultado_sorted.columns
+          else pd.Series(0.0, index=resultado_sorted.index))
+    _pop = (resultado_sorted["probabilidade_pagamento"].fillna(0).astype(float)
+            if "probabilidade_pagamento" in resultado_sorted.columns
+            else (resultado_sorted["score_recuperabilidade"].fillna(0).astype(float) / 100).clip(0, 1))
+
+    try:
+        from model.bandit import pop_por_oferta as _pop_of
+        _pops = _pop_of(_empresa_id, float(_pop.mean()) if len(_pop) else 0.5)
+    except Exception:
+        _pops = {}
+
+    _ev = np.column_stack([
+        _v.to_numpy() * (1 - a["desconto_pct"] / 100)
+        * (_pops.get(a["oferta"], {}).get("pop") or _pop.to_numpy())
+        for a in ARQUETIPOS_PADRAO
+    ])
+    _melhor = _ev.argmax(axis=1)
+    _desc = np.array([ARQUETIPOS_PADRAO[i]["desconto_pct"] for i in _melhor])
+    _parc = np.array([ARQUETIPOS_PADRAO[i]["n_parcelas"] for i in _melhor])
+
     resultado_sorted["desconto_sugerido_pct"] = _desc.astype(int)
-    resultado_sorted["valor_proposta"]        = (_v * (1 - _desc / 100)).round(2)
-    resultado_sorted["parcelas_max"]          = np.select(
-        [_s >= 75, _s >= 50, _s >= 30], [3, 6, 12], default=24
-    ).astype(int)
-    resultado_sorted["estrategia_oferta"] = np.select(
-        [_s >= 75, _s >= 50, _s >= 30],
-        ["Cobrança padrão — sem desconto necessário",
-         "Desconto de 15% + parcelamento em até 6x",
-         "Desconto de 35% + parcelamento em até 12x"],
-        default="Proposta de quitação com 55% de desconto",
-    )
+    resultado_sorted["valor_proposta"]        = (_v.to_numpy() * (1 - _desc / 100)).round(2)
+    resultado_sorted["parcelas_max"]          = _parc.astype(int)
+    resultado_sorted["estrategia_oferta"]     = [
+        ARQUETIPOS_PADRAO[i]["rotulo"] for i in _melhor
+    ]
+
+    # Sem feedback por oferta, todas as propostas dividem a mesma chance de
+    # pagamento, e a de maior valor esperado é sempre a sem desconto — porque
+    # descontar sem evidência de que isso aumenta o pagamento é perda pura.
+    # A conclusão é correta, mas é da carteira inteira, não de cada devedor:
+    # numa planilha, linha a linha, pareceria análise individual. Daí a
+    # procedência, no mesmo espírito de origem_taxa da Fase 0.
+    _ofertas_distintas = len({round(v.get("pop", 0), 6) for v in _pops.values()}) > 1
+    resultado_sorted["origem_oferta"] = "bandit" if _ofertas_distintas else "sem_evidencia"
+    _oferta_uniforme = len(set(_melhor.tolist())) == 1
     resultado_sorted["dados_incompletos"] = resultado_sorted.get("dados_incompletos", False).fillna(False).astype(bool)
     resultado_sorted["aviso_dados"]       = resultado_sorted.get("aviso_dados", "").fillna("").astype(str)
 
@@ -2427,6 +2445,29 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
             (total_em_risco - ver_total) / total_em_risco, 4
         ) if total_em_risco else 0.0,
     }
+
+    # A oferta da planilha é da CARTEIRA, não de cada devedor: o que varia
+    # entre as propostas é a chance de pagamento por tipo de oferta, que o
+    # bandit aprende para a empresa inteira. A escolha por devedor, essa sim
+    # contextual, está na tela dele. Repetida linha a linha numa planilha, uma
+    # sugestão uniforme pareceria análise individual — daí o aviso.
+    if _oferta_uniforme:
+        if _ofertas_distintas:
+            resumo["aviso_oferta"] = (
+                "A oferta sugerida é a mesma para toda a carteira: ela sai da chance "
+                "de pagamento por tipo de proposta, que vale para a empresa e não "
+                "para cada devedor. Abra o devedor para a análise individual, com "
+                "margem livre e o porquê de cada proposta."
+            )
+        else:
+            resumo["aviso_oferta"] = (
+                "As ofertas ainda não se diferenciam entre si: não há feedback de "
+                "renegociação suficiente para estimar a chance de pagamento por tipo "
+                "de proposta. Enquanto isso, a de maior valor esperado é sempre a sem "
+                "desconto, porque descontar sem evidência de que isso aumenta o "
+                "pagamento é perda pura. Registrar a oferta apresentada em cada "
+                "contato alimenta essa estimativa."
+            )
 
     try:
         db = get_db()
