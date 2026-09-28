@@ -1,15 +1,12 @@
 import jsPDF from 'jspdf'
+// Mesma regra da tela: a prioridade é a posição na fila, que é ordenada
+// por valor esperado. Sem acento porque a fonte do PDF não os cobre.
+import { prioridadePorRankAscii } from './prioridade'
 
 const fmtBRL = (v) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v)
 const fmtNum = (v) => new Intl.NumberFormat('pt-BR').format(v)
 const fmtPct = (v) => `${v.toFixed(1)}%`
-
-function prioLabel(score) {
-  if (score >= 70) return 'Alta'
-  if (score >= 40) return 'Media'
-  return 'Baixa'
-}
 
 const C = {
   blue:      [37,  99,  235],
@@ -284,7 +281,7 @@ export function gerarRelatorioPDF(result, pricing, custoCobranca, retornoAlvo) {
     if (ri % 2 === 0) fill(M, y, CW, ROW_H, [245, 247, 250])
 
     const score = d.score_recuperabilidade ?? 0
-    const prio  = prioLabel(score)
+    const prio  = prioridadePorRankAscii(d.rank, ranking_completo.length)
     const scoreColor = score >= 70 ? C.emerald : score >= 40 ? C.amber : C.light
     const prioColor  = prio === 'Alta' ? C.emerald : prio === 'Media' ? C.amber : C.light
 

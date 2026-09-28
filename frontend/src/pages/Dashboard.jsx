@@ -15,6 +15,8 @@ import {
   CheckCircle2, XCircle, TrendingUp, Home, Clock, X,
   LayoutDashboard,
 } from 'lucide-react'
+import PriorityBadge from '../components/PriorityBadge'
+import { prioridadePorRank } from '../utils/prioridade'
 import { useAnalysis } from '../context/AnalysisContext'
 import { useAuth } from '../context/AuthContext'
 import { LogoMark } from '../components/Logo'
@@ -32,12 +34,6 @@ const fmtBRL = (v) =>
 const fmtNum  = (v) => new Intl.NumberFormat('pt-BR').format(v)
 const fmtPct  = (v) => `${v.toFixed(1)}%`
 
-function prioLabel(score) {
-  if (score >= 70) return 'Alta'
-  if (score >= 40) return 'Média'
-  return 'Baixa'
-}
-
 function getStatus(cpf, statusMap) {
   const fb = statusMap[String(cpf ?? '')]
   if (!fb) return 'pendente'
@@ -45,20 +41,6 @@ function getStatus(cpf, statusMap) {
 }
 
 /* ───────────────────────── Priority badge (dark) ───────────────────────── */
-function PriorityBadge({ score }) {
-  const cfg = score >= 70
-    ? { label: 'Alta',  cls: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30', dot: 'bg-emerald-400' }
-    : score >= 40
-      ? { label: 'Média', cls: 'bg-amber-500/10 text-amber-300 border-amber-500/30', dot: 'bg-amber-400' }
-      : { label: 'Baixa', cls: 'bg-slate-500/10 text-ink-2 border-slate-500/30', dot: 'bg-slate-400' }
-  return (
-    <span className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium ${cfg.cls}`}>
-      <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
-      {cfg.label}
-    </span>
-  )
-}
-
 /* ───────────────────────── Status badge (dark) ───────────────────────── */
 function StatusBadge({ cpf, statusMap }) {
   const s = getStatus(cpf, statusMap)
@@ -120,7 +102,7 @@ function exportCSV(ranking) {
     (d.valor_esperado_recuperacao ?? 0).toFixed(2).replace('.', ','),
     d.dias_em_atraso ?? 0,
     d.score_recuperabilidade ?? 0,
-    prioLabel(d.score_recuperabilidade ?? 0),
+    prioridadePorRank(d.rank, ranking.length),
     d.desconto_sugerido_pct ?? 0,
     (d.valor_proposta ?? 0).toFixed(2).replace('.', ','),
     d.parcelas_max ?? '',
@@ -157,7 +139,7 @@ async function exportExcel(ranking, resumo) {
     'Valor Esperado (R$)':     d.valor_esperado_recuperacao ?? 0,
     'Dias em Atraso':          d.dias_em_atraso ?? 0,
     'Score':                   d.score_recuperabilidade ?? 0,
-    'Prioridade':              prioLabel(d.score_recuperabilidade ?? 0),
+    'Prioridade':              prioridadePorRank(d.rank, ranking.length),
     'Desconto Sugerido (%)':   d.desconto_sugerido_pct ?? 0,
     'Valor Proposta (R$)':     d.valor_proposta ?? 0,
     'Parcelas Máx.':           d.parcelas_max ?? '',
@@ -351,8 +333,10 @@ export default function Dashboard() {
           d.cpf?.includes(search)
         )
       : lista
+    // Relativa à fila inteira, não à lista já filtrada: senão filtrar por
+    // produto reclassificaria a prioridade de quem sobrou.
     if (filtroPrio !== 'todos')
-      list = list.filter(d => prioLabel(d.score_recuperabilidade ?? 0) === filtroPrio)
+      list = list.filter(d => prioridadePorRank(d.rank, lista.length) === filtroPrio)
     if (filtroProduto !== 'todos')
       list = list.filter(d => d.produto === filtroProduto)
     if (filtroUF !== 'todas')
@@ -1096,7 +1080,7 @@ export default function Dashboard() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <PriorityBadge score={d.score_recuperabilidade} />
+                        <PriorityBadge rank={d.rank} total={result?.ranking_completo?.length ?? 0} />
                       </td>
                       <td className="px-4 py-3 text-center" onClick={e => e.stopPropagation()}>
                         <div className="flex flex-col items-center gap-1">

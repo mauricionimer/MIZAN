@@ -624,7 +624,7 @@ export default function DebtorDetail() {
               )}
             </div>
           </div>
-          <PriorityBadge score={score} large />
+          <PriorityBadge rank={d.rank} total={result?.ranking_completo?.length ?? 0} large />
         </div>
 
         <div className="grid grid-cols-3 gap-6">
