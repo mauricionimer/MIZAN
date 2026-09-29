@@ -13,7 +13,7 @@ import {
   Download, RefreshCw, Search, Loader2,
   Tag, Percent, ArrowUpRight, Banknote, ClipboardList, FileSpreadsheet, Zap, LogOut, ShieldCheck, KeyRound,
   CheckCircle2, XCircle, TrendingUp, Home, Clock, X,
-  LayoutDashboard,
+  LayoutDashboard, AlertTriangle,
 } from 'lucide-react'
 import PriorityBadge from '../components/PriorityBadge'
 import { prioridadePorRank } from '../utils/prioridade'
@@ -645,6 +645,103 @@ export default function Dashboard() {
             <motion.div variants={item}><KpiCard label="Score Médio"             value={resumo.score_medio.toFixed(1)}    icon={BarChart2}    accent="violet"  /></motion.div>
             <motion.div variants={item}><KpiCard label="Devedores Prioritários" value={fmtNum(prioritarios)}                  icon={Star}         accent="emerald" /></motion.div>
           </motion.div>
+
+          {/* ── Ciclo de cobrança ──
+              As fases não são só faixas de tempo: cada uma tem economia
+              própria. Entre 31 e 360 dias a cobrança é terceirizada e cobra
+              comissão; acima de 360 a alternativa passa a ser vender. */}
+          {!isOperador && resumo.ciclo_cobranca?.length > 0 && (
+            <section className="mt-6 rounded-xl border border-line bg-surface p-6">
+              <p className="section-label">Ciclo de cobrança</p>
+              <h3 className="text-sm font-semibold mt-0.5 mb-1" style={{ color: 'var(--ink)' }}>
+                Em que regime cada parte da carteira está
+              </h3>
+              <p className="text-xs mb-5" style={{ color: 'var(--ink-2)' }}>
+                Quanto mais tarde a fase, menos sobra para o banco.
+              </p>
+
+              <div className="space-y-3">
+                {resumo.ciclo_cobranca.map((f, i, todas) => {
+                  const maxValor = Math.max(...todas.map(x => x.valor_face || 0), 1)
+                  // Escala sequencial: a fase mais adiantada do ciclo vem mais
+                  // forte. Não é juízo de valor, é posição no tempo.
+                  const intensidade = 0.28 + (0.62 * i) / Math.max(1, todas.length - 1)
+                  return (
+                    <div key={f.fase}>
+                      <div className="flex items-baseline justify-between gap-3 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <span className="h-2.5 w-2.5 rounded-sm shrink-0"
+                            style={{ background: `rgb(var(--c-royal) / ${intensidade})` }} />
+                          <span className="text-sm font-medium" style={{ color: 'var(--ink)' }}>
+                            {f.rotulo}
+                          </span>
+                          {f.tem_comissao && (
+                            <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded"
+                              style={{ background: 'rgb(var(--c-warning) / 0.14)', color: 'var(--warning)' }}>
+                              paga comissão
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-right tabular-nums">
+                          <span className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>
+                            {fmtBRL(f.valor_esperado_liquido)}
+                          </span>
+                          <span className="text-xs ml-2" style={{ color: 'var(--ink-3)' }}>
+                            esperado · {fmtNum(f.devedores)} devedores
+                          </span>
+                        </div>
+                      </div>
+                      <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full"
+                        style={{ background: 'var(--raise-3)' }}>
+                        <div className="h-full rounded-full"
+                          style={{ width: `${(f.valor_face / maxValor) * 100}%`,
+                                   background: `rgb(var(--c-royal) / ${intensidade})` }} />
+                      </div>
+                      <p className="text-[11px] mt-1" style={{ color: 'var(--ink-3)' }}>
+                        {f.descricao} · {fmtBRL(f.valor_face)} de face
+                      </p>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Acima de 360 dias: cobrar ou vender */}
+              {resumo.write_off && (
+                <div className="mt-5 rounded-xl p-4" style={{ background: 'var(--raise-2)' }}>
+                  <p className="section-label mb-2">Acima de 360 dias: cobrar ou vender?</p>
+                  <div className="flex flex-wrap items-baseline gap-x-8 gap-y-2">
+                    <div>
+                      <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Cobrando</p>
+                      <p className="text-xl font-semibold tabular-nums" style={{ color: 'var(--ink)' }}>
+                        {fmtBRL(resumo.write_off.esperado_cobrando)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Cedendo a fundo de NPL</p>
+                      <p className="text-xl font-semibold tabular-nums" style={{ color: 'var(--ink)' }}>
+                        {fmtBRL(resumo.write_off.valor_se_vendida)}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-sm mt-3 leading-relaxed" style={{ color: 'var(--ink-2)' }}>
+                    {resumo.write_off.vale_mais_vender
+                      ? 'Nesta faixa, vender a carteira rende mais do que continuar cobrando — cobrar estaria destruindo valor.'
+                      : `Nesta faixa, continuar cobrando rende mais do que ceder, considerando os ${fmtNum(resumo.write_off.devedores)} devedores acima de 360 dias.`}
+                  </p>
+                </div>
+              )}
+
+              {resumo.aviso_ciclo && (
+                <div className="mt-4 flex items-start gap-2.5 rounded-xl p-3"
+                  style={{ background: 'rgb(var(--c-warning) / 0.08)', border: '1px solid rgb(var(--c-warning) / 0.18)' }}>
+                  <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" style={{ color: 'var(--warning)' }} />
+                  <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-2)' }}>
+                    {resumo.aviso_ciclo}
+                  </p>
+                </div>
+              )}
+            </section>
+          )}
 
           {/* ── Alcance da operação ──
               A fila responde "quem primeiro". Esta seção responde a pergunta
