@@ -17,7 +17,19 @@ const Dashboard = lazy(() => import('./Dashboard'))
  * mesmo lugar, e a análise continua ali para trocar de carteira.
  */
 export default function Home() {
-  const { result, vista, setVista } = useAnalysis()
+  const { result, vista, setVista, restaurando } = useAnalysis()
+
+  // Recarregou com carteira grande: a análise está voltando do servidor.
+  // Mostrar a tela de carregar carteira agora daria a impressão de que ela se
+  // perdeu — que é exatamente o que deixou de acontecer.
+  if (restaurando) {
+    return (
+      <div className="flex min-h-screen items-center justify-center gap-2" role="status" aria-live="polite">
+        <Loader2 className="h-5 w-5 animate-spin text-ink-3" />
+        <span className="text-sm text-ink-2">Recuperando a análise…</span>
+      </div>
+    )
+  }
 
   // A vista escolhida manda, desde que ainda faça sentido: sem carteira, não
   // há dashboard para mostrar.
