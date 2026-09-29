@@ -1924,6 +1924,57 @@ def listar_carteiras(credentials: HTTPAuthorizationCredentials = Security(bearer
         raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {e}")
 
 
+def _reconstruir_ranking(predicoes: list, empresa_id: "str | None") -> list:
+    """Devolve a carteira na ordem da fila, com o rank de cada devedor.
+
+    A posição de um devedor é resultado da política de priorização da empresa
+    sobre o valor esperado líquido — não do score. Reabrir a carteira ordenando
+    por score desfazia a decisão inteira: numa carteira de teste, 1 em cada 20
+    devedores ficava na mesma posição e 11 em 20 mudavam de faixa de
+    prioridade. O rank agora é gravado na análise e é ele que manda.
+
+    Carteiras analisadas antes dessa gravação não têm rank. Para elas a ordem é
+    recomputada aqui com a mesma política — o que reproduz a intenção, embora
+    não necessariamente o que o usuário viu na época, já que a política pode
+    ter mudado desde então.
+    """
+    if any(p.get("rank") is not None for p in predicoes):
+        # Já vem ordenado do banco; as poucas linhas sem rank (gravadas antes do
+        # ALTER TABLE) vão para o fim em vez de embaralhar o começo da fila.
+        ordenadas = sorted(
+            predicoes,
+            key=lambda p: (p.get("rank") is None, p.get("rank") or 0),
+        )
+    else:
+        import numpy as _np
+        from model.priorizacao import de_config as _criterio_de_config, ordenar as _ordenar_fila
+
+        def _valor(p):
+            for campo in ("valor_esperado_liquido", "valor_esperado_recuperacao"):
+                v = p.get(campo)
+                if v is not None:
+                    return float(v)
+            # Sem nenhum valor gravado sobra o score, que é o que o sistema
+            # antigo usava — pior, porém melhor do que ordem arbitrária.
+            return float(p.get("score_recuperabilidade") or 0)
+
+        ve = _np.array([_valor(p) for p in predicoes], dtype=float)
+        ufs = [p.get("uf") for p in predicoes]
+        idx = _ordenar_fila(ve, _np.ones(len(ve)), pd.Series(ufs),
+                            _criterio_de_config(_extra_empresa(empresa_id)))
+        ordenadas = [predicoes[i] for i in idx]
+
+    ranking = []
+    for posicao, p in enumerate(ordenadas, start=1):
+        d = {**p, "rank": p.get("rank") or posicao}
+        if d.get("valor_esperado_recuperacao") is None and d.get("valor_divida") and d.get("score_recuperabilidade"):
+            d["valor_esperado_recuperacao"] = round(
+                d["score_recuperabilidade"] / 100 * d["valor_divida"], 2
+            )
+        ranking.append(d)
+    return ranking
+
+
 @app.get("/carteiras/{carteira_id}")
 def carregar_carteira(carteira_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     payload = _usuario_autenticado(credentials)
@@ -1944,22 +1995,14 @@ def carregar_carteira(carteira_id: str, credentials: HTTPAuthorizationCredential
         db.table("predicoes")
         .select("*")
         .eq("carteira_id", carteira_id)
-        .order("score_recuperabilidade", desc=True)
+        .order("rank")
         .execute()
     )
     predicoes = pred_res.data
     if not predicoes:
         raise HTTPException(status_code=404, detail="Nenhuma predição encontrada para esta carteira.")
 
-    # Reconstrói ranking_completo
-    ranking = []
-    for rank, p in enumerate(predicoes, start=1):
-        d = {**p, "rank": rank}
-        if d.get("valor_esperado_recuperacao") is None and d.get("valor_divida") and d.get("score_recuperabilidade"):
-            d["valor_esperado_recuperacao"] = round(
-                d["score_recuperabilidade"] / 100 * d["valor_divida"], 2
-            )
-        ranking.append(d)
+    ranking = _reconstruir_ranking(predicoes, empresa_id)
 
     # Resumo
     total_face = sum((d.get("valor_divida") or 0) for d in ranking)
@@ -2328,7 +2371,7 @@ def _psi_da_carteira(scores: list) -> dict:
 # avisa no log, em vez de derrubar a análise.
 _COLUNAS_PREDICAO_OPCIONAIS = ("probabilidade_pagamento", "origem_taxa", "perda_esperada",
                                "lgd", "despesas_mensais", "fase_cobranca",
-                               "valor_esperado_liquido")
+                               "valor_esperado_liquido", "rank")
 
 
 def _inserir_predicoes(db, linhas: list[dict]):
@@ -2792,7 +2835,11 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
              "lgd": _py(d.get("lgd")),
              "despesas_mensais": _py(d.get("despesas_mensais")),
              "fase_cobranca": d.get("fase_cobranca"),
-             "valor_esperado_liquido": _py(d.get("valor_esperado_liquido"))}
+             "valor_esperado_liquido": _py(d.get("valor_esperado_liquido")),
+             # A posição na fila é resultado da POLÍTICA de priorização, não do
+             # score. Sem gravá-la, reabrir a carteira reordenava por score e
+             # desfazia em silêncio a decisão de ordenar por valor.
+             "rank": _py(d.get("rank"))}
             for d in devedores
         ]
         pred_id_map: dict[str, str] = {}

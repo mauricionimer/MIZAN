@@ -36,8 +36,21 @@ CREATE INDEX IF NOT EXISTS idx_contatos_retencao
 CREATE INDEX IF NOT EXISTS idx_recomendacoes_retencao
   ON recomendacoes(created_at) WHERE anonimizado_em IS NULL;
 
--- ── 3. Conferência ──────────────────────────────────────────────────
--- Devem sair 10 linhas, todas com ok = true.
+-- ── 3. A posição na fila ────────────────────────────────────────
+-- A posição de um devedor é resultado da política de priorização sobre o
+-- valor esperado líquido, não do score. Ela nunca era gravada: reabrir a
+-- carteira reordenava por score e desfazia a decisão em silêncio — numa
+-- carteira de teste, 1 em cada 20 devedores ficava no mesmo lugar e 11 em 20
+-- mudavam de faixa de prioridade.
+ALTER TABLE predicoes ADD COLUMN IF NOT EXISTS rank INTEGER;
+
+-- Ler uma página da fila é sempre a mesma consulta: esta carteira, ordenada
+-- por posição. O índice composto serve à ordenação e ao recorte.
+CREATE INDEX IF NOT EXISTS idx_predicoes_carteira_rank
+  ON predicoes(carteira_id, rank);
+
+-- ── 4. Conferência ──────────────────────────────────────────────────
+-- Devem sair 11 linhas, todas com ok = true.
 SELECT table_name  AS tabela,
        column_name AS coluna,
        (is_nullable = 'YES') AS ok
@@ -45,5 +58,5 @@ SELECT table_name  AS tabela,
  WHERE (table_name IN ('predicoes','feedbacks','contatos','recomendacoes')
         AND column_name IN ('cpf','anonimizado_em'))
     OR (table_name = 'predicoes'
-        AND column_name IN ('fase_cobranca','valor_esperado_liquido'))
+        AND column_name IN ('fase_cobranca','valor_esperado_liquido','rank'))
  ORDER BY tabela, coluna;

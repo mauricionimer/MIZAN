@@ -348,3 +348,16 @@ CREATE INDEX IF NOT EXISTS idx_contatos_retencao
   ON contatos(created_at) WHERE anonimizado_em IS NULL;
 CREATE INDEX IF NOT EXISTS idx_recomendacoes_retencao
   ON recomendacoes(created_at) WHERE anonimizado_em IS NULL;
+
+-- ── A posição na fila ────────────────────────────────────────────
+-- A posição de um devedor é resultado da política de priorização sobre o
+-- valor esperado líquido, não do score. Ela nunca era gravada: reabrir a
+-- carteira reordenava por score e desfazia a decisão em silêncio — numa
+-- carteira de teste, 1 em cada 20 devedores ficava no mesmo lugar e 11 em 20
+-- mudavam de faixa de prioridade.
+ALTER TABLE predicoes ADD COLUMN IF NOT EXISTS rank INTEGER;
+
+-- Ler uma página da fila é sempre a mesma consulta: esta carteira, ordenada
+-- por posição. O índice composto serve à ordenação e ao recorte.
+CREATE INDEX IF NOT EXISTS idx_predicoes_carteira_rank
+  ON predicoes(carteira_id, rank);
