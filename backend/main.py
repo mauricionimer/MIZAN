@@ -1924,6 +1924,151 @@ def listar_carteiras(credentials: HTTPAuthorizationCredentials = Security(bearer
         raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {e}")
 
 
+# Os mesmos cortes de frontend/src/utils/prioridade.js. Prioridade é posição na
+# fila, não faixa de score: "Alta" é o topo que cabe num ciclo de cobrança.
+CORTE_ALTA_FILA  = 0.20
+CORTE_MEDIA_FILA = 0.50
+
+
+def _faixa_de_ranks(prioridade: str, total: int) -> "tuple[int, int] | None":
+    """Converte a etiqueta de prioridade no intervalo de posições que ela cobre.
+
+    Filtrar por prioridade sem trazer a carteira inteira só é possível porque a
+    etiqueta é uma função da posição: ela vira um recorte de rank, que o banco
+    resolve com o índice.
+    """
+    if total <= 0:
+        return None
+    # O front compara rank/total <= corte. A forma inteira equivalente é
+    # rank*100 <= corte*100*total, e ela evita o arredondamento binário que
+    # faria as duas implementações discordarem na fronteira. Arredondar para
+    # cima aqui (ceil) classificava o 2º de uma fila de 7 como Alta, enquanto a
+    # tela dizia Média.
+    alta  = (total * int(CORTE_ALTA_FILA * 100)) // 100
+    media = (total * int(CORTE_MEDIA_FILA * 100)) // 100
+    return {
+        "Alta":  (1, alta),
+        "Média": (alta + 1, media),
+        "Baixa": (media + 1, total),
+    }.get(prioridade)
+
+
+@app.get("/carteiras/{carteira_id}/ranking")
+def pagina_do_ranking(
+    carteira_id: str,
+    offset: int = 0,
+    limit: int = 50,
+    busca: Optional[str] = None,
+    produto: Optional[str] = None,
+    uf: Optional[str] = None,
+    prioridade: Optional[str] = None,
+    status: Optional[str] = None,
+    credentials: HTTPAuthorizationCredentials = Security(bearer),
+):
+    """Uma página da fila, já filtrada, sem trazer a carteira inteira.
+
+    A resposta de /carteiras/{id} carrega o ranking completo: 581 bytes por
+    devedor em JSON, ou seja 29 MB para 50 mil e 116 MB para 200 mil. A tabela
+    mostra 50 por vez. Esta rota entrega as 50.
+
+    O filtro por status vem dos feedbacks, que ficam em outra tabela e não dão
+    para juntar no PostgREST. Ele é aplicado por lista de CPF — o conjunto é
+    limitado por quantas pessoas foram efetivamente trabalhadas, que é ordem de
+    grandeza menor que a carteira.
+    """
+    payload = _usuario_autenticado(credentials)
+    db = get_db()
+    _exige_carteira_da_empresa(db, carteira_id, payload)
+
+    limit  = min(max(limit, 1), 500)
+    offset = max(offset, 0)
+
+    def base():
+        return db.table("predicoes").select("*", count="exact").eq("carteira_id", carteira_id)
+
+    # Total da carteira: é o denominador da etiqueta de prioridade, e precisa
+    # ser o da fila inteira — não o do resultado filtrado, senão filtrar por
+    # produto reclassificaria a prioridade de quem sobrou.
+    total = (db.table("predicoes").select("id", count="exact")
+             .eq("carteira_id", carteira_id).limit(1).execute()).count or 0
+
+    q = base()
+    if produto:
+        q = q.eq("produto", produto)
+    if uf:
+        q = q.eq("uf", uf)
+    if busca:
+        alvo = busca.strip().replace("*", "").replace(",", "")
+        if alvo:
+            q = q.or_(f"nome.ilike.*{alvo}*,cpf.ilike.*{alvo}*")
+    if prioridade:
+        faixa = _faixa_de_ranks(prioridade, total)
+        if faixa is None:
+            return {"itens": [], "total": total, "filtrado": 0,
+                    "offset": offset, "limit": limit}
+        q = q.gte("rank", faixa[0]).lte("rank", faixa[1])
+    if status in ("pago", "nao_pago", "pendente"):
+        pagos, nao_pagos = _cpfs_por_status(db, carteira_id)
+        if status == "pago":
+            if not pagos:
+                return {"itens": [], "total": total, "filtrado": 0,
+                        "offset": offset, "limit": limit}
+            q = q.in_("cpf", sorted(pagos))
+        elif status == "nao_pago":
+            if not nao_pagos:
+                return {"itens": [], "total": total, "filtrado": 0,
+                        "offset": offset, "limit": limit}
+            q = q.in_("cpf", sorted(nao_pagos))
+        else:
+            com_feedback = pagos | nao_pagos
+            if com_feedback:
+                q = q.not_.in_("cpf", sorted(com_feedback))
+
+    res = q.order("rank").range(offset, offset + limit - 1).execute()
+    itens = _reconstruir_ranking(res.data or [], payload.get("empresa_id", ""))
+
+    return {
+        "itens": itens,
+        "total": total,
+        "filtrado": res.count if res.count is not None else len(itens),
+        "offset": offset,
+        "limit": limit,
+    }
+
+
+def _cpfs_por_status(db, carteira_id: str) -> "tuple[set, set]":
+    """CPFs com feedback nesta carteira, separados entre quem pagou e quem não.
+
+    O escopo vem das predições da própria carteira, como em /feedbacks/status:
+    é o que impede a consulta de alcançar feedback de outra empresa. Quem
+    chama já validou a carteira com _exige_carteira_da_empresa.
+
+    Só o feedback mais recente de cada CPF conta — um devedor pode ter sido
+    marcado como não pago e ter pago depois.
+    """
+    pr = db.table("predicoes").select("id").eq("carteira_id", carteira_id).execute()
+    pred_ids = [p["id"] for p in (pr.data or [])]
+    if not pred_ids:
+        return set(), set()
+
+    linhas: list = []
+    for i in range(0, len(pred_ids), 500):
+        r = (db.table("feedbacks")
+             .select("cpf, pagou, created_at")
+             .in_("predicao_id", pred_ids[i:i + 500])
+             .order("created_at", desc=True).execute())
+        linhas.extend(r.data or [])
+
+    visto, pagos, nao_pagos = set(), set(), set()
+    for f in linhas:                      # já vem do mais recente para o mais antigo
+        cpf = str(f.get("cpf") or "")
+        if not cpf or cpf in visto:
+            continue
+        visto.add(cpf)
+        (pagos if f.get("pagou") else nao_pagos).add(cpf)
+    return pagos, nao_pagos
+
+
 def _reconstruir_ranking(predicoes: list, empresa_id: "str | None") -> list:
     """Devolve a carteira na ordem da fila, com o rank de cada devedor.
 
