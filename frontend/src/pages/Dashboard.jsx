@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import PriorityBadge from '../components/PriorityBadge'
 import { prioridadePorRank } from '../utils/prioridade'
+import { calcularAlcance } from '../utils/alcance'
 import { useAnalysis } from '../context/AnalysisContext'
 import { useAuth } from '../context/AuthContext'
 import { LogoMark } from '../components/Logo'
@@ -233,6 +234,11 @@ export default function Dashboard() {
   const [custoCobranca, setCustoCobranca] = useState(25)
   const [retornoAlvo, setRetornoAlvo]     = useState(30)
   const [filtroPrio, setFiltroPrio]       = useState('todos')
+  // Conveniência por navegador: o gerente digita a capacidade dele uma vez.
+  // Pode falhar em aba anônima ou com armazenamento bloqueado, daí o try.
+  const [capacidade, setCapacidade] = useState(() => {
+    try { return localStorage.getItem('mizan:capacidade') ?? '' } catch { return '' }
+  })
   const [filtroProduto, setFiltroProduto] = useState('todos')
   const [filtroUF, setFiltroUF]           = useState('todas')
   const [page, setPage]                   = useState(1)
@@ -398,7 +404,21 @@ export default function Dashboard() {
   const agingData    = [...distribuicao_aging].sort(
     (a, b) => AGING_ORDER.indexOf(a.aging) - AGING_ORDER.indexOf(b.aging)
   )
-  const prioritarios = ranking_completo.filter(d => d.score_recuperabilidade >= 70).length
+  // Prioritário é quem está no topo da fila, não quem tem score alto: a fila
+  // é ordenada por valor esperado, e contar por score daria um número que não
+  // corresponde a nenhuma etiqueta da tabela.
+  const prioritarios = ranking_completo.filter(
+    d => prioridadePorRank(d.rank, ranking_completo.length) === 'Alta'
+  ).length
+
+  const alcance = calcularAlcance(
+    ranking_completo, capacidade, resumo.valor_esperado_recuperacao_total)
+  const capNum = alcance?.n ?? 0
+
+  function mudarCapacidade(v) {
+    setCapacidade(v)
+    try { localStorage.setItem('mizan:capacidade', v) } catch { /* sem armazenamento, segue sem lembrar */ }
+  }
 
   const PAGE_SIZE  = 50
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
@@ -625,6 +645,84 @@ export default function Dashboard() {
             <motion.div variants={item}><KpiCard label="Score Médio"             value={resumo.score_medio.toFixed(1)}    icon={BarChart2}    accent="violet"  /></motion.div>
             <motion.div variants={item}><KpiCard label="Devedores Prioritários" value={fmtNum(prioritarios)}                  icon={Star}         accent="emerald" /></motion.div>
           </motion.div>
+
+          {/* ── Alcance da operação ──
+              A fila responde "quem primeiro". Esta seção responde a pergunta
+              que o gerente de cobrança realmente tem: com a equipe que eu
+              tenho, até onde eu chego e quanto isso traz. */}
+          <section className="mt-6 rounded-xl border border-line bg-surface p-6">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="section-label">Alcance da operação</p>
+                <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--ink)' }}>
+                  Até onde a equipe chega neste ciclo
+                </h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs" style={{ color: 'var(--ink-2)' }} htmlFor="cap">
+                  Devedores que a equipe consegue trabalhar
+                </label>
+                <input
+                  id="cap" type="number" min="0" step="50" value={capacidade}
+                  onChange={e => mudarCapacidade(e.target.value)}
+                  placeholder="ex.: 4000"
+                  className="w-32 rounded-lg px-3 py-2 text-sm tabular-nums"
+                  style={{ background: 'var(--raise-3)', border: '1px solid var(--line)', color: 'var(--ink)' }}
+                />
+              </div>
+            </div>
+
+            {alcance ? (
+              <>
+                <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Vai até a posição</p>
+                    <p className="text-2xl font-semibold tabular-nums" style={{ color: 'var(--ink)' }}>
+                      #{fmtNum(alcance.ate)}
+                    </p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
+                      {fmtNum(alcance.restam)} ficam para o próximo ciclo
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Valor esperado ao alcance</p>
+                    <p className="text-2xl font-semibold tabular-nums" style={{ color: 'var(--success)' }}>
+                      {fmtBRL(alcance.valor)}
+                    </p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
+                      de {fmtBRL(resumo.valor_esperado_recuperacao_total ?? 0)} na carteira
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Do recuperável</p>
+                    <p className="text-2xl font-semibold tabular-nums" style={{ color: 'var(--ink)' }}>
+                      {alcance.pct == null ? '—' : `${alcance.pct.toFixed(1).replace('.', ',')}%`}
+                    </p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
+                      trabalhando {alcance.pctBase.toFixed(0)}% da base
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 h-2 w-full overflow-hidden rounded-full" style={{ background: 'var(--raise-3)' }}>
+                  <div className="h-full rounded-full" role="presentation"
+                    style={{ width: `${Math.min(100, alcance.pct ?? 0)}%`, background: 'var(--chart-1)' }} />
+                </div>
+                <p className="text-xs mt-3 leading-relaxed" style={{ color: 'var(--ink-2)' }}>
+                  A fila está ordenada por valor esperado, então os primeiros são os que mais
+                  devolvem — por isso {(alcance.pct ?? 0).toFixed(0)}% do recuperável cabe em{' '}
+                  {alcance.pctBase.toFixed(0)}% dos contatos.
+                  As linhas dentro do alcance aparecem marcadas na tabela abaixo.
+                </p>
+              </>
+            ) : (
+              <p className="text-sm mt-4 leading-relaxed" style={{ color: 'var(--ink-2)' }}>
+                Informe quantos devedores a equipe consegue trabalhar no ciclo — operadores ×
+                contatos por dia × dias úteis — e o Mizan mostra até onde a fila alcança e
+                quanto desse esforço deve voltar.
+              </p>
+            )}
+          </section>
 
           {/* ── Precificação ── */}
           {!isOperador && (
@@ -1059,8 +1157,19 @@ export default function Dashboard() {
                       key={d.rank}
                       onClick={() => navigate(`/devedor/${d.rank}`)}
                       className="group cursor-pointer border-b border-line transition-colors last:border-0 hover:bg-blue-500/[0.06]"
+                      /* Dentro do alcance da equipe neste ciclo: uma faixa à
+                         esquerda, para o operador ver onde a fila dele acaba
+                         sem precisar contar linhas. */
+                      style={capNum && d.rank <= capNum
+                        ? { boxShadow: 'inset 3px 0 0 var(--chart-1)' } : undefined}
                     >
-                      <td className="w-10 px-4 py-3 tabular-nums text-xs text-ink-2">{d.rank}</td>
+                      <td className="w-10 px-4 py-3 tabular-nums text-xs text-ink-2">
+                        {d.rank}
+                        {capNum > 0 && d.rank === capNum && (
+                          <span className="block text-[9px] font-semibold uppercase tracking-wide mt-0.5"
+                            style={{ color: 'var(--chart-1)' }}>limite</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 font-medium text-ink transition-colors group-hover:text-blue-300">{d.nome}</td>
                       <td className="whitespace-nowrap px-4 py-3 tabular-nums text-xs text-ink-2">{d.cpf}</td>
                       <td className="px-4 py-3 capitalize text-ink-2">{d.produto}</td>
