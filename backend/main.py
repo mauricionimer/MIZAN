@@ -131,7 +131,15 @@ def _encrypt(text: str | None) -> str | None:
     if not text:
         return text
     f = _get_fernet()
-    return f.encrypt(text.encode()).decode() if f else text
+    if f is None:
+        # Em desenvolvimento segue em claro, para não exigir chave de quem só
+        # está rodando local. Em produção isso nunca deve acontecer — o startup
+        # já barra —, e se acontecer é melhor falhar do que gravar em claro.
+        if os.getenv("SUPABASE_URL"):
+            raise RuntimeError(
+                "Tentativa de gravar credencial sem MIZAN_ENCRYPTION_KEY configurada.")
+        return text
+    return f.encrypt(text.encode()).decode()
 
 
 def _decrypt(text: str | None) -> str | None:
@@ -192,6 +200,17 @@ async def lifespan(app: FastAPI):
         if _JWT_SECRET == "mizan_jwt_secret_mude_em_producao_2026":
             raise RuntimeError("JWT_SECRET não configurado em produção. Defina a variável de ambiente JWT_SECRET.")
 
+    # A chave de criptografia precisa da mesma trava que o JWT_SECRET. Sem ela,
+    # _encrypt devolvia o texto puro e o app subia normalmente — gravando
+    # usuário e senha do banco de produção do cliente em claro, sem um aviso
+    # sequer. Degradar em silêncio é pior do que não subir.
+    if _is_prod and not _FERNET_KEY:
+        raise RuntimeError(
+            "MIZAN_ENCRYPTION_KEY não configurada em produção. Sem ela as "
+            "credenciais de banco dos clientes seriam gravadas em texto puro. "
+            "Gere uma com: python -c \"from cryptography.fernet import Fernet; "
+            "print(Fernet.generate_key().decode())\""
+        )
     if _FERNET_KEY:
         try:
             from cryptography.fernet import Fernet as _Fernet

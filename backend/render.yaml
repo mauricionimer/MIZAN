@@ -14,3 +14,8 @@ services:
         sync: false
       - key: JWT_SECRET
         sync: false
+      # Sem esta, o backend se recusa a subir: as credenciais de banco dos
+      # clientes seriam gravadas em texto puro. Gere com
+      #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+      - key: MIZAN_ENCRYPTION_KEY
+        sync: false
