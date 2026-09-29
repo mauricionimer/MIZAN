@@ -6,7 +6,11 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   PieChart, Pie, Cell,
 } from 'recharts'
-import { buscarPagamentos, buscarStatusFeedbacks, confirmarPagamento } from '../api'
+import {
+  buscarPagamentos, buscarStatusFeedbacks, confirmarPagamento,
+  buscarPaginaRanking, buscarAlcance, buscarRankingCompleto,
+} from '../api'
+import { useDebounce } from '../hooks/useDebounce'
 import {
   Users, TrendingDown, BarChart2, Star,
   Download, Search, Loader2,
@@ -14,7 +18,7 @@ import {
   CheckCircle2, XCircle, TrendingUp, Clock, X, AlertTriangle,
 } from 'lucide-react'
 import PriorityBadge from '../components/PriorityBadge'
-import { prioridadePorRank } from '../utils/prioridade'
+import { prioridadePorRank, CORTE_ALTA } from '../utils/prioridade'
 import { calcularAlcance } from '../utils/alcance'
 import { useAnalysis } from '../context/AnalysisContext'
 import { useAuth } from '../context/AuthContext'
@@ -314,22 +318,73 @@ export default function Dashboard({ onIrPara }) {
     return () => clearInterval(intervalo)
   }, [token, carteiraId])
 
-  const produtos = useMemo(() => {
-    const u = [...new Set((result?.ranking_completo ?? []).map(d => d.produto).filter(Boolean))].sort()
-    return u
-  }, [result])
+  // Os seletores vêm prontos do servidor. Montá-los percorrendo o ranking só
+  // funcionava porque o ranking inteiro estava no navegador — que é
+  // exatamente o que deixou de estar.
+  const produtos = useMemo(
+    () => result?.resumo?.produtos
+      ?? [...new Set((result?.ranking_completo ?? []).map(d => d.produto).filter(Boolean))].sort(),
+    [result])
 
-  const ufs = useMemo(() => {
-    const u = [...new Set((result?.ranking_completo ?? []).map(d => d.uf).filter(Boolean))].sort()
-    return u
-  }, [result])
+  const ufs = useMemo(
+    () => result?.resumo?.ufs
+      ?? [...new Set((result?.ranking_completo ?? []).map(d => d.uf).filter(Boolean))].sort(),
+    [result])
 
-  const filtered = useMemo(() => {
+  // A página da tabela: buscada no servidor quando a carteira está gravada,
+  // recortada em memória quando não está (backtest, ou análise que ainda não
+  // virou carteira).
+  const [alcanceServidor, setAlcance] = useState(null)
+  const [pagina, setPagina]         = useState({ itens: [], filtrado: 0 })
+  const [carregandoPag, setCarrPag] = useState(false)
+  const [erroPagina, setErroPagina] = useState('')
+  const PAGE_SIZE = 50
+
+  const buscaAdiada = useDebounce(search, 350)
+
+  useEffect(() => { setPage(1) }, [buscaAdiada, filtroPrio, filtroProduto, filtroUF, filtroStatus])
+
+  useEffect(() => {
+    if (!carteiraId) return
+    let cancelado = false
+    setCarrPag(true); setErroPagina('')
+    buscarPaginaRanking(carteiraId, {
+      offset: (page - 1) * PAGE_SIZE,
+      limit: PAGE_SIZE,
+      busca: buscaAdiada || undefined,
+      produto: filtroProduto !== 'todos' ? filtroProduto : undefined,
+      uf: filtroUF !== 'todas' ? filtroUF : undefined,
+      prioridade: filtroPrio !== 'todos' ? filtroPrio : undefined,
+      status: filtroStatus !== 'todos' ? filtroStatus : undefined,
+    })
+      .then(d => { if (!cancelado) setPagina({ itens: d.itens, filtrado: d.filtrado }) })
+      .catch(e => { if (!cancelado) setErroPagina(e.message) })
+      .finally(() => { if (!cancelado) setCarrPag(false) })
+    return () => { cancelado = true }
+  }, [carteiraId, page, buscaAdiada, filtroProduto, filtroUF, filtroPrio, filtroStatus])
+
+  // Alcance: a soma acumulada do topo da fila até a capacidade informada.
+  const capacidadeAdiada = useDebounce(capacidade, 400)
+  useEffect(() => {
+    if (!carteiraId) { setAlcance(null); return }
+    const n = parseInt(capacidadeAdiada, 10) || 0
+    if (!n) { setAlcance(null); return }
+    let cancelado = false
+    buscarAlcance(carteiraId, n)
+      .then(a => { if (!cancelado) setAlcance(a && a.n ? a : null) })
+      .catch(() => { if (!cancelado) setAlcance(null) })
+    return () => { cancelado = true }
+  }, [carteiraId, capacidadeAdiada])
+
+  // Sem carteira gravada não há o que paginar no servidor: filtra o que está
+  // em memória, como antes.
+  const filtradoLocal = useMemo(() => {
+    if (carteiraId) return null
     const lista = result?.ranking_completo ?? []
-    let list = search
+    let list = buscaAdiada
       ? lista.filter(d =>
-          d.nome?.toLowerCase().includes(search.toLowerCase()) ||
-          d.cpf?.includes(search)
+          d.nome?.toLowerCase().includes(buscaAdiada.toLowerCase()) ||
+          d.cpf?.includes(buscaAdiada)
         )
       : lista
     // Relativa à fila inteira, não à lista já filtrada: senão filtrar por
@@ -343,9 +398,7 @@ export default function Dashboard({ onIrPara }) {
     if (filtroStatus !== 'todos')
       list = list.filter(d => getStatus(d.cpf, statusMap) === filtroStatus)
     return list
-  }, [result, search, filtroPrio, filtroProduto, filtroUF, filtroStatus, statusMap])
-
-  useEffect(() => { setPage(1) }, [search, filtroPrio, filtroProduto, filtroUF, filtroStatus])
+  }, [carteiraId, result, buscaAdiada, filtroPrio, filtroProduto, filtroUF, filtroStatus, statusMap])
 
   async function handleConfirmarPagamento(e) {
     e.preventDefault()
@@ -392,20 +445,26 @@ export default function Dashboard({ onIrPara }) {
 
   if (!result) return null
 
-  const { resumo, distribuicao_aging, distribuicao_cluster, ranking_completo } = result
+  const { resumo, distribuicao_aging, distribuicao_cluster } = result
+  const ranking_completo = result.ranking_completo ?? []
+  const totalFila = resumo.total_devedores ?? ranking_completo.length
 
   const agingData    = [...distribuicao_aging].sort(
     (a, b) => AGING_ORDER.indexOf(a.aging) - AGING_ORDER.indexOf(b.aging)
   )
   // Prioritário é quem está no topo da fila, não quem tem score alto: a fila
   // é ordenada por valor esperado, e contar por score daria um número que não
-  // corresponde a nenhuma etiqueta da tabela.
-  const prioritarios = ranking_completo.filter(
-    d => prioridadePorRank(d.rank, ranking_completo.length) === 'Alta'
-  ).length
+  // corresponde a nenhuma etiqueta da tabela. Como "Alta" é o primeiro quinto
+  // por definição, o número é o tamanho dessa faixa — não precisa da lista.
+  // Mesma aritmética inteira que o backend usa para recortar a faixa, para as
+  // duas contas não discordarem na fronteira.
+  const prioritarios = Math.floor((totalFila * Math.round(CORTE_ALTA * 100)) / 100)
 
-  const alcance = calcularAlcance(
-    ranking_completo, capacidade, resumo.valor_esperado_recuperacao_total)
+  // O alcance vem do servidor quando a carteira está gravada: é soma acumulada
+  // do topo da fila, e somar no navegador exigiria a fila inteira aqui.
+  const alcance = carteiraId
+    ? alcanceServidor
+    : calcularAlcance(ranking_completo, capacidade, resumo.valor_esperado_recuperacao_total)
   const capNum = alcance?.n ?? 0
 
   function mudarCapacidade(v) {
@@ -413,15 +472,37 @@ export default function Dashboard({ onIrPara }) {
     try { localStorage.setItem('mizan:capacidade', v) } catch { /* sem armazenamento, segue sem lembrar */ }
   }
 
-  const PAGE_SIZE  = 50
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const totalFiltrado = filtradoLocal ? filtradoLocal.length : pagina.filtrado
+  const totalPages    = Math.max(1, Math.ceil(totalFiltrado / PAGE_SIZE))
+  const paginated     = filtradoLocal
+    ? filtradoLocal.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+    : pagina.itens
+
+  // Exportar precisa da fila inteira, que não está mais no navegador: busca em
+  // páginas grandes, mostrando o progresso porque para carteira de banco isso
+  // leva alguns segundos e um botão mudo pareceria travado.
+  const [exportando, setExportando] = useState(null)   // {feito, total} | null
+
+  async function filaInteira() {
+    if (!carteiraId) return ranking_completo
+    setExportando({ feito: 0, total: totalFila })
+    try {
+      return await buscarRankingCompleto(carteiraId, (feito, total) => setExportando({ feito, total }))
+    } finally {
+      setExportando(null)
+    }
+  }
+
+  async function baixarCSV()   { exportCSV(await filaInteira()) }
+  async function baixarExcel() { exportExcel(await filaInteira(), resumo) }
 
   async function exportPDF() {
     setExporting(true)
     try {
       const { gerarRelatorioPDF } = await import('../utils/gerarPDF')
-      await gerarRelatorioPDF(result, pricing, custoCobranca, retornoAlvo)
+      const fila = await filaInteira()
+      await gerarRelatorioPDF({ ...result, ranking_completo: fila },
+                              pricing, custoCobranca, retornoAlvo)
     } finally {
       setExporting(false)
     }
@@ -432,13 +513,13 @@ export default function Dashboard({ onIrPara }) {
   const acoesTopo = (
     <>
       <button
-        onClick={() => exportCSV(ranking_completo)}
+        onClick={baixarCSV}
         className="flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink-2 transition-colors hover:border-emerald-500/50 hover:text-ink"
       >
         <FileSpreadsheet className="h-3.5 w-3.5" /> CSV
       </button>
       <button
-        onClick={() => exportExcel(ranking_completo, resumo)}
+        onClick={baixarExcel}
         className="flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink-2 transition-colors hover:border-emerald-500/50 hover:text-ink"
       >
         <FileSpreadsheet className="h-3.5 w-3.5" /> Excel
@@ -1067,7 +1148,7 @@ export default function Dashboard({ onIrPara }) {
                   <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--ink-2)' }}>Ranking</p>
                   <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--ink)' }}>Recuperabilidade</h3>
                   <p className="text-xs mt-0.5" style={{ color: 'var(--ink-2)' }}>
-                    {fmtNum(filtered.length)} devedores{search || filtroPrio !== 'todos' || filtroProduto !== 'todos' || filtroUF !== 'todas' ? ' filtrados' : ''}
+                    {fmtNum(totalFiltrado)} devedores{search || filtroPrio !== 'todos' || filtroProduto !== 'todos' || filtroUF !== 'todas' ? ' filtrados' : ''}
                     {totalPages > 1 && ` · página ${page} de ${totalPages}`}
                   </p>
                 </div>
@@ -1196,7 +1277,7 @@ export default function Dashboard({ onIrPara }) {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <PriorityBadge rank={d.rank} total={result?.ranking_completo?.length ?? 0} />
+                        <PriorityBadge rank={d.rank} total={totalFila} />
                       </td>
                       <td className="px-4 py-3 text-center" onClick={e => e.stopPropagation()}>
                         <div className="flex flex-col items-center gap-1">
@@ -1223,7 +1304,7 @@ export default function Dashboard({ onIrPara }) {
             {totalPages > 1 && (
               <div className="flex items-center justify-between border-t border-line bg-surface-2 px-6 py-3">
                 <span className="text-xs text-ink-2">
-                  {fmtNum((page - 1) * PAGE_SIZE + 1)}–{fmtNum(Math.min(page * PAGE_SIZE, filtered.length))} de {fmtNum(filtered.length)}
+                  {fmtNum((page - 1) * PAGE_SIZE + 1)}–{fmtNum(Math.min(page * PAGE_SIZE, totalFiltrado))} de {fmtNum(totalFiltrado)}
                 </span>
                 <div className="flex items-center gap-2">
                   <button onClick={() => setPage(p => p - 1)} disabled={page === 1}

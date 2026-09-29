@@ -1953,6 +1953,73 @@ def _faixa_de_ranks(prioridade: str, total: int) -> "tuple[int, int] | None":
     }.get(prioridade)
 
 
+def _valores_de_filtro(db, carteira_id: str) -> dict:
+    """Produtos e UFs distintos da carteira, para os seletores da tela.
+
+    A tela montava essas listas percorrendo o ranking inteiro. Sem o ranking
+    inteiro no navegador, elas passam a vir daqui — e são duas colunas curtas,
+    não a carteira toda.
+    """
+    try:
+        res = db.table("predicoes").select("produto, uf").eq("carteira_id", carteira_id).execute()
+    except Exception:
+        return {"produtos": [], "ufs": []}
+    linhas = res.data or []
+    return {
+        "produtos": sorted({p["produto"] for p in linhas if p.get("produto")}),
+        "ufs":      sorted({p["uf"] for p in linhas if p.get("uf")}),
+    }
+
+
+@app.get("/carteiras/{carteira_id}/alcance")
+def alcance_da_operacao(
+    carteira_id: str,
+    capacidade: int = 0,
+    credentials: HTTPAuthorizationCredentials = Security(bearer),
+):
+    """Quanto vale o topo da fila que a equipe consegue trabalhar no ciclo.
+
+    A fila está ordenada por valor esperado, então o alcance de uma capacidade
+    é a soma acumulada dos N primeiros. É o número que o gerente leva para a
+    reunião, então é somado de verdade — não interpolado numa curva amostrada.
+    Uma coluna só atravessa a rede, não a carteira.
+    """
+    payload = _usuario_autenticado(credentials)
+    db = get_db()
+    _exige_carteira_da_empresa(db, carteira_id, payload)
+
+    total = (db.table("predicoes").select("id", count="exact")
+             .eq("carteira_id", carteira_id).limit(1).execute()).count or 0
+    n = max(0, min(total, int(capacidade or 0)))
+    if not n:
+        return {"n": 0, "ate": 0, "valor": 0.0, "pct": None, "pctBase": 0.0,
+                "restam": total, "total_devedores": total}
+
+    res = (db.table("predicoes")
+           .select("rank, valor_esperado_recuperacao")
+           .eq("carteira_id", carteira_id)
+           .order("rank").limit(n).execute())
+    linhas = res.data or []
+    soma = sum(float(l.get("valor_esperado_recuperacao") or 0) for l in linhas)
+    ate = max((int(l.get("rank") or 0) for l in linhas), default=n)
+
+    total_ver = (db.table("carteiras").select("valor_esperado")
+                 .eq("id", carteira_id).limit(1).execute())
+    ver = float((total_ver.data or [{}])[0].get("valor_esperado") or 0)
+
+    return {
+        "n": n,
+        "ate": ate,
+        "valor": round(soma, 2),
+        # Sem o total da carteira não dá para dizer que fração é essa; devolver
+        # 0 seria inventar um número, então o campo fica nulo e a tela decide.
+        "pct": round(soma / ver * 100, 2) if ver > 0 else None,
+        "pctBase": round(n / total * 100, 2) if total else 0.0,
+        "restam": total - n,
+        "total_devedores": total,
+    }
+
+
 @app.get("/carteiras/{carteira_id}/ranking")
 def pagina_do_ranking(
     carteira_id: str,
@@ -2121,7 +2188,16 @@ def _reconstruir_ranking(predicoes: list, empresa_id: "str | None") -> list:
 
 
 @app.get("/carteiras/{carteira_id}")
-def carregar_carteira(carteira_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+def carregar_carteira(carteira_id: str, incluir_ranking: bool = True,
+                      credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Abre uma carteira gravada.
+
+    `incluir_ranking=false` devolve tudo menos a fila — 581 bytes por devedor,
+    ou 29 MB numa carteira de 50 mil. A tela pede assim e busca as 50 linhas
+    visíveis em /carteiras/{id}/ranking. O padrão continua mandando a fila
+    inteira porque há integrações por API key consumindo este formato, e mudar
+    isso em silêncio quebraria o cliente do outro lado.
+    """
     payload = _usuario_autenticado(credentials)
     empresa_id = payload.get("empresa_id", "")
     usuario_id = payload.get("sub")
@@ -2163,6 +2239,7 @@ def carregar_carteira(carteira_id: str, credentials: HTTPAuthorizationCredential
         "taxa_recuperacao_esperada": round(total_ver / total_face * 100, 1) if total_face else 0,
         "criado_por": _cart_row.get("usuario_email") or "",
         "criado_em":  _cart_row.get("created_at") or "",
+        **_valores_de_filtro(db, carteira_id),
     }
 
     # Distribuição aging
@@ -2202,7 +2279,7 @@ def carregar_carteira(carteira_id: str, credentials: HTTPAuthorizationCredential
         "distribuicao_aging": aging_dist,
         "distribuicao_cluster": cluster_dist,
         "top10_prioritarios": ranking[:10],
-        "ranking_completo": ranking,
+        **({"ranking_completo": ranking} if incluir_ranking else {}),
     }
 
 
@@ -2289,8 +2366,15 @@ async def rodar_backtest(
 async def analisar(
     file: UploadFile = File(...),
     empresa_id: Optional[str] = Form(None),
+    incluir_ranking: bool = True,
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
+    """Analisa uma carteira.
+
+    `incluir_ranking=false` devolve tudo menos a fila, que a tela busca depois
+    em páginas. O padrão continua mandando a fila inteira: há integrações por
+    API key consumindo este formato.
+    """
     payload = _usuario_autenticado(credentials)
     uid   = payload.get("sub")
     uemail = payload.get("email")
@@ -2315,7 +2399,8 @@ async def analisar(
                 df = pd.read_excel(io.BytesIO(contents))
         except Exception as e:
             raise HTTPException(status_code=422, detail=f"Erro ao ler arquivo: {e}")
-        return _analisar_df(df, file.filename, _usuario_id=uid, _usuario_email=uemail, _empresa_id=eid)
+        return _analisar_df(df, file.filename, _usuario_id=uid, _usuario_email=uemail, _empresa_id=eid,
+                            _incluir_ranking=incluir_ranking)
 
     # O caminho pesado do sistema: ler a planilha, pontuar a carteira inteira e
     # gravar as predições. Segundos de trabalho bloqueante numa carteira grande
@@ -2594,7 +2679,9 @@ def _politica_proposta(empresa_id: "str | None"):
         return PoliticaProposta()
 
 
-def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _usuario_email: str = None, _empresa_id: str = None, _carteira_id_existente: str = None) -> dict:
+def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _usuario_email: str = None,
+                 _empresa_id: str = None, _carteira_id_existente: str = None,
+                 _incluir_ranking: bool = True) -> dict:
     """Executa o pipeline de scoring em um DataFrame já carregado e persiste no Supabase."""
     # Aplica CAMPO_ALIASES para mapear colunas de qualquer fonte (CSV, Excel, DB)
     _cols_norm = {c.lower().strip().replace(" ", "_"): c for c in df.columns}
@@ -2852,6 +2939,11 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
         "lgd_medio_ponderado":  round(
             (total_em_risco - ver_total) / total_em_risco, 4
         ) if total_em_risco else 0.0,
+        # Valores dos seletores da tela. A tela os montava percorrendo o
+        # ranking inteiro; sem o ranking no navegador, vêm daqui — e aqui os
+        # dados já estão em memória, então não custa consulta nenhuma.
+        "produtos": sorted({str(p) for p in resultado.get("produto", pd.Series(dtype=str)).dropna().unique()}),
+        "ufs":      sorted({str(u) for u in resultado.get("uf", pd.Series(dtype=str)).dropna().unique()}),
     }
 
     # Distribuição por fase do ciclo e, acima de 360 dias, a comparação que o
@@ -3045,7 +3137,7 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
 
     return {"resumo": resumo, "distribuicao_aging": aging_dist,
             "distribuicao_cluster": cluster_dist, "top10_prioritarios": devedores[:10],
-            "ranking_completo": devedores}
+            **({"ranking_completo": devedores} if _incluir_ranking else {})}
 
 
 @app.post("/listar-tabelas")
@@ -3146,7 +3238,8 @@ def testar_db(conn: ConexaoDB, credentials: HTTPAuthorizationCredentials = Secur
 
 
 @app.post("/analisar/db")
-def analisar_db(conn: ConexaoDB, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+def analisar_db(conn: ConexaoDB, incluir_ranking: bool = True,
+                credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """Analisa uma carteira carregada diretamente de um banco de dados externo."""
     _payload = _usuario_autenticado(credentials)  # valida o token ANTES de conectar
     _resolver_credenciais(conn)
@@ -3193,7 +3286,8 @@ def analisar_db(conn: ConexaoDB, credentials: HTTPAuthorizationCredentials = Sec
     if _payload.get("role") == "comando" and conn.empresa_id_alvo:
         eid = conn.empresa_id_alvo.strip().lower()
     nome = conn.nome_fonte or "consulta_db"
-    resultado = _analisar_df(df, nome, _usuario_id=uid, _usuario_email=uemail, _empresa_id=eid)
+    resultado = _analisar_df(df, nome, _usuario_id=uid, _usuario_email=uemail, _empresa_id=eid,
+                             _incluir_ranking=incluir_ranking)
 
     # Vincula a carteira criada à conexão salva (para sincronizações futuras atualizarem no lugar)
     nova_carteira_id = resultado.get("resumo", {}).get("carteira_id")

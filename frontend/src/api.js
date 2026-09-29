@@ -24,7 +24,8 @@ export async function analisarCarteira(file, empresaId = null) {
   fd.append('file', file)
   if (empresaId) fd.append('empresa_id', empresaId)
   const token = _getToken()
-  const res = await fetch(`${BASE}/analisar`, {
+  // Sem a fila na resposta: ela vem paginada depois.
+  const res = await fetch(`${BASE}/analisar?incluir_ranking=false`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
     body: fd,
@@ -49,7 +50,8 @@ export async function listarCarteiras() {
 
 export async function carregarCarteira(id) {
   const token = _getToken()
-  const res = await fetch(`${BASE}/carteiras/${id}`, {
+  // Sem a fila: a tela busca as 50 linhas visíveis em /ranking.
+  const res = await fetch(`${BASE}/carteiras/${id}?incluir_ranking=false`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   })
   _handle401(res)
@@ -138,7 +140,7 @@ export async function testarDB(params) {
 export async function analisarDB(params) {
   const token = _getToken()
   const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }
-  const res = await fetch(`${BASE}/analisar/db`, {
+  const res = await fetch(`${BASE}/analisar/db?incluir_ranking=false`, {
     method: 'POST',
     headers,
     body: JSON.stringify(params),
@@ -531,4 +533,51 @@ export async function eliminarTitular(token, cpf, empresaIdAlvo) {
     throw new Error(detail)
   }
   return res.json()
+}
+
+// ── Fila paginada ────────────────────────────────────────────────────────
+// A tabela mostra 50 por vez; trazer a carteira inteira custa 581 bytes por
+// devedor em JSON. Estas rotas entregam só o que está na tela.
+
+export async function buscarPaginaRanking(carteiraId, params = {}) {
+  const token = _getToken()
+  const qs = new URLSearchParams()
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null && v !== '') qs.set(k, v)
+  }
+  const res = await fetch(`${BASE}/carteiras/${encodeURIComponent(carteiraId)}/ranking?${qs}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  _handle401(res)
+  if (!res.ok) {
+    const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
+    throw new Error(detail)
+  }
+  return res.json()
+}
+
+export async function buscarAlcance(carteiraId, capacidade) {
+  const token = _getToken()
+  const res = await fetch(
+    `${BASE}/carteiras/${encodeURIComponent(carteiraId)}/alcance?capacidade=${Number(capacidade) || 0}`,
+    { headers: { Authorization: `Bearer ${token}` } })
+  _handle401(res)
+  if (!res.ok) return null
+  return res.json()
+}
+
+// Exportações e PDF precisam da fila inteira. Vem em páginas grandes para não
+// depender de uma resposta única gigante, e o chamador acompanha o progresso.
+export async function buscarRankingCompleto(carteiraId, aoProgredir) {
+  const PASSO = 500
+  const tudo = []
+  let total = null
+  for (let offset = 0; ; offset += PASSO) {
+    const p = await buscarPaginaRanking(carteiraId, { offset, limit: PASSO })
+    tudo.push(...p.itens)
+    total = p.filtrado ?? p.total
+    aoProgredir?.(tudo.length, total)
+    if (tudo.length >= total || p.itens.length === 0) break
+  }
+  return tudo
 }

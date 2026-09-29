@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Phone, Tag, Zap, MessageSquare, Brain, Plus, ClipboardList, CheckCircle2, XCircle, Clock, Wallet, AlertTriangle } from 'lucide-react'
 import { useAnalysis } from '../context/AnalysisContext'
+import { buscarPaginaRanking } from '../api'
 import PriorityBadge from '../components/PriorityBadge'
 import { buscarRecomendacao, registrarContato, listarContatos, buscarStatusFeedbacks, buscarExplicacaoScore, buscarPropostas, traduzirErroRede } from '../api'
 import { LogoMark } from '../components/Logo'
@@ -529,7 +530,27 @@ export default function DebtorDetail() {
   // A tela inicial é uma só: dizer "Dashboard" é escolher a vista dela.
   const voltarAoDashboard = () => { setVista('dashboard'); navigate('/') }
 
-  const d = result?.ranking_completo.find(x => x.rank === Number(rank)) ?? null
+  // O devedor vinha do ranking inteiro em memória. Sem ele, a posição é
+  // buscada no servidor: a fila está ordenada por rank, então a posição N é a
+  // linha N — offset e limite resolvem, sem varrer nada.
+  const carteiraId = result?.resumo?.carteira_id ?? result?.carteira_id ?? null
+  const emMemoria = result?.ranking_completo?.find(x => x.rank === Number(rank)) ?? null
+  const [buscado, setBuscado]   = useState(null)
+  const [procurando, setProcurando] = useState(false)
+  const d = emMemoria ?? buscado
+
+  useEffect(() => {
+    if (emMemoria || !carteiraId) return
+    const posicao = Number(rank)
+    if (!posicao || posicao < 1) return
+    let cancelado = false
+    setProcurando(true)
+    buscarPaginaRanking(carteiraId, { offset: posicao - 1, limit: 1 })
+      .then(p => { if (!cancelado) setBuscado(p.itens?.[0] ?? null) })
+      .catch(() => { if (!cancelado) setBuscado(null) })
+      .finally(() => { if (!cancelado) setProcurando(false) })
+    return () => { cancelado = true }
+  }, [carteiraId, rank, emMemoria])
 
   const [rec, setRec]               = useState(null)
   const [recLoading, setRecLoading] = useState(true)
@@ -545,10 +566,14 @@ export default function DebtorDetail() {
 
   useEffect(() => {
     if (!result) { navigate('/'); return }
-    if (!d) navigate('/')
+    // Só desiste depois da busca: sair antes mandaria o usuário para a tela
+    // inicial no meio de um clique que ia funcionar.
+    if (!d && !procurando && !carteiraId) navigate('/')
+    else if (!d && !procurando && buscado === null && carteiraId && !emMemoria) {
+      // buscou e não achou: a posição não existe nesta carteira
+      navigate('/')
+    }
   }, [result, d, navigate])
-
-  const carteiraId = result?.resumo?.carteira_id ?? null
 
   useEffect(() => {
     if (!d?.cpf) return
@@ -626,7 +651,7 @@ export default function DebtorDetail() {
               )}
             </div>
           </div>
-          <PriorityBadge rank={d.rank} total={result?.ranking_completo?.length ?? 0} large />
+          <PriorityBadge rank={d.rank} total={result?.resumo?.total_devedores ?? result?.ranking_completo?.length ?? 0} large />
         </div>
 
         <div className="grid grid-cols-3 gap-6">
