@@ -136,7 +136,11 @@ def criar_usuario(email: str, nome: str, senha: str, role: str = "operador", emp
         "senha_hash": hash_senha(senha),
         "role":       role,
         "ativo":      True,
-        "empresa_id": empresa_id or _empresa_do_email(email),
+        # Comando é papel de plataforma e não pertence a empresa cliente. Sem
+        # este caso, passar vazio não zerava nada: caía no palpite pelo domínio
+        # do e-mail e o comando nascia dentro de uma empresa — exatamente o
+        # estado que a regra de "não mover comando para empresa" evita.
+        "empresa_id": "" if role == "comando" else (empresa_id or _empresa_do_email(email)),
     }
     db.table("usuarios").insert(novo).execute()
     return _sem_hash(novo)
@@ -184,19 +188,55 @@ def redefinir_senha_com_token(token: str, nova_senha: str) -> bool:
     db.table("reset_tokens").update({"usado": True}).eq("token", token).execute()
     return True
 
+ROLES_VALIDOS = ("comando", "admin", "operador")
+
+
+def _ultimo_comando_ativo(db, usuario_id: str) -> bool:
+    """O usuário é comando ativo e não sobraria nenhum outro depois da mudança?
+
+    O COMANDO é o papel de plataforma: é quem cria empresas, cria usuários e
+    promove modelo. Zerar os comandos ativos tranca a plataforma inteira do
+    lado de fora, e não há tela para desfazer — só acesso direto ao banco.
+
+    Antes esta trava não existia porque era impossível chegar lá: nenhuma
+    rota mexia num comando. Agora que promover e rebaixar são possíveis, ela
+    passa a ser necessária.
+    """
+    atual = db.table("usuarios").select("role, ativo").eq("id", usuario_id).limit(1).execute()
+    if not atual.data:
+        return False
+    if atual.data[0].get("role") != "comando" or not atual.data[0].get("ativo"):
+        return False
+    outros = (db.table("usuarios").select("id")
+              .eq("role", "comando").eq("ativo", True).neq("id", usuario_id)
+              .limit(1).execute())
+    return not (outros.data or [])
+
+
 def toggle_usuario_ativo(usuario_id: str, ativo: bool) -> dict | None:
     db = _db()
+    if not ativo and _ultimo_comando_ativo(db, usuario_id):
+        raise ValueError(
+            "Este é o único COMANDO ativo. Desativá-lo trancaria a plataforma: "
+            "promova outro usuário a comando antes.")
     db.table("usuarios").update({"ativo": ativo}).eq("id", usuario_id).execute()
     res = db.table("usuarios").select("id, email, nome, role, ativo").eq("id", usuario_id).limit(1).execute()
     return res.data[0] if res.data else None
 
 def alterar_role(usuario_id: str, role: str) -> dict | None:
-    if role not in ("admin", "operador"):
-        raise ValueError("Role inválido. Use 'admin' ou 'operador'.")
+    if role not in ROLES_VALIDOS:
+        raise ValueError("Role inválido. Use 'comando', 'admin' ou 'operador'.")
     db = _db()
-    atual = db.table("usuarios").select("role").eq("id", usuario_id).limit(1).execute()
-    if atual.data and atual.data[0].get("role") == "comando":
-        raise ValueError("Não é possível alterar a role de um usuário COMANDO.")
-    db.table("usuarios").update({"role": role}).eq("id", usuario_id).execute()
+    if role != "comando" and _ultimo_comando_ativo(db, usuario_id):
+        raise ValueError(
+            "Este é o único COMANDO ativo. Rebaixá-lo trancaria a plataforma: "
+            "promova outro usuário a comando antes.")
+    if role == "comando":
+        # Comando é papel de plataforma, não de cliente. O sistema já recusa
+        # mover um comando para dentro de uma empresa; promover alguém sem
+        # tirá-lo da empresa deixaria o estado que aquela regra evita.
+        db.table("usuarios").update({"role": role, "empresa_id": ""}).eq("id", usuario_id).execute()
+    else:
+        db.table("usuarios").update({"role": role}).eq("id", usuario_id).execute()
     res = db.table("usuarios").select("id, email, nome, role, ativo").eq("id", usuario_id).limit(1).execute()
     return res.data[0] if res.data else None

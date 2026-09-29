@@ -401,6 +401,15 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
 }
 
 // ── Componente principal ─────────────────────────────────────────────────────
+// Um degrau por papel: o botão da linha desce quem está acima e sobe quem
+// está abaixo. Promover ALGUÉM a comando é decisão de outra ordem e fica no
+// formulário de criação, não num botão de linha.
+const ROTULO_ROLE = {
+  comando:  { destino: 'admin',    acao: 'Rebaixar', desce: true,  titulo: 'Rebaixar para administrador' },
+  admin:    { destino: 'operador', acao: 'Rebaixar', desce: true,  titulo: 'Rebaixar para operador' },
+  operador: { destino: 'admin',    acao: 'Promover', desce: false, titulo: 'Promover a administrador' },
+}
+
 export default function AdminUsuarios() {
   const { token, usuario, logout, isAdmin, isComando, empresaConfig, refreshEmpresaConfig } = useAuth()
   const navigate = useNavigate()
@@ -517,7 +526,7 @@ export default function AdminUsuarios() {
   }
 
   async function handleToggleRole(u) {
-    const novo = u.role === 'admin' ? 'operador' : 'admin'
+    const novo = ROTULO_ROLE[u.role]?.destino || 'admin'
     if (!confirm(`Alterar ${u.nome} para ${novo}?`)) return
     try {
       await alterarRoleUsuario(token, u.id, novo)
@@ -689,11 +698,18 @@ export default function AdminUsuarios() {
                     <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))} className="input-base">
                       <option value="operador">Operador</option>
                       <option value="admin">Administrador</option>
+                      <option value="comando">Comando (plataforma)</option>
                     </select>
+                    {form.role === 'comando' && (
+                      <p className="text-xs mt-1.5" style={{ color: 'var(--warning)' }}>
+                        Acesso total à plataforma: todas as empresas, todos os dados,
+                        gestão de modelo. Não pertence a nenhuma empresa cliente.
+                      </p>
+                    )}
                   </div>
-                  <div className="col-span-2">
+                  <div className={`col-span-2 ${form.role === 'comando' ? 'hidden' : ''}`}>
                     <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>Empresa</label>
-                    <select required value={form.empresa_id} onChange={e => setForm(f => ({ ...f, empresa_id: e.target.value }))} className="input-base">
+                    <select required={form.role !== 'comando'} value={form.empresa_id} onChange={e => setForm(f => ({ ...f, empresa_id: e.target.value }))} className="input-base">
                       <option value="">— selecione uma empresa —</option>
                       {(empresas.empresas || []).map(emp => (
                         <option key={emp.empresa_id} value={emp.empresa_id}>{emp.empresa_id} ({emp.usuarios?.length ?? 0} membros)</option>
@@ -750,7 +766,9 @@ export default function AdminUsuarios() {
                         </td>
                         <td className="px-5 py-4">
                           <div className="flex items-center justify-center gap-1.5">
-                            {u.email !== usuario?.email && u.role !== 'comando' ? (
+                            {u.email === usuario?.email ? (
+                              <span className="text-xs italic px-2" style={{ color: 'var(--ink-4)' }}>você</span>
+                            ) : (
                               <>
                                 <button onClick={() => handleToggleAtivo(u)} title={u.ativo ? 'Desativar usuário' : 'Ativar usuário'}
                                   className="flex items-center gap-1 px-2 py-1 rounded-lg transition-colors text-xs font-medium whitespace-nowrap" style={{ color: 'var(--ink-3)' }}
@@ -760,17 +778,17 @@ export default function AdminUsuarios() {
                                   {u.ativo ? 'Desativar' : 'Ativar'}
                                 </button>
                                 {isComando && (
-                                  <button onClick={() => handleToggleRole(u)} title={u.role === 'admin' ? 'Rebaixar para operador' : 'Promover a admin'}
+                                  <button onClick={() => handleToggleRole(u)} title={ROTULO_ROLE[u.role]?.titulo || 'Promover a admin'}
                                     className="flex items-center gap-1 px-2 py-1 rounded-lg transition-colors text-xs font-medium whitespace-nowrap" style={{ color: 'var(--ink-3)' }}
                                     onMouseOver={e => { e.currentTarget.style.background = 'var(--raise-3)'; e.currentTarget.style.color = 'white' }}
                                     onMouseOut={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--ink-3)' }}>
-                                    {u.role === 'admin' ? <ShieldOff className="w-4 h-4 text-violet-400 shrink-0" /> : <ShieldCheck className="w-4 h-4 shrink-0" />}
-                                    {u.role === 'admin' ? 'Rebaixar' : 'Promover'}
+                                    {ROTULO_ROLE[u.role]?.desce
+                                      ? <ShieldOff className="w-4 h-4 text-violet-400 shrink-0" />
+                                      : <ShieldCheck className="w-4 h-4 shrink-0" />}
+                                    {ROTULO_ROLE[u.role]?.acao || 'Promover'}
                                   </button>
                                 )}
                               </>
-                            ) : (
-                              <span className="text-xs italic px-2" style={{ color: 'var(--ink-4)' }}>você</span>
                             )}
                           </div>
                         </td>

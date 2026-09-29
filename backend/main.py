@@ -964,9 +964,19 @@ def auth_listar(credentials: HTTPAuthorizationCredentials = Security(bearer)):
 @app.post("/auth/registrar")
 def auth_registrar(body: RegistrarIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     payload = _exigir_comando(credentials)
-    if body.role not in ("admin", "operador"):
-        raise HTTPException(status_code=400, detail="Role inválido. Use 'admin' ou 'operador'.")
+    # Comando pode criar outro comando. A rota inteira já exige comando, então
+    # o admin de um banco cliente continua sem alcance nenhum aqui — ele não
+    # chega a chamar isto.
+    if body.role not in ("comando", "admin", "operador"):
+        raise HTTPException(status_code=400, detail="Role inválido. Use 'comando', 'admin' ou 'operador'.")
     empresa_id = (body.empresa_id or "").strip().lower()
+    if body.role == "comando":
+        # Comando é papel de plataforma, não de cliente: o sistema já recusa
+        # mover um comando para dentro de uma empresa, então nascer dentro de
+        # uma seria criar justamente o estado que aquela regra evita.
+        empresa_id = ""
+    elif not empresa_id:
+        raise HTTPException(status_code=400, detail="Informe a empresa do usuário.")
     try:
         novo = criar_usuario(body.email.strip().lower(), body.nome, body.senha, body.role, empresa_id)
     except ValueError as e:
@@ -1070,7 +1080,10 @@ def auth_toggle_ativo(usuario_id: str, body: AtivoIn, credentials: HTTPAuthoriza
             raise HTTPException(status_code=403, detail="Sem permissão para alterar este usuário.")
         if u.data[0].get("role") == "comando":
             raise HTTPException(status_code=403, detail="Não é possível alterar um usuário COMANDO.")
-    resultado = toggle_usuario_ativo(usuario_id, body.ativo)
+    try:
+        resultado = toggle_usuario_ativo(usuario_id, body.ativo)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     if not resultado:
         raise HTTPException(status_code=404, detail="Usuário não encontrado.")
     _registrar_auditoria(
@@ -1087,8 +1100,8 @@ def auth_toggle_ativo(usuario_id: str, body: AtivoIn, credentials: HTTPAuthoriza
 @app.patch("/auth/usuarios/{usuario_id}/role")
 def auth_alterar_role(usuario_id: str, body: RoleIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     payload = _exigir_comando(credentials)
-    if body.role not in ("admin", "operador"):
-        raise HTTPException(status_code=400, detail="Role inválido. Use 'admin' ou 'operador'.")
+    if body.role not in ("comando", "admin", "operador"):
+        raise HTTPException(status_code=400, detail="Role inválido. Use 'comando', 'admin' ou 'operador'.")
     try:
         resultado = alterar_role(usuario_id, body.role)
     except ValueError as e:
