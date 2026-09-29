@@ -67,12 +67,12 @@ export default function Privacidade() {
               texto: 'Os dados são armazenados no Supabase (infraestrutura em nuvem). Não compartilhamos dados de devedores com terceiros. O acesso é restrito aos usuários cadastrados pela empresa contratante.',
             },
             {
-              titulo: '6. Retenção',
-              texto: 'Os dados são mantidos enquanto a conta da empresa estiver ativa. Após encerramento, os dados são excluídos em até 90 dias, exceto quando a retenção for exigida por lei.',
+              titulo: '6. Retenção e anonimização',
+              texto: 'A empresa contratante define o prazo de retenção da própria carteira. Vencido o prazo, o CPF e o nome são removidos do registro e o restante da linha é mantido de forma anonimizada — o modelo continua aprendendo com o resultado (variáveis e se houve pagamento) sem que o registro aponte para uma pessoa. Enquanto a empresa não definir um prazo, os dados permanecem até que ela solicite a remoção ou o contrato seja encerrado, quando são eliminados. Ressalva honesta sobre o termo: remover CPF e nome de um registro que mantém UF, valor e dias em atraso é uma despersonalização forte, não uma garantia matemática de irreversibilidade — o cruzamento com uma base externa que já contenha esses campos pode, em tese, reidentificar. Para eliminação definitiva, o registro é apagado.',
             },
             {
               titulo: '7. Seus direitos (LGPD)',
-              texto: 'Você tem direito a: confirmar a existência de tratamento; acessar seus dados; corrigir dados incompletos ou incorretos; solicitar anonimização ou exclusão; revogar consentimento; solicitar portabilidade. Para exercer esses direitos, utilize o botão "Deletar minha conta" em Configurações ou entre em contato com o administrador do sistema.',
+              texto: 'Você tem direito a: confirmar a existência de tratamento; acessar seus dados; corrigir dados incompletos ou incorretos; solicitar anonimização ou exclusão; revogar consentimento; solicitar portabilidade; e pedir revisão de decisão automatizada (art. 20). O caminho depende de quem você é. Usuário do sistema: o botão "Deletar minha conta", em Alterar senha, remove a conta e os dados associados. Devedor: você não tem conta aqui — seus dados estão no sistema porque a instituição credora os enviou. O pedido é feito a ela, que dispõe da ferramenta para atendê-lo; a remoção do identificador é aplicada em todos os registros do seu CPF, independentemente de prazo.',
             },
             {
               titulo: '8. Segurança',

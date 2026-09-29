@@ -1542,7 +1542,20 @@ def put_empresa_config(body: EmpresaConfigIn, empresa_id_alvo: Optional[str] = N
         updates["cor_primaria"] = body.cor_primaria.strip()
     if body.extra is not None:
         atual = _get_empresa_config(empresa_id).get("extra") or {}
-        updates["extra"] = {**atual, **body.extra}
+        mesclado = {**atual, **body.extra}
+        # Um prazo de retenção inválido guardado aqui só apareceria na hora de
+        # executar — quando já seria tarde para discutir. Recusa na gravação.
+        if "retencao" in body.extra:
+            from model.retencao import de_config as _retencao_de_config
+            _pol = _retencao_de_config(mesclado)
+            _erro = _pol.valida()
+            if _erro:
+                raise HTTPException(status_code=400, detail=_erro)
+            if body.extra.get("retencao", {}).get("ativa") and not _pol.ativa:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Retenção ativa exige um prazo em dias: {\"retencao\": {\"ativa\": true, \"dias\": 365}}.")
+        updates["extra"] = mesclado
 
     existing = db.table("empresa_config").select("id").eq("empresa_id", empresa_id).limit(1).execute()
     if existing.data:
@@ -4534,6 +4547,201 @@ def listar_auditoria(
     offset = max(offset, 0)
     res = q.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
     return res.data or []
+
+
+
+# ── Retenção de dados de devedores ───────────────────────────────────────
+# O usuário do Mizan pode apagar a própria conta. O devedor não: ele está na
+# base porque o banco cliente mandou a carteira, nunca consentiu nada e não
+# tem onde clicar. Estas rotas são o caminho que faltava — um prazo por
+# empresa, e um pedido de eliminação por titular (LGPD art. 18).
+#
+# O que elas fazem é anonimizar, não apagar: o modelo aprende de
+# (variáveis → resultado) e nunca precisou do CPF, então tirar o
+# identificador encerra a identificação sem destruir o treino. Ver
+# model/retencao.py para o porquê e para os limites do termo "anonimizado".
+
+_TABELAS_RETENCAO = ("predicoes", "feedbacks", "contatos", "recomendacoes")
+
+
+def _ids_carteiras(db, empresa_id: str) -> list:
+    """Carteiras da empresa — predições só se ligam a ela por aqui."""
+    res = db.table("carteiras").select("id").eq("empresa_id", empresa_id).execute()
+    return [c["id"] for c in (res.data or [])]
+
+
+def _escopo_retencao(db, tabela: str, empresa_id: str, carteiras: list):
+    """Consulta já limitada à empresa. Devolve None quando não há o que ver.
+
+    Cada tabela guarda o dono de um jeito diferente, e errar aqui significaria
+    anonimizar a base de outro cliente — daí o escopo ser explícito por tabela
+    em vez de um filtro genérico.
+    """
+    q = db.table(tabela).select("id, created_at, anonimizado_em")
+    if tabela == "predicoes":
+        if not carteiras:
+            return None
+        return q.in_("carteira_id", carteiras)
+    if tabela == "feedbacks":
+        return q.eq("empresa", empresa_id)
+    return q.eq("empresa_id", empresa_id)
+
+
+def _empresa_retencao(payload: dict, empresa_id_alvo: "str | None") -> str:
+    """Empresa sobre a qual agir. Comando pode mirar em outra; admin, não."""
+    if payload.get("role") == "comando" and empresa_id_alvo:
+        return empresa_id_alvo.strip().lower()
+    empresa_id = payload.get("empresa_id", "")
+    if not empresa_id:
+        raise HTTPException(status_code=400, detail="Usuário sem empresa definida.")
+    return empresa_id
+
+
+@app.get("/retencao")
+def ver_retencao(empresa_id_alvo: Optional[str] = None,
+                 credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Política atual e quantas linhas ela alcançaria — sem tocar em nada.
+
+    A prévia funciona mesmo com a política desligada: para escolher um prazo
+    é preciso ver antes o que ele levaria.
+    """
+    from model import retencao as R
+    payload = _exigir_admin_ou_comando(credentials)
+    empresa_id = _empresa_retencao(payload, empresa_id_alvo)
+
+    politica = R.de_config(_extra_empresa(empresa_id))
+    db = get_db()
+    carteiras = _ids_carteiras(db, empresa_id)
+
+    # Prévia com o prazo configurado ou, se não houver, com o que o sistema
+    # sugere — senão a tela mostraria zero e não diria nada.
+    simulada = politica if politica.ativa else R.PoliticaRetencao(ativa=True, dias=365)
+
+    previa, total_identificado = {}, 0
+    for tabela in _TABELAS_RETENCAO:
+        q = _escopo_retencao(db, tabela, empresa_id, carteiras)
+        if q is None:
+            previa[tabela] = {"com_identificacao": 0, "vencidas": 0}
+            continue
+        try:
+            linhas = (q.is_("anonimizado_em", "null").limit(50000).execute().data) or []
+        except Exception:
+            linhas = []
+        vencidas = R.selecionar(linhas, simulada)
+        previa[tabela] = {"com_identificacao": len(linhas), "vencidas": len(vencidas)}
+        total_identificado += len(linhas)
+
+    return {
+        "empresa_id": empresa_id,
+        "politica": {"ativa": politica.ativa, "dias": politica.dias},
+        "prazo_simulado": simulada.dias,
+        "minimo_dias": R.MINIMO_DIAS,
+        "maximo_dias": R.MAXIMO_DIAS,
+        "total_com_identificacao": total_identificado,
+        "previa": previa,
+        "leitura": (
+            f"Sem prazo configurado. Com {simulada.dias} dias, "
+            f"{sum(p['vencidas'] for p in previa.values())} linhas perderiam o CPF hoje."
+            if not politica.ativa else
+            f"Prazo de {politica.dias} dias. "
+            f"{sum(p['vencidas'] for p in previa.values())} linhas vencidas aguardando execução."
+        ),
+    }
+
+
+@app.post("/retencao/executar")
+def executar_retencao(empresa_id_alvo: Optional[str] = None,
+                      credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Anonimiza o que passou do prazo. Exige política configurada."""
+    from model import retencao as R
+    payload = _exigir_admin_ou_comando(credentials)
+    empresa_id = _empresa_retencao(payload, empresa_id_alvo)
+
+    politica = R.de_config(_extra_empresa(empresa_id))
+    if not politica.ativa:
+        raise HTTPException(status_code=400,
+                            detail="Nenhum prazo de retenção configurado para esta empresa.")
+    erro = politica.valida()
+    if erro:
+        raise HTTPException(status_code=400, detail=erro)
+
+    db = get_db()
+    carteiras = _ids_carteiras(db, empresa_id)
+    resultado = {}
+    for tabela in _TABELAS_RETENCAO:
+        q = _escopo_retencao(db, tabela, empresa_id, carteiras)
+        if q is None:
+            resultado[tabela] = 0
+            continue
+        linhas = (q.is_("anonimizado_em", "null").limit(50000).execute().data) or []
+        alvos = R.selecionar(linhas, politica)
+        patch = R.patch_anonimo(tabela)
+        # Em lotes: um IN com dezenas de milhares de ids estoura a URL do
+        # PostgREST, que monta o filtro na query string.
+        for i in range(0, len(alvos), 200):
+            db.table(tabela).update(patch).in_("id", alvos[i:i + 200]).execute()
+        resultado[tabela] = len(alvos)
+
+    _registrar_auditoria("retencao_executada", "empresa", empresa_id,
+                         payload.get("email"), empresa_id,
+                         {"dias": politica.dias, "anonimizadas": resultado},
+                         payload.get("sub"))
+    return {"ok": True, "dias": politica.dias, "anonimizadas": resultado,
+            "total": sum(resultado.values())}
+
+
+class TitularIn(BaseModel):
+    cpf: str
+
+
+@app.post("/retencao/titular")
+def eliminar_titular(body: TitularIn, empresa_id_alvo: Optional[str] = None,
+                     credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Pedido de eliminação de um titular (LGPD art. 18, V).
+
+    Independe de prazo: o titular pediu, o identificador sai hoje. O que fica
+    é a linha sem nome — o histórico de recuperação da empresa não é apagado
+    junto, e o modelo segue aprendendo com um registro que não aponta para
+    ninguém.
+    """
+    from model import retencao as R
+    payload = _exigir_admin_ou_comando(credentials)
+    empresa_id = _empresa_retencao(payload, empresa_id_alvo)
+
+    bruto = (body.cpf or "").strip()
+    digitos = "".join(c for c in bruto if c.isdigit())
+    if not digitos:
+        raise HTTPException(status_code=400, detail="Informe o CPF do titular.")
+    # O CPF é gravado como veio do arquivo do cliente: uns mandam
+    # "123.456.789-00", outros só os dígitos, e o Excel come o zero à
+    # esquerda no caminho. Procurar só uma das formas deixaria o titular
+    # sem resposta enquanto o dado dele continua lá.
+    formas = {bruto, digitos, digitos.zfill(11), digitos.lstrip("0")}
+    formas = [f for f in formas if f]
+
+    db = get_db()
+    carteiras = _ids_carteiras(db, empresa_id)
+    resultado = {}
+    for tabela in _TABELAS_RETENCAO:
+        q = _escopo_retencao(db, tabela, empresa_id, carteiras)
+        if q is None:
+            resultado[tabela] = 0
+            continue
+        linhas = (q.in_("cpf", formas).limit(50000).execute().data) or []
+        ids = [l["id"] for l in linhas if not l.get("anonimizado_em")]
+        patch = R.patch_anonimo(tabela)
+        for i in range(0, len(ids), 200):
+            db.table(tabela).update(patch).in_("id", ids[i:i + 200]).execute()
+        resultado[tabela] = len(ids)
+
+    # A auditoria registra o pedido sem repetir o CPF: guardar o identificador
+    # na trilha desfaria o que a rota acabou de fazer.
+    _registrar_auditoria("titular_eliminado", "empresa", empresa_id,
+                         payload.get("email"), empresa_id,
+                         {"cpf_final": digitos[-4:], "anonimizadas": resultado},
+                         payload.get("sub"))
+    return {"ok": True, "anonimizadas": resultado, "total": sum(resultado.values())}
+
 
 
 if __name__ == "__main__":

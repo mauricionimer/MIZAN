@@ -315,3 +315,36 @@ ALTER TABLE bandit_estado ENABLE ROW LEVEL SECURITY;
 ALTER TABLE auditoria     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reset_tokens  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE api_keys      ENABLE ROW LEVEL SECURITY;
+
+-- ── Retenção: o CPF de quem nunca foi usuário do Mizan ───────
+-- Estas quatro tabelas guardam CPF de devedores — gente que não tem conta
+-- aqui e não consentiu nada; está na base porque o banco cliente mandou a
+-- carteira. Até aqui não havia prazo nenhum: o dado ficava para sempre,
+-- inclusive depois do fim do contrato.
+--
+-- Anonimizar é zerar o identificador e deixar o resto da linha. O modelo
+-- aprende de (variáveis → resultado) e nunca precisou saber quem era, então
+-- separar as duas coisas preserva o treino e encerra a identificação. Por
+-- isso o CPF precisa aceitar NULL: com string vazia, uma busca por cpf=''
+-- casaria com todas as linhas anonimizadas de uma vez.
+ALTER TABLE predicoes    ALTER COLUMN cpf DROP NOT NULL;
+ALTER TABLE feedbacks    ALTER COLUMN cpf DROP NOT NULL;
+ALTER TABLE contatos     ALTER COLUMN cpf DROP NOT NULL;
+ALTER TABLE recomendacoes ALTER COLUMN cpf DROP NOT NULL;
+
+ALTER TABLE predicoes     ADD COLUMN IF NOT EXISTS anonimizado_em TIMESTAMPTZ;
+ALTER TABLE feedbacks     ADD COLUMN IF NOT EXISTS anonimizado_em TIMESTAMPTZ;
+ALTER TABLE contatos      ADD COLUMN IF NOT EXISTS anonimizado_em TIMESTAMPTZ;
+ALTER TABLE recomendacoes ADD COLUMN IF NOT EXISTS anonimizado_em TIMESTAMPTZ;
+
+-- A varredura procura sempre a mesma coisa: linha antiga que ainda tem
+-- identificador. O índice parcial cobre só essas — as já anonimizadas não
+-- voltam à fila e não precisam ocupar o índice.
+CREATE INDEX IF NOT EXISTS idx_predicoes_retencao
+  ON predicoes(created_at) WHERE anonimizado_em IS NULL;
+CREATE INDEX IF NOT EXISTS idx_feedbacks_retencao
+  ON feedbacks(created_at) WHERE anonimizado_em IS NULL;
+CREATE INDEX IF NOT EXISTS idx_contatos_retencao
+  ON contatos(created_at) WHERE anonimizado_em IS NULL;
+CREATE INDEX IF NOT EXISTS idx_recomendacoes_retencao
+  ON recomendacoes(created_at) WHERE anonimizado_em IS NULL;
