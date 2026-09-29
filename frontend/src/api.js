@@ -494,3 +494,41 @@ export async function getEmpresaDetalhe(token, empresaId) {
   if (!res.ok) throw new Error(`Erro HTTP ${res.status}`)
   return res.json()
 }
+
+// ── Retenção de dados ────────────────────────────────────────────────────
+// O prazo em si é gravado por putEmpresaConfig, em extra.retencao — o backend
+// valida lá, e recusa prazo fora dos limites na gravação.
+
+export async function buscarRetencao(token, empresaIdAlvo) {
+  const qs = empresaIdAlvo ? `?empresa_id_alvo=${encodeURIComponent(empresaIdAlvo)}` : ''
+  const res = await fetch(`${BASE}/retencao${qs}`, { headers: _authHeader(token) })
+  if (!res.ok) {
+    const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
+    throw new Error(detail)
+  }
+  return res.json()
+}
+
+export async function executarRetencao(token, empresaIdAlvo) {
+  const qs = empresaIdAlvo ? `?empresa_id_alvo=${encodeURIComponent(empresaIdAlvo)}` : ''
+  const res = await fetch(`${BASE}/retencao/executar${qs}`, {
+    method: 'POST', headers: _authHeader(token),
+  })
+  if (!res.ok) {
+    const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
+    throw new Error(detail)
+  }
+  return res.json()
+}
+
+export async function eliminarTitular(token, cpf, empresaIdAlvo) {
+  const qs = empresaIdAlvo ? `?empresa_id_alvo=${encodeURIComponent(empresaIdAlvo)}` : ''
+  const res = await fetch(`${BASE}/retencao/titular${qs}`, {
+    method: 'POST', headers: _authHeader(token), body: JSON.stringify({ cpf }),
+  })
+  if (!res.ok) {
+    const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
+    throw new Error(detail)
+  }
+  return res.json()
+}
