@@ -545,7 +545,7 @@ export default function AdminUsuarios() {
     <div className="min-h-screen">
       <header className="navbar-glass px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate(isComando ? '/comando' : '/admin')} className="p-1 rounded-lg transition-colors hover:bg-raise-2" style={{ color: 'var(--ink-3)' }}>
+          <button onClick={() => navigate(isComando ? '/comando' : '/')} className="p-1 rounded-lg transition-colors hover:bg-raise-2" style={{ color: 'var(--ink-3)' }}>
             <ArrowLeft className="w-4 h-4" />
           </button>
           <Logo />

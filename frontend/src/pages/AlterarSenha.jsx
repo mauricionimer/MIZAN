@@ -15,7 +15,7 @@ function Logo() {
 export default function AlterarSenha() {
   const { token, usuario, logout, isComando, isAdmin } = useAuth()
   const navigate = useNavigate()
-  const homePath = isComando ? '/comando' : isAdmin ? '/admin' : '/operador'
+  const homePath = isComando ? '/comando' : '/'
 
   const [form, setForm] = useState({ senha_atual: '', nova_senha: '', confirmar: '' })
   const [showAtual, setShowAtual]         = useState(false)

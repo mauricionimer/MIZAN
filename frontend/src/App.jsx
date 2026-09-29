@@ -74,8 +74,6 @@ const Feedback = lazy(() => import('./pages/Feedback'))
 const BanditDashboard = lazy(() => import('./pages/BanditDashboard'))
 const AprendizadoDashboard = lazy(() => import('./pages/AprendizadoDashboard'))
 const ComandoDashboard = lazy(() => import('./pages/ComandoDashboard'))
-const AdminHome = lazy(() => import('./pages/AdminHome'))
-const OperadorHome = lazy(() => import('./pages/OperadorHome'))
 const AdminUsuarios = lazy(() => import('./pages/AdminUsuarios'))
 const Auditoria = lazy(() => import('./pages/Auditoria'))
 const AlterarSenha = lazy(() => import('./pages/AlterarSenha'))
@@ -121,8 +119,10 @@ function RotasAnimadas() {
             <Route path="/bandit" element={<PageTransition><RotaProtegida roles={['comando']}><BanditDashboard /></RotaProtegida></PageTransition>} />
             <Route path="/aprendizado" element={<PageTransition><RotaProtegida roles={['comando']}><AprendizadoDashboard /></RotaProtegida></PageTransition>} />
             <Route path="/comando" element={<PageTransition><RotaProtegida roles={['comando']}><ComandoDashboard /></RotaProtegida></PageTransition>} />
-            <Route path="/admin" element={<PageTransition><RotaProtegida roles={['admin', 'comando']}><AdminHome /></RotaProtegida></PageTransition>} />
-            <Route path="/operador" element={<PageTransition><RotaProtegida roles={['operador']}><OperadorHome /></RotaProtegida></PageTransition>} />
+            {/* /admin e /operador eram menus de atalhos para telas que já
+                existiam. As opções foram para dentro da tela de trabalho e as
+                rotas saíram; quem tiver link salvo cai na regra "*" abaixo,
+                que leva para "/". */}
             <Route path="/admin/usuarios" element={<PageTransition><RotaProtegida roles={['admin', 'comando']}><AdminUsuarios /></RotaProtegida></PageTransition>} />
             <Route path="/backtest" element={<PageTransition><RotaProtegida roles={['admin', 'comando']}><Backtest /></RotaProtegida></PageTransition>} />
             <Route path="/auditoria" element={<PageTransition><RotaProtegida roles={['admin', 'comando']}><Auditoria /></RotaProtegida></PageTransition>} />

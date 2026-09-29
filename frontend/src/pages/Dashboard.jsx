@@ -446,8 +446,8 @@ export default function Dashboard() {
     ...(isComando ? [{ id: 'comando', label: 'Comando',       icon: ShieldCheck, onClick: () => navigate('/comando') }] : []),
     ...(isComando ? [{ id: 'bandit',  label: 'Performance IA', icon: Zap,        onClick: () => navigate('/bandit') }] : []),
     ...((isAdmin || isComando) ? [{ id: 'usuarios', label: 'Usuários', icon: Users, onClick: () => navigate('/admin/usuarios') }] : []),
-    ...(isAdmin    ? [{ id: 'inicio', label: 'Início', icon: Home, onClick: () => navigate('/admin') }] : []),
-    ...(isOperador ? [{ id: 'inicio', label: 'Início', icon: Home, onClick: () => navigate('/operador') }] : []),
+    ...(isAdmin || isOperador
+      ? [{ id: 'inicio', label: 'Início', icon: Home, onClick: () => navigate('/') }] : []),
     { id: 'senha', label: 'Alterar senha', icon: KeyRound, onClick: () => navigate('/alterar-senha') },
   ]
 

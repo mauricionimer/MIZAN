@@ -57,8 +57,9 @@ export default function Login() {
     const user = await login(email, senha)
     if (!user) return
     if (user.role === 'comando') navigate('/comando')
-    else if (user.role === 'admin') navigate('/admin')
-    else navigate('/operador')
+    // Admin e operador caem direto na tela de trabalho: o menu intermediário
+    // deixou de existir, e as opções dele estão lá dentro.
+    else navigate('/')
   }
 
   const cor = empresaBrand?.cor_primaria

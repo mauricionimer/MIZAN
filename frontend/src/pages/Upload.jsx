@@ -1,7 +1,7 @@
 import ThemeToggle from '../components/ThemeToggle'
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { UploadCloud, FileText, AlertCircle, Loader2, History, FolderOpen, Database, RefreshCw, CheckCircle2, XCircle, ChevronRight, Plug, X, ArrowLeft } from 'lucide-react'
+import { UploadCloud, FileText, AlertCircle, Loader2, History, FolderOpen, Database, RefreshCw, CheckCircle2, XCircle, ChevronRight, Plug, X, ArrowLeft, Users, KeyRound, BarChart2, ClipboardList, LogOut } from 'lucide-react'
 import { useAnalysis } from '../context/AnalysisContext'
 import { useAuth } from '../context/AuthContext'
 import { analisarCarteira, analisarDB, testarDB, listarTabelas, listarCarteiras, carregarCarteira, listarConexoes, salvarConexao, deletarConexao, sincronizarConexao, atualizarConexao, listarEmpresas } from '../api'
@@ -592,7 +592,7 @@ export default function Upload() {
   const inputRef = useRef()
   const navigate = useNavigate()
   const { setResult } = useAnalysis()
-  const { token, isOperador, isAdmin, isComando } = useAuth()
+  const { token, usuario, logout, isOperador, isAdmin, isComando } = useAuth()
 
   useEffect(() => {
     listarCarteiras().then(setHistorico).catch(() => {}).finally(() => setHistLoading(false))
@@ -638,11 +638,29 @@ export default function Upload() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden">
       <ThemeToggle className="fixed top-4 right-4 z-50" />
-      {(isAdmin || isComando || isOperador) && (
-        <button onClick={() => navigate(isComando ? '/comando' : isAdmin ? '/admin' : '/operador')}
+      {/* Admin e operador não têm mais menu separado: esta É a tela inicial
+          deles. Só o comando ainda tem um painel próprio para onde voltar. */}
+      {isComando && (
+        <button onClick={() => navigate('/comando')}
           className="absolute top-5 left-5 z-20 flex items-center gap-1.5 text-sm font-medium transition-colors text-blue-400 hover:text-ink">
-          <ArrowLeft className="w-4 h-4" /> Início
+          <ArrowLeft className="w-4 h-4" /> Painel do comando
         </button>
+      )}
+      {!isComando && usuario?.nome && (
+        <div className="absolute top-5 left-5 z-20 flex items-center gap-3">
+          <span className="text-sm" style={{ color: 'var(--ink-2)' }}>
+            Olá, <span className="font-medium" style={{ color: 'var(--ink)' }}>
+              {usuario.nome.split(' ')[0]}
+            </span>
+          </span>
+          <button onClick={() => { logout(); navigate('/login') }}
+            className="flex items-center gap-1.5 text-sm transition-colors"
+            style={{ color: 'var(--ink-3)' }}
+            onMouseOver={e => { e.currentTarget.style.color = 'var(--danger)' }}
+            onMouseOut={e => { e.currentTarget.style.color = 'var(--ink-3)' }}>
+            <LogOut className="w-3.5 h-3.5" /> Sair
+          </button>
+        </div>
       )}
 
       {/* Hero */}
@@ -749,6 +767,31 @@ export default function Upload() {
 
         {aba === 'db' && <FormDB onResult={handleDBResult} isOperador={isOperador} empresaAlvo={isComando ? empresaAlvo : ''} />}
       </div>
+
+      {/* Opções que antes moravam no menu de admin e de operador. "Analisar
+          carteira" e "Bancos de dados" já eram esta tela, e "Ver última
+          análise" já é a lista de análises anteriores logo abaixo — sobra o
+          que de fato faltava. Unificar é reduzir, não mudar de lugar. */}
+      {!isComando && (
+        <div className="w-full max-w-lg mt-5 flex flex-wrap gap-2">
+          {[
+            ...(isAdmin ? [{ icon: Users, rotulo: 'Gerenciar equipe', para: '/admin/usuarios' }] : []),
+            ...(isOperador ? [{ icon: ClipboardList, rotulo: 'Histórico de pagamentos', para: '/feedback' }] : []),
+            { icon: KeyRound, rotulo: 'Alterar senha', para: '/alterar-senha' },
+          ].map(({ icon: Icone, rotulo, para }) => (
+            <button key={para} onClick={() => navigate(para)}
+              className="flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm transition-colors"
+              style={{ background: 'var(--surface)', border: '1px solid var(--line)', color: 'var(--ink-2)' }}
+              onMouseOver={e => { e.currentTarget.style.color = 'var(--ink)'
+                                  e.currentTarget.style.borderColor = 'rgb(var(--c-royal) / 0.30)' }}
+              onMouseOut={e => { e.currentTarget.style.color = 'var(--ink-2)'
+                                 e.currentTarget.style.borderColor = 'var(--line)' }}>
+              <Icone className="h-4 w-4 shrink-0" />
+              {rotulo}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Histórico */}
       <div className="w-full max-w-lg mt-6">
