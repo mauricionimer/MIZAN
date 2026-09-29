@@ -1,4 +1,3 @@
-import ThemeToggle from '../components/ThemeToggle'
 import { motion } from 'framer-motion'
 import { lista, item } from '../lib/motion'
 import { useState, useMemo, useEffect } from 'react'
@@ -10,17 +9,16 @@ import {
 import { buscarPagamentos, buscarStatusFeedbacks, confirmarPagamento } from '../api'
 import {
   Users, TrendingDown, BarChart2, Star,
-  Download, RefreshCw, Search, Loader2,
-  Tag, Percent, ArrowUpRight, Banknote, ClipboardList, FileSpreadsheet, Zap, LogOut, ShieldCheck, KeyRound,
-  CheckCircle2, XCircle, TrendingUp, Home, Clock, X,
-  LayoutDashboard, AlertTriangle,
+  Download, Search, Loader2,
+  Tag, Percent, ArrowUpRight, Banknote, FileSpreadsheet,
+  CheckCircle2, XCircle, TrendingUp, Clock, X, AlertTriangle,
 } from 'lucide-react'
 import PriorityBadge from '../components/PriorityBadge'
 import { prioridadePorRank } from '../utils/prioridade'
 import { calcularAlcance } from '../utils/alcance'
 import { useAnalysis } from '../context/AnalysisContext'
 import { useAuth } from '../context/AuthContext'
-import { LogoMark } from '../components/Logo'
+import AppShell from '../components/AppShell'
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
 
@@ -225,9 +223,9 @@ function PricingCard({ label, value, sub, highlight = false, accent = null, icon
   )
 }
 
-export default function Dashboard() {
+export default function Dashboard({ onIrPara }) {
   const { result } = useAnalysis()
-  const { token, usuario, logout, isAdmin, isComando, isOperador, empresaConfig } = useAuth()
+  const { token, isAdmin, isComando, isOperador } = useAuth()
   const navigate    = useNavigate()
   const [search, setSearch]               = useState('')
   const [exporting, setExporting]         = useState(false)
@@ -269,7 +267,6 @@ export default function Dashboard() {
   const [confirmando, setConfirmando]       = useState(false)
   const [confirmarForm, setConfirmarForm]   = useState({ valor_recuperado: '', data_pagamento: '' })
   const [confirmarErro, setConfirmarErro]   = useState('')
-  const [navAtiva, setNavAtiva]             = useState('dashboard')
 
   // carteira_id vem dentro de resumo na resposta do backend
   const carteiraId = result?.resumo?.carteira_id ?? result?.carteira_id ?? null
@@ -316,10 +313,6 @@ export default function Dashboard() {
 
     return () => clearInterval(intervalo)
   }, [token, carteiraId])
-
-  useEffect(() => {
-    if (!result) navigate('/')
-  }, [result, navigate])
 
   const produtos = useMemo(() => {
     const u = [...new Set((result?.ranking_completo ?? []).map(d => d.produto).filter(Boolean))].sort()
@@ -434,25 +427,37 @@ export default function Dashboard() {
     }
   }
 
-  const nomeEmpresa = empresaConfig?.nome_exibicao || 'Mizan'
-  const nomeUser    = usuario?.nome || 'Operador'
-  const iniciais    = nomeUser.split(' ').map(p => p[0]).slice(0, 2).join('').toUpperCase()
-
-  // Itens da sidebar — ações de navegação por papel preservadas
-  const navItems = [
-    { id: 'dashboard', label: 'Dashboard',   icon: LayoutDashboard, onClick: () => setNavAtiva('dashboard') },
-    { id: 'analise',   label: 'Nova análise', icon: RefreshCw,      onClick: () => navigate('/') },
-    { id: 'pagamentos',label: 'Pagamentos',   icon: ClipboardList,  onClick: () => navigate('/feedback') },
-    ...(isComando ? [{ id: 'comando', label: 'Comando',       icon: ShieldCheck, onClick: () => navigate('/comando') }] : []),
-    ...(isComando ? [{ id: 'bandit',  label: 'Performance IA', icon: Zap,        onClick: () => navigate('/bandit') }] : []),
-    ...((isAdmin || isComando) ? [{ id: 'usuarios', label: 'Usuários', icon: Users, onClick: () => navigate('/admin/usuarios') }] : []),
-    ...(isAdmin || isOperador
-      ? [{ id: 'inicio', label: 'Início', icon: Home, onClick: () => navigate('/') }] : []),
-    { id: 'senha', label: 'Alterar senha', icon: KeyRound, onClick: () => navigate('/alterar-senha') },
-  ]
+  // Exportações da carteira: ficam na barra de cima da casca, ao lado do
+  // usuário, porque pertencem à vista e não à navegação.
+  const acoesTopo = (
+    <>
+      <button
+        onClick={() => exportCSV(ranking_completo)}
+        className="flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink-2 transition-colors hover:border-emerald-500/50 hover:text-ink"
+      >
+        <FileSpreadsheet className="h-3.5 w-3.5" /> CSV
+      </button>
+      <button
+        onClick={() => exportExcel(ranking_completo, resumo)}
+        className="flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink-2 transition-colors hover:border-emerald-500/50 hover:text-ink"
+      >
+        <FileSpreadsheet className="h-3.5 w-3.5" /> Excel
+      </button>
+      <button
+        onClick={exportPDF}
+        disabled={exporting}
+        className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-brand-ink transition-colors hover:bg-blue-700 disabled:opacity-50"
+      >
+        {exporting
+          ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Exportando...</>
+          : <><Download className="h-3.5 w-3.5" /> PDF</>}
+      </button>
+    </>
+  )
 
   return (
-    <div className="flex min-h-screen bg-surface-2 font-sans text-ink">
+    <AppShell secao="dashboard" onIrPara={onIrPara} temResultado
+      titulo="Visão da carteira" acoes={acoesTopo}>
 
       {/* ───── Modal de confirmação de pagamento ───── */}
       {confirmarModal && (
@@ -525,101 +530,6 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ───── Sidebar ───── */}
-      <aside className="panel-surface fixed inset-y-0 left-0 z-30 flex w-60 flex-col border-r">
-        <div className="flex h-16 items-center gap-2.5 px-5">
-          {/* A marca do Mizan, salvo quando a empresa cliente tem foto própria. */}
-          {empresaConfig?.foto_url ? (
-            <img src={empresaConfig.foto_url} alt={nomeEmpresa}
-              className="h-8 w-8 rounded object-cover" />
-          ) : (
-            <LogoMark size={26} />
-          )}
-          <span className="truncate text-[15px] font-bold tracking-tight text-ink">{nomeEmpresa}</span>
-        </div>
-
-        <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 py-4">
-          {navItems.map(({ id, label, icon: Icon, onClick }) => {
-            const isActive = navAtiva === id && id === 'dashboard'
-            return (
-              <button
-                key={id}
-                onClick={onClick}
-                className={`relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
-                  isActive
-                    ? 'bg-raise-2 text-ink'
-                    : 'text-ink-2 hover:bg-raise-1 hover:text-ink'
-                }`}
-              >
-                {isActive && <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-r-full bg-blue-500" />}
-                <Icon className={`h-[18px] w-[18px] ${isActive ? 'text-blue-400' : ''}`} />
-                {label}
-              </button>
-            )
-          })}
-        </nav>
-
-        <div className="border-t border-line p-3">
-          <button
-            onClick={() => { logout(); navigate('/login') }}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-ink-2 transition-colors hover:bg-red-500/10 hover:text-red-400"
-          >
-            <LogOut className="h-[18px] w-[18px]" />
-            Sair
-          </button>
-        </div>
-      </aside>
-
-      {/* ───── Coluna principal ───── */}
-      <div className="flex flex-1 flex-col pl-60">
-
-        {/* Top bar */}
-        <header className="navbar-glass flex h-16 items-center justify-between px-8">
-          <div className="flex items-center gap-2 text-sm">
-            <span className="font-semibold text-ink">{nomeEmpresa}</span>
-            <span className="text-ink-4">/</span>
-            <span className="font-light text-ink-2">Visão da carteira</span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {/* Exports */}
-            <button
-              onClick={() => exportCSV(ranking_completo)}
-              className="flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink-2 transition-colors hover:border-emerald-500/50 hover:text-ink"
-            >
-              <FileSpreadsheet className="h-3.5 w-3.5" /> CSV
-            </button>
-            <button
-              onClick={() => exportExcel(ranking_completo, resumo)}
-              className="flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink-2 transition-colors hover:border-emerald-500/50 hover:text-ink"
-            >
-              <FileSpreadsheet className="h-3.5 w-3.5" /> Excel
-            </button>
-            <button
-              onClick={exportPDF}
-              disabled={exporting}
-              className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-brand-ink transition-colors hover:bg-blue-700 disabled:opacity-50"
-            >
-              {exporting
-                ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Exportando...</>
-                : <><Download className="h-3.5 w-3.5" /> PDF</>}
-            </button>
-
-            <ThemeToggle />
-              <div className="ml-2 flex items-center gap-2.5 border-l border-line pl-4">
-              <div className="hidden text-right sm:block">
-                <p className="text-sm font-medium leading-tight text-ink">{nomeUser}</p>
-                <p className="text-xs font-light text-ink-2">{usuario?.email || 'usuario@mizan.app'}</p>
-              </div>
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-brand-ink">
-                {iniciais}
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {/* Conteúdo */}
-        <main className="flex-1 px-8 py-8">
 
           <div className="mb-7">
             <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--ink-4)' }}>Análise de Carteira</p>
@@ -1329,8 +1239,6 @@ export default function Dashboard() {
               </div>
             )}
           </section>
-        </main>
-      </div>
-    </div>
+    </AppShell>
   )
 }

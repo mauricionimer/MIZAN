@@ -67,8 +67,7 @@ function ServerWarmupBanner() {
 // Cada página vira um chunk próprio: o navegador baixa só a tela que o
 // usuário abriu, em vez de todo o sistema no primeiro acesso. Recharts,
 // xlsx e jspdf saem do caminho crítico junto com as telas que os usam.
-const Upload = lazy(() => import('./pages/Upload'))
-const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Home = lazy(() => import('./pages/Home'))
 const DebtorDetail = lazy(() => import('./pages/DebtorDetail'))
 const Feedback = lazy(() => import('./pages/Feedback'))
 const BanditDashboard = lazy(() => import('./pages/BanditDashboard'))
@@ -112,8 +111,10 @@ function RotasAnimadas() {
             <Route path="/login" element={<PageTransition><Login /></PageTransition>} />
             <Route path="/esqueci-senha" element={<PageTransition><EsqueciSenha /></PageTransition>} />
             <Route path="/redefinir-senha" element={<PageTransition><RedefinirSenha /></PageTransition>} />
-            <Route path="/" element={<PageTransition><RotaProtegida><Upload /></RotaProtegida></PageTransition>} />
-            <Route path="/dashboard" element={<PageTransition><RotaProtegida><Dashboard /></RotaProtegida></PageTransition>} />
+            {/* Uma tela só: a análise de carteira e o dashboard são vistas
+                dentro dela, não rotas. "/dashboard" ficou de links salvos e cai
+                na regra coringa, que leva para "/". */}
+            <Route path="/" element={<PageTransition><RotaProtegida><Home /></RotaProtegida></PageTransition>} />
             <Route path="/devedor/:rank" element={<PageTransition><RotaProtegida><DebtorDetail /></RotaProtegida></PageTransition>} />
             <Route path="/feedback" element={<PageTransition><RotaProtegida><Feedback /></RotaProtegida></PageTransition>} />
             <Route path="/bandit" element={<PageTransition><RotaProtegida roles={['comando']}><BanditDashboard /></RotaProtegida></PageTransition>} />

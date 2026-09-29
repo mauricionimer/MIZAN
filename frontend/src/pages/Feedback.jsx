@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { CheckCircle2, XCircle, Loader2, ClipboardList, ArrowLeft, Plus, Trash2, UploadCloud, FileText, Download, LogOut } from 'lucide-react'
 import { feedbackLote } from '../api'
 import { useAuth } from '../context/AuthContext'
+import { useAnalysis } from '../context/AnalysisContext'
 import { LogoMark } from '../components/Logo'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001'
@@ -170,6 +171,8 @@ function ImportacaoLote({ token }) {
 
 export default function Feedback() {
   const navigate = useNavigate()
+  const { setVista } = useAnalysis()
+  const voltarAoDashboard = () => { setVista('dashboard'); navigate('/') }
   const { token, usuario, logout, isComando, isAdmin, isOperador } = useAuth()
   const podeRegistrar = isAdmin || isComando
   const [aba, setAba]             = useState('manual')
@@ -244,7 +247,7 @@ export default function Feedback() {
     <div className="min-h-screen">
       <header className="navbar-glass px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/dashboard')} className="transition-colors p-1 rounded-lg hover:bg-raise-2" style={{ color: 'var(--ink-3)' }}>
+          <button onClick={voltarAoDashboard} className="transition-colors p-1 rounded-lg hover:bg-raise-2" style={{ color: 'var(--ink-3)' }}>
             <ArrowLeft className="w-4 h-4" />
           </button>
           <Logo />
@@ -282,7 +285,7 @@ export default function Feedback() {
                 Qualquer alteração de status aparece aqui para toda a equipe em tempo real.
               </p>
             </div>
-            <button onClick={() => navigate('/dashboard')}
+            <button onClick={voltarAoDashboard}
               className="mt-2 px-4 py-2 text-brand-ink text-sm font-semibold rounded-xl transition-colors" style={{ background: 'var(--brand)' }}>
               Ver dashboard
             </button>

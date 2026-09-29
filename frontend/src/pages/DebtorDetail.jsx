@@ -525,7 +525,9 @@ function ApproachRecommendation({ devedor, rec, loading, erro }) {
 export default function DebtorDetail() {
   const { rank } = useParams()
   const navigate = useNavigate()
-  const { result } = useAnalysis()
+  const { result, setVista } = useAnalysis()
+  // A tela inicial é uma só: dizer "Dashboard" é escolher a vista dela.
+  const voltarAoDashboard = () => { setVista('dashboard'); navigate('/') }
 
   const d = result?.ranking_completo.find(x => x.rank === Number(rank)) ?? null
 
@@ -543,7 +545,7 @@ export default function DebtorDetail() {
 
   useEffect(() => {
     if (!result) { navigate('/'); return }
-    if (!d) navigate('/dashboard')
+    if (!d) navigate('/')
   }, [result, d, navigate])
 
   const carteiraId = result?.resumo?.carteira_id ?? null
@@ -582,13 +584,13 @@ export default function DebtorDetail() {
   return (
     <div className="min-h-screen">
       <header className="navbar-glass px-6 py-3 flex items-center gap-3">
-        <button onClick={() => navigate('/dashboard')} className="p-1 rounded-lg transition-colors hover:bg-raise-2" style={{ color: 'var(--ink-3)' }}>
+        <button onClick={voltarAoDashboard} className="p-1 rounded-lg transition-colors hover:bg-raise-2" style={{ color: 'var(--ink-3)' }}>
           <ArrowLeft className="h-4 w-4" />
         </button>
         <Logo />
         <span className="font-bold text-ink text-sm">Mizan</span>
         <span className="text-ink-4 text-sm">/</span>
-        <button onClick={() => navigate('/dashboard')} className="text-sm transition-colors hover:text-ink" style={{ color: 'var(--ink-3)' }}>Dashboard</button>
+        <button onClick={voltarAoDashboard} className="text-sm transition-colors hover:text-ink" style={{ color: 'var(--ink-3)' }}>Dashboard</button>
         <span className="text-ink-4 text-sm">/</span>
         <span className="text-sm font-medium text-ink truncate max-w-xs">{d.nome}</span>
         <ThemeToggle className="ml-auto" />

@@ -8,6 +8,11 @@ export function AnalysisProvider({ children }) {
     try { return JSON.parse(sessionStorage.getItem(STORAGE_KEY)) } catch { return null }
   })
 
+  // Qual vista da tela única está aberta ("analise" ou "dashboard"). Fica
+  // aqui, e não na página, para sobreviver a uma ida às telas que ainda têm
+  // rota própria — o usuário volta onde estava.
+  const [vista, setVista] = useState(null)
+
   function setResult(val) {
     setResultState(val)
     if (val) {
@@ -18,12 +23,12 @@ export function AnalysisProvider({ children }) {
   }
 
   useEffect(() => {
-    const clear = () => { setResultState(null); sessionStorage.removeItem(STORAGE_KEY) }
+    const clear = () => { setResultState(null); setVista(null); sessionStorage.removeItem(STORAGE_KEY) }
     window.addEventListener('mizan:logout', clear)
     return () => window.removeEventListener('mizan:logout', clear)
   }, [])
 
-  return <Ctx.Provider value={{ result, setResult }}>{children}</Ctx.Provider>
+  return <Ctx.Provider value={{ result, setResult, vista, setVista }}>{children}</Ctx.Provider>
 }
 
 export const useAnalysis = () => useContext(Ctx)

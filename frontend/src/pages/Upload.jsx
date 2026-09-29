@@ -1,11 +1,10 @@
-import ThemeToggle from '../components/ThemeToggle'
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { UploadCloud, FileText, AlertCircle, Loader2, History, FolderOpen, Database, RefreshCw, CheckCircle2, XCircle, ChevronRight, Plug, X, ArrowLeft, Users, KeyRound, BarChart2, ClipboardList, LogOut } from 'lucide-react'
+import { UploadCloud, FileText, AlertCircle, Loader2, History, FolderOpen, Database, RefreshCw, CheckCircle2, XCircle, ChevronRight, Plug, X } from 'lucide-react'
 import { useAnalysis } from '../context/AnalysisContext'
 import { useAuth } from '../context/AuthContext'
 import { analisarCarteira, analisarDB, testarDB, listarTabelas, listarCarteiras, carregarCarteira, listarConexoes, salvarConexao, deletarConexao, sincronizarConexao, atualizarConexao, listarEmpresas } from '../api'
 import { LogoMark } from '../components/Logo'
+import AppShell from '../components/AppShell'
 
 const fmtBRL = (v) => v != null
   ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v)
@@ -577,7 +576,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
   )
 }
 
-export default function Upload() {
+export default function Upload({ onIrPara, temResultado = false }) {
   const [aba, setAba]           = useState('arquivo')
   const [file, setFile]         = useState(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -590,9 +589,8 @@ export default function Upload() {
   const [empresaAlvo, setEmpresaAlvo] = useState('')
   const [listaEmpresas, setListaEmpresas] = useState([])
   const inputRef = useRef()
-  const navigate = useNavigate()
   const { setResult } = useAnalysis()
-  const { token, usuario, logout, isOperador, isAdmin, isComando } = useAuth()
+  const { token, isOperador, isComando } = useAuth()
 
   useEffect(() => {
     listarCarteiras().then(setHistorico).catch(() => {}).finally(() => setHistLoading(false))
@@ -606,7 +604,7 @@ export default function Upload() {
   const abrirCarteira = async (id) => {
     if (abrindo) return
     setAbrindo(id)
-    try { const data = await carregarCarteira(id); setResult(data); navigate('/dashboard') }
+    try { const data = await carregarCarteira(id); setResult(data); onIrPara?.('dashboard') }
     catch (e) { setError(`Erro ao abrir carteira: ${e.message}`) } finally { setAbrindo(null) }
   }
 
@@ -626,58 +624,32 @@ export default function Upload() {
     if (!file || loading) return
     if (isComando && !empresaAlvo) { setError('Selecione a empresa cliente antes de analisar.'); return }
     setLoading(true); setError(null)
-    try { const data = await analisarCarteira(file, isComando ? empresaAlvo : null); setResult(data); navigate('/dashboard') }
+    try { const data = await analisarCarteira(file, isComando ? empresaAlvo : null); setResult(data); onIrPara?.('dashboard') }
     catch (e) { setError(e.message); setLoading(false) }
   }
 
-  const handleDBResult = (data) => { setResult(data); navigate('/dashboard') }
+  const handleDBResult = (data) => { setResult(data); onIrPara?.('dashboard') }
   const fmtSize = (bytes) => bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`
 
   const CARD_STYLE = { background: 'var(--surface)', border: '1px solid var(--line)', boxShadow: '0 16px 48px rgba(0,0,0,0.50), 0 4px 12px rgba(0,0,0,0.30)' }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden">
-      <ThemeToggle className="fixed top-4 right-4 z-50" />
-      {/* Admin e operador não têm mais menu separado: esta É a tela inicial
-          deles. Só o comando ainda tem um painel próprio para onde voltar. */}
-      {isComando && (
-        <button onClick={() => navigate('/comando')}
-          className="absolute top-5 left-5 z-20 flex items-center gap-1.5 text-sm font-medium transition-colors text-blue-400 hover:text-ink">
-          <ArrowLeft className="w-4 h-4" /> Painel do comando
-        </button>
-      )}
-      {!isComando && usuario?.nome && (
-        <div className="absolute top-5 left-5 z-20 flex items-center gap-3">
-          <span className="text-sm" style={{ color: 'var(--ink-2)' }}>
-            Olá, <span className="font-medium" style={{ color: 'var(--ink)' }}>
-              {usuario.nome.split(' ')[0]}
-            </span>
-          </span>
-          <button onClick={() => { logout(); navigate('/login') }}
-            className="flex items-center gap-1.5 text-sm transition-colors"
-            style={{ color: 'var(--ink-3)' }}
-            onMouseOver={e => { e.currentTarget.style.color = 'var(--danger)' }}
-            onMouseOut={e => { e.currentTarget.style.color = 'var(--ink-3)' }}>
-            <LogOut className="w-3.5 h-3.5" /> Sair
-          </button>
-        </div>
-      )}
+    <AppShell secao="analise" onIrPara={onIrPara} temResultado={temResultado}
+      titulo="Análise de carteira">
+      <div className="mx-auto flex w-full max-w-lg flex-col">
 
-      {/* Hero */}
-      <div className="mb-12 text-center relative z-10">
-        <div className="relative inline-block mb-5">
-          <div className="absolute inset-0 rounded-full blur-3xl scale-[2] opacity-20"
-            style={{ background: 'var(--royal)' }} />
-          <LogoMark className="h-6 w-6 shrink-0" />
-        </div>
-        <h1 className="text-4xl font-extrabold text-ink tracking-tight mb-2">Mizan</h1>
-        <p className="text-base max-w-xs mx-auto leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-          Análise de carteira de crédito com inteligência artificial
+      {/* O nome da empresa e o do usuário já estão na barra de cima, então
+          aqui fica só o que esta vista faz. */}
+      <div className="mb-7">
+        <p className="section-label">Carteira</p>
+        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">Análise de carteira</h1>
+        <p className="mt-1.5 text-sm" style={{ color: 'var(--ink-2)' }}>
+          Carregue os devedores e a IA ranqueia a fila por valor esperado de recuperação.
         </p>
       </div>
 
       {/* Card principal */}
-      <div className="w-full max-w-lg rounded-2xl p-8 relative z-10" style={CARD_STYLE}>
+      <div className="w-full rounded-2xl p-8" style={CARD_STYLE}>
         <h2 className="text-base font-semibold text-ink mb-1">Carregar carteira</h2>
         <p className="text-sm mb-5" style={{ color: 'var(--ink-2)' }}>
           Importe os dados dos devedores via arquivo ou conexão direta com banco de dados.
@@ -768,33 +740,8 @@ export default function Upload() {
         {aba === 'db' && <FormDB onResult={handleDBResult} isOperador={isOperador} empresaAlvo={isComando ? empresaAlvo : ''} />}
       </div>
 
-      {/* Opções que antes moravam no menu de admin e de operador. "Analisar
-          carteira" e "Bancos de dados" já eram esta tela, e "Ver última
-          análise" já é a lista de análises anteriores logo abaixo — sobra o
-          que de fato faltava. Unificar é reduzir, não mudar de lugar. */}
-      {!isComando && (
-        <div className="w-full max-w-lg mt-5 flex flex-wrap gap-2">
-          {[
-            ...(isAdmin ? [{ icon: Users, rotulo: 'Gerenciar equipe', para: '/admin/usuarios' }] : []),
-            ...(isOperador ? [{ icon: ClipboardList, rotulo: 'Histórico de pagamentos', para: '/feedback' }] : []),
-            { icon: KeyRound, rotulo: 'Alterar senha', para: '/alterar-senha' },
-          ].map(({ icon: Icone, rotulo, para }) => (
-            <button key={para} onClick={() => navigate(para)}
-              className="flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm transition-colors"
-              style={{ background: 'var(--surface)', border: '1px solid var(--line)', color: 'var(--ink-2)' }}
-              onMouseOver={e => { e.currentTarget.style.color = 'var(--ink)'
-                                  e.currentTarget.style.borderColor = 'rgb(var(--c-royal) / 0.30)' }}
-              onMouseOut={e => { e.currentTarget.style.color = 'var(--ink-2)'
-                                 e.currentTarget.style.borderColor = 'var(--line)' }}>
-              <Icone className="h-4 w-4 shrink-0" />
-              {rotulo}
-            </button>
-          ))}
-        </div>
-      )}
-
       {/* Histórico */}
-      <div className="w-full max-w-lg mt-6">
+      <div className="mt-6">
         <div className="flex items-center gap-2 mb-3">
           <History className="h-4 w-4 text-blue-400" />
           <h3 className="text-sm font-semibold text-ink">Análises anteriores</h3>
@@ -878,6 +825,7 @@ export default function Upload() {
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </AppShell>
   )
 }
