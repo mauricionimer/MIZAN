@@ -30,10 +30,33 @@ def checar(cond, titulo, detalhe=""):
         falhas += 1
 
 
-# Banco em memória: uma linha por empresa, igual ao Supabase depois da migração
-_tabela: dict = {}
-B._salvar_supabase = lambda emp, bandit: _tabela.__setitem__(emp, B._bandit_para_json(bandit))
-B._carregar_supabase = lambda emp: (B._bandit_de_json(_tabela[emp]) if emp in _tabela else None)
+# Banco em memória: uma linha por empresa, igual ao Supabase depois da migração.
+#
+# A gravação passou a ser condicional à versão (concorrência otimista entre
+# instâncias), então o gancho do teste acompanha: guarda estado e versão, e
+# recusa quem gravar com versão velha — como o banco faz.
+_tabela: dict = {}       # empresa -> (estado_json, versao)
+
+
+def _carregar(emp):
+    if emp not in _tabela:
+        return None, 0
+    estado, versao = _tabela[emp]
+    return B._bandit_de_json(estado), versao
+
+
+def _gravar(emp, bandit, versao):
+    atual = _tabela.get(emp)
+    if atual is not None and atual[1] != versao:
+        return False
+    _tabela[emp] = (B._bandit_para_json(bandit), versao + 1)
+    return True
+
+
+B._carregar_com_versao = _carregar
+B._gravar_se_versao    = _gravar
+B._salvar_supabase     = lambda emp, bandit: _gravar(emp, bandit, _tabela.get(emp, (None, 0))[1])
+B._carregar_supabase   = lambda emp: _carregar(emp)[0]
 
 CTX = [0.5] * B.D
 ALFA, BETA = "banco_alfa", "goias_bank"

@@ -26,6 +26,13 @@ estado: dict = {
 }
 
 
+# Nome da trava e por quanto tempo ela vale. O prazo cobre um retreino demorado
+# com folga; passar disso significa que o processo morreu, e aí outra instância
+# deve poder assumir em vez de o retreino parar para sempre.
+TRAVA_RETREINO = "retreino"
+DURACAO_TRAVA_MIN = 30
+
+
 def verificar_e_retreinar(min_feedbacks: int = 30) -> dict:
     """
     Verifica se há feedbacks suficientes desde o último retreinamento e retreina se necessário.
@@ -33,10 +40,19 @@ def verificar_e_retreinar(min_feedbacks: int = 30) -> dict:
     """
     from model.retrain import retreinar, _carregar_versoes
     from db import get_db
+    from travas import adquirir, liberar
 
     agora = datetime.now(timezone.utc)
     estado["ultima_verificacao"] = agora.isoformat()
     estado["n_verificacoes"] += 1
+
+    # Este agendador vive dentro do processo do app. Com duas instâncias, os
+    # dois acordam no mesmo intervalo e disparam o mesmo retreino, disputando o
+    # estado das versões e o bucket de modelos. A trava elege um; os outros
+    # pulam o ciclo e tentam no próximo.
+    if not adquirir(TRAVA_RETREINO, duracao_min=DURACAO_TRAVA_MIN):
+        estado["ultimo_resultado"] = "outra instância está verificando"
+        return {"acao": "pulado", "motivo": "trava em uso por outra instância"}
 
     try:
         db = get_db()
@@ -113,3 +129,8 @@ def verificar_e_retreinar(min_feedbacks: int = 30) -> dict:
         estado["ultimo_resultado"] = resultado
         print(f"[Scheduler] Erro: {e}")
         return resultado
+
+    finally:
+        # Devolve a trava mesmo quando o retreino estoura: sem isto, um erro
+        # bloquearia o retreino até o prazo vencer.
+        liberar(TRAVA_RETREINO)

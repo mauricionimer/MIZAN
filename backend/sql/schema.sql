@@ -361,3 +361,28 @@ ALTER TABLE predicoes ADD COLUMN IF NOT EXISTS rank INTEGER;
 -- por posição. O índice composto serve à ordenação e ao recorte.
 CREATE INDEX IF NOT EXISTS idx_predicoes_carteira_rank
   ON predicoes(carteira_id, rank);
+
+-- ── Duas instâncias ao mesmo tempo ───────────────────────────────
+-- O lock em memória do processo (threading.RLock) protege uma máquina. Com
+-- duas, a proteção não existe: o estado do bandit é ler-alterar-gravar, e o
+-- upsert é "o último a escrever vence" — um feedback simplesmente some.
+--
+-- A coluna de versão resolve por concorrência otimista: quem grava confere
+-- que a versão ainda é a que leu; se outro processo já gravou, relê e refaz.
+ALTER TABLE bandit_estado ADD COLUMN IF NOT EXISTS versao INTEGER DEFAULT 0;
+UPDATE bandit_estado SET versao = 0 WHERE versao IS NULL;
+
+-- O agendador de retreino roda dentro do processo do app. Com duas
+-- instâncias, os dois agendadores disparam o mesmo retreino ao mesmo tempo,
+-- disputando o estado e o bucket de modelos. Esta tabela elege um: quem
+-- consegue gravar a trava roda, os outros pulam o ciclo.
+--
+-- A trava tem prazo justamente porque um processo pode morrer segurando-a:
+-- sem prazo, o retreino ficaria travado para sempre e ninguém perceberia.
+CREATE TABLE IF NOT EXISTS travas (
+  nome       TEXT PRIMARY KEY,
+  dono       TEXT NOT NULL,
+  expira_em  TIMESTAMPTZ NOT NULL,
+  criado_em  TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE travas ENABLE ROW LEVEL SECURITY;

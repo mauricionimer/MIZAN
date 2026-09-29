@@ -150,9 +150,13 @@ def _bandit_para_json(bandit: LinUCB) -> dict:
     return {
         "A":                    [a.tolist() for a in bandit.A],
         "b":                    [b.tolist() for b in bandit.b],
-        "n_tentativas":         bandit.n_tentativas,
-        "recompensa_acumulada": bandit.recompensa_acumulada,
-        "n_pagamentos":         bandit.n_pagamentos,
+        # Cópias, não referências: sem isto o dicionário entregue ao cliente
+        # HTTP compartilha as listas com o bandit vivo, e uma atualização em
+        # outra thread pode ser serializada pela metade. Também fazia dois
+        # bandits lidos do mesmo estado compartilharem contadores.
+        "n_tentativas":         list(bandit.n_tentativas),
+        "recompensa_acumulada": list(bandit.recompensa_acumulada),
+        "n_pagamentos":         list(bandit.n_pagamentos),
         "alpha":                bandit.alpha,
         "n_acoes":              bandit.n_acoes,
         "d":                    bandit.d,
@@ -165,12 +169,12 @@ def _bandit_de_json(data: dict) -> LinUCB:
                                          alpha=data.get("alpha", 1.0))
     bandit.A                    = [np.array(a) for a in data["A"]]
     bandit.b                    = [np.array(b) for b in data["b"]]
-    bandit.n_tentativas         = data["n_tentativas"]
-    bandit.recompensa_acumulada = data["recompensa_acumulada"]
+    bandit.n_tentativas         = list(data["n_tentativas"])
+    bandit.recompensa_acumulada = list(data["recompensa_acumulada"])
     # Estado gravado antes deste contador existir não sabe quantos pagaram.
     # Zerar seria mentir para menos, então fica ausente e a PoP daquelas
     # ofertas segue vindo do modelo até chegar feedback novo.
-    bandit.n_pagamentos = data.get("n_pagamentos") or [0] * bandit.n_acoes
+    bandit.n_pagamentos = list(data.get("n_pagamentos") or [0] * bandit.n_acoes)
     return bandit
 
 
@@ -208,17 +212,63 @@ def _salvar_supabase(empresa_id: "str | None", bandit: LinUCB) -> None:
 
 
 def _carregar_supabase(empresa_id: "str | None") -> "LinUCB | None":
+    bandit, _ = _carregar_com_versao(empresa_id)
+    return bandit
+
+
+def _carregar_com_versao(empresa_id: "str | None") -> "tuple[LinUCB | None, int]":
+    """O estado e a versão em que ele estava. A versão é o que permite gravar
+    sem sobrescrever o trabalho de outro processo."""
     try:
         import sys as _sys
         _sys.path.insert(0, str(Path(__file__).parent.parent))
         from db import get_db
-        res = (get_db().table("bandit_estado").select("estado")
+        res = (get_db().table("bandit_estado").select("estado, versao")
                .eq("empresa_id", _chave(empresa_id)).limit(1).execute())
         if res.data:
-            return _bandit_de_json(res.data[0]["estado"])
+            linha = res.data[0]
+            return _bandit_de_json(linha["estado"]), int(linha.get("versao") or 0)
     except Exception as e:
         print(f"[Bandit] Aviso: falha ao carregar do Supabase: {e}")
-    return None
+    return None, 0
+
+
+def _gravar_se_versao(empresa_id: "str | None", bandit: LinUCB, versao: int) -> bool:
+    """Grava só se a versão ainda for a que foi lida. Devolve se conseguiu.
+
+    O lock em memória protege uma máquina. Com duas instâncias, os dois
+    processos leem o mesmo estado, cada um soma o próprio feedback e o último
+    upsert apaga o do outro — sem erro, sem log, o aprendizado simplesmente
+    some. Conferir a versão na cláusula do UPDATE transforma isso num conflito
+    detectável, que o chamador refaz.
+    """
+    try:
+        import sys as _sys
+        _sys.path.insert(0, str(Path(__file__).parent.parent))
+        from db import get_db
+        chave = _chave(empresa_id)
+        db = get_db()
+        res = (db.table("bandit_estado")
+               .update({"estado": _bandit_para_json(bandit), "versao": versao + 1})
+               .eq("empresa_id", chave).eq("versao", versao).execute())
+        if res.data:
+            return True
+        # Nada atualizado: ou a linha ainda não existe, ou outro processo já
+        # gravou. Só o primeiro caso é nosso para resolver.
+        existe = (db.table("bandit_estado").select("empresa_id")
+                  .eq("empresa_id", chave).limit(1).execute())
+        if not existe.data:
+            db.table("bandit_estado").insert(
+                {"empresa_id": chave, "estado": _bandit_para_json(bandit), "versao": 1}
+            ).execute()
+            return True
+        return False
+    except Exception as e:
+        print(f"[Bandit] Aviso: falha ao gravar no Supabase: {e}")
+        # Falha de rede não é conflito: insistir refazendo a conta duplicaria o
+        # feedback se a gravação tiver chegado. Encerra como sucesso e deixa o
+        # cache em memória com o estado novo.
+        return True
 
 
 # ---------------------------------------------------------------------------
@@ -295,6 +345,11 @@ _BANDIT_TTL: float = 300.0  # 5 minutos
 # RLock porque registrar_resultado chama carregar_bandit e salvar_bandit,
 # que também pegam o lock.
 _bandit_lock = threading.RLock()
+
+# Quantas vezes refazer a conta quando outro processo grava primeiro. Cada
+# tentativa relê o estado atual, então poucas bastam: só perde a corrida de
+# novo quem esbarra num terceiro feedback no mesmo instante.
+MAX_TENTATIVAS_GRAVACAO = 5
 
 
 def carregar_bandit(empresa_id: "str | None") -> LinUCB:
@@ -398,12 +453,38 @@ def registrar_resultado(acao_id: int, contexto: list[float], recompensa: float,
             "Feedback ignorado. Se D mudou, execute: DELETE FROM bandit_estado;"
         )
         return
-    # Ler, alterar e gravar precisam ser uma operação só: sem isso, dois
-    # feedbacks simultâneos leem o mesmo estado e o último sobrescreve o outro.
+    premio = float(np.clip(recompensa, 0.0, 1.0))
+    chave = _chave(empresa_id)
+
+    # Duas camadas, porque são dois problemas diferentes.
+    #
+    # O lock serializa as threads DESTE processo — sem ele, duas requisições no
+    # threadpool leem o mesmo objeto em memória e uma sobrescreve a outra.
+    #
+    # A versão resolve o caso de duas INSTÂNCIAS: o lock de uma máquina não
+    # significa nada para a outra. Cada tentativa relê do banco, refaz a conta
+    # sobre o estado atual e só grava se ninguém tiver gravado no meio.
     with _bandit_lock:
-        bandit = carregar_bandit(empresa_id)
-        bandit.atualizar(acao_id, ctx, float(np.clip(recompensa, 0.0, 1.0)))
-        salvar_bandit(empresa_id, bandit)
+        for tentativa in range(MAX_TENTATIVAS_GRAVACAO):
+            bandit, versao = _carregar_com_versao(chave)
+            if bandit is None:
+                # Ainda não existe linha para esta empresa (ou o banco não
+                # respondeu). Parte do que houver em memória e deixa
+                # _gravar_se_versao decidir: ele insere quando a linha falta.
+                bandit, versao = carregar_bandit(chave), 0
+            bandit.atualizar(acao_id, ctx, premio)
+            if _gravar_se_versao(chave, bandit, versao):
+                _bandit_cache[chave]    = bandit
+                _bandit_cache_ts[chave] = time.monotonic()
+                try:
+                    joblib.dump(bandit, _arquivo_bandit(chave))
+                except Exception:
+                    pass
+                return
+            # Perdeu a corrida: o próximo giro relê o estado já com o feedback
+            # do outro processo dentro, e soma o nosso em cima.
+        print(f"[Bandit] {MAX_TENTATIVAS_GRAVACAO} conflitos seguidos em {chave}; "
+              "feedback não gravado no Supabase.")
 
 
 # ---------------------------------------------------------------------------
