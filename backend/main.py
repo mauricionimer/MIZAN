@@ -396,6 +396,65 @@ def _exige_carteira_da_empresa(db, carteira_id: str, payload: dict) -> None:
         raise HTTPException(status_code=403, detail="Acesso negado a esta carteira.")
 
 
+# O PostgREST devolve no máximo ~1000 linhas por resposta, e não avisa: a
+# resposta vem com 200 e um pedaço dos dados. Este projeto já convivia com isso
+# em retrain.py (_BATCH = 1000) e em duas rotas de métricas, cada uma com o
+# próprio laço. Onde faltava, o efeito era silencioso e grave: reabrir uma
+# carteira de 5.000 devedores devolvia 1.000, e o resumo — total em risco,
+# valor esperado, score médio — saía calculado sobre um quinto da carteira,
+# sem nenhum sinal de que faltava algo.
+LOTE_LEITURA = 1000
+
+
+def _todas_as_linhas(construir_consulta, lote: int = LOTE_LEITURA) -> list:
+    """Lê uma consulta inteira, página por página.
+
+    Recebe uma função que monta a consulta do zero, porque o cliente do
+    Supabase acumula estado: reaproveitar o mesmo objeto empilharia os filtros
+    de range a cada volta.
+
+    Para quando a página vem menor que o lote — é o fim dos dados. Se vier
+    exatamente do tamanho do lote, pede a próxima; uma volta a mais que devolve
+    zero linhas é barata perto de truncar a carteira em silêncio.
+    """
+    lote = max(1, min(lote, LOTE_LEITURA))
+    linhas, offset = [], 0
+    # Se o outro lado ignorar o range — um proxy mal configurado, um cliente
+    # substituído em teste — cada volta devolveria as mesmas linhas e o laço
+    # nunca terminaria, prendendo a requisição para sempre. O limite transforma
+    # isso em resposta incompleta com aviso no log, que é ruim, mas é visível.
+    MAX_PAGINAS = 20_000
+    for _ in range(MAX_PAGINAS):
+        res = construir_consulta().range(offset, offset + lote - 1).execute()
+        pagina = res.data or []
+        if not pagina:
+            return linhas
+        linhas.extend(pagina)
+        # Avança pelo que VEIO, não pelo que foi pedido, e só para quando uma
+        # página vem vazia. Parar em "página menor que o lote" parecia
+        # equivalente e economizava uma volta, mas depende de o teto do
+        # servidor ser maior que o lote — e é justamente o teto do servidor que
+        # este helper existe para não precisar conhecer. A volta extra no fim é
+        # barata perto de truncar a carteira em silêncio.
+        offset += len(pagina)
+    print(f"[Leitura] {MAX_PAGINAS} páginas sem fim ao ler {len(linhas)} linhas — "
+          "o servidor pode estar ignorando o range. Resultado possivelmente incompleto.")
+    return linhas
+
+
+def _ids_carteiras(db, empresa_id: str) -> list:
+    """Carteiras da empresa. É por aqui que predições e feedbacks se ligam ao dono.
+
+    Aparecia em onze lugares com três comportamentos diferentes: quatro com
+    .limit(100), sete sem limite nenhum — e "sem limite" também trunca, porque
+    o servidor corta em mil. Empresa que analisa uma carteira por dia passa de
+    cem em três meses, e a partir daí parte dos dados dela simplesmente some
+    das telas, sem erro.
+    """
+    return [c["id"] for c in _todas_as_linhas(
+        lambda: db.table("carteiras").select("id").eq("empresa_id", empresa_id))]
+
+
 def _registrar_auditoria(
     acao: str,
     entidade: str | None = None,
@@ -1279,8 +1338,7 @@ def registrar_contato(body: ContatoIn, credentials: HTTPAuthorizationCredentials
         _emp = payload.get("empresa_id", "")
         if _emp:
             try:
-                cart_res = db.table("carteiras").select("id").eq("empresa_id", _emp).limit(100).execute()
-                cart_ids = [c["id"] for c in (cart_res.data or [])]
+                cart_ids = _ids_carteiras(db, _emp)
                 if cart_ids:
                     pred_q = pred_q.in_("carteira_id", cart_ids)
             except Exception:
@@ -1961,10 +2019,10 @@ def _valores_de_filtro(db, carteira_id: str) -> dict:
     não a carteira toda.
     """
     try:
-        res = db.table("predicoes").select("produto, uf").eq("carteira_id", carteira_id).execute()
+        linhas = _todas_as_linhas(
+            lambda: db.table("predicoes").select("produto, uf").eq("carteira_id", carteira_id))
     except Exception:
         return {"produtos": [], "ufs": []}
-    linhas = res.data or []
     return {
         "produtos": sorted({p["produto"] for p in linhas if p.get("produto")}),
         "ufs":      sorted({p["uf"] for p in linhas if p.get("uf")}),
@@ -1995,11 +2053,12 @@ def alcance_da_operacao(
         return {"n": 0, "ate": 0, "valor": 0.0, "pct": None, "pctBase": 0.0,
                 "restam": total, "total_devedores": total}
 
-    res = (db.table("predicoes")
-           .select("rank, valor_esperado_recuperacao")
-           .eq("carteira_id", carteira_id)
-           .order("rank").limit(n).execute())
-    linhas = res.data or []
+    # .limit(n) não basta: acima de mil o servidor corta e o alcance sairia
+    # menor do que é — justamente o número que vai para a reunião.
+    linhas = _todas_as_linhas(
+        lambda: db.table("predicoes").select("rank, valor_esperado_recuperacao")
+                  .eq("carteira_id", carteira_id).order("rank"),
+        lote=min(n, LOTE_LEITURA))[:n]
     soma = sum(float(l.get("valor_esperado_recuperacao") or 0) for l in linhas)
     ate = max((int(l.get("rank") or 0) for l in linhas), default=n)
 
@@ -2113,8 +2172,8 @@ def _cpfs_por_status(db, carteira_id: str) -> "tuple[set, set]":
     Só o feedback mais recente de cada CPF conta — um devedor pode ter sido
     marcado como não pago e ter pago depois.
     """
-    pr = db.table("predicoes").select("id").eq("carteira_id", carteira_id).execute()
-    pred_ids = [p["id"] for p in (pr.data or [])]
+    pred_ids = [p["id"] for p in _todas_as_linhas(
+        lambda: db.table("predicoes").select("id").eq("carteira_id", carteira_id))]
     if not pred_ids:
         return set(), set()
 
@@ -2212,14 +2271,8 @@ def carregar_carteira(carteira_id: str, incluir_ranking: bool = True,
     if not cart_res.data:
         raise HTTPException(status_code=404, detail="Carteira não encontrada.")
 
-    pred_res = (
-        db.table("predicoes")
-        .select("*")
-        .eq("carteira_id", carteira_id)
-        .order("rank")
-        .execute()
-    )
-    predicoes = pred_res.data
+    predicoes = _todas_as_linhas(
+        lambda: db.table("predicoes").select("*").eq("carteira_id", carteira_id).order("rank"))
     if not predicoes:
         raise HTTPException(status_code=404, detail="Nenhuma predição encontrada para esta carteira.")
 
@@ -3019,8 +3072,10 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
         if _carteira_id_existente:
             # ── Modo atualização: substitui predicoes, preserva feedbacks ──
             carteira_id = _carteira_id_existente
-            pred_res = db.table("predicoes").select("id").eq("carteira_id", carteira_id).execute()
-            pred_ids = [p["id"] for p in (pred_res.data or [])]
+            # Truncado, os feedbacks ligados às predições além da milésima
+            # continuariam apontando para linhas apagadas.
+            pred_ids = [p["id"] for p in _todas_as_linhas(
+                lambda: db.table("predicoes").select("id").eq("carteira_id", carteira_id))]
             for i in range(0, len(pred_ids), 100):
                 lote = pred_ids[i:i+100]
                 if lote:
@@ -3506,8 +3561,7 @@ def confirmar_pagamento(
         try:
             pred_query = db.table("predicoes").select("id, carteira_id, score_recuperabilidade, valor_divida").eq("cpf", cpf)
             if empresa_id:
-                cart_res = db.table("carteiras").select("id").eq("empresa_id", empresa_id).limit(100).execute()
-                cart_ids = [c["id"] for c in (cart_res.data or [])]
+                cart_ids = _ids_carteiras(db, empresa_id)
                 if cart_ids:
                     pred_query = pred_query.in_("carteira_id", cart_ids)
             pred_res = pred_query.order("created_at", desc=True).limit(1).execute()
@@ -3635,8 +3689,7 @@ def webhook_pagamento(body: WebhookPagamentoIn, request: Request):
     # Restringe a busca da predição às carteiras da empresa, se houver
     pred_query = db.table("predicoes").select("id, carteira_id, score_recuperabilidade, valor_divida").eq("cpf", body.cpf)
     try:
-        cart_res = db.table("carteiras").select("id").eq("empresa_id", empresa).limit(100).execute()
-        cart_ids = [c["id"] for c in (cart_res.data or [])]
+        cart_ids = _ids_carteiras(db, empresa)
         if cart_ids:
             pred_query = pred_query.in_("carteira_id", cart_ids)
     except Exception:
@@ -3735,8 +3788,7 @@ async def feedback_lote(
         _cart_ids_empresa: list = []
         if empresa:
             try:
-                _c = db.table("carteiras").select("id").eq("empresa_id", empresa).limit(100).execute()
-                _cart_ids_empresa = [c["id"] for c in (_c.data or [])]
+                _cart_ids_empresa = _ids_carteiras(db, empresa)
             except Exception:
                 _cart_ids_empresa = []
 
@@ -3875,13 +3927,16 @@ def performance(
             raise HTTPException(status_code=503, detail="Não foi possível montar o escopo da empresa.")
     elif empresa_id:
         try:
-            cart_res = db.table("carteiras").select("id").eq("empresa_id", empresa_id).execute()
-            cart_ids = [c["id"] for c in (cart_res.data or [])]
+            cart_ids = _ids_carteiras(db, empresa_id)
             if not cart_ids:
                 return {"mensagem": "Nenhum feedback recebido ainda.", "total_feedbacks": 0}
             pred_res_all: list = []
             for i in range(0, len(cart_ids), 100):
-                pr = db.table("predicoes").select("id").in_("carteira_id", cart_ids[i:i+100]).execute()
+                # Cem carteiras por vez cabem na URL, mas as predições delas
+                # passam de mil com folga — daí o lote interno também paginar.
+                pr = type("R", (), {"data": _todas_as_linhas(
+                    lambda lote=cart_ids[i:i+100]:
+                        db.table("predicoes").select("id").in_("carteira_id", lote))})()
                 pred_res_all.extend(pr.data or [])
             empresa_pred_ids = {p["id"] for p in pred_res_all}
         except Exception:
@@ -4007,13 +4062,16 @@ def performance_pagamentos(
             raise HTTPException(status_code=503, detail="Não foi possível montar o escopo da empresa.")
     elif empresa_id:
         try:
-            cart_res = db.table("carteiras").select("id").eq("empresa_id", empresa_id).execute()
-            cart_ids = [c["id"] for c in (cart_res.data or [])]
+            cart_ids = _ids_carteiras(db, empresa_id)
             if not cart_ids:
                 return []
             pred_res_all: list = []
             for i in range(0, len(cart_ids), 100):
-                pr = db.table("predicoes").select("id").in_("carteira_id", cart_ids[i:i+100]).execute()
+                # Cem carteiras por vez cabem na URL, mas as predições delas
+                # passam de mil com folga — daí o lote interno também paginar.
+                pr = type("R", (), {"data": _todas_as_linhas(
+                    lambda lote=cart_ids[i:i+100]:
+                        db.table("predicoes").select("id").in_("carteira_id", lote))})()
                 pred_res_all.extend(pr.data or [])
             empresa_pred_ids = {p["id"] for p in pred_res_all}
         except Exception:
@@ -4093,21 +4151,24 @@ def feedbacks_status(
     empresa_pred_ids: set | None = None
     if carteira_id:
         try:
-            pr = db.table("predicoes").select("id").eq("carteira_id", carteira_id).execute()
-            empresa_pred_ids = {p["id"] for p in (pr.data or [])}
+            empresa_pred_ids = {p["id"] for p in _todas_as_linhas(
+                lambda: db.table("predicoes").select("id").eq("carteira_id", carteira_id))}
         except Exception:
             # Não conseguir montar o escopo da empresa não pode virar consulta
             # global: isso vazaria feedbacks de outras empresas.
             raise HTTPException(status_code=503, detail="Não foi possível montar o escopo da empresa.")
     elif empresa_id:
         try:
-            cart_res = db.table("carteiras").select("id").eq("empresa_id", empresa_id).execute()
-            cart_ids = [c["id"] for c in (cart_res.data or [])]
+            cart_ids = _ids_carteiras(db, empresa_id)
             # Mesmo sem carteiras o escopo tem de ficar vazio, não nulo: nulo
             # cairia na consulta global e devolveria feedbacks de todo mundo.
             pred_res_all: list = []
             for i in range(0, len(cart_ids), 100):
-                pr = db.table("predicoes").select("id").in_("carteira_id", cart_ids[i:i+100]).execute()
+                # Cem carteiras por vez cabem na URL, mas as predições delas
+                # passam de mil com folga — daí o lote interno também paginar.
+                pr = type("R", (), {"data": _todas_as_linhas(
+                    lambda lote=cart_ids[i:i+100]:
+                        db.table("predicoes").select("id").in_("carteira_id", lote))})()
                 pred_res_all.extend(pr.data or [])
             empresa_pred_ids = {p["id"] for p in pred_res_all}
         except Exception:
@@ -4231,8 +4292,10 @@ def detectar_drift(credentials: HTTPAuthorizationCredentials = Security(bearer))
     _exigir_comando(credentials)
     db = get_db()
 
-    res = db.table("predicoes").select("score_recuperabilidade, created_at").execute()
-    todas = res.data
+    # Sem paginar, a "média histórica" seria a das primeiras mil predições
+    # gravadas — e comparar o mês corrente contra elas não é medir deriva.
+    todas = _todas_as_linhas(
+        lambda: db.table("predicoes").select("score_recuperabilidade, created_at"))
 
     if len(todas) < 50:
         return {"status": "dados_insuficientes", "mensagem": "Mínimo de 50 predições necessário.", "drift_detectado": False}
@@ -4294,8 +4357,7 @@ def recomendacao_devedor(cpf: str, credentials: HTTPAuthorizationCredentials = S
         .order("created_at", desc=True)
     )
     if empresa_id:
-        cart_res = db.table("carteiras").select("id").eq("empresa_id", empresa_id).execute()
-        cart_ids = [c["id"] for c in (cart_res.data or [])]
+        cart_ids = _ids_carteiras(db, empresa_id)
         if not cart_ids:
             raise HTTPException(status_code=404, detail=f"Nenhuma predição encontrada para CPF: {cpf}")
         q = q.in_("carteira_id", cart_ids)
@@ -4358,8 +4420,7 @@ def propostas_devedor(
         .order("created_at", desc=True)
     )
     if empresa_id:
-        cart_res = db.table("carteiras").select("id").eq("empresa_id", empresa_id).execute()
-        cart_ids = [c["id"] for c in (cart_res.data or [])]
+        cart_ids = _ids_carteiras(db, empresa_id)
         if not cart_ids:
             raise HTTPException(status_code=404, detail=f"Nenhuma predição encontrada para CPF: {cpf}")
         q = q.in_("carteira_id", cart_ids)
@@ -4436,8 +4497,7 @@ def explicar_score_devedor(cpf: str, credentials: HTTPAuthorizationCredentials =
         .order("created_at", desc=True)
     )
     if empresa_id:
-        cart_res = db.table("carteiras").select("id").eq("empresa_id", empresa_id).execute()
-        cart_ids = [c["id"] for c in (cart_res.data or [])]
+        cart_ids = _ids_carteiras(db, empresa_id)
         if not cart_ids:
             raise HTTPException(status_code=404, detail=f"Nenhuma predição encontrada para CPF: {cpf}")
         q = q.in_("carteira_id", cart_ids)
@@ -4948,10 +5008,7 @@ def listar_auditoria(
 _TABELAS_RETENCAO = ("predicoes", "feedbacks", "contatos", "recomendacoes")
 
 
-def _ids_carteiras(db, empresa_id: str) -> list:
-    """Carteiras da empresa — predições só se ligam a ela por aqui."""
-    res = db.table("carteiras").select("id").eq("empresa_id", empresa_id).execute()
-    return [c["id"] for c in (res.data or [])]
+
 
 
 def _escopo_retencao(db, tabela: str, empresa_id: str, carteiras: list):

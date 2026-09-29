@@ -322,15 +322,26 @@ class _Q:
     def in_(s, c, v): s.f[c] = v; return s
     def order(s, *a, **k): return s
     def limit(s, *a): return s
+
+    # O código lê em páginas (range), então o stub precisa recortar de verdade:
+    # devolver sempre tudo faria o laço de paginação nunca terminar.
+    def range(s, ini, fim):
+        s._corte = (ini, fim)
+        return s
+
+    def _pagina(s, linhas):
+        ini, fim = getattr(s, "_corte", (None, None))
+        return linhas if ini is None else linhas[ini:fim + 1]
+
     def execute(s):
         if s.tbl == "carteiras":
             dono = {"c-alfa": "banco_alfa", "c-beta": "credtotal"}
             return types.SimpleNamespace(
-                data=[{"id": k} for k, v in dono.items() if v == s.f.get("empresa_id")])
+                data=s._pagina([{"id": k} for k, v in dono.items() if v == s.f.get("empresa_id")]))
         if s.tbl == "predicoes":
             carteiras_visiveis = s.f.get("carteira_id") or []
             if "c-alfa" not in carteiras_visiveis:
-                return types.SimpleNamespace(data=[])
+                return types.SimpleNamespace(data=s._pagina([]))
             return types.SimpleNamespace(data=[{
                 "cpf": s.f.get("cpf"), "nome": "Devedor Teste",
                 "valor_divida": 12000.0, "renda_estimada": 4500.0,
@@ -339,7 +350,7 @@ class _Q:
             }])
         if s.tbl == "empresa_config":
             return types.SimpleNamespace(data=[{"extra": {}}])
-        return types.SimpleNamespace(data=[])
+        return types.SimpleNamespace(data=s._pagina([]))
 
 
 main.get_db = lambda: types.SimpleNamespace(table=lambda t: _Q(t))

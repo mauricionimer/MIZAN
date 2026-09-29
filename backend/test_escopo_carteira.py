@@ -22,21 +22,32 @@ class Q:
     def is_(s, *a): return s
     def order(s, *a, **k): return s
     def limit(s, *a): return s
+
+    # O código lê em páginas (range), então o stub precisa recortar de verdade:
+    # devolver sempre tudo faria o laço de paginação nunca terminar.
+    def range(s, ini, fim):
+        s._corte = (ini, fim)
+        return s
+
+    def _pagina(s, linhas):
+        ini, fim = getattr(s, "_corte", (None, None))
+        return linhas if ini is None else linhas[ini:fim + 1]
+
     def execute(s):
         if s.tbl == 'carteiras':
             dono = {'c-alfa': 'banco_alfa', 'c-beta': 'credtotal'}
             if 'id' in s.f:
                 d = dono.get(s.f['id'])
                 return types.SimpleNamespace(data=[{'empresa_id': d}] if d else [])
-            return types.SimpleNamespace(data=[{'id': k} for k, v in dono.items() if v == s.f.get('empresa_id')])
+            return types.SimpleNamespace(data=s._pagina([{'id': k} for k, v in dono.items() if v == s.f.get('empresa_id')]))
         if s.tbl == 'predicoes':
-            return types.SimpleNamespace(data=[{'id': 'p-beta', 'score_recuperabilidade': 55.0, 'valor_divida': 1000.0, 'cpf': '99988877700', 'carteira_id': 'c-beta', 'nome': 'X'}])
+            return types.SimpleNamespace(data=s._pagina([{'id': 'p-beta', 'score_recuperabilidade': 55.0, 'valor_divida': 1000.0, 'cpf': '99988877700', 'carteira_id': 'c-beta', 'nome': 'X'}]))
         if s.tbl == 'feedbacks':
-            return types.SimpleNamespace(data=[{'cpf': '99988877700', 'pagou': True,
+            return types.SimpleNamespace(data=s._pagina([{'cpf': '99988877700', 'pagou': True,
                 'valor_recuperado': 5000, 'data_pagamento': '2026-09-01',
                 'predicao_id': 'p-beta', 'empresa': 'credtotal',
-                'created_at': '2026-09-01', 'registrado_por': 'x'}])
-        return types.SimpleNamespace(data=[])
+                'created_at': '2026-09-01', 'registrado_por': 'x'}]))
+        return types.SimpleNamespace(data=s._pagina([]))
 
 main.get_db = lambda: types.SimpleNamespace(table=lambda t: Q(t))
 main._cache_get = lambda *a, **k: None
