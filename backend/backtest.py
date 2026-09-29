@@ -31,6 +31,10 @@ sys.path.insert(0, str(AQUI))
 # operação consegue realmente falar num ciclo.
 CAPACIDADES = [0.10, 0.20, 0.30, 0.50]
 
+# A equidade é medida no recorte de um ciclo, não na carteira inteira:
+# priorizar é decidir quem entra no esforço que existe.
+CAPACIDADE_EQUIDADE = 0.20
+
 # Colunas que carregam a resposta. Pontuar com qualquer uma delas produz um
 # KS altíssimo e um backtest que mente — é o erro clássico, e caro, porque só
 # aparece quando o modelo vai para produção e não repete o resultado.
@@ -214,7 +218,23 @@ def rodar(df: pd.DataFrame) -> dict:
             "vantagem_pct": round(100 * (m - v) / v, 1) if v > 0 else None,
         }
 
+    # Equidade: com o desfecho conhecido dá para medir as duas coisas — se a
+    # priorização difere entre regiões, e se ela difere ENTRE QUEM PAGOU, que
+    # é o que separa diferença legítima de grupo deixado para trás.
+    # O recorte é a capacidade típica de um ciclo, não a carteira inteira:
+    # priorizar é justamente decidir quem entra no esforço disponível.
+    equidade = None
+    if "uf" in df.columns:
+        from model.equidade import analisar as _equidade
+        n_top = max(1, int(round(len(df) * CAPACIDADE_EQUIDADE)))
+        selecionado = np.zeros(len(df), dtype=bool)
+        selecionado[np.argsort(-((score / 100.0) * df["valor_divida"].fillna(0).to_numpy()))[:n_top]] = True
+        equidade = _equidade(df, "uf", selecionado, df["pagou"].to_numpy())
+        if equidade.get("ok"):
+            equidade["capacidade"] = CAPACIDADE_EQUIDADE
+
     return {
+        "equidade":           equidade,
         "n_devedores":        len(df),
         "n_pagaram":          int(df["pagou"].sum()),
         "taxa_pagamento":     round(100 * float(df["pagou"].mean()), 1),
@@ -226,6 +246,20 @@ def rodar(df: pd.DataFrame) -> dict:
         "ganho_sobre_pratica_atual": ganho,
         "avisos":             avisos,
     }
+
+
+def _quebrar(texto: str, largura: int) -> list[str]:
+    """Quebra o texto em linhas, para o relatório de terminal não estourar."""
+    palavras, linhas, atual = texto.split(), [], ""
+    for p in palavras:
+        if len(atual) + len(p) + 1 > largura:
+            linhas.append(atual)
+            atual = p
+        else:
+            atual = f"{atual} {p}".strip()
+    if atual:
+        linhas.append(atual)
+    return linhas
 
 
 def _brl(v: float) -> str:
@@ -298,6 +332,13 @@ def relatorio(r: dict) -> str:
     else:
         L.append(f"   O Mizan superou a prática atual em {venceu} de "
                  f"{len(CAPACIDADES)} capacidades.")
+
+    eq = r.get("equidade")
+    if eq and eq.get("ok"):
+        L.append("")
+        L.append("-- Equidade entre regiões ---------------------------------------")
+        for linha in _quebrar(eq["leitura"], 64):
+            L.append(f"   {linha}")
 
     if r["avisos"]:
         L.append("")

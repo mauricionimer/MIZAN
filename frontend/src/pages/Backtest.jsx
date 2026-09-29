@@ -286,6 +286,93 @@ export default function Backtest() {
               </div>
             </section>
 
+            {/* Equidade — a pergunta que a área de compliance do banco faz */}
+            {r.equidade?.ok && (
+              <section className="card p-5">
+                <h2 className="text-sm font-semibold mb-1" style={{ color: 'var(--ink)' }}>
+                  Equidade entre regiões
+                </h2>
+                <p className="text-xs mb-4" style={{ color: 'var(--ink-3)' }}>
+                  A priorização trata as regiões de forma desigual? E, se trata, isso
+                  acompanha diferença real de pagamento?
+                </p>
+
+                <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--ink-2)' }}>
+                  {r.equidade.leitura}
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                  {[
+                    ['Paridade demográfica', r.equidade.paridade_demografica,
+                     'fatia priorizada de cada região'],
+                    ['Igualdade de oportunidade', r.equidade.igualdade_oportunidade,
+                     'entre quem pagou, fatia priorizada'],
+                  ].map(([rotulo, m, ajuda]) => (
+                    <div key={rotulo} className="rounded-xl p-4" style={{ background: 'var(--raise-2)' }}>
+                      <p className="section-label mb-1">{rotulo}</p>
+                      {m?.ok ? (
+                        <>
+                          <p className="text-2xl font-semibold tabular-nums"
+                            style={{ color: m.acima_do_corte ? 'var(--success)' : 'var(--warning)' }}>
+                            {(m.razao * 100).toFixed(0)}%
+                          </p>
+                          <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
+                            {m.menos_favorecido} em relação a {m.mais_favorecido}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-sm mt-1" style={{ color: 'var(--ink-3)' }}>
+                          {m?.motivo ?? 'Exige o desfecho real para ser calculada.'}
+                        </p>
+                      )}
+                      <p className="text-[11px] mt-2" style={{ color: 'var(--ink-3)' }}>{ajuda}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr style={{ color: 'var(--ink-3)' }}>
+                        <th className="text-left font-medium py-1.5">região</th>
+                        <th className="text-right font-medium">devedores</th>
+                        <th className="text-right font-medium">priorizados</th>
+                        <th className="text-right font-medium">fatia</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {r.equidade.paridade_demografica.grupos?.map(g => (
+                        <tr key={g.grupo} style={{ borderTop: '1px solid var(--line)' }}>
+                          <td className="py-1.5" style={{ color: 'var(--ink)' }}>
+                            {g.grupo}
+                            {g.amostra_pequena && (
+                              <span className="ml-2 text-[10px] uppercase tracking-wide"
+                                style={{ color: 'var(--ink-3)' }}>amostra pequena</span>
+                            )}
+                          </td>
+                          <td className="text-right tabular-nums" style={{ color: 'var(--ink-2)' }}>
+                            {fmtNum(g.n)}
+                          </td>
+                          <td className="text-right tabular-nums" style={{ color: 'var(--ink-2)' }}>
+                            {fmtNum(g.selecionados)}
+                          </td>
+                          <td className="text-right tabular-nums font-semibold" style={{ color: 'var(--ink)' }}>
+                            {fmtPct1(g.taxa * 100)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="mt-4 space-y-2">
+                  {r.equidade.avisos?.map((a, i) => (
+                    <p key={i} className="text-xs leading-relaxed" style={{ color: 'var(--ink-3)' }}>{a}</p>
+                  ))}
+                </div>
+              </section>
+            )}
+
             {r.avisos?.length > 0 && (
               <section className="card p-5">
                 <h2 className="text-sm font-semibold mb-3" style={{ color: 'var(--ink)' }}>Ressalvas</h2>
