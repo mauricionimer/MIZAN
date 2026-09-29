@@ -63,6 +63,10 @@ ALTER TABLE predicoes ADD COLUMN IF NOT EXISTS lgd                       NUMERIC
 -- Despesas fixas mensais do devedor: insumo da margem livre. Sem elas o
 -- motor de renegociação não consegue testar se a parcela cabe no bolso.
 ALTER TABLE predicoes ADD COLUMN IF NOT EXISTS despesas_mensais          NUMERIC(15,2);
+-- Fase do ciclo de cobrança e valor esperado já descontada a comissão do
+-- escritório terceirizado, que incide entre 31 e 360 dias de atraso.
+ALTER TABLE predicoes ADD COLUMN IF NOT EXISTS fase_cobranca             TEXT;
+ALTER TABLE predicoes ADD COLUMN IF NOT EXISTS valor_esperado_liquido    NUMERIC(15,2);
 
 -- ── Feedbacks ────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS feedbacks (

@@ -2216,7 +2216,8 @@ def _psi_da_carteira(scores: list) -> dict:
 # carteira é bem pior. Aqui a gravação cai para o conjunto antigo de colunas e
 # avisa no log, em vez de derrubar a análise.
 _COLUNAS_PREDICAO_OPCIONAIS = ("probabilidade_pagamento", "origem_taxa", "perda_esperada",
-                               "lgd", "despesas_mensais")
+                               "lgd", "despesas_mensais", "fase_cobranca",
+                               "valor_esperado_liquido")
 
 
 def _inserir_predicoes(db, linhas: list[dict]):
@@ -2407,6 +2408,24 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
     resultado["lgd"] = (1 - resultado["taxa_recuperacao_prevista"].astype(float)).clip(0, 1).round(4)
     resultado["perda_esperada"] = (_ead - resultado["valor_esperado_recuperacao"]).round(2)
 
+    # Fase do ciclo de cobrança e o que ela custa (ver model/ciclo.py). Entre
+    # 31 e 360 dias a cobrança é terceirizada e o banco paga comissão sobre o
+    # recuperado: o valor esperado bruto superestima o que sobra para ele, e é
+    # o líquido que deve ordenar a fila. Sem comissão configurada o líquido é
+    # igual ao bruto e o resumo diz que está bruto — aplicar uma taxa que
+    # ninguém informou erraria justamente na direção que favorece o produto.
+    from model import ciclo as _ciclo
+
+    _extra_emp = _extra_empresa(_empresa_id)
+    _custos = _ciclo.custos_de_config(_extra_emp)
+    resultado["fase_cobranca"] = resultado["dias_em_atraso"].apply(_ciclo.fase_de)
+    resultado["valor_esperado_liquido"] = [
+        round(_ciclo.liquido(ve, fase, _custos), 2)
+        for ve, fase in zip(resultado["valor_esperado_recuperacao"],
+                            resultado["fase_cobranca"])
+    ]
+    resultado["origem_custo_cobranca"] = _custos["origem"]
+
     # A fila é ordenada por VALOR ESPERADO, não por score.
     #
     # O score é probabilidade de pagar; o banco quer valor recuperado, e quem
@@ -2425,12 +2444,13 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
     # sistema não deve tomá-la sozinho.
     from model.priorizacao import de_config as _criterio_de_config, ordenar as _ordenar_fila
 
-    _criterio = _criterio_de_config(_extra_empresa(_empresa_id))
+    _criterio = _criterio_de_config(_extra_emp)
     if "valor_esperado_recuperacao" in resultado.columns:
         # ordenar() recebe valor e probabilidade e multiplica internamente;
         # passar o valor esperado com probabilidade 1 dá o mesmo resultado e
         # evita reconstruir a probabilidade por divisão.
-        _ve = resultado["valor_esperado_recuperacao"].fillna(0).astype(float).to_numpy()
+        # líquido, não bruto: é o que sobra para o banco depois da comissão
+        _ve = resultado["valor_esperado_liquido"].fillna(0).astype(float).to_numpy()
         _idx = _ordenar_fila(
             _ve, np.ones(len(_ve)),
             resultado["uf"] if "uf" in resultado.columns else None,
@@ -2535,6 +2555,44 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
         ) if total_em_risco else 0.0,
     }
 
+    # Distribuição por fase do ciclo e, acima de 360 dias, a comparação que o
+    # banco precisa fazer: cobrar ou vender. Se o esperado líquido de uma
+    # dívida é menor do que ela valeria cedida a fundo de NPL, cobrar destrói
+    # valor — e essa conta ninguém fazia porque o sistema não conhecia a fase.
+    _por_fase = []
+    for _fid, _f in _ciclo.FASES.items():
+        _m = resultado["fase_cobranca"] == _fid
+        if not _m.any():
+            continue
+        _por_fase.append({
+            "fase": _fid,
+            "rotulo": _f.rotulo,
+            "descricao": _f.descricao,
+            "devedores": int(_m.sum()),
+            "valor_face": round(float(resultado.loc[_m, "valor_divida"].sum()), 2),
+            "valor_esperado_liquido": round(
+                float(resultado.loc[_m, "valor_esperado_liquido"].sum()), 2),
+            "tem_comissao": _f.tem_comissao,
+        })
+    resumo["ciclo_cobranca"] = _por_fase
+    resumo["custo_cobranca"] = {k: v for k, v in _custos.items() if k != "origem"} | {
+        "origem": _custos["origem"]}
+
+    _aviso_ciclo = _ciclo.aviso(_custos)
+    if _aviso_ciclo:
+        resumo["aviso_ciclo"] = _aviso_ciclo
+
+    _wo = resultado["fase_cobranca"] == "write_off"
+    if _wo.any() and _custos.get("cessao_pct") is not None:
+        _esperado_wo = float(resultado.loc[_wo, "valor_esperado_liquido"].sum())
+        _cessao_wo = _ciclo.valor_cessao(float(resultado.loc[_wo, "valor_divida"].sum()), _custos)
+        resumo["write_off"] = {
+            "devedores": int(_wo.sum()),
+            "esperado_cobrando": round(_esperado_wo, 2),
+            "valor_se_vendida": round(_cessao_wo, 2),
+            "vale_mais_vender": _cessao_wo > _esperado_wo,
+        }
+
     # A oferta da planilha é da CARTEIRA, não de cada devedor: o que varia
     # entre as propostas é a chance de pagamento por tipo de oferta, que o
     # bandit aprende para a empresa inteira. A escolha por devedor, essa sim
@@ -2621,7 +2679,9 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
              "origem_taxa": str(d.get("origem_taxa") or ""),
              "perda_esperada": _py(d.get("perda_esperada")),
              "lgd": _py(d.get("lgd")),
-             "despesas_mensais": _py(d.get("despesas_mensais"))}
+             "despesas_mensais": _py(d.get("despesas_mensais")),
+             "fase_cobranca": d.get("fase_cobranca"),
+             "valor_esperado_liquido": _py(d.get("valor_esperado_liquido"))}
             for d in devedores
         ]
         pred_id_map: dict[str, str] = {}
