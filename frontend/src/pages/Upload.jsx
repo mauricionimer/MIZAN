@@ -38,7 +38,10 @@ const DB_TIPOS = [
   { value: 'mariadb',   label: 'MariaDB',                portaPadrao: 3306 },
   { value: 'sqlserver', label: 'SQL Server',             portaPadrao: 1433 },
   { value: 'oracle',    label: 'Oracle',                 portaPadrao: 1521 },
-  { value: 'sqlite',    label: 'SQLite (arquivo local)', portaPadrao: null  },
+  // O arquivo teria de estar no servidor do Mizan, não na máquina de quem usa,
+  // então no serviço hospedado o backend recusa. O rótulo diz isso antes de o
+  // usuário preencher o formulário inteiro para levar um erro no fim.
+  { value: 'sqlite',    label: 'SQLite (só em instalação local)', portaPadrao: null  },
   { value: 'sheets',    label: 'Google Sheets',          portaPadrao: null  },
 ]
 

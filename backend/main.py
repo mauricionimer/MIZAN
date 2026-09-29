@@ -2141,9 +2141,73 @@ def _external_connect_args(conn: ConexaoDB) -> dict:
     return args
 
 
+def _validar_destino_externo(conn: ConexaoDB) -> None:
+    """Recusa destinos que não podem ser o banco de um cliente.
+
+    A tela de conexões existe para o cliente apontar o próprio banco, que está
+    na rede dele. Sem validação nenhuma, ela aceitava duas coisas que nunca
+    são isso:
+
+    SQLite — `sqlite:///{caminho}` abre um arquivo do SERVIDOR, não da máquina
+    do cliente. Hospedado, "arquivo local" não existe do lado de cá: o que dá
+    para alcançar é caminho do container. Pior, o driver CRIA o arquivo quando
+    não existe, então virava também escrita em caminho arbitrário.
+
+    Endereço interno — o Mizan conecta saindo para a internet, então um IP de
+    loopback, privado ou de link-local jamais é o banco do cliente; é a rede
+    de dentro. Somado à consulta livre que a mesma tela aceita, seria leitura
+    de serviço interno.
+
+    Em desenvolvimento (sem Supabase configurado) nada disso vale: apontar
+    para o Postgres da própria máquina é o fluxo normal de quem está
+    programando.
+    """
+    if not os.getenv("SUPABASE_URL"):
+        return
+
+    if (conn.tipo or "").lower() == "sqlite":
+        raise HTTPException(
+            status_code=400,
+            detail="Conexão SQLite não é possível no serviço hospedado: o arquivo "
+                   "precisaria estar no servidor do Mizan, não na sua máquina. "
+                   "Exporte os dados para CSV ou use uma conexão de rede "
+                   "(PostgreSQL, MySQL, SQL Server, Oracle ou Google Sheets).",
+        )
+
+    host = (conn.host or "").strip()
+    if not host:
+        return
+
+    import ipaddress
+    import socket
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror:
+        raise HTTPException(status_code=400, detail=f"Host não encontrado: {host}")
+
+    for info in infos:
+        try:
+            ip = ipaddress.ip_address(info[4][0])
+        except ValueError:
+            continue
+        # Nota: o driver resolve o nome de novo na hora de conectar, então um
+        # DNS que responda diferente entre as duas consultas fura esta checagem.
+        # Cobrir isso exigiria fixar o IP resolvido aqui na conexão, o que os
+        # drivers não expõem de forma uniforme.
+        if (ip.is_loopback or ip.is_private or ip.is_link_local
+                or ip.is_reserved or ip.is_multicast or ip.is_unspecified):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Endereço {ip} é de rede interna e não pode ser o destino "
+                       "de uma conexão. Informe o endereço público do seu banco.",
+            )
+
+
 def _construir_url_db(conn: ConexaoDB) -> str:
     """Monta a connection string do SQLAlchemy a partir dos parâmetros."""
     from urllib.parse import quote_plus
+
+    _validar_destino_externo(conn)
 
     if conn.tipo == "sqlite":
         if not conn.banco:
@@ -2184,6 +2248,8 @@ def _construir_url_db(conn: ConexaoDB) -> str:
 def _sqlserver_connect(conn: ConexaoDB):
     """Retorna conexão pytds para SQL Server (sem SQLAlchemy)."""
     import pytds
+    # Não passa por _construir_url_db, então a validação de destino é aqui.
+    _validar_destino_externo(conn)
     kwargs = dict(
         server=conn.host or "localhost",
         database=conn.banco or "",
