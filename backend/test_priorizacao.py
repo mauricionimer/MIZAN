@@ -58,8 +58,13 @@ checar(por_score.loc[0, "valor_esperado_recuperacao"]
 fonte = (AQUI / "main.py").read_text()
 checar('sort_values("score_recuperabilidade", ascending=False)' not in fonte,
        "main.py não ordena mais a carteira por score")
-checar('_ordem = ("valor_esperado_recuperacao"' in fonte,
-       "e usa o valor esperado como critério da fila")
+checar("from model.priorizacao import" in fonte,
+       "e ordena pelo módulo de política, não por sort_values solto")
+# O padrão continua sendo valor esperado; a alternativa proporcional existe,
+# mas só entra se a empresa configurar (ver test_priorizacao_politica.py).
+from model.priorizacao import CRITERIO_PADRAO, de_config  # noqa: E402
+checar(CRITERIO_PADRAO == "valor_esperado" and de_config(None) == "valor_esperado",
+       "e o padrão de quem não configura nada continua o valor esperado")
 
 # retaguarda: carteira sem o campo de valor esperado não pode quebrar
 sem_ve = pd.DataFrame({"score_recuperabilidade": [10.0, 90.0]})

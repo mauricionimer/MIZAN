@@ -286,6 +286,54 @@ export default function Backtest() {
               </div>
             </section>
 
+            {/* O custo da escolha, quantificado */}
+            {r.politicas?.custo_pct != null && (
+              <section className="card p-5">
+                <h2 className="text-sm font-semibold mb-1" style={{ color: 'var(--ink)' }}>
+                  O custo da equidade
+                </h2>
+                <p className="text-xs mb-4" style={{ color: 'var(--ink-3)' }}>
+                  Duas políticas de fila, lado a lado. Nenhuma é a certa: a escolha é do
+                  comitê, e aqui ela aparece com o preço à vista.
+                </p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr style={{ color: 'var(--ink-3)' }}>
+                        <th className="text-left font-medium py-1.5">política</th>
+                        <th className="text-right font-medium">recupera</th>
+                        <th className="text-right font-medium">paridade</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        ['valor_esperado', 'Valor esperado (padrão)'],
+                        ['proporcional_por_grupo', 'Proporcional por região'],
+                      ].map(([k, rotulo]) => (
+                        <tr key={k} style={{ borderTop: '1px solid var(--line)' }}>
+                          <td className="py-2" style={{ color: 'var(--ink)' }}>{rotulo}</td>
+                          <td className="text-right tabular-nums font-semibold" style={{ color: 'var(--ink)' }}>
+                            {fmtBRL(r.politicas[k]?.recuperado)}
+                          </td>
+                          <td className="text-right tabular-nums"
+                            style={{ color: (r.politicas[k]?.paridade ?? 0) >= 0.8
+                              ? 'var(--success)' : 'var(--warning)' }}>
+                            {r.politicas[k]?.paridade != null
+                              ? `${(r.politicas[k].paridade * 100).toFixed(0)}%` : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-sm mt-4 leading-relaxed" style={{ color: 'var(--ink-2)' }}>
+                  Equalizar a atenção entre regiões custa{' '}
+                  <strong>{fmtBRL(r.politicas.custo_da_equidade)}</strong>{' '}
+                  ({fmtPct1(r.politicas.custo_pct)} da recuperação) nesta carteira.
+                </p>
+              </section>
+            )}
+
             {/* Equidade — a pergunta que a área de compliance do banco faz */}
             {r.equidade?.ok && (
               <section className="card p-5">

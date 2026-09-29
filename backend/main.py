@@ -2261,6 +2261,18 @@ def _premissa_recuperacao_se_pagar(empresa_id: str | None) -> float:
     return valor
 
 
+def _extra_empresa(empresa_id: "str | None") -> dict:
+    """Bloco `extra` da configuração da empresa; vazio se não houver."""
+    if not empresa_id:
+        return {}
+    try:
+        res = (get_db().table("empresa_config")
+               .select("extra").eq("empresa_id", empresa_id).limit(1).execute())
+        return (res.data or [{}])[0].get("extra") or {}
+    except Exception:
+        return {}
+
+
 def _politica_proposta(empresa_id: "str | None"):
     """Política de renegociação da empresa; cai no padrão declarado se não houver.
 
@@ -2405,11 +2417,31 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
     # score puro recupera 15,8%, perdendo até para a prática mais simples da
     # operação. Ordenar por probabilidade manda o operador ligar primeiro
     # para quem paga fácil e deve pouco.
-    _ordem = ("valor_esperado_recuperacao"
-              if "valor_esperado_recuperacao" in resultado.columns
-              else "score_recuperabilidade")
-    resultado_sorted = resultado.sort_values(_ordem, ascending=False).reset_index(drop=True)
+    # O critério é política da empresa (ver model/priorizacao.py). O padrão
+    # maximiza recuperação; a alternativa proporcional equaliza a fatia de
+    # esforço por região, custando recuperação. Medir equidade mostrou que a
+    # ordenação por valor esperado desprioriza a região de dívidas menores
+    # mesmo quando ela paga igual — é escolha de política, não defeito, e o
+    # sistema não deve tomá-la sozinho.
+    from model.priorizacao import de_config as _criterio_de_config, ordenar as _ordenar_fila
+
+    _criterio = _criterio_de_config(_extra_empresa(_empresa_id))
+    if "valor_esperado_recuperacao" in resultado.columns:
+        # ordenar() recebe valor e probabilidade e multiplica internamente;
+        # passar o valor esperado com probabilidade 1 dá o mesmo resultado e
+        # evita reconstruir a probabilidade por divisão.
+        _ve = resultado["valor_esperado_recuperacao"].fillna(0).astype(float).to_numpy()
+        _idx = _ordenar_fila(
+            _ve, np.ones(len(_ve)),
+            resultado["uf"] if "uf" in resultado.columns else None,
+            _criterio,
+        )
+        resultado_sorted = resultado.iloc[_idx].reset_index(drop=True)
+    else:
+        resultado_sorted = resultado.sort_values(
+            "score_recuperabilidade", ascending=False).reset_index(drop=True)
     resultado_sorted.insert(0, "rank", range(1, len(resultado_sorted) + 1))
+    resultado_sorted["criterio_fila"] = _criterio
 
     # Oferta sugerida: o mesmo catálogo de arquétipos que a tela do devedor
     # usa (model/proposta.py), escolhido por maior valor esperado.

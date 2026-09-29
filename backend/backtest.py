@@ -218,6 +218,34 @@ def rodar(df: pd.DataFrame) -> dict:
             "vantagem_pct": round(100 * (m - v) / v, 1) if v > 0 else None,
         }
 
+    # As duas políticas de fila, lado a lado: quanto cada uma recupera e o que
+    # cada uma faz com a equidade. É a comparação que permite decidir com o
+    # custo à vista, em vez de escolher no escuro.
+    politicas = None
+    if "uf" in df.columns:
+        from model.equidade import analisar as _eq
+        from model.priorizacao import CRITERIOS, ordenar as _ordenar
+        n_top = max(1, int(round(len(df) * CAPACIDADE_EQUIDADE)))
+        valor_col = df["valor_divida"].fillna(0).to_numpy()
+        prob = score / 100.0
+        politicas = {}
+        for criterio in CRITERIOS:
+            idx = _ordenar(valor_col, prob, df["uf"], criterio)
+            sel = np.zeros(len(df), dtype=bool)
+            sel[idx[:n_top]] = True
+            eq = _eq(df, "uf", sel, df["pagou"].to_numpy())
+            politicas[criterio] = {
+                "recuperado": round(float(df["valor_recuperado"].to_numpy()[sel].sum()), 2),
+                "paridade": (eq.get("paridade_demografica") or {}).get("razao"),
+                "oportunidade": (eq.get("igualdade_oportunidade") or {}).get("razao"),
+            }
+        padrao, alt = politicas["valor_esperado"], politicas["proporcional_por_grupo"]
+        politicas["custo_da_equidade"] = round(padrao["recuperado"] - alt["recuperado"], 2)
+        politicas["custo_pct"] = (
+            round(100 * (padrao["recuperado"] - alt["recuperado"]) / padrao["recuperado"], 1)
+            if padrao["recuperado"] else None)
+        politicas["capacidade"] = CAPACIDADE_EQUIDADE
+
     # Equidade: com o desfecho conhecido dá para medir as duas coisas — se a
     # priorização difere entre regiões, e se ela difere ENTRE QUEM PAGOU, que
     # é o que separa diferença legítima de grupo deixado para trás.
@@ -234,6 +262,7 @@ def rodar(df: pd.DataFrame) -> dict:
             equidade["capacidade"] = CAPACIDADE_EQUIDADE
 
     return {
+        "politicas":          politicas,
         "equidade":           equidade,
         "n_devedores":        len(df),
         "n_pagaram":          int(df["pagou"].sum()),
@@ -339,6 +368,20 @@ def relatorio(r: dict) -> str:
         L.append("-- Equidade entre regiões ---------------------------------------")
         for linha in _quebrar(eq["leitura"], 64):
             L.append(f"   {linha}")
+
+    pol = r.get("politicas")
+    if pol:
+        L.append("")
+        L.append("-- O custo da equidade ------------------------------------------")
+        L.append(f"   {'política':<26}{'recupera':>16}{'paridade':>11}")
+        for nome, rot in (("valor_esperado", "valor esperado (padrão)"),
+                          ("proporcional_por_grupo", "proporcional por região")):
+            m = pol[nome]
+            par = f"{m['paridade']:.0%}" if m["paridade"] is not None else "—"
+            L.append(f"   {rot:<26}{_brl(m['recuperado']):>16}{par:>11}")
+        if pol.get("custo_pct") is not None:
+            L.append(f"   equalizar custa {_brl(pol['custo_da_equidade'])} "
+                     f"({pol['custo_pct']}% da recuperação)")
 
     if r["avisos"]:
         L.append("")
