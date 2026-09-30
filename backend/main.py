@@ -337,6 +337,14 @@ _ALLOWED_ORIGINS = [
     "http://127.0.0.1:5174",
 ]
 
+# Captura de erro ANTES do CORS, de propósito: no Starlette o último middleware
+# adicionado é o mais externo, e a captura precisa ficar por dentro dele para o
+# 500 sair com os cabeçalhos CORS — senão o navegador esconde o corpo e o
+# cliente vê só "Failed to fetch", sem o código do erro. Ver erros.py.
+import erros as _erros                                     # noqa: E402
+_erros.instalar_captura(app)
+_erros.instalar_handlers(app)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_ALLOWED_ORIGINS,
