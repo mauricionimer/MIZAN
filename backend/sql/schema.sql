@@ -386,3 +386,18 @@ CREATE TABLE IF NOT EXISTS travas (
   criado_em  TIMESTAMPTZ DEFAULT NOW()
 );
 ALTER TABLE travas ENABLE ROW LEVEL SECURITY;
+
+-- ── Limite de tentativas de login ────────────────────────────────
+-- O código do login grava aqui quando o limite é atingido, para que outra
+-- instância enxergue o bloqueio. A tabela nunca foi criada por nenhuma
+-- migração, e a gravação falhava dentro de um `except: pass`: o limite valia
+-- só na memória de cada processo, e sumia a cada reinício.
+--
+-- Os tipos seguem o que o código grava: `tentativas` é uma lista de
+-- timestamps (JSONB) e `updated_at` é um timestamp em número, não uma data.
+CREATE TABLE IF NOT EXISTS rate_limit_login (
+  chave       TEXT PRIMARY KEY,
+  tentativas  JSONB NOT NULL DEFAULT '[]'::jsonb,
+  updated_at  DOUBLE PRECISION
+);
+ALTER TABLE rate_limit_login ENABLE ROW LEVEL SECURITY;

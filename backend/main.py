@@ -342,6 +342,11 @@ _ALLOWED_ORIGINS = [
 # 500 sair com os cabeçalhos CORS — senão o navegador esconde o corpo e o
 # cliente vê só "Failed to fetch", sem o código do erro. Ver erros.py.
 import erros as _erros                                     # noqa: E402
+import limite as _limite                                   # noqa: E402
+# Ordem de instalação, da mais interna para a mais externa: limite, captura de
+# erros, CORS. O limite rejeita antes de o corpo ser lido e precisa estar por
+# dentro do CORS para o 429 sair com o cabeçalho. Ver limite.py.
+_limite.instalar(app)
 _erros.instalar_captura(app)
 _erros.instalar_handlers(app)
 
@@ -1191,6 +1196,25 @@ def auth_alterar_role(usuario_id: str, body: RoleIn, credentials: HTTPAuthorizat
 def auth_esqueci_senha(body: EsqueciSenhaIn, background_tasks: BackgroundTasks):
     from email_utils import email_redefinir_senha
     FRONTEND_URL = os.getenv("FRONTEND_URL", "https://mizan-sand.vercel.app")
+
+    # Sem freio, qualquer um disparava e-mails de redefinição em massa para um
+    # endereço conhecido. Chave por e-mail e não por IP: atrás do proxy o IP é
+    # o mesmo para todos. Quando o limite pega a resposta é IDÊNTICA à normal —
+    # um 429 aqui revelaria que o e-mail existe, desfazendo justamente a
+    # proteção que a mensagem genérica dá.
+    _email = (body.email or "").strip().lower()
+    _ok_email, _ = _limite.LIMITADOR.tentar(f"esqueci:{_email}", 3, 3600)
+    # O teto global só conta quando o do e-mail deixou passar. Contar sempre
+    # faria quem martela UM endereço esgotar a cota de todos e bloquear a
+    # redefinição de senha da plataforma inteira.
+    _ok_geral = True
+    if _ok_email:
+        _ok_geral, _ = _limite.LIMITADOR.tentar("esqueci:_todos", 200, 3600)
+    if not (_ok_email and _ok_geral):
+        _limite.log.warning(json.dumps({"evento": "esqueci_senha_limitado",
+                                        "global": not _ok_geral}))
+        return {"ok": True, "mensagem": "Se o e-mail estiver cadastrado, você receberá as instruções em breve."}
+
     token = criar_reset_token(body.email)
     if token:
         usuario = buscar_usuario(body.email)

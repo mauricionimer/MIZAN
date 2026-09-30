@@ -74,7 +74,22 @@ CREATE TABLE IF NOT EXISTS travas (
 );
 ALTER TABLE travas ENABLE ROW LEVEL SECURITY;
 
--- ── 5. Conferência ──────────────────────────────────────────────────
+-- ── 5. Limite de tentativas de login ────────────────────────────
+-- O código do login grava aqui quando o limite é atingido, para que outra
+-- instância enxergue o bloqueio. A tabela nunca foi criada por nenhuma
+-- migração, e a gravação falhava dentro de um `except: pass`: o limite valia
+-- só na memória de cada processo, e sumia a cada reinício.
+--
+-- Os tipos seguem o que o código grava: `tentativas` é uma lista de
+-- timestamps (JSONB) e `updated_at` é um timestamp em número, não uma data.
+CREATE TABLE IF NOT EXISTS rate_limit_login (
+  chave       TEXT PRIMARY KEY,
+  tentativas  JSONB NOT NULL DEFAULT '[]'::jsonb,
+  updated_at  DOUBLE PRECISION
+);
+ALTER TABLE rate_limit_login ENABLE ROW LEVEL SECURITY;
+
+-- ── 6. Conferência ──────────────────────────────────────────────────
 -- Devem sair 11 linhas de colunas (todas ok = true) e, depois, a linha
 -- da tabela travas.
 SELECT table_name  AS tabela,
@@ -87,5 +102,8 @@ SELECT table_name  AS tabela,
         AND column_name IN ('fase_cobranca','valor_esperado_liquido','rank'))
  ORDER BY tabela, coluna;
 
-SELECT 'travas' AS tabela, count(*) AS existe
-  FROM information_schema.tables WHERE table_name = 'travas';
+-- Depois das colunas, deve haver uma linha por tabela nova, cada uma com existe = 1.
+SELECT table_name AS tabela, count(*) AS existe
+  FROM information_schema.tables
+ WHERE table_name IN ('travas', 'rate_limit_login')
+ GROUP BY table_name ORDER BY table_name;
