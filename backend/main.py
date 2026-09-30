@@ -386,6 +386,39 @@ def _usuario_autenticado(credentials: HTTPAuthorizationCredentials) -> dict:
     return payload
 
 
+def _predicao_do_cpf(db, cpf: str, empresa_id: "str | None") -> "dict | None":
+    """Predição mais recente de um CPF dentro de UMA empresa.
+
+    Um mesmo CPF pode dever a mais de um cliente, então "a predição deste CPF"
+    sem dizer de quem é ambígua — e resolvê-la pela mais recente de todas as
+    empresas ligava o feedback de um cliente à carteira de outro.
+
+    `empresa_id` vazio significa "sem escopo" e só é aceito por quem já
+    verificou que a credencial é de comando. A falha é FECHADA: empresa sem
+    carteira devolve None, em vez de tratar a lista vazia como "sem filtro".
+
+    As carteiras vão em lotes de cem: uma empresa com centenas delas estouraria
+    o tamanho da URL do PostgREST num único in_.
+    """
+    colunas = ("id, created_at, score_recuperabilidade, valor_divida, "
+               "renda_estimada, dias_em_atraso, produto, uf")
+    if not empresa_id:
+        res = (db.table("predicoes").select(colunas).eq("cpf", cpf)
+               .order("created_at", desc=True).limit(1).execute())
+        return res.data[0] if res.data else None
+
+    melhor = None
+    carteiras = _ids_carteiras(db, empresa_id)
+    for i in range(0, len(carteiras), 100):
+        res = (db.table("predicoes").select(colunas).eq("cpf", cpf)
+               .in_("carteira_id", carteiras[i:i + 100])
+               .order("created_at", desc=True).limit(1).execute())
+        if res.data and (melhor is None or (res.data[0].get("created_at") or "")
+                         > (melhor.get("created_at") or "")):
+            melhor = res.data[0]
+    return melhor
+
+
 def _exige_carteira_da_empresa(db, carteira_id: str, payload: dict) -> None:
     """Garante que a carteira pertence à empresa de quem chamou.
 
@@ -937,9 +970,17 @@ def _validar_api_key(credentials: HTTPAuthorizationCredentials) -> dict:
     # Tenta JWT primeiro
     try:
         payload = validar_token(token)
-        return {"empresa_nome": payload.get("nome", ""), "role": payload.get("role", "operador"), "jwt": payload}
     except ValueError:
-        pass
+        payload = None
+    if payload is not None:
+        # O resto do sistema usa _usuario_autenticado, que confere no banco se o
+        # usuário segue ativo. Aqui só o token era validado, e ele dura 7 dias:
+        # quem fosse desligado continuava gravando pagamentos — que alimentam o
+        # treino do modelo e do bandit — até o token expirar.
+        user = buscar_usuario_por_id(payload["sub"])
+        if not user or not user.get("ativo"):
+            raise HTTPException(status_code=401, detail="Usuário inativo ou não encontrado.")
+        return {"empresa_nome": payload.get("nome", ""), "role": payload.get("role", "operador"), "jwt": payload}
 
     # Fallback: api_key legada no Supabase
     db = get_db()
@@ -948,13 +989,6 @@ def _validar_api_key(credentials: HTTPAuthorizationCredentials) -> dict:
         raise HTTPException(status_code=401, detail="Não autorizado. Faça login ou use uma API key válida.")
     _marcar_uso_api_key(db, linha)
     return linha
-
-def _exigir_admin(credentials: HTTPAuthorizationCredentials):
-    info = _validar_api_key(credentials)
-    role = info.get("role") or info.get("jwt", {}).get("role", "")
-    if role not in ("admin", "comando") and not info.get("api_key"):
-        raise HTTPException(status_code=403, detail="Acesso restrito a administradores.")
-    return info
 
 def _exigir_admin_ou_comando(credentials: HTTPAuthorizationCredentials) -> dict:
     try:
@@ -3476,18 +3510,23 @@ def receber_feedback(
 
     db = get_db()
 
-    # Busca a predição mais recente para este CPF
-    pred_res = (
-        db.table("predicoes")
-        .select("id, score_recuperabilidade, valor_divida, renda_estimada, dias_em_atraso, produto, uf")
-        .eq("cpf", payload.cpf)
-        .order("created_at", desc=True)
-        .limit(1)
-        .execute()
-    )
-    predicao_id = pred_res.data[0]["id"] if pred_res.data else None
-
     jwt_payload = empresa_info.get("jwt") or {}
+    _e_comando = jwt_payload.get("role") == "comando"
+    # Comando não pertence a empresa; quando informa uma no corpo, é nela que a
+    # predição é procurada. Sem isso o CPF casaria com a de qualquer cliente.
+    _escopo = (jwt_payload.get("empresa_id") or empresa_info.get("empresa_id")
+               or (payload.empresa if _e_comando else None))
+    if not _escopo and not _e_comando:
+        raise HTTPException(status_code=403, detail="Credencial sem empresa vinculada.")
+
+    # A predição mais recente deste CPF DENTRO da empresa de quem chamou. Antes
+    # a busca era só por CPF: o predicao_id de outro cliente era gravado no
+    # feedback, o bandit desta empresa aprendia com o contexto de uma predição
+    # alheia, e o painel do outro cliente passava a exibir um pagamento que ele
+    # não registrou.
+    pred_dict = _predicao_do_cpf(db, payload.cpf, _escopo)
+    predicao_id = pred_dict["id"] if pred_dict else None
+
     usuario_role = jwt_payload.get("role", "operador")
     usuario_nome = jwt_payload.get("nome") or jwt_payload.get("email") or empresa_info.get("empresa_nome", "")
     empresa_nome = (
@@ -3514,7 +3553,7 @@ def receber_feedback(
     _fechar_loop_bandit(
         db, payload.cpf, payload.pagou,
         float(payload.valor_recuperado or 0),
-        pred_res.data[0] if pred_res.data else None,
+        pred_dict,
         empresa_nome,
     )
 
@@ -3817,12 +3856,12 @@ async def feedback_lote(
 
         db = get_db()
 
-        _cart_ids_empresa: list = []
-        if empresa:
-            try:
-                _cart_ids_empresa = _ids_carteiras(db, empresa)
-            except Exception:
-                _cart_ids_empresa = []
+        # Comando não pertence a empresa e não tem escopo; qualquer outra
+        # credencial sem empresa é recusada. O recorte antigo, `if lista:`,
+        # caía para "sem filtro" justamente quando a lista vinha vazia — cliente
+        # novo, sem carteira — e o CPF voltava a casar com qualquer empresa.
+        if not empresa and _jwt.get("role") != "comando":
+            raise HTTPException(status_code=403, detail="Credencial sem empresa vinculada.")
 
         n_ok = 0
         n_erro = 0
@@ -3870,17 +3909,8 @@ async def feedback_lote(
                     pass
 
             try:
-                pred_q = (
-                    db.table("predicoes")
-                    .select("id, score_recuperabilidade, valor_divida")
-                    .eq("cpf", cpf)
-                )
-                # Sem este recorte, o CPF poderia casar com a predição de outra
-                # empresa e o feedback iria parar na carteira errada.
-                if _cart_ids_empresa:
-                    pred_q = pred_q.in_("carteira_id", _cart_ids_empresa)
-                pred_res = pred_q.order("created_at", desc=True).limit(1).execute()
-                predicao_id = pred_res.data[0]["id"] if pred_res.data else None
+                pred_dict = _predicao_do_cpf(db, cpf, empresa)
+                predicao_id = pred_dict["id"] if pred_dict else None
 
                 fb_row = {"cpf": cpf, "pagou": pagou, "valor_recuperado": valor_recuperado, "empresa": empresa}
                 if data_pag:
@@ -3893,7 +3923,7 @@ async def feedback_lote(
 
                 _fechar_loop_bandit(
                     db, cpf, pagou, valor_recuperado,
-                    pred_res.data[0] if pred_res.data else None,
+                    pred_dict,
                     empresa,
                 )
 
