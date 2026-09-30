@@ -79,7 +79,13 @@ class Q:
     def select(self, *a, **k):  return self
     def limit(self, n):          return self
     def order(self, *a, **k):    return self
-    def range(self, *a, **k):    return self
+
+    # O código lê em páginas. Um range que devolve tudo faria o laço de
+    # paginação repetir a mesma página até o limite de segurança — o teste
+    # passaria, mas passaria por acidente e vinte mil vezes mais devagar.
+    def range(self, ini, fim):
+        self._corte = (ini, fim)
+        return self
 
     def eq(self, col, val):
         self.linhas = [l for l in self.linhas if l.get(col) == val]
@@ -99,6 +105,9 @@ class Q:
         return self
 
     def execute(self):
+        corte = getattr(self, "_corte", None)
+        if corte is not None and self._patch is None:
+            self.linhas = self.linhas[corte[0]:corte[1] + 1]
         if self._patch is not None:
             ids = [l["id"] for l in self.linhas]
             gravacoes.append((self.tabela, self._patch, ids))

@@ -153,6 +153,21 @@ def _avaliar_qualidade_dados(df_original: pd.DataFrame) -> pd.Series:
     return problemas.str.strip("; ")
 
 
+# Quantas linhas pontuar por vez.
+#
+# A pontuação é o pico de memória da análise: medido numa carteira de 200 mil
+# devedores, o processo saía de 167 MB para 542 MB — a matriz de features
+# alargada pelo one-hot, a versão escalada em float64 e a entrada do
+# classificador, todas vivas ao mesmo tempo e todas do tamanho da carteira.
+#
+# Cada linha é pontuada sozinha: o scaler é elementar, o KMeans e o
+# predict_proba respondem por linha, e _preprocessar_para_score realinha às
+# colunas do treino, então um lote não depende do que veio nos outros. Processar
+# em blocos dá exatamente o mesmo resultado com o pico preso ao tamanho do bloco
+# em vez do tamanho da carteira.
+LOTE_SCORE = 20_000
+
+
 def score_carteira(df: pd.DataFrame) -> pd.DataFrame:
     clf, kmeans, meta = _carregar_modelos()
     scaler = meta["scaler"]
@@ -160,13 +175,20 @@ def score_carteira(df: pd.DataFrame) -> pd.DataFrame:
     # Avalia qualidade dos dados ANTES de imputar — assim a flag reflete o CSV original
     avisos_qualidade = _avaliar_qualidade_dados(df)
 
-    X        = _preprocessar_para_score(df, meta)
-    X_scaled = scaler.transform(X)
-
-    clusters         = kmeans.predict(X_scaled)
-    X_clf            = np.column_stack([X_scaled, clusters])
-    prob_pagamento   = clf.predict_proba(X_clf)[:, 1]
-    score            = (prob_pagamento * 100).round(1)
+    n = len(df)
+    score = np.empty(n, dtype=float)
+    clusters = np.empty(n, dtype=int)
+    for inicio in range(0, n, LOTE_SCORE):
+        fim = min(inicio + LOTE_SCORE, n)
+        X_bloco  = _preprocessar_para_score(df.iloc[inicio:fim], meta)
+        X_scaled = scaler.transform(X_bloco)
+        c_bloco  = kmeans.predict(X_scaled)
+        prob     = clf.predict_proba(np.column_stack([X_scaled, c_bloco]))[:, 1]
+        clusters[inicio:fim] = c_bloco
+        score[inicio:fim]    = (prob * 100).round(1)
+        # Libera antes do próximo bloco: sem isto o pico voltaria a ser a soma
+        # de dois blocos, que é pouco, mas é dobrar à toa.
+        del X_bloco, X_scaled, prob
 
     resultado                           = df.copy()
     resultado["score_recuperabilidade"] = score
