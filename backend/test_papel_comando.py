@@ -86,9 +86,17 @@ main.buscar_usuario_por_id = lambda uid: next((u for u in USUARIOS if u["id"] ==
 c = TestClient(main.app)
 
 
+# Um usuário de verdade para cada papel. O servidor confere o papel no CADASTRO,
+# não no token: um token com role "admin" e o sub de um comando é, para o
+# servidor, um comando. O teste antigo forjava exatamente isso e dependia de o
+# token ser a autoridade — que é o que deixou de valer.
+_SUB_POR_PAPEL = {"comando": "u-chefe", "admin": "u-admin", "operador": "u-op"}
+
+
 def token(role="comando", empresa=""):
+    sub = _SUB_POR_PAPEL[role]
     return {"Authorization": "Bearer " + A.criar_token(
-        {"sub": "u-chefe", "email": "chefe@mizan.app", "nome": "Chefe",
+        {"sub": sub, "email": f"{sub}@mizan.app", "nome": sub,
          "role": role, "empresa_id": empresa})}
 
 
@@ -115,11 +123,16 @@ checar(novo is not None and novo["empresa_id"] == "",
 # ── 2. o limite de autoridade não mudou ──────────────────────────────────
 print("\n— quem pode fazer isso —")
 reset()
+USUARIOS.append({"id": "u-admin", "email": "u-admin@mizan.app", "nome": "Admin", "role": "admin",
+                 "ativo": True, "empresa_id": "banco_alfa", "senha_hash": "x"})
+USUARIOS.append({"id": "u-op", "email": "u-op@mizan.app", "nome": "Op", "role": "operador",
+                 "ativo": True, "empresa_id": "banco_alfa", "senha_hash": "x"})
+antes = len(USUARIOS)
 for papel in ("admin", "operador"):
     r = c.post("/auth/registrar", headers=token(papel, "banco_alfa"), json={
         "email": "x@x.com", "nome": "X", "senha": "senha12345", "role": "comando"})
     checar(r.status_code == 403, f"{papel} não cria comando", str(r.status_code))
-checar(len(USUARIOS) == 1, "e ninguém foi criado")
+checar(len(USUARIOS) == antes, "e ninguém foi criado")
 
 r = c.post("/auth/registrar", headers=token(), json={
     "email": "y@y.com", "nome": "Y", "senha": "senha12345", "role": "dono_do_mundo"})

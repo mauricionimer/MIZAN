@@ -359,18 +359,6 @@ app.add_middleware(
 )
 
 bearer          = HTTPBearer()
-bearer_opcional = HTTPBearer(auto_error=False)
-
-
-def _usuario_do_token(credentials) -> tuple:
-    """Extrai (usuario_id, usuario_email, empresa_id) do JWT, ou (None, None, None) se sem token."""
-    if not credentials:
-        return None, None, None
-    try:
-        payload = validar_token(credentials.credentials)
-        return payload.get("sub"), payload.get("email"), payload.get("empresa_id", "")
-    except ValueError:
-        return None, None, None
 
 
 def _usuario_autenticado(credentials: HTTPAuthorizationCredentials) -> dict:
@@ -383,10 +371,27 @@ def _usuario_autenticado(credentials: HTTPAuthorizationCredentials) -> dict:
     user = buscar_usuario_por_id(payload["sub"])
     if not user or not user.get("ativo"):
         raise HTTPException(status_code=401, detail="Usuário inativo ou não encontrado.")
+
+    # O token prova QUEM é o usuário. O que ele pode fazer vem do cadastro, a
+    # cada chamada. O JWT dura sete dias e carrega role e empresa_id de quando
+    # foi emitido, então confiar neles deixava três coisas sem efeito até o
+    # token expirar: rebaixar um admin, tirar um usuário de uma empresa e
+    # desligá-lo. Reproduzido: com o cadastro dizendo "operador", "sem empresa"
+    # ou "inativo", a rota de admin seguia respondendo 200 com os dados da
+    # empresa antiga.
+    if user.get("role"):
+        payload["role"] = user["role"]
+    if "empresa_id" in user:
+        payload["empresa_id"] = user.get("empresa_id") or ""
     return payload
 
 
-def _predicao_do_cpf(db, cpf: str, empresa_id: "str | None") -> "dict | None":
+_COLUNAS_PREDICAO_CPF = ("id, carteira_id, created_at, score_recuperabilidade, valor_divida, "
+                         "renda_estimada, dias_em_atraso, produto, uf")
+
+
+def _predicao_do_cpf(db, cpf: str, empresa_id: "str | None",
+                     colunas: "str | None" = None) -> "dict | None":
     """Predição mais recente de um CPF dentro de UMA empresa.
 
     Um mesmo CPF pode dever a mais de um cliente, então "a predição deste CPF"
@@ -400,8 +405,12 @@ def _predicao_do_cpf(db, cpf: str, empresa_id: "str | None") -> "dict | None":
     As carteiras vão em lotes de cem: uma empresa com centenas delas estouraria
     o tamanho da URL do PostgREST num único in_.
     """
-    colunas = ("id, created_at, score_recuperabilidade, valor_divida, "
-               "renda_estimada, dias_em_atraso, produto, uf")
+    colunas = colunas or _COLUNAS_PREDICAO_CPF
+    # created_at é o que decide a "mais recente" entre os lotes de carteiras, e
+    # carteira_id é o que o chamador usa para invalidar cache: entram sempre.
+    for obrigatoria in ("created_at", "carteira_id"):
+        if obrigatoria not in colunas:
+            colunas += f", {obrigatoria}"
     if not empresa_id:
         res = (db.table("predicoes").select(colunas).eq("cpf", cpf)
                .order("created_at", desc=True).limit(1).execute())
@@ -409,9 +418,9 @@ def _predicao_do_cpf(db, cpf: str, empresa_id: "str | None") -> "dict | None":
 
     melhor = None
     carteiras = _ids_carteiras(db, empresa_id)
-    for i in range(0, len(carteiras), 100):
+    for i in range(0, len(carteiras), ITENS_POR_IN):
         res = (db.table("predicoes").select(colunas).eq("cpf", cpf)
-               .in_("carteira_id", carteiras[i:i + 100])
+               .in_("carteira_id", carteiras[i:i + ITENS_POR_IN])
                .order("created_at", desc=True).limit(1).execute())
         if res.data and (melhor is None or (res.data[0].get("created_at") or "")
                          > (melhor.get("created_at") or "")):
@@ -451,6 +460,13 @@ def _exige_carteira_da_empresa(db, carteira_id: str, payload: dict) -> None:
 # sem nenhum sinal de que faltava algo.
 LOTE_LEITURA = 1000
 
+# Quantos valores cabem num in_(...). O filtro vai na URL, e cada id é um UUID de
+# 36 caracteres: cem ids são ~3,7 KB, com folga sob o limite de 8 KB que muitos
+# servidores e gateways aplicam. Não medi o limite real do Supabase daqui; o
+# número é conservador de propósito, e é único para que ninguém reescolha outro
+# (antes havia cem em uns lugares e duzentos em outros).
+ITENS_POR_IN = 100
+
 
 def _todas_as_linhas(construir_consulta, lote: int = LOTE_LEITURA) -> list:
     """Lê uma consulta inteira, página por página.
@@ -465,13 +481,18 @@ def _todas_as_linhas(construir_consulta, lote: int = LOTE_LEITURA) -> list:
     """
     lote = max(1, min(lote, LOTE_LEITURA))
     linhas, offset = [], 0
+    # Paginar por offset só é correto se a ordem for determinística entre uma
+    # página e a seguinte. Sem ORDER BY o Postgres não promete ordem nenhuma, e
+    # linhas podem ser puladas ou repetidas entre as páginas. `id` entra como
+    # desempate no fim: o cliente acumula as ordenações (rank,id), então não
+    # desfaz a que a consulta já pedia.
     # Se o outro lado ignorar o range — um proxy mal configurado, um cliente
     # substituído em teste — cada volta devolveria as mesmas linhas e o laço
     # nunca terminaria, prendendo a requisição para sempre. O limite transforma
     # isso em resposta incompleta com aviso no log, que é ruim, mas é visível.
     MAX_PAGINAS = 20_000
     for _ in range(MAX_PAGINAS):
-        res = construir_consulta().range(offset, offset + lote - 1).execute()
+        res = construir_consulta().order("id").range(offset, offset + lote - 1).execute()
         pagina = res.data or []
         if not pagina:
             return linhas
@@ -631,10 +652,11 @@ def _empresa_do_bandit(payload: dict, empresa_id: "str | None") -> str:
 
 
 def _exigir_comando(credentials: HTTPAuthorizationCredentials) -> dict:
-    try:
-        payload = validar_token(credentials.credentials)
-    except ValueError as e:
-        raise HTTPException(status_code=401, detail=str(e))
+    # Via _usuario_autenticado, não validar_token: o painel COMANDO cria
+    # empresas e usuários, muda papéis e promove modelo. Conferir só a
+    # assinatura deixava um comando desligado, ou rebaixado, no controle da
+    # plataforma até o token vencer.
+    payload = _usuario_autenticado(credentials)
     if payload.get("role") != "comando":
         raise HTTPException(status_code=403, detail="Acesso restrito ao painel COMANDO.")
     return payload
@@ -973,13 +995,13 @@ def _validar_api_key(credentials: HTTPAuthorizationCredentials) -> dict:
     except ValueError:
         payload = None
     if payload is not None:
-        # O resto do sistema usa _usuario_autenticado, que confere no banco se o
-        # usuário segue ativo. Aqui só o token era validado, e ele dura 7 dias:
-        # quem fosse desligado continuava gravando pagamentos — que alimentam o
-        # treino do modelo e do bandit — até o token expirar.
-        user = buscar_usuario_por_id(payload["sub"])
-        if not user or not user.get("ativo"):
-            raise HTTPException(status_code=401, detail="Usuário inativo ou não encontrado.")
+        # Pelo mesmo caminho do resto do sistema: usuário ativo E papel e
+        # empresa lidos do cadastro. Conferir só "ativo" deixava a metade do
+        # problema: um admin REBAIXADO a operador seguia registrando pagamentos
+        # manuais, porque /feedback decide pelo role que veio no token, e um
+        # usuário movido de empresa seguia gravando na antiga. O token dura sete
+        # dias, e esses pagamentos alimentam o treino do modelo e do bandit.
+        payload = _usuario_autenticado(credentials)
         return {"empresa_nome": payload.get("nome", ""), "role": payload.get("role", "operador"), "jwt": payload}
 
     # Fallback: api_key legada no Supabase
@@ -991,12 +1013,19 @@ def _validar_api_key(credentials: HTTPAuthorizationCredentials) -> dict:
     return linha
 
 def _exigir_admin_ou_comando(credentials: HTTPAuthorizationCredentials) -> dict:
-    try:
-        payload = validar_token(credentials.credentials)
-    except ValueError as e:
-        raise HTTPException(status_code=401, detail=str(e))
+    # Mesma razão de _exigir_comando: gestão de equipe, retenção de dados e
+    # configuração da empresa não podem sobreviver ao desligamento de quem as
+    # exercia.
+    payload = _usuario_autenticado(credentials)
     if payload.get("role") not in ("admin", "comando"):
         raise HTTPException(status_code=403, detail="Acesso restrito a administradores.")
+    # Admin SEM empresa não tem escopo, e várias rotas tratam empresa vazia como
+    # "todas" — listar_usuarios("") devolve os usuários de todos os clientes.
+    # "Remover da empresa" grava justamente empresa_id = "", então um admin
+    # removido passava a enxergar e-mail, nome e papel de toda a plataforma
+    # assim que o token era renovado. Só o comando atua sem empresa.
+    if payload.get("role") == "admin" and not payload.get("empresa_id"):
+        raise HTTPException(status_code=403, detail="Administrador sem empresa vinculada.")
     return payload
 
 
@@ -1037,11 +1066,10 @@ def auth_login(body: LoginIn, request: Request):
 
 @app.get("/auth/me")
 def auth_me(credentials: HTTPAuthorizationCredentials = Security(bearer)):
-    try:
-        payload = validar_token(credentials.credentials)
-        return {"email": payload["email"], "nome": payload["nome"], "role": payload["role"]}
-    except ValueError as e:
-        raise HTTPException(status_code=401, detail=str(e))
+    # Pelo cadastro, não pelo token: é daqui que a tela decide o que mostrar, e
+    # um papel desatualizado exibiria menus que o servidor já recusa.
+    payload = _usuario_autenticado(credentials)
+    return {"email": payload["email"], "nome": payload["nome"], "role": payload["role"]}
 
 @app.post("/auth/refresh")
 def auth_refresh(credentials: HTTPAuthorizationCredentials = Security(bearer)):
@@ -1100,10 +1128,7 @@ def auth_registrar(body: RegistrarIn, credentials: HTTPAuthorizationCredentials 
 
 @app.post("/auth/alterar-senha")
 def auth_alterar_senha(body: AlterarSenhaIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
-    try:
-        payload = validar_token(credentials.credentials)
-    except ValueError as e:
-        raise HTTPException(status_code=401, detail=str(e))
+    payload = _usuario_autenticado(credentials)
     try:
         ok = alterar_senha(payload["email"], body.senha_atual, body.nova_senha)
     except ValueError as e:
@@ -1259,10 +1284,7 @@ def auth_esqueci_senha(body: EsqueciSenhaIn, background_tasks: BackgroundTasks):
 
 @app.get("/conexoes")
 def listar_conexoes(credentials: HTTPAuthorizationCredentials = Security(bearer)):
-    try:
-        payload = validar_token(credentials.credentials)
-    except ValueError as e:
-        raise HTTPException(status_code=401, detail=str(e))
+    payload = _usuario_autenticado(credentials)
     db = get_db()
     eid = payload.get("empresa_id", "")
     uid = payload["sub"]
@@ -1393,24 +1415,20 @@ _CONTATO_RECOMPENSA: dict = {
 
 @app.post("/contatos")
 def registrar_contato(body: ContatoIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
-    try:
-        payload = validar_token(credentials.credentials)
-    except ValueError as e:
-        raise HTTPException(status_code=401, detail=str(e))
+    payload = _usuario_autenticado(credentials)
     db = get_db()
 
+    _emp = payload.get("empresa_id", "")
+    if not _emp and payload.get("role") != "comando":
+        raise HTTPException(status_code=403, detail="Acesso negado: usuário sem empresa definida.")
+
     if body.resultado == "pagou":
-        pred_q = db.table("predicoes").select("id").eq("cpf", body.cpf)
-        _emp = payload.get("empresa_id", "")
-        if _emp:
-            try:
-                cart_ids = _ids_carteiras(db, _emp)
-                if cart_ids:
-                    pred_q = pred_q.in_("carteira_id", cart_ids)
-            except Exception:
-                pass
-        pred_check = pred_q.limit(1).execute()
-        if not pred_check.data:
+        # Falha FECHADA. O recorte antigo era `if cart_ids:` dentro de um
+        # `except: pass`: empresa sem carteira, ou um erro ao listá-las, virava
+        # "sem filtro" — e a resposta 404/200 passava a revelar se o CPF existia
+        # em QUALQUER empresa.
+        pred_check = _predicao_do_cpf(db, body.cpf, _emp, colunas="id")
+        if not pred_check:
             raise HTTPException(
                 status_code=404,
                 detail=f"CPF {body.cpf} não encontrado nas predições. Só é possível registrar pagamentos de devedores presentes na carteira analisada.",
@@ -1457,11 +1475,14 @@ def registrar_contato(body: ContatoIn, credentials: HTTPAuthorizationCredentials
             contexto = anterior["contexto"] if anterior else None
             pred_r = None
             if contexto is None or _CONTATO_RECOMPENSA[body.resultado] is None:
-                pred_r = (db.table("predicoes")
-                          .select("cpf, nome, produto, uf, valor_divida, renda_estimada, "
-                                  "dias_em_atraso, score_recuperabilidade")
-                          .eq("cpf", body.cpf)
-                          .order("created_at", desc=True).limit(1).execute())
+                # Escopada à empresa: sem isso a predição mais recente de TODAS
+                # as empresas servia de contexto, e o bandit de uma aprendia com
+                # a renda e a dívida de um devedor de outra.
+                _pr = _predicao_do_cpf(
+                    db, body.cpf, _emp,
+                    colunas="cpf, nome, produto, uf, valor_divida, renda_estimada, "
+                            "dias_em_atraso, score_recuperabilidade")
+                pred_r = type("R", (), {"data": [_pr] if _pr else []})()
             if contexto is None and pred_r and pred_r.data:
                 from model.bandit import construir_contexto
                 _p = pred_r.data[0]
@@ -1489,13 +1510,15 @@ def registrar_contato(body: ContatoIn, credentials: HTTPAuthorizationCredentials
 
 @app.get("/contatos/{cpf}")
 def listar_contatos_cpf(cpf: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
-    try:
-        payload = validar_token(credentials.credentials)
-    except ValueError as e:
-        raise HTTPException(status_code=401, detail=str(e))
+    payload = _usuario_autenticado(credentials)
     db = get_db()
     q = db.table("contatos").select("*").eq("cpf", cpf)
     empresa_id = payload.get("empresa_id", "")
+    # Falha fechada: antes, quem não tinha empresa caía em "sem filtro" e via os
+    # contatos desse CPF em TODAS as empresas — incluindo o campo livre
+    # "observação", onde o operador escreve telefone e nome de parente.
+    if not empresa_id and payload.get("role") != "comando":
+        raise HTTPException(status_code=403, detail="Acesso negado: usuário sem empresa definida.")
     if empresa_id:
         q = q.eq("empresa_id", empresa_id)
     res = q.order("created_at", desc=True).limit(50).execute()
@@ -1505,10 +1528,7 @@ def listar_contatos_cpf(cpf: str, credentials: HTTPAuthorizationCredentials = Se
 @app.delete("/auth/me")
 def deletar_conta(credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """LGPD — usuário solicita exclusão da própria conta e dados."""
-    try:
-        payload = validar_token(credentials.credentials)
-    except ValueError as e:
-        raise HTTPException(status_code=401, detail=str(e))
+    payload = _usuario_autenticado(credentials)
     usuario_id = payload["sub"]
     db = get_db()
     db.table("contatos").delete().eq("usuario_id", usuario_id).execute()
@@ -1520,10 +1540,7 @@ def deletar_conta(credentials: HTTPAuthorizationCredentials = Security(bearer)):
 @app.patch("/conexoes/{conexao_id}")
 def atualizar_conexao(conexao_id: str, body: ConexaoUpdateIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """Atualiza campos de uma conexão salva (mapeamento, query, etc.)."""
-    try:
-        payload = validar_token(credentials.credentials)
-    except ValueError as e:
-        raise HTTPException(status_code=401, detail=str(e))
+    payload = _usuario_autenticado(credentials)
     db = get_db()
     updates = {k: v for k, v in body.model_dump().items() if v is not None}
     if not updates:
@@ -1973,10 +1990,7 @@ def _auto_sync_todas_conexoes() -> None:
 @app.post("/conexoes/{conexao_id}/sincronizar")
 async def sincronizar_conexao(conexao_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """Re-lê o banco externo salvo e cria uma nova carteira com todos os devedores atuais."""
-    try:
-        payload = validar_token(credentials.credentials)
-    except ValueError as e:
-        raise HTTPException(status_code=401, detail=str(e))
+    payload = _usuario_autenticado(credentials)
 
     db = get_db()
     eid = payload.get("empresa_id", "")
@@ -2403,7 +2417,14 @@ def carregar_carteira(carteira_id: str, incluir_ranking: bool = True,
 
 
 @app.post("/upload")
-async def upload_csv(file: UploadFile = File(...)):
+async def upload_csv(file: UploadFile = File(...),
+                     credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    # Era a única rota de trabalho pesado sem credencial: qualquer um na internet
+    # mandava um CSV de 100 MB para ser lido e interpretado, fora do limite de
+    # taxa e do portão de análises. O frontend não a chama, e ela só devolve
+    # nome, número de linhas e colunas — então exigir login não tira nada de quem
+    # a usa de verdade.
+    _usuario_autenticado(credentials)
     if not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="O arquivo deve ser um CSV.")
 
@@ -3630,14 +3651,18 @@ def confirmar_pagamento(
         pred_res = None
         predicao_id = None
         try:
-            pred_query = db.table("predicoes").select("id, carteira_id, score_recuperabilidade, valor_divida").eq("cpf", cpf)
-            if empresa_id:
-                cart_ids = _ids_carteiras(db, empresa_id)
-                if cart_ids:
-                    pred_query = pred_query.in_("carteira_id", cart_ids)
-            pred_res = pred_query.order("created_at", desc=True).limit(1).execute()
-            predicao_id   = pred_res.data[0]["id"]                  if pred_res.data else None
-            _pred_cart_id = pred_res.data[0].get("carteira_id")     if pred_res.data else None
+            # Falha fechada, como em /feedback: empresa sem carteira não casa
+            # com a predição de ninguém. O `if cart_ids:` antigo descartava o
+            # filtro quando a lista vinha vazia.
+            if not empresa_id and role != "comando":
+                raise HTTPException(status_code=403, detail="Credencial sem empresa vinculada.")
+            _pd = _predicao_do_cpf(db, cpf, empresa_id,
+                                   colunas="id, carteira_id, score_recuperabilidade, valor_divida")
+            pred_res = type("R", (), {"data": [_pd] if _pd else []})()
+            predicao_id   = _pd["id"]              if _pd else None
+            _pred_cart_id = _pd.get("carteira_id") if _pd else None
+        except HTTPException:
+            raise
         except Exception as _pe:
             _pred_cart_id = None
             print(f"[Confirmar] Aviso — não encontrou predicao para CPF {cpf}: {_pe}")
@@ -3751,23 +3776,27 @@ def webhook_pagamento(body: WebhookPagamentoIn, request: Request):
         raise HTTPException(status_code=401, detail="API key inválida ou inativa.")
     _marcar_uso_api_key(db, linha_key)
 
-    empresa = (
-        body.empresa
-        or linha_key.get("empresa_id")
-        or linha_key.get("empresa_nome", "webhook")
-    )
+    # A empresa é a DA CHAVE, nunca a do corpo. Antes `body.empresa` vinha
+    # primeiro, então uma chave da empresa A que enviasse "empresa": "beta"
+    # gravava o pagamento no escopo da B, ligado a uma predição da B — e o
+    # bandit da B aprendia com ele. Reproduzido: R$ 9.000 de pagamento caiu no
+    # painel de outro cliente com a chave errada.
+    empresa = (linha_key.get("empresa_id") or "").strip()
+    if not empresa:
+        raise HTTPException(status_code=403, detail="Chave de API sem empresa vinculada.")
+    if body.empresa and body.empresa.strip().lower() != empresa.lower():
+        # Não é recusado: um cliente pode mandar o nome de exibição ("Banco
+        # Alfa") em vez do identificador, e rejeitar quebraria a integração
+        # dele. O campo é ignorado e a divergência fica registrada.
+        print(f"[Webhook] corpo diz empresa={body.empresa!r}, chave é de {empresa!r}; "
+              "usando a da chave.")
 
-    # Restringe a busca da predição às carteiras da empresa, se houver
-    pred_query = db.table("predicoes").select("id, carteira_id, score_recuperabilidade, valor_divida").eq("cpf", body.cpf)
-    try:
-        cart_ids = _ids_carteiras(db, empresa)
-        if cart_ids:
-            pred_query = pred_query.in_("carteira_id", cart_ids)
-    except Exception:
-        pass
-    pred_res = pred_query.order("created_at", desc=True).limit(1).execute()
-    predicao_id   = pred_res.data[0]["id"]              if pred_res.data else None
-    _pred_cart_id = pred_res.data[0].get("carteira_id") if pred_res.data else None
+    # Falha fechada: empresa sem carteira não casa com a predição de ninguém, e
+    # erro ao listar as carteiras vira 500 em vez de "sem filtro". O recorte
+    # antigo engolia a exceção e seguia sem filtro algum.
+    pred_dict     = _predicao_do_cpf(db, body.cpf, empresa)
+    predicao_id   = pred_dict["id"]              if pred_dict else None
+    _pred_cart_id = pred_dict.get("carteira_id") if pred_dict else None
 
     fb_row = {
         "cpf": body.cpf,
@@ -3786,7 +3815,7 @@ def webhook_pagamento(body: WebhookPagamentoIn, request: Request):
     _fechar_loop_bandit(
         db, body.cpf, body.pagou,
         float(body.valor_recuperado or 0),
-        pred_res.data[0] if pred_res.data else None,
+        pred_dict,
         empresa,
     )
 
@@ -4412,22 +4441,14 @@ def recomendacao_devedor(cpf: str, credentials: HTTPAuthorizationCredentials = S
     if not empresa_id and role != "comando":
         raise HTTPException(status_code=403, detail="Acesso negado: usuário sem empresa definida.")
 
-    q = (
-        db.table("predicoes")
-        .select("cpf, nome, produto, uf, valor_divida, renda_estimada, dias_em_atraso, score_recuperabilidade, perfil_cluster, cluster_id, carteira_id")
-        .eq("cpf", cpf)
-        .order("created_at", desc=True)
-    )
-    if empresa_id:
-        cart_ids = _ids_carteiras(db, empresa_id)
-        if not cart_ids:
-            raise HTTPException(status_code=404, detail=f"Nenhuma predição encontrada para CPF: {cpf}")
-        q = q.in_("carteira_id", cart_ids)
-    pred_res = q.limit(1).execute()
-    if not pred_res.data:
+    # Em lotes de carteiras: passar todas num único in_ estourava o tamanho da
+    # URL de quem tem centenas delas.
+    pred = _predicao_do_cpf(
+        db, cpf, empresa_id,
+        colunas="cpf, nome, produto, uf, valor_divida, renda_estimada, dias_em_atraso, "
+                "score_recuperabilidade, perfil_cluster, cluster_id, carteira_id")
+    if not pred:
         raise HTTPException(status_code=404, detail=f"Nenhuma predição encontrada para CPF: {cpf}")
-
-    pred = pred_res.data[0]
     valor_divida = float(pred.get("valor_divida") or 0)
     renda = float(pred.get("renda_estimada") or 0)
     comprometimento = valor_divida / renda if renda > 0 else 1.0
@@ -4474,23 +4495,12 @@ def propostas_devedor(
     if not empresa_id and role != "comando":
         raise HTTPException(status_code=403, detail="Acesso negado: usuário sem empresa definida.")
 
-    q = (
-        db.table("predicoes")
-        .select("cpf, nome, valor_divida, renda_estimada, dias_em_atraso, "
+    pred = _predicao_do_cpf(
+        db, cpf, empresa_id,
+        colunas="cpf, nome, valor_divida, renda_estimada, dias_em_atraso, "
                 "score_recuperabilidade, probabilidade_pagamento, carteira_id")
-        .eq("cpf", cpf)
-        .order("created_at", desc=True)
-    )
-    if empresa_id:
-        cart_ids = _ids_carteiras(db, empresa_id)
-        if not cart_ids:
-            raise HTTPException(status_code=404, detail=f"Nenhuma predição encontrada para CPF: {cpf}")
-        q = q.in_("carteira_id", cart_ids)
-    pred_res = q.limit(1).execute()
-    if not pred_res.data:
+    if not pred:
         raise HTTPException(status_code=404, detail=f"Nenhuma predição encontrada para CPF: {cpf}")
-
-    pred = pred_res.data[0]
     from model.proposta import avaliar, calcular_margem, montar_propostas
 
     politica = _politica_proposta(empresa_id)
@@ -4551,23 +4561,12 @@ def explicar_score_devedor(cpf: str, credentials: HTTPAuthorizationCredentials =
     if not empresa_id and role != "comando":
         raise HTTPException(status_code=403, detail="Acesso negado: usuário sem empresa definida.")
 
-    q = (
-        db.table("predicoes")
-        .select("cpf, nome, produto, uf, status, valor_divida, renda_estimada, dias_em_atraso, "
-                 "score_recuperabilidade, carteira_id")
-        .eq("cpf", cpf)
-        .order("created_at", desc=True)
-    )
-    if empresa_id:
-        cart_ids = _ids_carteiras(db, empresa_id)
-        if not cart_ids:
-            raise HTTPException(status_code=404, detail=f"Nenhuma predição encontrada para CPF: {cpf}")
-        q = q.in_("carteira_id", cart_ids)
-    pred_res = q.limit(1).execute()
-    if not pred_res.data:
+    pred = _predicao_do_cpf(
+        db, cpf, empresa_id,
+        colunas="cpf, nome, produto, uf, status, valor_divida, renda_estimada, "
+                "dias_em_atraso, score_recuperabilidade, carteira_id")
+    if not pred:
         raise HTTPException(status_code=404, detail=f"Nenhuma predição encontrada para CPF: {cpf}")
-
-    pred = pred_res.data[0]
     from model.score import explicar_predicao
     try:
         explicacao = explicar_predicao(pred)
@@ -4675,15 +4674,32 @@ def historico_score_devedor(
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     """Evolução do score de recuperabilidade de um devedor ao longo do tempo."""
+    # Esta rota recebia a credencial e nunca a usava. O HTTPBearer só confere
+    # que o cabeçalho EXISTE, não que o token valha: com "Authorization: Bearer
+    # lixo" ela devolvia o histórico de score de qualquer CPF, de qualquer
+    # empresa. Reproduzido antes de corrigir.
+    payload = _usuario_autenticado(credentials)
+    empresa_id = payload.get("empresa_id", "")
+    if not empresa_id and payload.get("role") != "comando":
+        raise HTTPException(status_code=403, detail="Acesso negado: usuário sem empresa definida.")
+
     db = get_db()
-    res = (
-        db.table("predicoes")
-        .select("id, score_recuperabilidade, perfil_cluster, cluster_id, valor_divida, dias_em_atraso, created_at")
-        .eq("cpf", cpf)
-        .order("created_at")
-        .execute()
-    )
-    historico = res.data or []
+    colunas = ("id, score_recuperabilidade, perfil_cluster, cluster_id, "
+               "valor_divida, dias_em_atraso, created_at")
+    if empresa_id:
+        # Só as carteiras da empresa de quem chamou. Em lotes de cem, porque
+        # uma empresa com centenas estouraria a URL num único in_.
+        historico = []
+        carteiras = _ids_carteiras(db, empresa_id)
+        for i in range(0, len(carteiras), ITENS_POR_IN):
+            lote = carteiras[i:i + ITENS_POR_IN]
+            historico += _todas_as_linhas(
+                lambda lote=lote: db.table("predicoes").select(colunas)
+                .eq("cpf", cpf).in_("carteira_id", lote).order("created_at"))
+        historico.sort(key=lambda p: p.get("created_at") or "")
+    else:
+        historico = _todas_as_linhas(
+            lambda: db.table("predicoes").select(colunas).eq("cpf", cpf).order("created_at"))
     if not historico:
         raise HTTPException(status_code=404, detail=f"Nenhuma predição encontrada para CPF: {cpf}")
 
@@ -5073,21 +5089,41 @@ _TABELAS_RETENCAO = ("predicoes", "feedbacks", "contatos", "recomendacoes")
 
 
 
-def _escopo_retencao(db, tabela: str, empresa_id: str, carteiras: list):
-    """Consulta já limitada à empresa. Devolve None quando não há o que ver.
+def _linhas_da_empresa(db, tabela: str, empresa_id: str, carteiras: list, refinar) -> list:
+    """TODAS as linhas da empresa numa tabela, já refinadas por `refinar`.
 
     Cada tabela guarda o dono de um jeito diferente, e errar aqui significaria
     anonimizar a base de outro cliente — daí o escopo ser explícito por tabela
     em vez de um filtro genérico.
+
+    Lê página por página, e as carteiras em lotes. Antes isto devolvia UMA
+    consulta lida com `.limit(50000)`, que parece pedir cinquenta mil e entrega
+    mil: a prévia dizia "1.000 registros" para uma base de 41.000, e "Executar
+    agora" anonimizava no máximo mil por clique enquanto a tela dizia
+    "concluído". Predições, além disso, iam todas as carteiras num único in_.
+
+    Empresa sem carteira não tem predição, e devolve vazio — não "sem filtro".
     """
-    q = db.table(tabela).select("id, created_at, anonimizado_em")
+    colunas = "id, created_at, anonimizado_em"
+
+    def base():
+        return db.table(tabela).select(colunas)
+
     if tabela == "predicoes":
-        if not carteiras:
-            return None
-        return q.in_("carteira_id", carteiras)
-    if tabela == "feedbacks":
-        return q.eq("empresa", empresa_id)
-    return q.eq("empresa_id", empresa_id)
+        linhas: list = []
+        for i in range(0, len(carteiras), ITENS_POR_IN):
+            lote = carteiras[i:i + ITENS_POR_IN]
+            linhas += _todas_as_linhas(
+                lambda lote=lote: refinar(base().in_("carteira_id", lote)))
+        return linhas
+    coluna = "empresa" if tabela == "feedbacks" else "empresa_id"
+    return _todas_as_linhas(lambda: refinar(base().eq(coluna, empresa_id)))
+
+
+def _anonimizar_ids(db, tabela: str, ids: list, patch: dict) -> None:
+    """Aplica o patch em lotes: o filtro vai na URL e não cabe com dezenas de milhares de ids."""
+    for i in range(0, len(ids), ITENS_POR_IN):
+        db.table(tabela).update(patch).in_("id", ids[i:i + ITENS_POR_IN]).execute()
 
 
 def _empresa_retencao(payload: dict, empresa_id_alvo: "str | None") -> str:
@@ -5122,14 +5158,12 @@ def ver_retencao(empresa_id_alvo: Optional[str] = None,
 
     previa, total_identificado = {}, 0
     for tabela in _TABELAS_RETENCAO:
-        q = _escopo_retencao(db, tabela, empresa_id, carteiras)
-        if q is None:
-            previa[tabela] = {"com_identificacao": 0, "vencidas": 0}
-            continue
-        try:
-            linhas = (q.is_("anonimizado_em", "null").limit(50000).execute().data) or []
-        except Exception:
-            linhas = []
+        # Sem try/except de propósito. Engolir a falha de leitura e seguir com
+        # lista vazia mostrava "0 registros com CPF" quando a consulta tinha
+        # quebrado, e o admin leria "nada a anonimizar". Erro aqui tem de ser
+        # erro (500 com código), não um zero que parece resposta.
+        linhas = _linhas_da_empresa(db, tabela, empresa_id, carteiras,
+                                    lambda q: q.is_("anonimizado_em", "null"))
         vencidas = R.selecionar(linhas, simulada)
         previa[tabela] = {"com_identificacao": len(linhas), "vencidas": len(vencidas)}
         total_identificado += len(linhas)
@@ -5172,17 +5206,10 @@ def executar_retencao(empresa_id_alvo: Optional[str] = None,
     carteiras = _ids_carteiras(db, empresa_id)
     resultado = {}
     for tabela in _TABELAS_RETENCAO:
-        q = _escopo_retencao(db, tabela, empresa_id, carteiras)
-        if q is None:
-            resultado[tabela] = 0
-            continue
-        linhas = (q.is_("anonimizado_em", "null").limit(50000).execute().data) or []
+        linhas = _linhas_da_empresa(db, tabela, empresa_id, carteiras,
+                                    lambda q: q.is_("anonimizado_em", "null"))
         alvos = R.selecionar(linhas, politica)
-        patch = R.patch_anonimo(tabela)
-        # Em lotes: um IN com dezenas de milhares de ids estoura a URL do
-        # PostgREST, que monta o filtro na query string.
-        for i in range(0, len(alvos), 200):
-            db.table(tabela).update(patch).in_("id", alvos[i:i + 200]).execute()
+        _anonimizar_ids(db, tabela, alvos, R.patch_anonimo(tabela))
         resultado[tabela] = len(alvos)
 
     _registrar_auditoria("retencao_executada", "empresa", empresa_id,
@@ -5226,15 +5253,10 @@ def eliminar_titular(body: TitularIn, empresa_id_alvo: Optional[str] = None,
     carteiras = _ids_carteiras(db, empresa_id)
     resultado = {}
     for tabela in _TABELAS_RETENCAO:
-        q = _escopo_retencao(db, tabela, empresa_id, carteiras)
-        if q is None:
-            resultado[tabela] = 0
-            continue
-        linhas = (q.in_("cpf", formas).limit(50000).execute().data) or []
+        linhas = _linhas_da_empresa(db, tabela, empresa_id, carteiras,
+                                    lambda q: q.in_("cpf", formas))
         ids = [l["id"] for l in linhas if not l.get("anonimizado_em")]
-        patch = R.patch_anonimo(tabela)
-        for i in range(0, len(ids), 200):
-            db.table(tabela).update(patch).in_("id", ids[i:i + 200]).execute()
+        _anonimizar_ids(db, tabela, ids, R.patch_anonimo(tabela))
         resultado[tabela] = len(ids)
 
     # A auditoria registra o pedido sem repetir o CPF: guardar o identificador

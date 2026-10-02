@@ -54,14 +54,32 @@ class Q:
     def order(s, *a, **k): return s
     def limit(s, *a): return s
     def insert(s, row): s.row = row; return s
+
+    # O código lê em páginas, então o banco falso precisa recortar de verdade:
+    # devolver sempre as mesmas linhas faria o laço de paginação não terminar.
+    def range(s, ini, fim):
+        s._corte = (ini, fim)
+        return s
+
+    def _pagina(s, linhas):
+        ini, fim = getattr(s, "_corte", (None, None))
+        return linhas if ini is None else linhas[ini:fim + 1]
+
     def execute(s):
         if s.tbl == "recomendacoes":
             return types.SimpleNamespace(data=[])          # nada gravado antes
+        if s.tbl == "carteiras":
+            # Uma predição não existe sem a carteira que a contém. O banco falso
+            # antigo tinha a predição e NENHUMA carteira para a empresa — estado
+            # impossível, que só funcionava porque o recorte por empresa falhava
+            # aberto (`if cart_ids:` descartava o filtro com a lista vazia).
+            return types.SimpleNamespace(data=s._pagina([{"id": "c-alfa"}]))
         if s.tbl == "predicoes":
-            return types.SimpleNamespace(data=[{
+            return types.SimpleNamespace(data=s._pagina([{
+                "id": "p1", "carteira_id": "c-alfa", "created_at": "2026-01-01",
                 "cpf": "11122233344", "nome": "Maria", "produto": "cartao", "uf": "GO",
                 "valor_divida": 10000.0, "renda_estimada": 4000.0,
-                "dias_em_atraso": 120, "score_recuperabilidade": 60.0}])
+                "dias_em_atraso": 120, "score_recuperabilidade": 60.0}]))
         if s.tbl == "contatos":
             return types.SimpleNamespace(data=[{"id": "ct-1", **getattr(s, "row", {})}])
         return types.SimpleNamespace(data=[])
