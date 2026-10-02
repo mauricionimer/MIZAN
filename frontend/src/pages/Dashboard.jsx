@@ -734,6 +734,17 @@ export default function Dashboard({ onIrPara }) {
             </section>
           )}
 
+          {resumo.salvamento_incompleto && (
+            <div className="flex items-start gap-2.5 rounded-xl p-3"
+              style={{ background: 'rgb(var(--c-warning) / 0.08)', border: '1px solid rgb(var(--c-warning) / 0.18)' }}>
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" style={{ color: 'var(--warning)' }} />
+              <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-2)' }}>
+                A análise foi calculada, mas não foi possível gravá-la por completo no banco. Ela vale
+                para esta sessão e não ficará salva: reenvie o arquivo para tentar de novo.
+              </p>
+            </div>
+          )}
+
           {/* ── Alcance da operação ──
               A fila responde "quem primeiro". Esta seção responde a pergunta
               que o gerente de cobrança realmente tem: com a equipe que eu

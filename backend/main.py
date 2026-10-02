@@ -662,6 +662,55 @@ def _exigir_comando(credentials: HTTPAuthorizationCredentials) -> dict:
     return payload
 
 
+@app.get("/comando/diagnostico-banco")
+def comando_diagnostico_banco(credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Mede, no Supabase real, três suposições de que a paginação depende.
+
+    São suposições porque só o servidor real responde, e o ambiente de
+    desenvolvimento não alcança o Supabase. Só leitura, sem dados de cliente:
+    as listas de `in_` são UUIDs sorteados, que não casam com linha nenhuma.
+
+      1. quantos itens cabem num in_ antes de a URL ser recusada;
+      2. quantas linhas uma resposta devolve de fato (o teto silencioso);
+      3. se `order=rank,id` (o desempate da paginação) é aceito.
+    """
+    _exigir_comando(credentials)
+    import uuid
+    db = get_db()
+    out: dict = {"itens_por_in_adotado": ITENS_POR_IN, "lote_leitura_adotado": LOTE_LEITURA}
+
+    maior_ok, primeira_falha = 0, None
+    for n in (100, 200, 400, 800, 1600, 3200):
+        ids = [str(uuid.uuid4()) for _ in range(n)]
+        try:
+            db.table("predicoes").select("id").in_("carteira_id", ids).limit(1).execute()
+            maior_ok = n
+        except Exception as e:
+            primeira_falha = {"itens": n, "erro": str(e)[:160]}
+            break
+    out["in_"] = {"maior_testado_ok": maior_ok, "primeira_falha": primeira_falha,
+                  "adotado_cabe": maior_ok >= ITENS_POR_IN}
+
+    try:
+        r = db.table("predicoes").select("id").range(0, 2999).execute()
+        n = len(r.data or [])
+        # Menos que o lote adotado pode ser teto menor OU tabela pequena: não dá
+        # para afirmar nada, e dizer "ok" seria o erro que o teste existe para evitar.
+        out["teto_resposta"] = {
+            "pedidas": 3000, "recebidas": n,
+            "veredito": ("lote adotado cabe" if n >= LOTE_LEITURA else "inconclusivo: a tabela tem menos linhas que o lote"),
+        }
+    except Exception as e:
+        out["teto_resposta"] = {"erro": str(e)[:160]}
+
+    try:
+        db.table("predicoes").select("id, rank").order("rank").order("id").limit(5).execute()
+        out["ordenacao_rank_id"] = {"aceita": True}
+    except Exception as e:
+        out["ordenacao_rank_id"] = {"aceita": False, "erro": str(e)[:160]}
+    return out
+
+
 @app.get("/comando/visao-geral")
 def comando_visao_geral(credentials: HTTPAuthorizationCredentials = Security(bearer)):
     _exigir_comando(credentials)
@@ -1676,16 +1725,18 @@ def _get_empresa_config(empresa_id: str) -> dict:
 
 
 @app.get("/empresa/config-publica")
-def get_empresa_config_publica(email: Optional[str] = None, empresa_id: Optional[str] = None):
-    """Retorna branding público de uma empresa (sem autenticação).
-    Usado pela tela de login para mostrar logo/nome da empresa antes do login."""
-    eid = empresa_id
-    if not eid and email:
-        db = get_db()
-        u_res = db.table("usuarios").select("empresa_id").eq("email", email.lower().strip()).limit(1).execute()
-        if u_res.data:
-            eid = u_res.data[0].get("empresa_id") or ""
-    return _get_empresa_config(eid or "")
+def get_empresa_config_publica(empresa_id: Optional[str] = None):
+    """Branding público de uma empresa (sem autenticação), para o login do link
+    `?empresa=`. Devolve só nome, logo e cor.
+
+    Antes aceitava `?email=` e respondia com o branding da empresa dona dele: um
+    oráculo que dizia, para qualquer endereço, se havia conta e de qual empresa.
+    O parâmetro foi removido; um cliente antigo que ainda o envie recebe o
+    branding genérico, idêntico para existente e inexistente. Também não devolve
+    `extra` (flags internas da empresa), que ali não tem uso.
+    """
+    cfg = _get_empresa_config(empresa_id or "")
+    return {k: cfg.get(k) for k in ("empresa_id", "nome_exibicao", "foto_url", "cor_primaria")}
 
 
 @app.get("/empresa/config")
@@ -2766,6 +2817,40 @@ def _inserir_predicoes(db, linhas: list[dict]):
         return db.table("predicoes").insert(enxutas).execute()
 
 
+LOTE_INSERCAO = 2000       # ~1 MB de JSON por requisição; 200 mil devedores = 100 idas
+INSERCOES_PARALELAS = 4    # poucas: o Supabase tem teto de conexões por projeto
+
+
+def _inserir_predicoes_em_lotes(db, linhas: list[dict]) -> dict:
+    """Grava todas as predições e devolve {cpf: id}.
+
+    Era um laço de 500 em 500, uma ida ao banco por vez: 400 idas para 200 mil
+    devedores. Agora lotes de 2000, quatro em paralelo. Qualquer lote que falhe
+    derruba o conjunto (a exceção sobe depois de os demais terminarem), para o
+    chamador tratar a gravação como incompleta em vez de seguir como se nada.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+    lotes = [linhas[i:i + LOTE_INSERCAO] for i in range(0, len(linhas), LOTE_INSERCAO)]
+    mapa: dict[str, str] = {}
+    if not lotes:
+        return mapa
+    with ThreadPoolExecutor(max_workers=min(INSERCOES_PARALELAS, len(lotes))) as ex:
+        futuros = [ex.submit(_inserir_predicoes, db, lote) for lote in lotes]
+        erro = None
+        for f in futuros:
+            try:
+                res = f.result()
+            except Exception as e:      # espera todos terminarem antes de relançar
+                erro = erro or e
+                continue
+            for row in (res.data or []):
+                if row.get("cpf") and row.get("id"):
+                    mapa[str(row["cpf"])] = row["id"]
+    if erro is not None:
+        raise erro
+    return mapa
+
+
 def _premissa_recuperacao_se_pagar(empresa_id: str | None) -> float:
     """Lê a premissa da empresa; cai no padrão declarado se não houver."""
     if not empresa_id:
@@ -3221,15 +3306,22 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
              "rank": _py(d.get("rank"))}
             for d in devedores
         ]
-        pred_id_map: dict[str, str] = {}
-        for i in range(0, len(predicoes_rows), 500):
-            res_pred = _inserir_predicoes(db, predicoes_rows[i:i+500])
-            for row in (res_pred.data or []):
-                if row.get("cpf") and row.get("id"):
-                    pred_id_map[str(row["cpf"])] = row["id"]
+        pred_id_map = _inserir_predicoes_em_lotes(db, predicoes_rows)
     except Exception as _e:
         print(f"[Supabase] Erro ao salvar: {_e}")
         pred_id_map = {}
+        # Gravação pela metade: a análise em si está certa e segue na resposta,
+        # mas o que ficou no banco está incompleto e o usuário precisa saber.
+        resumo["salvamento_incompleto"] = True
+        if not _carteira_id_existente and resumo.get("carteira_id"):
+            # Carteira nova que não terminou de gravar: não deixa uma casca com
+            # parte dos devedores aparecendo como se fosse a carteira inteira.
+            try:
+                db.table("predicoes").delete().eq("carteira_id", resumo["carteira_id"]).execute()
+                db.table("carteiras").delete().eq("id", resumo["carteira_id"]).execute()
+                resumo["carteira_id"] = None
+            except Exception as _e2:
+                print(f"[Supabase] Não consegui desfazer a carteira parcial: {_e2}")
     else:
         _registrar_auditoria(
             acao="carteira_sincronizada" if _carteira_id_existente else "carteira_criada",

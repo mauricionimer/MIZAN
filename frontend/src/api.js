@@ -445,11 +445,10 @@ export async function deletarEmpresa(token, empresaId) {
   return res.json()
 }
 
-export async function getEmpresaConfigPublica(email, empresaId) {
-  const p = new URLSearchParams()
-  if (email) p.set('email', email)
-  if (empresaId) p.set('empresa_id', empresaId)
-  const qs = p.toString() ? `?${p}` : ''
+export async function getEmpresaConfigPublica(_legado, empresaId) {
+  // O primeiro argumento (e-mail) não é mais enviado: o servidor não responde
+  // por e-mail, para não revelar quem tem conta. Mantido só por compatibilidade.
+  const qs = empresaId ? `?empresa_id=${encodeURIComponent(empresaId)}` : ''
   const res = await fetch(`${BASE}/empresa/config-publica${qs}`)
   if (!res.ok) return null
   return res.json()
@@ -500,6 +499,15 @@ export async function getEmpresaDetalhe(token, empresaId) {
 // ── Retenção de dados ────────────────────────────────────────────────────
 // O prazo em si é gravado por putEmpresaConfig, em extra.retencao — o backend
 // valida lá, e recusa prazo fora dos limites na gravação.
+
+export async function diagnosticoBanco(token) {
+  const res = await fetch(`${BASE}/comando/diagnostico-banco`, { headers: _authHeader(token) })
+  if (!res.ok) {
+    const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
+    throw new Error(detail)
+  }
+  return res.json()
+}
 
 export async function buscarRetencao(token, empresaIdAlvo) {
   const qs = empresaIdAlvo ? `?empresa_id_alvo=${encodeURIComponent(empresaIdAlvo)}` : ''

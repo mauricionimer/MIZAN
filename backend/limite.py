@@ -192,6 +192,97 @@ class LimiteDeRequisicoes:
                 self._portao.release()
 
 
+# Teto de corpo por rota, em bytes. O multipart acrescenta cabeçalhos às partes;
+# a folga cobre isso sem deixar passar um arquivo de verdade maior que o limite.
+MB = 1024 * 1024
+FOLGA_MULTIPART = 64 * 1024
+TETOS_CORPO = {
+    ("POST", "/analisar"):        25 * MB,
+    ("POST", "/backtest"):        25 * MB,
+    ("POST", "/upload"):          25 * MB,
+    ("POST", "/feedback/lote"):   25 * MB,
+    ("POST", "/empresa/foto"):    5 * MB,
+}
+TETO_PADRAO = 2 * MB   # qualquer outra rota POST/PUT/PATCH: JSON pequeno
+
+
+class LimiteDeTamanho:
+    """Recusa corpo grande ANTES de ele virar memória.
+
+    Antes, as rotas faziam `await file.read()` e só depois comparavam o tamanho:
+    o teto de 25 MB não protegia nada, o arquivo inteiro já estava na RAM (e o
+    /upload e o /feedback/lote nem tinham teto). Aqui:
+
+      - Content-Length acima do teto: 413 sem ler nenhum byte.
+      - Sem Content-Length (chunked) ou mentindo: conta os bytes que passam e,
+        no estouro, entrega fim-de-corpo à rota (para de ler) e troca a resposta
+        dela por 413. Trocar é necessário porque o FastAPI converte a falha de
+        leitura do corpo em 400/422, e o cliente precisa ver "grande demais".
+    """
+
+    def __init__(self, app, tetos=None, padrao=None):
+        self.app = app
+        self.tetos = TETOS_CORPO if tetos is None else tetos
+        self.padrao = TETO_PADRAO if padrao is None else padrao
+
+    @staticmethod
+    def _mensagem(teto):
+        return f"Arquivo ou corpo muito grande. Limite: {teto // MB} MB." if teto >= MB \
+            else "Corpo da requisição muito grande."
+
+    async def _recusar(self, scope, receive, send, teto):
+        from fastapi.responses import JSONResponse
+        resposta = JSONResponse(status_code=413, content={"detail": self._mensagem(teto)},
+                                headers={"Connection": "close"})
+        await resposta(scope, receive, send)
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or scope["method"] not in ("POST", "PUT", "PATCH"):
+            return await self.app(scope, receive, send)
+
+        base = self.tetos.get((scope["method"], scope["path"]))
+        teto = self.padrao if base is None else base
+        maximo = teto + (FOLGA_MULTIPART if base is not None else 0)
+
+        for nome, valor in scope.get("headers", []):
+            if nome == b"content-length":
+                try:
+                    if int(valor) > maximo:
+                        log.warning(json.dumps({"evento": "corpo_grande", "rota": scope["path"],
+                                                "bytes": int(valor)}))
+                        return await self._recusar(scope, receive, send, teto)
+                except ValueError:
+                    pass
+                break
+
+        estado = {"lidos": 0, "estourou": False, "respondeu": False}
+
+        async def receber():
+            if estado["estourou"]:
+                return {"type": "http.request", "body": b"", "more_body": False}
+            msg = await receive()
+            if msg["type"] == "http.request":
+                estado["lidos"] += len(msg.get("body", b""))
+                if estado["lidos"] > maximo:
+                    estado["estourou"] = True
+                    log.warning(json.dumps({"evento": "corpo_grande", "rota": scope["path"],
+                                            "bytes": ">" + str(maximo)}))
+                    return {"type": "http.request", "body": b"", "more_body": False}
+            return msg
+
+        async def enviar(msg):
+            if not estado["estourou"]:
+                return await send(msg)
+            # A resposta da rota é descartada; sai a 413 uma única vez.
+            if not estado["respondeu"]:
+                estado["respondeu"] = True
+                await self._recusar(scope, receive, send, teto)
+
+        await self.app(scope, receber, enviar)
+
+
 def instalar(app) -> None:
     """Chamar ANTES de instalar a captura de erros e o CORS."""
     app.add_middleware(LimiteDeRequisicoes)
+    # Por fora da taxa: um corpo grande demais não gasta cota nem ocupa o portão.
+    app.add_middleware(LimiteDeTamanho)

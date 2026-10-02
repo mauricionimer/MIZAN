@@ -9,6 +9,7 @@ import {
   ChevronRight, Brain,
 } from 'lucide-react'
 import { LogoMark } from '../components/Logo'
+import { diagnosticoBanco } from '../api'
 
 const BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001'
 
@@ -255,6 +256,15 @@ export default function ComandoDashboard() {
   const [loadingMain,  setLoadingMain]  = useState(true)
   const [erro,         setErro]         = useState('')
   const [empresaSel,   setEmpresaSel]   = useState(null)
+  const [diag,         setDiag]         = useState(null)
+  const [diagLoading,  setDiagLoading]  = useState(false)
+
+  async function medirBanco() {
+    setDiagLoading(true); setDiag(null)
+    try { setDiag(await diagnosticoBanco(token)) }
+    catch (e) { setDiag({ erro: e.message }) }
+    finally { setDiagLoading(false) }
+  }
 
   async function carregar() {
     setLoadingMain(true); setErro('')
@@ -321,6 +331,22 @@ export default function ComandoDashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-10 space-y-6">
+        <section className="rounded-xl border border-line p-4">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <p className="text-sm font-semibold text-ink">Limites do banco</p>
+              <p className="text-xs text-ink-3">Mede no Supabase real o que a paginação supõe. Só leitura, sem dados de cliente.</p>
+            </div>
+            <button onClick={medirBanco} disabled={diagLoading}
+              className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-raise-2 text-ink hover:opacity-80 disabled:opacity-40">
+              <Database className="h-3.5 w-3.5" /> {diagLoading ? 'Medindo…' : 'Medir agora'}
+            </button>
+          </div>
+          {diag && (
+            <pre className="mt-3 text-[11px] leading-relaxed text-ink-2 whitespace-pre-wrap break-words">{JSON.stringify(diag, null, 2)}</pre>
+          )}
+        </section>
+
         {loadingMain && !dados && (
           <div className="flex flex-col items-center justify-center py-32 gap-3 text-ink-3">
             <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />

@@ -1,5 +1,5 @@
 import ThemeToggle from '../components/ThemeToggle'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -17,8 +17,6 @@ export default function Login() {
   const [senha, setSenha]       = useState('')
   const [mostrarSenha, setMostrarSenha] = useState(false)
   const [empresaBrand, setEmpresaBrand] = useState(null)
-  const debounceRef = useRef(null)
-  const lastFetchedRef = useRef('')
 
   useEffect(() => {
     fetch(`${BASE_API}/health`).catch(() => {})
@@ -30,26 +28,10 @@ export default function Login() {
     }
   }, [])
 
+  // Sem consulta por e-mail: mostrar a marca conforme o que se digita revelaria
+  // quem tem conta e de qual empresa. A marca vem só do link `?empresa=`.
   function handleEmailChange(value) {
     setEmail(value)
-    const e = value.trim().toLowerCase()
-    if (!e || !e.includes('@')) {
-      setEmpresaBrand(null)
-      lastFetchedRef.current = ''
-      clearTimeout(debounceRef.current)
-      return
-    }
-    const [, domain = ''] = e.split('@')
-    if (!domain.includes('.')) return
-    clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(async () => {
-      if (e === lastFetchedRef.current) return
-      lastFetchedRef.current = e
-      try {
-        const cfg = await getEmpresaConfigPublica(e)
-        if (e === lastFetchedRef.current) setEmpresaBrand(cfg?.empresa_id ? cfg : null)
-      } catch { /* silencioso */ }
-    }, 600)
   }
 
   async function handleSubmit(e) {

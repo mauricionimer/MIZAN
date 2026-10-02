@@ -615,7 +615,7 @@ export default function Upload({ onIrPara, temResultado = false }) {
     if (!f) return
     const nome = f.name.toLowerCase()
     if (!nome.endsWith('.csv') && !nome.endsWith('.xlsx') && !nome.endsWith('.xls')) { setError('Apenas arquivos .csv ou .xlsx são aceitos.'); return }
-    if (f.size > 100 * 1024 * 1024) { setError('Arquivo muito grande. O limite é 100 MB.'); return }
+    if (f.size > 25 * 1024 * 1024) { setError('Arquivo muito grande. O limite é 25 MB.'); return }
     setError(null); setFile(f)
   }
 
