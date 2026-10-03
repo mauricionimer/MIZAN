@@ -85,6 +85,7 @@ const Retencao = lazy(() => import('./pages/Retencao'))
 const TreinoModelo = lazy(() => import('./pages/TreinoModelo'))
 const Ajuda = lazy(() => import('./pages/Ajuda'))
 const Premissas = lazy(() => import('./pages/Premissas'))
+const DuvidasComando = lazy(() => import('./pages/DuvidasComando'))
 
 function RotaProtegida({ children, roles }) {
   const { autenticado, usuario } = useAuth()
@@ -124,6 +125,7 @@ function RotasAnimadas() {
             <Route path="/feedback" element={<PageTransition><RotaProtegida><Feedback /></RotaProtegida></PageTransition>} />
             <Route path="/bandit" element={<PageTransition><RotaProtegida roles={['comando']}><BanditDashboard /></RotaProtegida></PageTransition>} />
             <Route path="/aprendizado" element={<PageTransition><RotaProtegida roles={['comando']}><AprendizadoDashboard /></RotaProtegida></PageTransition>} />
+            <Route path="/comando/duvidas" element={<PageTransition><RotaProtegida roles={['comando']}><DuvidasComando /></RotaProtegida></PageTransition>} />
             <Route path="/comando/treino" element={<PageTransition><RotaProtegida roles={['comando']}><TreinoModelo /></RotaProtegida></PageTransition>} />
             <Route path="/comando" element={<PageTransition><RotaProtegida roles={['comando']}><ComandoDashboard /></RotaProtegida></PageTransition>} />
             {/* /admin e /operador eram menus de atalhos para telas que já

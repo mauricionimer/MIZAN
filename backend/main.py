@@ -4819,6 +4819,193 @@ def ajuda_estado_do_modelo(credentials: HTTPAuthorizationCredentials = Security(
     return {"nivel": proc["nivel"], "aviso": proc["aviso"], "tipo_alvo": proc["tipo_alvo"]}
 
 
+# ── Dúvidas ao COMANDO ───────────────────────────────────────────────────────
+# Quem não achou a resposta na Central pergunta ao COMANDO. Quem pergunta vê as
+# próprias; o administrador vê as da equipe (mesma empresa); o COMANDO vê todas e
+# responde. O texto é mascarado antes de gravar (ver ajuda_duvidas.py).
+
+def _uuid_ou_404(valor: str) -> str:
+    try:
+        return str(uuid.UUID(str(valor)))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Dúvida não encontrada.")
+
+
+class DuvidaIn(BaseModel):
+    pergunta: str = Field(..., min_length=3, max_length=2000)
+    tela: Optional[str] = Field(None, max_length=120)
+    buscou: Optional[str] = Field(None, max_length=300)
+
+
+@app.post("/ajuda/duvidas", status_code=201)
+def ajuda_enviar_duvida(body: DuvidaIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    from ajuda_duvidas import mascarar_pii
+    payload = _usuario_autenticado(credentials)
+    pergunta, n1 = mascarar_pii(body.pergunta.strip())
+    buscou, n2 = mascarar_pii((body.buscou or "").strip())
+    if len(pergunta) < 3:
+        raise HTTPException(status_code=422, detail="Escreva a sua dúvida.")
+    linha = {
+        "empresa_id": payload.get("empresa_id", "") or "",
+        "autor_id": payload["sub"], "autor_email": payload.get("email", ""),
+        "autor_nome": payload.get("nome", ""),
+        "pergunta": pergunta, "tela": (body.tela or "")[:120] or None, "buscou": buscou or None,
+    }
+    res = get_db().table("duvidas").insert(linha).execute()
+    if not res.data:
+        raise HTTPException(status_code=500, detail="Não foi possível registrar a dúvida.")
+    return {"id": res.data[0]["id"], "mascarado": (n1 + n2) > 0}
+
+
+_COLUNAS_MINHA_DUVIDA = "id, created_at, pergunta, estado, resposta, respondida_em, visto_em"
+
+
+@app.get("/ajuda/duvidas/minhas")
+def ajuda_minhas_duvidas(credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    payload = _usuario_autenticado(credentials)
+    res = (get_db().table("duvidas").select(_COLUNAS_MINHA_DUVIDA)
+           .eq("autor_id", payload["sub"]).order("created_at", desc=True).limit(100).execute())
+    return res.data or []
+
+
+@app.get("/ajuda/duvidas/novidades")
+def ajuda_duvidas_novidades(credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Quantas respostas novas esperam por quem perguntou. Acende o aviso do menu."""
+    payload = _usuario_autenticado(credentials)
+    res = (get_db().table("duvidas").select("id", count="exact")
+           .eq("autor_id", payload["sub"]).eq("estado", "respondida").is_("visto_em", "null")
+           .limit(1).execute())
+    return {"respondidas_nao_vistas": res.count or 0}
+
+
+@app.post("/ajuda/duvidas/vistas")
+def ajuda_duvidas_vistas(credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Quem perguntou abriu as respostas: apaga o aviso."""
+    payload = _usuario_autenticado(credentials)
+    (get_db().table("duvidas").update({"visto_em": datetime.utcnow().isoformat()})
+     .eq("autor_id", payload["sub"]).eq("estado", "respondida").is_("visto_em", "null").execute())
+    return {"ok": True}
+
+
+@app.get("/ajuda/duvidas/equipe")
+def ajuda_duvidas_da_equipe(credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """O administrador acompanha o que a equipe dele perguntou. Só leitura."""
+    payload = _exigir_admin_ou_comando(credentials)
+    if payload.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="O COMANDO vê todas as dúvidas em /comando/duvidas.")
+    res = (get_db().table("duvidas")
+           .select("id, created_at, autor_nome, autor_email, pergunta, estado, resposta, respondida_em")
+           .eq("empresa_id", payload.get("empresa_id", "")).order("created_at", desc=True)
+           .limit(200).execute())
+    return res.data or []
+
+
+class RespostaIn(BaseModel):
+    resposta: str = Field(..., min_length=2, max_length=4000)
+
+
+class SugerirIn(BaseModel):
+    sugerir: bool = True
+    titulo: Optional[str] = Field(None, max_length=200)
+
+
+class RevisaoIn(BaseModel):
+    estado: str
+
+
+@app.get("/comando/duvidas")
+def comando_listar_duvidas(estado: str = "aberta", empresa_id: Optional[str] = None,
+                           limite: int = 50, offset: int = 0,
+                           credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """`estado`: aberta | respondida | sugestao (respostas marcadas para virar ajuda) | todas."""
+    _exigir_comando(credentials)
+    if estado not in ("aberta", "respondida", "sugestao", "todas"):
+        raise HTTPException(status_code=422, detail="estado inválido.")
+    db = get_db()
+    limite, offset = min(max(limite, 1), 100), max(offset, 0)
+    q = db.table("duvidas").select("*", count="exact")
+    if estado in ("aberta", "respondida"):
+        q = q.eq("estado", estado)
+    elif estado == "sugestao":
+        q = q.eq("sugestao_estado", "pendente")
+    if empresa_id:
+        q = q.eq("empresa_id", empresa_id.strip().lower())
+    res = q.order("created_at", desc=(estado != "aberta")).range(offset, offset + limite - 1).execute()
+    abertas = db.table("duvidas").select("id", count="exact").eq("estado", "aberta").limit(1).execute()
+    sug = db.table("duvidas").select("id", count="exact").eq("sugestao_estado", "pendente").limit(1).execute()
+    return {"itens": res.data or [], "total": res.count or 0,
+            "abertas": abertas.count or 0, "sugestoes_pendentes": sug.count or 0}
+
+
+def _duvida_do_comando(db, duvida_id: str) -> dict:
+    r = db.table("duvidas").select("*").eq("id", _uuid_ou_404(duvida_id)).limit(1).execute()
+    if not r.data:
+        raise HTTPException(status_code=404, detail="Dúvida não encontrada.")
+    return r.data[0]
+
+
+@app.post("/comando/duvidas/{duvida_id}/responder")
+def comando_responder_duvida(duvida_id: str, body: RespostaIn,
+                             credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    payload = _exigir_comando(credentials)
+    db = get_db()
+    d = _duvida_do_comando(db, duvida_id)
+    agora = datetime.utcnow().isoformat()
+    # Responder de novo é permitido (corrigir a resposta): volta a avisar quem perguntou.
+    db.table("duvidas").update({
+        "estado": "respondida", "resposta": body.resposta.strip(),
+        "respondida_por": payload.get("email", ""), "respondida_em": agora, "visto_em": None,
+    }).eq("id", d["id"]).execute()
+    _registrar_auditoria(acao="duvida_respondida", entidade="duvida", entidade_id=d["id"],
+                         usuario_email=payload.get("email", ""), empresa_id=d.get("empresa_id", ""),
+                         usuario_id=payload.get("sub", ""), detalhes={"reresposta": d["estado"] == "respondida"})
+    return {"ok": True}
+
+
+@app.post("/comando/duvidas/{duvida_id}/sugerir")
+def comando_sugerir_para_ajuda(duvida_id: str, body: SugerirIn,
+                               credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Marca a resposta como candidata a virar uma entrada da Central (ou desmarca).
+    Não publica nada: a entrada só nasce depois da revisão e de passar nos testes."""
+    payload = _exigir_comando(credentials)
+    db = get_db()
+    d = _duvida_do_comando(db, duvida_id)
+    if d["estado"] != "respondida":
+        raise HTTPException(status_code=409, detail="Responda a dúvida antes de sugerir uma entrada.")
+    if body.sugerir:
+        patch = {"sugestao_estado": "pendente", "sugestao_titulo": (body.titulo or "").strip() or None,
+                 "sugestao_revisada_por": None, "sugestao_revisada_em": None}
+    else:
+        patch = {"sugestao_estado": None, "sugestao_titulo": None,
+                 "sugestao_revisada_por": None, "sugestao_revisada_em": None}
+    db.table("duvidas").update(patch).eq("id", d["id"]).execute()
+    _registrar_auditoria(acao="duvida_sugerida_para_ajuda" if body.sugerir else "duvida_sugestao_retirada",
+                         entidade="duvida", entidade_id=d["id"], usuario_email=payload.get("email", ""),
+                         empresa_id=d.get("empresa_id", ""), usuario_id=payload.get("sub", ""), detalhes={})
+    return {"ok": True}
+
+
+@app.post("/comando/duvidas/{duvida_id}/sugestao")
+def comando_revisar_sugestao(duvida_id: str, body: RevisaoIn,
+                             credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Revisão: aprovada = vale escrever a entrada; descartada = não."""
+    payload = _exigir_comando(credentials)
+    if body.estado not in ("aprovada", "descartada"):
+        raise HTTPException(status_code=422, detail="estado deve ser 'aprovada' ou 'descartada'.")
+    db = get_db()
+    d = _duvida_do_comando(db, duvida_id)
+    if d.get("sugestao_estado") != "pendente":
+        raise HTTPException(status_code=409, detail="Não há sugestão pendente nesta dúvida.")
+    db.table("duvidas").update({
+        "sugestao_estado": body.estado, "sugestao_revisada_por": payload.get("email", ""),
+        "sugestao_revisada_em": datetime.utcnow().isoformat(),
+    }).eq("id", d["id"]).execute()
+    _registrar_auditoria(acao=f"duvida_sugestao_{body.estado}", entidade="duvida", entidade_id=d["id"],
+                         usuario_email=payload.get("email", ""), empresa_id=d.get("empresa_id", ""),
+                         usuario_id=payload.get("sub", ""), detalhes={})
+    return {"ok": True}
+
+
 @app.get("/admin/price-model")
 def admin_price_model_stats(credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """Metadados e métricas do modelo de regressão de preço."""

@@ -215,3 +215,46 @@ fontes:
 - backend/model/premissas.py::PREMISSAS
 - backend/main.py::rota /empresa/premissas
 - frontend/src/pages/Premissas.jsx::texto "Premissas"
+
+## enviar-duvida
+titulo: Enviar uma dúvida ao COMANDO
+perfis: operador, admin, comando
+telas: Ajuda
+perguntas:
+- como mando uma pergunta para o comando
+- não achei a resposta na ajuda, e agora
+- como falo com o suporte do sistema
+- onde vejo a resposta da minha dúvida
+- por que o menu ajuda tem um número
+- posso colocar o cpf do devedor na dúvida
+- quanto tempo demora a resposta do comando
+- o administrador vê as dúvidas da equipe
+curta: Na página Ajuda, se a busca não resolver, use "Pergunte ao COMANDO". A resposta aparece em "Minhas dúvidas", e o menu Ajuda mostra um número quando chegar.
+calculo: A dúvida aceita até 2.000 caracteres e cada pessoa pode enviar até 10 por hora. O servidor retira CPF, CNPJ, telefone, e-mail e números longos antes de gravar. O COMANDO vê todas as dúvidas; o administrador vê, só para leitura, as da sua equipe; cada pessoa vê as suas. O número no menu some quando você abre a página Ajuda.
+fazer: Diga o que você não entendeu e em que tela estava. A dúvida leva junto a tela de onde você veio.
+cuidado: Nomes de pessoas não podem ser reconhecidos por regra e passam: não escreva nome de devedor. O que você digita na busca não é guardado, mas o que você ENVIA como dúvida é guardado e lido por pessoas. Não há prazo garantido para a resposta.
+fontes:
+- backend/main.py::rota /ajuda/duvidas
+- backend/ajuda_duvidas.py::mascarar_pii
+- backend/main.py::ajuda_duvidas_da_equipe
+
+## responder-duvidas
+titulo: Responder as dúvidas dos usuários (COMANDO)
+perfis: comando
+telas: Dúvidas
+perguntas:
+- como respondo uma dúvida de usuário
+- onde ficam as dúvidas enviadas ao comando
+- como corrijo uma resposta que já dei
+- como transformo uma dúvida em resposta da ajuda
+- o que significa sugerir para a central
+- o que acontece quando aprovo uma sugestão
+- por que o menu dúvidas tem um número
+curta: Em Dúvidas, o COMANDO responde às perguntas dos usuários e, quando a resposta serve para todos, sugere que ela vire uma entrada da Central.
+calculo: A fila mostra as abertas, da mais antiga para a mais nova; o número no menu é a quantidade de abertas. Corrigir uma resposta avisa de novo quem perguntou. "Sugerir para a Central" marca a resposta para revisão; "Aprovar" registra quem revisou, mas não publica nada: a entrada só passa a existir quando alguém a escreve em backend/ajuda e os testes do catálogo passam.
+fazer: Responda em linguagem de operador e, se a mesma pergunta aparecer duas vezes, sugira para a Central: é assim que a busca melhora.
+cuidado: A pergunta já vem sem CPF, CNPJ, telefone e e-mail, mas nomes podem ter passado: não copie dúvidas para fora do sistema. Respostas, sugestões e revisões ficam na auditoria, sem o texto.
+fontes:
+- backend/main.py::rota /comando/duvidas
+- backend/main.py::comando_responder_duvida
+- backend/main.py::comando_revisar_sugestao

@@ -1,9 +1,10 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, UploadCloud, ClipboardList, Users, KeyRound, LogOut,
-  ShieldCheck, Zap, Brain, Command, FlaskConical, Lock, HelpCircle, SlidersHorizontal,
+  ShieldCheck, Zap, Brain, Command, FlaskConical, Lock, HelpCircle, SlidersHorizontal, MessageCircleQuestion,
 } from 'lucide-react'
 import ThemeToggle from './ThemeToggle'
+import useAvisosDeDuvida from './useAvisosDeDuvida'
 import { LogoMark } from './Logo'
 import { useAuth } from '../context/AuthContext'
 
@@ -24,6 +25,7 @@ export default function AppShell({ secao, onIrPara, titulo, acoes, temResultado 
   const { pathname } = useLocation()
   const { usuario, logout, isAdmin, isComando, empresaConfig } = useAuth()
 
+  const avisos = useAvisosDeDuvida()
   const nomeEmpresa = empresaConfig?.nome_exibicao || 'Mizan'
   const nomeUser    = usuario?.nome || 'Operador'
   const iniciais    = nomeUser.split(' ').map(p => p[0]).slice(0, 2).join('').toUpperCase()
@@ -47,8 +49,9 @@ export default function AppShell({ secao, onIrPara, titulo, acoes, temResultado 
       { id: 'comando',     label: 'Comando',       icon: Command, rota: '/comando' },
       { id: 'bandit',      label: 'Performance IA', icon: Zap,    rota: '/bandit' },
       { id: 'aprendizado', label: 'Aprendizado',   icon: Brain,   rota: '/aprendizado' },
+      { id: 'duvidas', label: 'Dúvidas', icon: MessageCircleQuestion, rota: '/comando/duvidas', aviso: avisos.abertas, tituloAviso: 'dúvidas abertas' },
     ] : []),
-    { id: 'ajuda', label: 'Ajuda', icon: HelpCircle, rota: '/ajuda' },
+    { id: 'ajuda', label: 'Ajuda', icon: HelpCircle, rota: '/ajuda', aviso: avisos.respostas, tituloAviso: 'respostas novas' },
     { id: 'senha', label: 'Alterar senha', icon: KeyRound, rota: '/alterar-senha' },
   ]
 
@@ -91,6 +94,10 @@ export default function AppShell({ secao, onIrPara, titulo, acoes, temResultado 
                 {on && <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-r-full bg-blue-500" />}
                 <Icon className={`h-[18px] w-[18px] ${on ? 'text-blue-400' : ''}`} />
                 {it.label}
+                {it.aviso > 0 && (
+                  <span className="ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-blue-600 px-1.5 text-[11px] font-semibold leading-5 text-white"
+                    aria-label={`${it.aviso} ${it.tituloAviso}`}>{it.aviso > 99 ? '99+' : it.aviso}</span>
+                )}
               </button>
             )
           })}
@@ -152,6 +159,10 @@ export default function AppShell({ secao, onIrPara, titulo, acoes, temResultado 
               >
                 <Icon className={`h-4 w-4 ${on ? 'text-blue-400' : ''}`} />
                 {it.label}
+                {it.aviso > 0 && (
+                  <span className="ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-blue-600 px-1.5 text-[11px] font-semibold leading-5 text-white"
+                    aria-label={`${it.aviso} ${it.tituloAviso}`}>{it.aviso > 99 ? '99+' : it.aviso}</span>
+                )}
               </button>
             )
           })}

@@ -93,7 +93,7 @@ export default function DicaAjuda({ id, className = '' }) {
               {entrada.em_revisao && (
                 <span className="mt-2 block text-[11px] font-normal text-ink-3">Esta resposta pode mudar: há uma decisão pendente.</span>
               )}
-              <button type="button" onClick={() => navigate(`/ajuda?id=${encodeURIComponent(id)}`)}
+              <button type="button" onClick={() => navigate(`/ajuda?id=${encodeURIComponent(id)}`, { state: { de: window.location.pathname } })}
                 className="mt-3 text-xs font-medium text-blue-400 hover:text-blue-300">
                 Ver a explicação completa →
               </button>

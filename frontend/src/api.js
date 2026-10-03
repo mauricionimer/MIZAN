@@ -675,3 +675,42 @@ export async function gravarPremissas(token, valores, empresaIdAlvo) {
   }
   return _jsonOuErro(res)
 }
+
+
+// ── Dúvidas ao COMANDO ───────────────────────────────────────────────────────
+export async function enviarDuvida(token, { pergunta, tela, buscou }) {
+  return _jsonOuErro(await fetch(`${BASE}/ajuda/duvidas`, {
+    method: 'POST', headers: _authHeader(token), body: JSON.stringify({ pergunta, tela, buscou }),
+  }))
+}
+export async function minhasDuvidas(token) {
+  return _jsonOuErro(await fetch(`${BASE}/ajuda/duvidas/minhas`, { headers: _authHeader(token) }))
+}
+export async function novidadesDeDuvidas(token) {
+  return _jsonOuErro(await fetch(`${BASE}/ajuda/duvidas/novidades`, { headers: _authHeader(token) }))
+}
+export async function marcarDuvidasVistas(token) {
+  return _jsonOuErro(await fetch(`${BASE}/ajuda/duvidas/vistas`, { method: 'POST', headers: _authHeader(token) }))
+}
+export async function duvidasDaEquipe(token) {
+  return _jsonOuErro(await fetch(`${BASE}/ajuda/duvidas/equipe`, { headers: _authHeader(token) }))
+}
+export async function listarDuvidasComando(token, { estado = 'aberta', limite = 20, offset = 0 } = {}) {
+  const qs = new URLSearchParams({ estado, limite, offset })
+  return _jsonOuErro(await fetch(`${BASE}/comando/duvidas?${qs}`, { headers: _authHeader(token) }))
+}
+export async function responderDuvida(token, id, resposta) {
+  return _jsonOuErro(await fetch(`${BASE}/comando/duvidas/${encodeURIComponent(id)}/responder`, {
+    method: 'POST', headers: _authHeader(token), body: JSON.stringify({ resposta }),
+  }))
+}
+export async function sugerirDuvida(token, id, sugerir, titulo) {
+  return _jsonOuErro(await fetch(`${BASE}/comando/duvidas/${encodeURIComponent(id)}/sugerir`, {
+    method: 'POST', headers: _authHeader(token), body: JSON.stringify({ sugerir, titulo }),
+  }))
+}
+export async function revisarSugestao(token, id, estado) {
+  return _jsonOuErro(await fetch(`${BASE}/comando/duvidas/${encodeURIComponent(id)}/sugestao`, {
+    method: 'POST', headers: _authHeader(token), body: JSON.stringify({ estado }),
+  }))
+}

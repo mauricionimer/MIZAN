@@ -36,7 +36,8 @@ PAGINAS = {
     "pages/Feedback.jsx": TODOS, "pages/AlterarSenha.jsx": TODOS,
     "pages/Retencao.jsx": {"admin", "comando"}, "pages/Auditoria.jsx": {"admin", "comando"},
     "pages/AdminUsuarios.jsx": {"admin", "comando"}, "pages/Backtest.jsx": {"admin", "comando"},
-    "pages/Premissas.jsx": {"admin", "comando"},
+    "pages/Premissas.jsx": {"admin", "comando"}, "pages/Ajuda.jsx": TODOS,
+    "pages/DuvidasComando.jsx": {"comando"},
     "pages/AprendizadoDashboard.jsx": {"comando"}, "pages/BanditDashboard.jsx": {"comando"},
     "pages/ComandoDashboard.jsx": {"comando"}, "pages/TreinoModelo.jsx": {"comando"},
 }

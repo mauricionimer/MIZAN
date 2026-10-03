@@ -104,7 +104,7 @@ def papeis(rota):
     m = re.search(r'<Route path="' + re.escape(rota) + r'"[^\n]*?roles=\{\[([^\]]*)\]\}', app)
     return tuple(sorted(x.strip().strip("'\"") for x in m.group(1).split(","))) if m else None
 esperado = {
-    "/admin/usuarios": "Usuários", "/retencao": "Retenção", "/premissas": "Premissas", "/backtest": "Backtest",
+    "/admin/usuarios": "Usuários", "/retencao": "Retenção", "/premissas": "Premissas", "/comando/duvidas": "Dúvidas", "/backtest": "Backtest",
     "/auditoria": "Auditoria", "/comando": "Painel COMANDO", "/aprendizado": "Aprendizado",
     "/bandit": "Performance IA", "/comando/treino": "Treinar modelo",
 }

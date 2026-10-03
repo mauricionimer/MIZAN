@@ -1,10 +1,15 @@
 import { useState, useEffect, useRef } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { Search, Loader2, HelpCircle, ChevronDown, AlertTriangle, Info, BookOpen } from 'lucide-react'
+import { useSearchParams, useLocation } from 'react-router-dom'
+import { Search, Loader2, HelpCircle, ChevronDown, AlertTriangle, Info, BookOpen, Send, MessageCircleQuestion, CheckCircle2 } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import { useAuth } from '../context/AuthContext'
 import { useAnalysis } from '../context/AnalysisContext'
-import { buscarAjuda, indiceDaAjuda, entradaDaAjuda, estadoDoModelo } from '../api'
+import DicaAjuda from '../components/DicaAjuda'
+import { atualizarAvisosDeDuvida } from '../components/useAvisosDeDuvida'
+import {
+  buscarAjuda, indiceDaAjuda, entradaDaAjuda, estadoDoModelo,
+  enviarDuvida, minhasDuvidas, marcarDuvidasVistas, duvidasDaEquipe,
+} from '../api'
 
 function Aviso({ tom = 'warning', icone: Icone = AlertTriangle, children }) {
   const cor = tom === 'info' ? 'royal' : 'warning'
@@ -63,9 +68,86 @@ function Resposta({ e, aberta, onAlternar, destaque = false }) {
   )
 }
 
+const fmtData = (iso) => (iso ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(iso)) : '')
+
+function PedirAoComando({ token, inicial, tela, buscou, aberto, onAbrir, onEnviada }) {
+  const [texto, setTexto]       = useState(inicial)
+  const [enviando, setEnviando] = useState(false)
+  const [erro, setErro]         = useState('')
+  const [feito, setFeito]       = useState(null)
+  useEffect(() => { setTexto(inicial); setFeito(null) }, [inicial])
+
+  async function enviar(e) {
+    e.preventDefault()
+    setEnviando(true); setErro('')
+    try {
+      const r = await enviarDuvida(token, { pergunta: texto.trim(), tela, buscou })
+      setFeito(r); onEnviada?.()
+    } catch (e2) { setErro(e2.message) } finally { setEnviando(false) }
+  }
+
+  if (feito) {
+    return (
+      <div className="flex items-start gap-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-xs text-emerald-300" role="status">
+        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+        <span>
+          Dúvida enviada ao COMANDO. A resposta aparece aqui, em "Minhas dúvidas", e o menu avisa quando chegar.
+          {feito.mascarado && ' Retiramos da sua pergunta o que parecia dado pessoal (CPF, telefone, e-mail).'}
+        </span>
+      </div>
+    )
+  }
+  if (!aberto) {
+    return (
+      <button onClick={onAbrir} className="inline-flex items-center gap-2 text-sm font-medium text-blue-400 hover:text-blue-300">
+        <MessageCircleQuestion className="h-4 w-4" /> Não era isto? Pergunte ao COMANDO
+      </button>
+    )
+  }
+  return (
+    <form onSubmit={enviar} className="space-y-3 rounded-xl border border-line bg-surface p-5">
+      <p className="text-sm font-semibold text-ink">Pergunte ao COMANDO<DicaAjuda id="enviar-duvida" /></p>
+      <label htmlFor="duvida-texto" className="sr-only">Sua dúvida</label>
+      <textarea id="duvida-texto" value={texto} onChange={e => setTexto(e.target.value)} rows={4} maxLength={2000}
+        placeholder="Explique o que você não entendeu, e em que tela estava."
+        className="w-full rounded-lg border border-line bg-page p-3 text-sm text-ink placeholder-ink-4 focus:border-blue-500/50 focus:outline-none" />
+      <p className="text-xs leading-relaxed text-ink-3">
+        Não escreva CPF, nome, telefone ou e-mail de devedores. O sistema retira CPF, CNPJ, telefone e e-mail do
+        que você enviar, mas não consegue reconhecer nomes.
+      </p>
+      {erro && <p className="text-xs text-red-400" role="alert">{erro}</p>}
+      <button type="submit" disabled={enviando || texto.trim().length < 3}
+        className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50">
+        {enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Enviar
+      </button>
+    </form>
+  )
+}
+
+function CartaoDuvida({ d, mostrarAutor = false, destaque = false }) {
+  return (
+    <li className={`rounded-xl border p-4 ${destaque ? 'border-blue-500/50 bg-blue-500/5' : 'border-line bg-surface'}`}>
+      <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-ink-3">
+        <span>{mostrarAutor ? `${d.autor_nome || d.autor_email} · ` : ''}{fmtData(d.created_at)}</span>
+        <span className={`rounded-full px-2 py-0.5 font-medium ${d.estado === 'respondida' ? 'bg-emerald-500/15 text-emerald-500' : 'bg-raise-2 text-ink-3'}`}>
+          {d.estado === 'respondida' ? 'Respondida' : 'Aguardando resposta'}
+        </span>
+      </div>
+      <p className="mt-2 text-sm text-ink">{d.pergunta}</p>
+      {d.resposta && (
+        <div className="mt-3 rounded-lg bg-raise-1 p-3">
+          <p className="section-label mb-1">Resposta do COMANDO</p>
+          <p className="whitespace-pre-line text-sm leading-relaxed text-ink-2">{d.resposta}</p>
+        </div>
+      )}
+    </li>
+  )
+}
+
 export default function Ajuda() {
-  const { token } = useAuth()
+  const { token, isAdmin } = useAuth()
   const { result, setVista } = useAnalysis()
+  const location = useLocation()
 
   const [pergunta, setPergunta]   = useState('')
   const [busca, setBusca]         = useState(null)     // { certeza, resultados, pergunta }
@@ -76,17 +158,36 @@ export default function Ajuda() {
   const [abertas, setAbertas]     = useState({})
   const [navegada, setNavegada]   = useState(null)     // entrada aberta pelo índice
   const ultima = useRef(0)
+  const [minhas, setMinhas]       = useState([])
+  const [novas, setNovas]         = useState(new Set())
+  const [equipe, setEquipe]       = useState([])
+  const [pedindo, setPedindo]     = useState(false)
   const [params] = useSearchParams()
 
   useEffect(() => {
     indiceDaAjuda(token).then(setIndice).catch(() => {})
     estadoDoModelo(token).then(setModelo).catch(() => {})
+    carregarDuvidas()
     // Link de outra tela ("O que é isto?") abre a resposta direto.
     const direto = params.get('id')
     if (direto) {
       entradaDaAjuda(token, direto).then(e => { setNavegada(e); setAbertas({ [e.id]: true }) }).catch(() => {})
     }
   }, [token])
+
+  async function carregarDuvidas() {
+    try {
+      const lista = await minhasDuvidas(token)
+      setMinhas(lista)
+      const naoVistas = lista.filter(d => d.estado === 'respondida' && !d.visto_em).map(d => d.id)
+      if (naoVistas.length) {
+        setNovas(new Set(naoVistas))                 // destaque só nesta visita
+        await marcarDuvidasVistas(token)
+        atualizarAvisosDeDuvida()
+      }
+    } catch { /* sem a lista, a página segue funcionando */ }
+    if (isAdmin) duvidasDaEquipe(token).then(setEquipe).catch(() => {})
+  }
 
   async function perguntar(e) {
     e?.preventDefault()
@@ -125,7 +226,7 @@ export default function Ajuda() {
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">Como posso ajudar?</h1>
           <p className="mt-1 text-sm text-ink-2">
             Pergunte como falaria com um colega: "por que esse devedor está no topo?", "o que é prioridade alta?".
-            A busca é feita aqui, no servidor do Mizan, e a sua pergunta não é guardada.
+            A busca é feita aqui, no servidor do Mizan, e o que você digita nela não é guardado (só a dúvida que você decidir enviar).
           </p>
         </div>
 
@@ -169,6 +270,25 @@ export default function Ajuda() {
         )}
 
         {navegada && <Resposta e={navegada} aberta={!!abertas[navegada.id]} onAlternar={() => alternar(navegada.id)} />}
+
+        <PedirAoComando token={token} inicial={busca?.pergunta || pergunta} tela={location.state?.de} buscou={busca?.pergunta}
+          aberto={pedindo || (!!busca && !busca.certeza)} onAbrir={() => setPedindo(true)} onEnviada={carregarDuvidas} />
+
+
+        {minhas.length > 0 && (
+          <section aria-label="Minhas dúvidas">
+            <h2 className="mb-3 text-sm font-semibold text-ink">Minhas dúvidas</h2>
+            <ul className="space-y-3">{minhas.map(d => <CartaoDuvida key={d.id} d={d} destaque={novas.has(d.id)} />)}</ul>
+          </section>
+        )}
+
+        {isAdmin && equipe.length > 0 && (
+          <section aria-label="Dúvidas da equipe">
+            <h2 className="mb-1 text-sm font-semibold text-ink">Dúvidas da sua equipe</h2>
+            <p className="mb-3 text-xs text-ink-3">O que as pessoas da sua empresa perguntaram ao COMANDO. Só leitura.</p>
+            <ul className="space-y-3">{equipe.map(d => <CartaoDuvida key={d.id} d={d} mostrarAutor />)}</ul>
+          </section>
+        )}
 
         <section>
           <div className="mb-3 flex items-center gap-2">

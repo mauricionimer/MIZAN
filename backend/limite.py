@@ -72,6 +72,9 @@ REGRAS = {
     # porque a requisição devolve 202 na hora e o treino segue em segundo plano,
     # fora do alcance do portão; quem segura "um treino por vez" é a trava em
     # main.py (travas.adquirir), que vale entre instâncias.
+    # Dúvida ao COMANDO: poucas por hora. Cada uma é lida por uma pessoa.
+    ("POST", "/ajuda/duvidas"): Regra("duvida", 10, 3600,
+        "Você enviou muitas dúvidas em pouco tempo. Aguarde {espera} s."),
     ("POST", "/ajuda/buscar"): Regra("ajuda", 60, 600,
         "Muitas buscas em pouco tempo. Aguarde {espera} s."),
     ("POST", "/comando/treino"): Regra("treino", 6, 3600,
