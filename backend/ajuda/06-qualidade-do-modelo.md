@@ -10,6 +10,9 @@ perguntas:
 - ks acima de 50 é bom
 - o que é kolmogorov smirnov
 - qual o ks bom
+- o que é o indicador ks do modelo
+- como interpretar o valor do ks
+- ks muito alto é bom ou suspeito
 curta: Mede o quanto o modelo separa quem paga de quem não paga, de 0 a 100. Acima de 50 é suspeito, não excelente.
 calculo: Ordena os devedores pelo score e compara as curvas acumuladas de quem pagou e de quem não pagou; o KS é a maior distância entre elas, em escala 0–100. Leitura: abaixo de 20 fraco; 20 a 30 regular; 30 a 40 bom; 40 a 50 forte; acima de 50 suspeito.
 fazer: Use o KS no recorte de teste (que o modelo não viu). Compare modelos diferentes sobre a mesma fatia.
@@ -28,6 +31,9 @@ perguntas:
 - qual o gini bom
 - gini de 40 é bom
 - como o gini é calculado
+- o que é o índice gini do modelo
+- como interpretar o gini
+- gini e auc são a mesma coisa
 curta: É o AUC reescrito na escala 0–100 que a mesa de crédito usa: Gini = 2 × AUC − 1.
 calculo: Gini = (2 × AUC − 1) × 100. Leitura: abaixo de 20 fraco; 20 a 40 regular; 40 a 60 bom; acima de 60 forte.
 fazer: Leia junto com o KS: contam a mesma história por ângulos diferentes.
@@ -45,6 +51,9 @@ perguntas:
 - como interpretar o brier
 - auc 0,5 significa o quê
 - o que é erro quadrático das probabilidades
+- o que significam auc e brier
+- como saber se as probabilidades são confiáveis
+- auc de 0,5 é bom
 curta: AUC mede a ordenação (0,5 é sorte, 1 é perfeito). Brier mede o erro das probabilidades (menor é melhor).
 calculo: AUC é a chance de um pagador ter score maior que um não pagador sorteado. Brier é a média de (probabilidade − resultado)², entre 0 e 1.
 fazer: AUC para saber se ordena; Brier para saber se a probabilidade é confiável como número.
@@ -63,6 +72,9 @@ perguntas:
 - o que é o gap treino menos validação
 - o que significa overfitting moderado
 - o que significa overfitting severo
+- o modelo está decorando os dados de treino
+- o que é overfitting moderado ou severo
+- o que é a diferença entre treino e validação
 curta: Mede se o modelo acerta muito mais nos dados em que treinou do que nos que nunca viu.
 calculo: gap = acurácia no treino − acurácia na validação cruzada. A partir de 0,10 é moderado; a partir de 0,20 é severo.
 fazer: Com gap alto, junte mais dados ou simplifique antes de ativar um modelo.
@@ -85,6 +97,9 @@ perguntas:
 - quantos pagamentos preciso
 - tenho amostras suficientes
 - quantos resultados preciso para avaliar o modelo
+- tenho resultados suficientes para o modelo
+- o que são amostras por variável
+- por que o diagnóstico fala em complexidade adequada
 curta: Regra prática: pelo menos 20 devedores com resultado para cada variável do modelo. Abaixo disso, desconfie de qualquer métrica.
 calculo: amostras por variável = linhas com resultado ÷ número de variáveis codificadas. Adequado a partir de 20. O diagnóstico exige no mínimo 30 resultados.
 fazer: Se estiver abaixo, aguarde mais resultados ou use o treino por empresa com a carteira histórica.
@@ -106,6 +121,9 @@ perguntas:
 - como ler a calibração por faixa
 - a probabilidade está otimista
 - o que é o gráfico de confiabilidade
+- as probabilidades do modelo batem com a realidade
+- o que é a calibração por faixa
+- previsto versus observado em cada faixa
 curta: Compara, em cinco faixas de probabilidade, o que o modelo previu com o que de fato aconteceu. Calibrado é quando os dois se parecem.
 calculo: Divide os devedores de teste em 5 grupos de mesmo tamanho por probabilidade e mostra a média prevista e a taxa real de pagamento de cada um.
 fazer: Se a previsão for sistematicamente maior que a real, a probabilidade está otimista.
@@ -123,6 +141,9 @@ perguntas:
 - por que aparece mudança crítica de população
 - a carteira mudou em relação ao treino
 - o que fazer com psi alto
+- o que é o índice de estabilidade da população
+- por que apareceu mudança crítica de população
+- a carteira atual mudou em relação ao treino
 curta: Mostra se a carteira analisada hoje tem uma distribuição de score parecida com a do treino. Alto significa que o modelo pode estar fora do terreno que conhece.
 calculo: PSI = soma, nas 10 faixas de score, de (p_atual − p_treino) × ln(p_atual ÷ p_treino). Abaixo de 0,10: estável. De 0,10 a 0,25: atenção. Acima de 0,25: mudança crítica.
 fazer: Acima de 0,25, retreine e, até lá, trate o score como ordenação grosseira, não como probabilidade.
@@ -144,6 +165,9 @@ perguntas:
 - diferença entre drift e psi
 - por que o score médio mudou
 - o que significa score médio variou 10 pontos
+- por que recebi um alerta de deriva por e-mail
+- como a deriva do score médio é calculada
+- o que fazer quando o score médio mudou muito
 curta: Compara o score médio dos últimos 30 dias com o score médio de todo o histórico e avisa se a diferença passar de 10 pontos.
 calculo: diferença = |média dos últimos 30 dias − média de todo o histórico|. Alerta se for maior que 10 pontos, e nesse caso um e-mail é enviado ao endereço de administração. Considera todas as empresas juntas, e exige pelo menos 50 análises no total e 10 nos últimos 30 dias.
 fazer: Use como sinal de "olhe isto". Para uma medida por carteira e com régua, use o PSI.
@@ -163,6 +187,9 @@ perguntas:
 - razão de equidade
 - a fila prejudica alguma região
 - o que é impacto desproporcional
+- a ordenação da fila trata as regiões de forma justa
+- o que é a regra dos 80 por cento
+- o que é a razão de equidade
 curta: Compara que fatia de cada grupo (por exemplo, cada região) entra no topo da fila. A razão entre o menos e o mais favorecido deve ficar acima de 0,80.
 calculo: razão = fatia selecionada do grupo menos favorecido ÷ fatia do mais favorecido. Alerta abaixo de 0,80. Grupos com menos de 30 devedores são ignorados na comparação, porque a taxa é ruído.
 fazer: Se a razão ficar abaixo de 0,80, leve a decisão ao comitê: trocar o critério da fila para "proporcional por região" custa recuperação.
@@ -183,6 +210,9 @@ perguntas:
 - o que é capturado em 10 por cento da carteira
 - como comparar a fila com maior dívida primeiro
 - por que usar uma carteira histórica
+- como medir a fila com uma carteira cujo resultado já se conhece
+- o que o backtest compara
+- como ler o valor capturado em cada capacidade
 curta: Aplica a fila a uma carteira cujo resultado já se conhece e mede quanto cada critério teria recuperado trabalhando só uma parte dela.
 calculo: Compara três filas (valor esperado, score puro e maior dívida primeiro) em capacidades de 10%, 20%, 30% e 50% da carteira, e mostra o valor capturado por cada uma, mais KS e Gini do score e a análise de equidade.
 fazer: Use uma carteira com a coluna pagou. É a medida mais honesta de quanto a fila vale para a sua base.
@@ -202,6 +232,9 @@ perguntas:
 - o que é versão ativa
 - por que não consigo promover uma versão
 - o que é tipo de alvo simulado ou real
+- como ativar uma versão anterior do modelo
+- o que significa promover uma versão do modelo
+- quando uma versão não pode ser promovida
 curta: Cada treino gera uma versão guardada. Só a promovida pontua. Dá para promover outra ou voltar atrás.
 calculo: A promoção copia os arquivos da versão para os de produção. Uma versão com poucas amostras reais não pode ser promovida sem confirmação explícita. O "tipo de alvo" diz se a versão aprendeu com resultado real ou simulado.
 fazer: Antes de promover, compare as métricas com a versão ativa na mesma fatia de teste.
@@ -221,6 +254,9 @@ perguntas:
 - como ativar o modelo treinado
 - como voltar ao modelo geral
 - por que o treino foi recusado
+- como treinar um modelo só de uma empresa com a carteira histórica
+- o que acontece com o arquivo enviado para treino
+- por que o arquivo de treino foi recusado
 curta: O COMANDO envia a carteira histórica com o resultado real; o sistema treina um modelo só daquela empresa, mostra as métricas contra o modelo atual e descarta o arquivo.
 calculo: Exige valor_divida, dias_em_atraso e uma coluna de resultado (pagou, pago, quitou etc.); data (data_referencia) é opcional e habilita a validação no tempo. Mínimo de 300 linhas e 30 de cada resultado; máximo (padrão) de 100.000 linhas usadas (acima disso, amostra aleatória). Treinar não ativa: a ativação é um passo seguinte, e se o modelo novo for pior que o atual (AUC) pede confirmação.
 fazer: Confira as métricas e os avisos antes de ativar; se algo estiver estranho, volte ao modelo geral.
@@ -243,6 +279,9 @@ perguntas:
 - o que é incerteza média
 - o bandit convergiu
 - como ajustar a exploração
+- o que mostra a tela de performance ia
+- o que é incerteza e alpha na recomendação de abordagem
+- como ajustar o quanto o sistema explora
 curta: Mostra quantas vezes cada combinação de canal e oferta foi tentada e com que resultado, e quanto o sistema ainda "duvida" de cada uma.
 calculo: Para cada uma das 12 combinações: tentativas, pagamentos, recompensa média e incerteza (média da diagonal da matriz de confiança). Incerteza alta significa que ainda explora. O alpha (padrão 1,0) dá o peso da exploração; o COMANDO pode ajustá-lo, entre 0,1 e 5,0, para uma empresa por vez.
 fazer: Aumente o alpha para explorar mais, reduza para explorar menos, com cuidado: muda as recomendações de todos os operadores daquela empresa.
@@ -262,6 +301,9 @@ perguntas:
 - o que fazer com empresa suspeita
 - por que aparece alerta vermelho de empresa
 - o que é menos de 5 por cento de feedback
+- por que uma empresa aparece como suspeita no painel
+- o que significa baixa taxa de feedback
+- como agir com uma empresa que não registra pagamentos
 curta: Marca a empresa que analisou muitos devedores mas registrou quase nenhum pagamento, o que sugere que o sistema está sendo usado sem fechar o ciclo de aprendizado.
 calculo: Suspeita quando a empresa tem 50 ou mais devedores analisados e menos de 5% deles com feedback registrado.
 fazer: Procure o responsável pela empresa: sem resultados registrados o modelo não aprende e as métricas ficam sem base.
@@ -280,6 +322,9 @@ perguntas:
 - o que é teto de resposta
 - como medir os limites do supabase
 - o que o diagnóstico do banco mostra
+- para que serve o botão medir agora no painel
+- como saber quantos itens cabem numa consulta ao banco
+- o que mostra o diagnóstico dos limites do banco
 curta: Mede no Supabase real três limites de que a paginação depende: tamanho da lista num filtro, linhas por resposta e a ordenação com desempate.
 calculo: Testa listas de 100 até 3.200 identificadores sorteados (que não casam com nenhuma linha), pede 3.000 linhas para ver quantas voltam e confere se a ordenação por posição e id é aceita. Só lê.
 fazer: Rode depois de mudar de plano ou de configuração do Supabase e confira se o tamanho adotado cabe.

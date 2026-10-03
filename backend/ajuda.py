@@ -66,6 +66,17 @@ TELAS = {
     "Treinar modelo":          ("comando",),
 }
 
+# Nome de cada arquivo na lista de assuntos da página de Ajuda.
+ASSUNTOS = {
+    "01-modelo-e-score.md": "Modelo e score",
+    "02-fila-e-prioridade.md": "Fila e prioridade",
+    "03-valores-e-perdas.md": "Valores, fases e perdas",
+    "04-devedor-e-propostas.md": "Devedor, margem e propostas",
+    "05-pagamentos-e-resultados.md": "Pagamentos e resultados",
+    "06-qualidade-do-modelo.md": "Qualidade do modelo",
+    "07-operacao.md": "Arquivos, conexões, pessoas e privacidade",
+}
+
 _CHAVES_TEXTO = ("titulo", "curta", "calculo", "fazer", "cuidado", "revisar")
 _CHAVES_LISTA = ("perguntas", "fontes", "constantes")
 _CHAVES = _CHAVES_TEXTO + _CHAVES_LISTA + ("perfis", "telas")
@@ -248,3 +259,25 @@ def verificar_constante(item: str) -> "str | None":
         return None if float(m2.group(1)) == float(esperado) else f"{nome}: o código tem {m2.group(1)}, a ajuda diz {esperado}"
     except ValueError:
         return f"valor ilegível: {esperado!r}"
+
+
+def para_json(e: Entrada, perfil: str) -> dict:
+    """O que a tela recebe de uma entrada. Detalhe técnico só para o COMANDO."""
+    d = {"id": e.id, "titulo": e.titulo, "curta": e.curta, "calculo": e.calculo,
+         "fazer": e.fazer, "cuidado": e.cuidado, "telas": e.telas,
+         "assunto": ASSUNTOS.get(e.arquivo, e.arquivo),
+         # A resposta descreve o que o sistema faz hoje, mas há uma decisão
+         # pendente sobre ele: a tela avisa que pode mudar.
+         "em_revisao": bool(e.revisar)}
+    if perfil == "comando":
+        d["fontes"] = e.fontes
+        d["revisar"] = e.revisar
+    return d
+
+
+def indice(perfil: str, entradas: "list | None" = None) -> list:
+    """Assuntos e títulos que o perfil pode ver, na ordem do catálogo."""
+    grupos: dict = {}
+    for e in para_perfil(perfil, entradas):
+        grupos.setdefault(ASSUNTOS.get(e.arquivo, e.arquivo), []).append({"id": e.id, "titulo": e.titulo})
+    return [{"assunto": a, "entradas": es} for a, es in grupos.items()]

@@ -26,7 +26,7 @@ teste quebra.
 |---|---|
 | 1. Mapa do sistema | **Pronta** (`MAPA_DO_SISTEMA.md`) |
 | 2. Catálogo de respostas | **Pronta**: 64 entradas em `backend/ajuda/`, validadas contra o código por `test_ajuda_catalogo.py` |
-| 3. Busca e página Ajuda | A fazer |
+| 3. Busca e página Ajuda | **Pronta** (`/ajuda`, busca local). Qualidade medida em perguntas de teste que nunca serviram para ajuste: resposta certa em 1º lugar **71,9%**, entre as 3 primeiras **89,1%**, recusa de pergunta fora do assunto **91,7%**, precisão quando diz ter certeza **84,1%**. As metas eram 75% e 90%: **ficaram um pouco abaixo**. Ver ressalva abaixo |
 | 4. "?" ao lado de cada métrica | A fazer |
 | 5. Dúvidas encaminhadas ao COMANDO | A fazer |
 | 6. Perguntas sem resposta | A fazer |
@@ -193,3 +193,19 @@ perguntou. O COMANDO vê as perguntas mais repetidas sem resposta e os
 | Dúvida de uma empresa vista por outra | teste de isolamento (Fase 5) |
 | Ajuda explica tela que o perfil não tem | filtro e teste por perfil (Fase 2) |
 | Documentar um erro como regra | achados da Fase 1 vão para você antes |
+
+
+## Medida da busca (Fase 3) e a ressalva
+
+`python avaliar_busca.py` mede a busca com `ajuda_avaliacao.py`: 3 perguntas por
+entrada (2 de ajuste, 1 de teste) e 24 perguntas fora do assunto (12 + 12).
+Parâmetros de decisão (limiar, margem, cobertura) foram ajustados **só no
+conjunto de ajuste**; o de teste foi medido em separado.
+
+**Ressalva importante:** as perguntas de avaliação e o catálogo foram escritos
+pela mesma pessoa (eu), então a medida tende a ser **otimista** em relação a
+perguntas reais de operadores. A medida verdadeira vem do uso: a Fase 6 registra
+o que a busca não soube responder e transforma isso em respostas novas.
+
+A busca nunca afirma sem mostrar alternativas: mostra sempre as 3 mais próximas, e
+quando não tem certeza, diz isso em vez de apresentar uma resposta como certa.

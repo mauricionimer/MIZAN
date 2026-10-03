@@ -12,6 +12,9 @@ perguntas:
 - o que é o rank
 - qual a lógica do ranking
 - por que o primeiro da fila não é quem tem a maior dívida
+- qual a regra de ordenação da lista de devedores
+- por que o primeiro da lista é esse
+- a lista é ordenada pela nota ou pelo valor
 curta: A fila vai de quem rende mais para quem rende menos: valor esperado de recuperação, não score e não tamanho da dívida.
 calculo: valor esperado = dívida × taxa de recuperação prevista. Na fase especializada (31 a 360 dias) desconta-se a comissão, se a empresa configurou uma. A fila ordena o valor esperado líquido, do maior para o menor, e o rank 1 é o topo.
 fazer: Trabalhe de cima para baixo. O que está no topo é onde um contato rende mais, e a capacidade da equipe diz até onde vale ir (veja "Alcance da operação").
@@ -31,6 +34,9 @@ perguntas:
 - a fila trata as regiões de forma justa
 - ordenar por valor esperado prejudica alguma região
 - o que é equidade na fila
+- posso mudar a forma como a lista é ordenada
+- como distribuir o esforço entre as regiões
+- existe outra regra de ordenação da fila
 curta: O padrão maximiza a recuperação. A alternativa reparte o esforço entre as regiões na proporção do tamanho de cada uma, e recupera um pouco menos.
 calculo: valor_esperado: ordena por dívida × taxa, sem olhar região. proporcional_por_grupo: dentro de cada UF vale o valor esperado, e a fila alterna as UFs de modo que, em qualquer ponto de corte, cada região apareça na proporção do seu tamanho.
 fazer: É decisão de política da empresa, não do sistema. Antes de mudar, rode a análise de equidade e o backtest para ver o custo de cada critério.
@@ -53,6 +59,9 @@ perguntas:
 - o que é prioridade baixa
 - prioridade é igual ao score
 - quantos devedores são prioridade alta
+- o que quer dizer a etiqueta alta ao lado do devedor
+- como a etiqueta de prioridade é definida
+- qual a proporção de devedores em cada prioridade
 curta: É a posição do devedor na fila: o quinto de cima é Alta, até a metade é Média, o resto é Baixa.
 calculo: posição = rank ÷ total de devedores da carteira. Até 20% = Alta. Até 50% = Média. Acima disso = Baixa.
 fazer: Foque nos Alta no ciclo. Os Média entram se sobrar capacidade.
@@ -74,6 +83,9 @@ perguntas:
 - como o card de prioritários é calculado
 - por que o número de prioritários é sempre um quinto
 - prioritários é uma medida
+- o que conta o card de prioritários
+- por que o card de prioritários mostra um quinto
+- o número de prioritários significa o quê
 curta: É quantos devedores cabem na faixa Alta: um quinto da carteira.
 calculo: devedores prioritários = piso de (total de devedores × 20%).
 fazer: Use como tamanho de uma "meta de ciclo" inicial. Para saber até onde a sua equipe chega de verdade, use o Alcance da operação.
@@ -92,6 +104,9 @@ perguntas:
 - como a urgência é calculada
 - por que a urgência é diferente da prioridade
 - urgência é média o que significa
+- o selo de urgência da página do devedor
+- por que urgência e prioridade mostram coisas diferentes
+- urgência vem da nota ou da fila
 curta: A urgência da página do devedor vem só do score: 70 ou mais é Alta, 40 a 69 é Média, abaixo de 40 é Baixa.
 calculo: urgência = Alta se score ≥ 70; Média se score ≥ 40; senão Baixa.
 fazer: Para decidir quem contatar primeiro, olhe a Prioridade e a posição na fila: elas consideram também o valor da dívida.
@@ -111,6 +126,9 @@ perguntas:
 - como informar a capacidade
 - o que é capacidade de contatos
 - quanto vou recuperar com a minha equipe
+- quanto vale o topo da fila que a equipe consegue trabalhar
+- onde informo a capacidade da equipe
+- o que mostra o alcance da operação
 curta: Mostra até onde a fila chega com o número de contatos que a sua equipe consegue fazer no ciclo, e quanto esse topo vale.
 calculo: Você informa a capacidade N: operadores × contatos por dia × dias úteis. O alcance soma o valor esperado de recuperação dos N primeiros da fila. "Do recuperável" é essa soma ÷ o valor esperado de toda a carteira, e "Vai até a posição" é o rank do N-ésimo. As linhas dentro do alcance aparecem marcadas na tabela.
 fazer: Informe a capacidade real da equipe e leve o número para a reunião de planejamento. O valor fica guardado no seu navegador para a próxima vez.
@@ -131,6 +149,9 @@ perguntas:
 - como filtrar quem já pagou
 - o que é o filtro de status
 - por que filtrar não muda a prioridade
+- como procuro um devedor específico na tabela
+- como filtro por estado ou produto
+- como vejo só quem já pagou
 curta: Dá para buscar por nome ou CPF e filtrar por produto, UF, prioridade e situação do pagamento (pago, não pago, pendente).
 calculo: A busca e os filtros são aplicados no servidor e a tabela mostra uma página de 50 por vez. "Pago" e "não pago" usam o feedback mais recente de cada CPF; "pendente" é quem ainda não tem feedback.
 fazer: Use "pendente" para ver quem ainda não foi trabalhado.

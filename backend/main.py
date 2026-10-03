@@ -4700,6 +4700,55 @@ def comando_desativar_modelo(body: AtivarModeloIn, credentials: HTTPAuthorizatio
     return {"ok": True, "empresa_id": empresa, "usando": "global"}
 
 
+# ── Central de Ajuda ─────────────────────────────────────────────────────────
+# Catálogo estático em backend/ajuda/*.md; busca local em ajuda_busca.py. A
+# pergunta não sai do servidor e não vai para o log. Cada perfil enxerga só as
+# respostas das telas que tem.
+
+class AjudaBuscaIn(BaseModel):
+    pergunta: str = Field(..., min_length=2, max_length=300)
+
+
+@app.post("/ajuda/buscar")
+def ajuda_buscar(body: AjudaBuscaIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    import ajuda as _aj
+    import ajuda_busca as _ab
+    perfil = _usuario_autenticado(credentials).get("role", "operador")
+    achados = _ab.buscador_para(perfil).buscar(body.pergunta, k=3)
+    por_id = {e.id: e for e in _aj.para_perfil(perfil)}
+    return {
+        "certeza": achados["certeza"],
+        "resultados": [{**_aj.para_json(por_id[r["id"]], perfil), "score": r["score"]}
+                       for r in achados["resultados"] if r["id"] in por_id],
+    }
+
+
+@app.get("/ajuda/indice")
+def ajuda_indice(credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    import ajuda as _aj
+    perfil = _usuario_autenticado(credentials).get("role", "operador")
+    return _aj.indice(perfil)
+
+
+@app.get("/ajuda/entradas/{entrada_id}")
+def ajuda_entrada(entrada_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    import ajuda as _aj
+    perfil = _usuario_autenticado(credentials).get("role", "operador")
+    for e in _aj.para_perfil(perfil):
+        if e.id == entrada_id:
+            return _aj.para_json(e, perfil)
+    # Entrada de tela que o perfil não tem responde como inexistente.
+    raise HTTPException(status_code=404, detail="Resposta não encontrada.")
+
+
+@app.get("/ajuda/estado-do-modelo")
+def ajuda_estado_do_modelo(credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Em que dados o score desta empresa se apoia: simulados ou reais."""
+    payload = _usuario_autenticado(credentials)
+    proc = _procedencia_modelo_ativo(payload.get("empresa_id") or None)
+    return {"nivel": proc["nivel"], "aviso": proc["aviso"], "tipo_alvo": proc["tipo_alvo"]}
+
+
 @app.get("/admin/price-model")
 def admin_price_model_stats(credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """Metadados e métricas do modelo de regressão de preço."""

@@ -83,6 +83,7 @@ const Privacidade = lazy(() => import('./pages/Privacidade'))
 const Backtest = lazy(() => import('./pages/Backtest'))
 const Retencao = lazy(() => import('./pages/Retencao'))
 const TreinoModelo = lazy(() => import('./pages/TreinoModelo'))
+const Ajuda = lazy(() => import('./pages/Ajuda'))
 
 function RotaProtegida({ children, roles }) {
   const { autenticado, usuario } = useAuth()
@@ -118,6 +119,7 @@ function RotasAnimadas() {
                 na regra coringa, que leva para "/". */}
             <Route path="/" element={<PageTransition><RotaProtegida><Home /></RotaProtegida></PageTransition>} />
             <Route path="/devedor/:rank" element={<PageTransition><RotaProtegida><DebtorDetail /></RotaProtegida></PageTransition>} />
+            <Route path="/ajuda" element={<PageTransition><RotaProtegida><Ajuda /></RotaProtegida></PageTransition>} />
             <Route path="/feedback" element={<PageTransition><RotaProtegida><Feedback /></RotaProtegida></PageTransition>} />
             <Route path="/bandit" element={<PageTransition><RotaProtegida roles={['comando']}><BanditDashboard /></RotaProtegida></PageTransition>} />
             <Route path="/aprendizado" element={<PageTransition><RotaProtegida roles={['comando']}><AprendizadoDashboard /></RotaProtegida></PageTransition>} />

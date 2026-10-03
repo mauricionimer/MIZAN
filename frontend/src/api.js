@@ -633,3 +633,23 @@ export async function desativarModeloEmpresa(token, empresaId) {
     body: JSON.stringify({ empresa_id: empresaId }),
   }))
 }
+
+
+// ── Central de Ajuda ─────────────────────────────────────────────────────────
+export async function buscarAjuda(token, pergunta) {
+  return _jsonOuErro(await fetch(`${BASE}/ajuda/buscar`, {
+    method: 'POST', headers: _authHeader(token), body: JSON.stringify({ pergunta }),
+  }))
+}
+
+export async function indiceDaAjuda(token) {
+  return _jsonOuErro(await fetch(`${BASE}/ajuda/indice`, { headers: _authHeader(token) }))
+}
+
+export async function entradaDaAjuda(token, id) {
+  return _jsonOuErro(await fetch(`${BASE}/ajuda/entradas/${encodeURIComponent(id)}`, { headers: _authHeader(token) }))
+}
+
+export async function estadoDoModelo(token) {
+  return _jsonOuErro(await fetch(`${BASE}/ajuda/estado-do-modelo`, { headers: _authHeader(token) }))
+}

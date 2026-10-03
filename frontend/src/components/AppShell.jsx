@@ -1,7 +1,7 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, UploadCloud, ClipboardList, Users, KeyRound, LogOut,
-  ShieldCheck, Zap, Brain, Command, FlaskConical, Lock,
+  ShieldCheck, Zap, Brain, Command, FlaskConical, Lock, HelpCircle,
 } from 'lucide-react'
 import ThemeToggle from './ThemeToggle'
 import { LogoMark } from './Logo'
@@ -47,6 +47,7 @@ export default function AppShell({ secao, onIrPara, titulo, acoes, temResultado 
       { id: 'bandit',      label: 'Performance IA', icon: Zap,    rota: '/bandit' },
       { id: 'aprendizado', label: 'Aprendizado',   icon: Brain,   rota: '/aprendizado' },
     ] : []),
+    { id: 'ajuda', label: 'Ajuda', icon: HelpCircle, rota: '/ajuda' },
     { id: 'senha', label: 'Alterar senha', icon: KeyRound, rota: '/alterar-senha' },
   ]
 

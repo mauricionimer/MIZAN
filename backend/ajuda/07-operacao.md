@@ -12,6 +12,9 @@ perguntas:
 - por que o arquivo foi recusado
 - o sistema reconhece o nome da minha coluna
 - o que acontece quando falta uma coluna opcional
+- quais colunas o arquivo da carteira precisa ter
+- qual o formato e o tamanho máximo do arquivo
+- o sistema reconhece os nomes das minhas colunas
 curta: Envie CSV ou Excel com pelo menos CPF, valor da dívida e dias em atraso. O sistema reconhece vários nomes de coluna e preenche o que faltar com valores padrão.
 calculo: Obrigatórias: cpf, valor_divida e dias_em_atraso. Opcionais reconhecidas: nome, produto, status, uf, renda_estimada e despesas_mensais; uma coluna pagou (com valor_recuperado) registra os pagamentos junto. Sem a coluna, o padrão é: nome "Desconhecido", produto "pessoal", status "inadimplente", UF "SP" e renda 0. O limite é de 25 MB por arquivo.
 fazer: Revise o mapeamento e as colunas reconhecidas antes de analisar. Quanto mais completas as colunas, mais fiel o score.
@@ -36,6 +39,9 @@ perguntas:
 - como liberar uma conexão para um operador
 - o que é sincronização automática
 - por que a conexão sqlite não funciona
+- como ligo o sistema ao banco de dados da empresa
+- quais bancos de dados são aceitos
+- como libero uma conexão para um operador
 curta: O administrador cadastra a conexão (PostgreSQL, MySQL, MariaDB, SQL Server, Oracle ou Google Sheets) e libera para os operadores. A senha fica criptografada e nunca volta para a tela.
 calculo: Só consultas SELECT são aceitas. A análise direta de um banco lê no máximo 50.000 linhas. A conexão salva pode ser sincronizada a cada 1, 4 ou 24 horas. O operador só usa conexões salvas e liberadas para ele, e sempre contra o servidor cadastrado.
 fazer: O administrador cria a conexão em Análise > banco de dados e libera operadores na tela de Usuários. Se precisar de mais de 50.000 linhas, exporte para arquivo.
@@ -59,6 +65,9 @@ perguntas:
 - como promover um operador
 - o que é o perfil comando
 - por que não consigo criar um usuário
+- o que cada papel pode fazer no sistema
+- quem pode criar e desativar usuários
+- qual a diferença entre operador administrador e comando
 curta: Operador trabalha a fila; administrador gerencia a equipe e os dados da empresa; COMANDO é da plataforma e vê todas as empresas.
 calculo: Operador: analisa, vê a fila, registra contatos. Administrador: tudo isso mais precificação, ciclo, resultados, pagamentos, conexões, retenção, auditoria e ativar ou desativar usuários da própria empresa. COMANDO: todas as empresas, mais criar usuários, mudar papéis, treinar modelos e ver as telas de aprendizado. Só o COMANDO cria usuários e altera papéis, e o último COMANDO ativo não pode ser rebaixado nem desativado.
 fazer: Para incluir alguém na sua equipe, peça ao COMANDO. O administrador pode desativar quem sair.
@@ -79,6 +88,9 @@ perguntas:
 - quanto tempo dura a sessão
 - por que o login foi bloqueado
 - o link de redefinição expirou
+- como troco ou recupero minha senha
+- quanto tempo fico logado
+- por que o link de redefinição de senha não funciona
 curta: A senha tem no mínimo 8 caracteres. A sessão dura 7 dias. O link de redefinição vale 1 hora.
 calculo: Troca em "Alterar senha". Esqueci a senha envia um link ao e-mail, com limite de 3 pedidos por hora por endereço, e a resposta é sempre a mesma exista ou não a conta. Após 5 tentativas erradas de login, há bloqueio de 15 minutos.
 fazer: Se o link expirou, peça outro. Se não chegar, confira o spam e se o e-mail é o cadastrado.
@@ -102,6 +114,9 @@ perguntas:
 - o modelo continua aprendendo depois da anonimização
 - anonimizar apaga a linha
 - o que é a prévia da retenção
+- por quanto tempo o sistema guarda cpf e nome
+- o que quer dizer anonimizar os dados
+- como configuro o prazo de retenção
 curta: Você escolhe por quanto tempo guardar o CPF e o nome dos devedores. Passado o prazo, eles são retirados da linha e o resto fica para o modelo continuar aprendendo.
 calculo: Prazo de 30 a 3.650 dias. Anonimizar zera cpf e nome (e, nos contatos, a observação) e marca a data; as variáveis e o resultado ficam. Nada roda sem prazo configurado: a prévia mostra o que aconteceria. "Executar agora" aplica o prazo escolhido.
 fazer: Escolha um prazo compatível com o fim da cobrança (ciclo encerrado) e com as obrigações do banco; rode a prévia antes.
@@ -123,6 +138,9 @@ perguntas:
 - lgpd artigo 18
 - como eliminar o cpf de uma pessoa
 - o que acontece quando elimino um cpf
+- como atender quando o devedor pede a eliminação dos dados dele
+- o que a lgpd pede num pedido de titular
+- como eliminar um cpf do sistema
 curta: Informe o CPF do titular: o sistema retira a identificação de todas as linhas dele na sua empresa, em qualquer formato de CPF.
 calculo: Procura o CPF formatado, só dígitos, com zeros à esquerda e sem zeros, em predições, feedbacks, contatos e recomendações da empresa, e anonimiza o que achar.
 fazer: Guarde o registro do pedido (a ação fica na auditoria) e responda ao titular.
@@ -140,6 +158,9 @@ perguntas:
 - como filtrar a auditoria
 - quem alterou o papel de um usuário
 - quem confirmou um pagamento
+- onde vejo quem fez cada ação no sistema
+- o que fica registrado na auditoria
+- como filtrar o histórico de ações
 curta: Registra as ações sensíveis (criar usuário, mudar papel, confirmar pagamento, treinar ou ativar modelo etc.), com quem fez e quando.
 calculo: Cada ação grava quem, quando, em qual empresa, qual entidade e detalhes sem dado pessoal. O administrador vê a da própria empresa; o COMANDO vê todas. Filtros por entidade, usuário, ação e período.
 fazer: Use para conferir mudanças de papel, pagamentos confirmados e ativações de modelo.
@@ -158,6 +179,9 @@ perguntas:
 - como mudar o nome de exibição
 - qual o tamanho da foto
 - link de login com a marca da empresa
+- como mudo o logo e a cor da empresa
+- qual o tamanho da imagem do logo
+- como fazer o login mostrar a marca da empresa
 curta: O administrador define nome, cor principal e logo da empresa, que aparecem no sistema e na tela de login pelo link da empresa.
 calculo: A foto aceita jpg, png, webp ou gif, até 5 MB. O link de login com a marca usa o endereço do sistema com o parâmetro ?empresa=identificador.
 fazer: Compartilhe com a equipe o link com ?empresa= para que a marca apareça antes do login.
@@ -177,6 +201,9 @@ perguntas:
 - como mudar a recuperação se pagar
 - onde mudo o buffer da margem
 - por que não acho a tela de premissas
+- onde configuro comissão cessão e critério da fila
+- por que não há tela para as premissas da empresa
+- como ajusto a margem e o teto de parcela
 curta: Comissão da fase especializada, percentual de cessão, recuperação se pagar, critério da fila, buffer da margem e teto de parcela são premissas por empresa. Hoje ainda não há tela para elas.
 calculo: As premissas ficam na configuração da empresa (campo extra). A tela de retenção grava só o prazo de retenção; as demais são gravadas pela API de configuração da empresa, por administrador ou COMANDO.
 fazer: Peça ao COMANDO para ajustar. Sem elas, valem os padrões descritos em cada tópico: recuperação se pagar 100%, comissão e cessão não aplicadas, critério por valor esperado, buffer 30%, teto de parcela 100%.
