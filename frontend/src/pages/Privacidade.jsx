@@ -38,7 +38,7 @@ export default function Privacidade() {
                 Tratamos dados pessoais conforme a LGPD, com acesso restrito por empresa e por perfil.
               </p>
               <p className="text-xs text-blue-400/70 mt-1">
-                O servidor de aplicação do Mizan (API) está hospedado nos Estados Unidos (região Oregon), de modo que os dados são processados fora do Brasil. Os arquivos enviados são processados exclusivamente para geração da análise e não são retidos após a conclusão.
+                O banco de dados do Mizan fica na região AWS São Paulo (sa-east-1). O servidor de aplicação (API), que processa as análises, está hospedado nos Estados Unidos (região Oregon): os dados trafegam e são processados lá, e o armazenamento permanente é no banco em São Paulo. Os arquivos enviados são processados exclusivamente para geração da análise e não são retidos após a conclusão.
               </p>
             </div>
           </div>
