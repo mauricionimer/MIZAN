@@ -93,10 +93,10 @@ export default function Login() {
             {nomEmpresa && (
               <motion.div key={nomEmpresa} className="login-cobrand" aria-live="polite"
                 initial={reduzir ? { opacity: 0 } : { opacity: 0, y: 10, filter: 'blur(4px)' }}
-                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)', transitionEnd: { filter: 'none' } }}
                 exit={reduzir ? { opacity: 0 } : { opacity: 0, y: -6, filter: 'blur(4px)' }}
                 transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}>
-                <span className="login-cobrand-e">&amp;</span>
+                <span className="login-cobrand-e" aria-hidden="true">&amp;</span>
                 {fotoEmpresa
                   ? <img src={fotoEmpresa} alt="" className="login-cobrand-foto" />
                   : <span className="login-cobrand-inicial" aria-hidden="true">{inicial}</span>}
