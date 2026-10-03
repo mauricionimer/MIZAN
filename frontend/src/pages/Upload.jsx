@@ -607,8 +607,12 @@ export default function Upload({ onIrPara, temResultado = false }) {
   const [empresaAlvo, setEmpresaAlvo] = useState('')
   const [listaEmpresas, setListaEmpresas] = useState([])
   const inputRef = useRef()
-  const { setResult } = useAnalysis()
+  const { setResult, aviso, setAviso } = useAnalysis()
   const { token, isOperador, isComando } = useAuth()
+
+  useEffect(() => {
+    if (aviso) { setError(aviso); setAviso(null) }
+  }, [aviso, setAviso])
 
   useEffect(() => {
     listarCarteiras().then(setHistorico).catch(() => {}).finally(() => setHistLoading(false))

@@ -559,7 +559,7 @@ export async function buscarPaginaRanking(carteiraId, params = {}) {
   _handle401(res)
   if (!res.ok) {
     const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
-    throw new Error(detail)
+    throw Object.assign(new Error(detail), { status: res.status })
   }
   return res.json()
 }

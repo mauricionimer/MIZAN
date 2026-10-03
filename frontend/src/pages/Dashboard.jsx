@@ -230,7 +230,7 @@ function PricingCard({ label, value, sub, highlight = false, accent = null, icon
 }
 
 export default function Dashboard({ onIrPara }) {
-  const { result } = useAnalysis()
+  const { result, setResult, setVista, setAviso } = useAnalysis()
   const { token, isAdmin, isComando, isOperador } = useAuth()
   const navigate    = useNavigate()
   const [search, setSearch]               = useState('')
@@ -366,7 +366,19 @@ export default function Dashboard({ onIrPara }) {
       status: filtroStatus !== 'todos' ? filtroStatus : undefined,
     })
       .then(d => { if (!cancelado) setPagina({ itens: d.itens, filtrado: d.filtrado }) })
-      .catch(e => { if (!cancelado) setErroPagina(e.message) })
+      .catch(e => {
+        if (cancelado) return
+        // A análise aberta veio guardada no navegador, mas o servidor diz que
+        // ela não é desta empresa ou não existe mais (ex.: o usuário mudou de
+        // empresa). Mostrar meia tela com dados que ele não pode ver é pior do
+        // que fechar: volta para a lista, com o motivo.
+        if (e.status === 403 || e.status === 404) {
+          setAviso('A análise que estava aberta não está disponível para a sua empresa. Abra uma da lista ou carregue o arquivo de novo.')
+          setResult(null); setVista('analise')
+          return
+        }
+        setErroPagina(e.message)
+      })
       .finally(() => { if (!cancelado) setCarrPag(false) })
     return () => { cancelado = true }
   }, [carteiraId, page, buscaAdiada, filtroProduto, filtroUF, filtroPrio, filtroStatus, tentativa])

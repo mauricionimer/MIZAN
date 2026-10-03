@@ -40,6 +40,10 @@ export function AnalysisProvider({ children }) {
   // rota própria — o usuário volta onde estava.
   const [vista, setVista] = useState(null)
 
+  // Recado para a tela de análise quando a aberta foi descartada (ex.: o
+  // servidor negou acesso a ela). Lido uma vez e apagado.
+  const [aviso, setAviso] = useState(null)
+
   // A restauração em curso, por carteira. Em desenvolvimento o StrictMode monta,
   // desmonta e remonta: guardar a promessa (em vez de um "já rodou") faz a
   // segunda passada aproveitar a mesma requisição em vez de disparar outra —
@@ -106,7 +110,7 @@ export function AnalysisProvider({ children }) {
   }, [])
 
   return (
-    <Ctx.Provider value={{ result, setResult, vista, setVista, restaurando }}>
+    <Ctx.Provider value={{ result, setResult, vista, setVista, restaurando, aviso, setAviso }}>
       {children}
     </Ctx.Provider>
   )
