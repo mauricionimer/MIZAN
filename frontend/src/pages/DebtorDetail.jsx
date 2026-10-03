@@ -256,7 +256,7 @@ const RESULTADO_CFG = {
   contactado:     { label: 'Contactado',       color: 'text-blue-400',    bg: 'rgb(var(--c-royal) / 0.10)',   border: 'rgb(var(--c-royal) / 0.20)'  },
   sem_resposta:   { label: 'Sem resposta',      color: 'text-ink-2',  bg: 'var(--raise-3)', border: 'var(--line)' },
   prometeu_pagar: { label: 'Prometeu pagar',    color: 'text-amber-400',   bg: 'rgb(var(--c-warning) / 0.10)',  border: 'rgb(var(--c-warning) / 0.20)'  },
-  pagou:          { label: 'Pagou',             color: 'text-emerald-400', bg: 'rgb(var(--c-success) / 0.10)',  border: 'rgb(var(--c-success) / 0.20)'  },
+  pagou:          { label: 'Disse que pagou',             color: 'text-emerald-400', bg: 'rgb(var(--c-success) / 0.10)',  border: 'rgb(var(--c-success) / 0.20)'  },
   nao_quis:       { label: 'Não quis negociar', color: 'text-red-400',     bg: 'rgb(var(--c-danger) / 0.10)',   border: 'rgb(var(--c-danger) / 0.18)'   },
 }
 
@@ -359,7 +359,7 @@ function HistoricoContatos({ cpf, rec, propostas }) {
               <option value="contactado">Contactado</option>
               <option value="sem_resposta">Sem resposta</option>
               <option value="prometeu_pagar">Prometeu pagar</option>
-              <option value="pagou">Pagou</option>
+              <option value="pagou">Disse que pagou (a confirmar)</option>
               <option value="nao_quis">Não quis negociar</option>
             </select>
           </div>
@@ -380,6 +380,12 @@ function HistoricoContatos({ cpf, rec, propostas }) {
               Registrar a oferta é o que ensina o sistema qual funciona nesta carteira.
             </p>
           </div>
+          {form.resultado === 'pagou' && (
+            <p className="text-[11px] leading-relaxed" style={{ color: 'var(--ink-3)' }}>
+              Isto registra o que o devedor disse; não confirma o pagamento. A confirmação vem da baixa em Pagamentos
+              (administrador) ou da integração com o banco, e é ela que ensina o sistema, creditada à oferta registrada aqui.
+            </p>
+          )}
           {(form.resultado === 'pagou' || form.resultado === 'prometeu_pagar') && (
             <div className="grid grid-cols-2 gap-3">
               <div>

@@ -18,7 +18,7 @@ perguntas:
 curta: Só o administrador (e o COMANDO) registra pagamentos. O operador acompanha, e registra contatos na página do devedor.
 calculo: O administrador registra de quatro jeitos: o botão "Confirmar pagamento" na linha da fila, o formulário da página Pagamentos, o arquivo em lote (colunas cpf e pagou, e opcionalmente valor_recuperado e data_pagamento) ou uma coluna pagou na própria carteira ou consulta de banco. Todo pagamento é ligado à predição do devedor na carteira da empresa.
 fazer: Se você é operador e o devedor pagou, avise o administrador. Registre o contato na página do devedor para o histórico.
-cuidado: Registrar contato como "Pagou" não confirma o pagamento da carteira: só o administrador confirma. Sem pagamentos registrados, o sistema não consegue aprender nem medir o próprio acerto.
+cuidado: Registrar contato como "Disse que pagou" não confirma o pagamento da carteira: só o administrador (ou a integração) confirma. Sem pagamentos registrados, o sistema não consegue aprender nem medir o próprio acerto.
 fontes:
 - backend/main.py::rota /feedback
 - backend/main.py::rota /feedback/lote

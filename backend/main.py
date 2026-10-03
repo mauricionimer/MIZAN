@@ -1031,17 +1031,18 @@ def _cpf_no_log(cpf) -> str:
 def _fechar_loop_bandit(db, cpf: str, pagou: bool, valor_recuperado: float, pred_data: dict | None,
                         empresa_id: str | None) -> None:
     """
-    Atualiza o bandit com o resultado do pagamento, na ação recomendada a este
-    devedor (a última recomendação registrada para ele nesta empresa).
+    Atualiza o bandit com um pagamento confirmado (ou um não pagamento), na
+    ação que foi feita com este devedor nesta empresa:
 
-    Sem recomendação registrada, NÃO atualiza. Antes havia um "aprendizado
-    offline": o bandit escolhia na hora a ação que teria recomendado e a
-    creditava com o resultado, como se tivesse sido feita. A ação não foi feita,
-    e isso inflava as taxas por oferta que alimentam as propostas (achado D2).
-    O contato registrado com canal e oferta continua ensinando o bandit pela
-    rota de contatos, que sabe o que foi realmente apresentado.
+      1. a do último contato registrado com canal e oferta (o que o operador
+         de fato apresentou);
+      2. senão, a última recomendação registrada para ele.
+
+    Sem nenhuma das duas, NÃO atualiza. Antes havia um "aprendizado offline":
+    o bandit escolhia na hora a ação que teria recomendado e a creditava com o
+    resultado, como se tivesse sido feita (achado D2).
     """
-    from model.bandit import registrar_resultado
+    from model.bandit import acao_id_de, construir_contexto, registrar_resultado
 
     valor_divida = float((pred_data or {}).get("valor_divida") or 0)
     if pagou and valor_divida > 0:
@@ -1053,20 +1054,38 @@ def _fechar_loop_bandit(db, cpf: str, pagou: bool, valor_recuperado: float, pred
 
     try:
         # Escopo por empresa: o mesmo CPF pode dever a mais de um cliente, e
-        # sem o filtro o feedback de um treinaria o bandit com a recomendação
-        # feita pelo outro.
-        rec_q = (
-            db.table("recomendacoes")
-            .select("acao_id, contexto")
-            .eq("cpf", cpf)
-        )
-        if empresa_id:
-            rec_q = rec_q.eq("empresa_id", empresa_id)
-        rec_res = rec_q.order("created_at", desc=True).limit(1).execute()
-        if not rec_res.data:
+        # sem o filtro o pagamento de um treinaria o bandit com a abordagem do outro.
+        def _ultimos(tabela, colunas, n):
+            q = db.table(tabela).select(colunas).eq("cpf", cpf)
+            if empresa_id:
+                q = q.eq("empresa_id", empresa_id)
+            return q.order("created_at", desc=True).limit(n).execute().data or []
+
+        recs = _ultimos("recomendacoes", "acao_id, contexto", 1)
+        acao_id = None
+        try:
+            contatos = _ultimos("contatos", "canal, oferta, acao_bandit_id", 20)
+        except Exception:                 # banco ainda sem a coluna `oferta`
+            contatos = _ultimos("contatos", "canal, acao_bandit_id", 20)
+        for ct in contatos:
+            acao_id = acao_id_de(ct.get("canal"), ct.get("oferta")) if ct.get("oferta") else None
+            if acao_id is None:
+                acao_id = ct.get("acao_bandit_id")
+            if acao_id is not None:
+                break
+        contexto = recs[0]["contexto"] if recs else None
+        if acao_id is None and recs:
+            acao_id = recs[0]["acao_id"]
+        if acao_id is None:
             return
-        registrar_resultado(acao_id=rec_res.data[0]["acao_id"], contexto=rec_res.data[0]["contexto"],
-                            recompensa=recompensa, empresa_id=empresa_id, pagou=bool(pagou))
+        if contexto is None:
+            if not pred_data:
+                return
+            vd = float(pred_data.get("valor_divida") or 0)
+            rd = float(pred_data.get("renda_estimada") or 0)
+            contexto = construir_contexto({**pred_data, "comprometimento_renda": (vd / rd) if rd > 0 else 1.0}).tolist()
+        registrar_resultado(acao_id=acao_id, contexto=contexto, recompensa=recompensa,
+                            empresa_id=empresa_id, pagou=bool(pagou))
     except Exception as _be:
         # sem o CPF: o log não é lugar de dado pessoal
         print(f"[Bandit] Erro ao fechar loop: {type(_be).__name__}")
@@ -1541,8 +1560,12 @@ class ContatoIn(BaseModel):
         return v
 
 
+# "pagou" no contato é o que o operador ouviu do devedor, não um pagamento
+# confirmado: fica fora daqui. O bandit recebe o pagamento quando ele é
+# confirmado (baixa, webhook, sincronização), em _fechar_loop_bandit, creditado à
+# oferta apresentada no contato (achado D11). Antes o contato "pagou" já dava a
+# recompensa cheia, e a confirmação depois dava de novo.
 _CONTATO_RECOMPENSA: dict = {
-    "pagou":          None,  # calculado de valor_recuperado / valor_divida
     "prometeu_pagar": 0.2,
     "contactado":     0.05,
     "sem_resposta":   0.0,
@@ -1578,11 +1601,20 @@ def registrar_contato(body: ContatoIn, credentials: HTTPAuthorizationCredentials
     row["empresa_id"]   = payload.get("empresa_id", "")
 
     try:
-        res = db.table("contatos").insert(row).execute()
+        try:
+            res = db.table("contatos").insert(row).execute()
+        except Exception as e:
+            # Banco sem a coluna `oferta` (sql/migracao_contatos_oferta.sql não
+            # rodou): grava o contato sem ela em vez de perder o registro. O
+            # aprendizado desta requisição ainda usa a oferta, que vem no corpo.
+            if "oferta" not in row or "oferta" not in str(e):
+                raise
+            print("[Contato] coluna 'oferta' ausente em contatos; rode sql/migracao_contatos_oferta.sql")
+            res = db.table("contatos").insert({k: v for k, v in row.items() if k != "oferta"}).execute()
         if not res.data:
             raise RuntimeError("insert retornou vazio")
     except Exception as e:
-        print(f"[Contato] Erro ao inserir: {e}")
+        print(f"[Contato] Erro ao inserir: {type(e).__name__}")
         raise HTTPException(status_code=500, detail="Erro ao registrar contato. Tente novamente.")
 
     # Fecha o loop do bandit: aprende com o resultado real do contato
@@ -1611,7 +1643,7 @@ def registrar_contato(body: ContatoIn, credentials: HTTPAuthorizationCredentials
             # reconstruído da predição quando falta.
             contexto = anterior["contexto"] if anterior else None
             pred_r = None
-            if contexto is None or _CONTATO_RECOMPENSA[body.resultado] is None:
+            if contexto is None:
                 # Escopada à empresa: sem isso a predição mais recente de TODAS
                 # as empresas servia de contexto, e o bandit de uma aprendia com
                 # a renda e a dívida de um devedor de outra.
@@ -1630,12 +1662,9 @@ def registrar_contato(body: ContatoIn, credentials: HTTPAuthorizationCredentials
                 ).tolist()
 
             if acao_id is not None and contexto is not None:
-                recomp = _CONTATO_RECOMPENSA[body.resultado]
-                if recomp is None:
-                    vd = float(pred_r.data[0].get("valor_divida") or 0) if (pred_r and pred_r.data) else 0
-                    recomp = min(1.0, float(body.valor_recuperado or 0) / vd) if vd > 0 and body.valor_recuperado else 0.5
-                registrar_resultado(acao_id=acao_id, contexto=contexto, recompensa=recomp,
-                                    empresa_id=_emp, pagou=(body.resultado == "pagou"))
+                registrar_resultado(acao_id=acao_id, contexto=contexto,
+                                    recompensa=_CONTATO_RECOMPENSA[body.resultado],
+                                    empresa_id=_emp, pagou=False)
             else:
                 print(f"[Bandit/Contato] Sem ação ou contexto: "
                       f"acao_id={acao_id}, contexto={'ok' if contexto else 'ausente'}")

@@ -151,15 +151,15 @@ perguntas:
 - o que significa prometeu pagar
 - o que acontece quando registro um contato
 - registrar contato como pagou confirma o pagamento
+- o que é disse que pagou a confirmar
 - para que serve o registro de contato
 - onde registro que falei com o devedor
 - o que cada resultado de contato significa
 - registrar contato muda alguma coisa no sistema
 curta: Registra canal, resultado e (opcionalmente) a oferta apresentada. Alimenta o histórico do devedor e o aprendizado do sistema.
-calculo: Resultados e o que valem para o aprendizado: sem resposta e não quis negociar = 0; contactado = 0,05; prometeu pagar = 0,2; pagou = valor recuperado ÷ dívida (máximo 1). Esses pesos são escolha de projeto.
-fazer: Informe sempre a oferta apresentada: é ela que é creditada no aprendizado.
-cuidado: Marcar "Pagou" no contato não confirma o pagamento da carteira: a confirmação é feita pelo administrador. E os pesos 0,05 e 0,2 não vêm de nenhuma fonte externa.
-revisar: achado D11 (um operador pode marcar "Pagou" no contato sem confirmar o pagamento).
+calculo: Resultados e o que valem para o aprendizado: sem resposta e não quis negociar = 0; contactado = 0,05; prometeu pagar = 0,2. "Disse que pagou" não vale nada na hora: é o que o devedor contou, não um pagamento. Quando o pagamento é confirmado (baixa do administrador, webhook ou sincronização), ele vale valor recuperado ÷ dívida (máximo 1) e é creditado à oferta e ao canal do último contato registrado com oferta. Esses pesos são escolha de projeto.
+fazer: Informe sempre a oferta apresentada: é ela que recebe o crédito quando o pagamento for confirmado.
+cuidado: "Disse que pagou" não confirma o pagamento da carteira nem entra nos resultados: a confirmação é feita pelo administrador ou chega pela integração. Os pesos 0,05 e 0,2 não vêm de nenhuma fonte externa.
 fontes:
 - backend/main.py::rota /contatos
 - backend/main.py::_CONTATO_RECOMPENSA

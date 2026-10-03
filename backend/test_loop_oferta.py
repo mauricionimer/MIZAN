@@ -7,6 +7,9 @@ bandit com a oferta que foi DE FATO apresentada. Antes, o loop era pulado
 inteiro quando não havia uma recomendação prévia gravada para o CPF — então
 quem negociava direto pela tela de propostas nunca gerava aprendizado, por
 mais contatos que registrasse.
+
+D11: "pagou" no contato é o que o devedor disse, não um pagamento. O bandit só
+recebe o pagamento quando ele é confirmado, creditado à oferta do contato.
 """
 import os
 import sys
@@ -53,7 +56,10 @@ class Q:
     def in_(s, c, v): s.f[c] = v; return s
     def order(s, *a, **k): return s
     def limit(s, *a): return s
-    def insert(s, row): s.row = row; return s
+    def insert(s, row):
+        if SEM_COLUNA_OFERTA and "oferta" in row:
+            raise RuntimeError("Could not find the 'oferta' column of 'contatos' in the schema cache")
+        s.row = row; return s
 
     # O código lê em páginas, então o banco falso precisa recortar de verdade:
     # devolver sempre as mesmas linhas faria o laço de paginação não terminar.
@@ -81,11 +87,25 @@ class Q:
                 "valor_divida": 10000.0, "renda_estimada": 4000.0,
                 "dias_em_atraso": 120, "score_recuperabilidade": 60.0}]))
         if s.tbl == "contatos":
-            return types.SimpleNamespace(data=[{"id": "ct-1", **getattr(s, "row", {})}])
+            if hasattr(s, "row"):                              # insert
+                CONTATOS.append(dict(s.row))
+                return types.SimpleNamespace(data=[{"id": f"ct-{len(CONTATOS)}", **s.row}])
+            linhas = [x for x in reversed(CONTATOS)            # select: mais novo primeiro
+                      if all(x.get(k) == v for k, v in s.f.items())]
+            return types.SimpleNamespace(data=linhas)
         return types.SimpleNamespace(data=[])
 
 
+CONTATOS: list = []
+SEM_COLUNA_OFERTA = False
 main.get_db = lambda: types.SimpleNamespace(table=lambda t: Q(t))
+PRED = {"id": "p1", "valor_divida": 10000.0, "renda_estimada": 4000.0, "dias_em_atraso": 120,
+        "produto": "cartao", "uf": "GO", "score_recuperabilidade": 60.0}
+
+
+def confirmar(valor):
+    """O que acontece quando o pagamento é confirmado (baixa, webhook, sincronização)."""
+    main._fechar_loop_bandit(main.get_db(), "11122233344", True, valor, PRED, EMP)
 main.buscar_usuario_por_id = lambda uid: {"ativo": True, "id": uid}
 EMP = "banco_alfa"
 h = {"Authorization": "Bearer " + criar_token(
@@ -100,18 +120,23 @@ def contar(oferta):
     return sum(b.n_tentativas[i] for i in ids), sum(b.n_pagamentos[i] for i in ids)
 
 
-# ── sem recomendação prévia, registrando a oferta apresentada ──────────────
+# ── "pagou" no contato não é pagamento: não ensina nada ainda ─────────────
 antes = contar("parcelado_12x")
 r = c.post("/contatos", headers=h, json={
     "cpf": "11122233344", "canal": "telefone", "resultado": "pagou",
     "oferta": "parcelado_12x", "valor_recuperado": 9000})
 checar(r.status_code in (200, 201), "aceita o contato com a oferta apresentada",
        f"{r.status_code} {r.text[:90]}")
+checar(contar("parcelado_12x") == antes,
+       "'disse que pagou' NÃO ensina o bandit (não é pagamento confirmado)", f"{antes} -> {contar('parcelado_12x')}")
+
+# ── a confirmação, sem recomendação prévia, credita a oferta do contato ───
+confirmar(9000)
 depois = contar("parcelado_12x")
 checar(depois[0] == antes[0] + 1,
-       "sem recomendação prévia, o contato AGORA chega ao bandit",
+       "confirmado o pagamento, chega ao bandit mesmo sem recomendação prévia",
        f"tentativas {antes[0]} -> {depois[0]}")
-checar(depois[1] == antes[1] + 1, "e conta como pagamento",
+checar(depois[1] == antes[1] + 1, "e conta como pagamento, uma vez só",
        f"pagamentos {antes[1]} -> {depois[1]}")
 
 # ── a oferta certa é creditada, não outra ─────────────────────────────────
@@ -123,10 +148,11 @@ checar(all(v == 0 for v in outras.values()),
 c.post("/contatos", headers=h, json={
     "cpf": "11122233344", "canal": "whatsapp", "resultado": "pagou",
     "oferta": "parcelado_12x", "valor_recuperado": 5000})
+confirmar(5000)
 b = B.carregar_bandit(EMP)
 checar(b.n_tentativas[B.acao_id_de("telefone", "parcelado_12x")] == 1
        and b.n_tentativas[B.acao_id_de("whatsapp", "parcelado_12x")] == 1,
-       "cada canal entra na própria ação")
+       "a confirmação vai para a abordagem do contato mais recente (canal + oferta)")
 checar(contar("parcelado_12x")[0] == 2,
        "e a PoP da oferta agrega os canais", str(contar("parcelado_12x")[0]))
 
@@ -162,6 +188,15 @@ depois5 = contar("avista_10pct")
 checar(depois5[0] == antes5[0] + 2, "contactado e prometeu pagar entram como tentativa",
        f"{antes5[0]} -> {depois5[0]}")
 checar(depois5[1] == antes5[1], "mas NÃO como pagamento", f"pagamentos {antes5[1]} -> {depois5[1]}")
+
+# ── banco ainda sem a coluna `oferta`: o contato não se perde ────────────
+SEM_COLUNA_OFERTA = True
+n = len(CONTATOS)
+r = c.post("/contatos", headers=h, json={
+    "cpf": "11122233344", "canal": "telefone", "resultado": "contactado", "oferta": "parcelado_4x"})
+checar(r.status_code == 200 and len(CONTATOS) == n + 1 and "oferta" not in CONTATOS[-1],
+       "sem a coluna no banco, grava o contato sem a oferta em vez de dar erro", str(r.status_code))
+SEM_COLUNA_OFERTA = False
 
 # ── oferta fora do catálogo é recusada, não gravada torta ─────────────────
 r = c.post("/contatos", headers=h, json={

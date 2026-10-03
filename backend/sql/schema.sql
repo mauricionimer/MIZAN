@@ -157,6 +157,7 @@ CREATE TABLE IF NOT EXISTS contatos (
   usuario_nome            TEXT,
   empresa_id              TEXT DEFAULT ''
 );
+ALTER TABLE contatos ADD COLUMN IF NOT EXISTS oferta TEXT;
 
 -- ── Recomendações do bandit (log) ────────────────────────────
 CREATE TABLE IF NOT EXISTS recomendacoes (
