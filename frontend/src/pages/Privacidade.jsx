@@ -35,10 +35,10 @@ export default function Privacidade() {
             <span className="text-blue-400 text-lg mt-0.5">🔒</span>
             <div>
               <p className="text-sm font-semibold text-blue-300">
-                Dados armazenados em servidores no Brasil, em conformidade com a LGPD.
+                Tratamos dados pessoais conforme a LGPD, com acesso restrito por empresa e por perfil.
               </p>
               <p className="text-xs text-blue-400/70 mt-1">
-                O banco de dados do Mizan opera na região AWS São Paulo (sa-east-1). Os arquivos enviados são processados exclusivamente para geração da análise e não são retidos após a conclusão.
+                O servidor de aplicação do Mizan (API) está hospedado nos Estados Unidos (região Oregon), de modo que os dados são processados fora do Brasil. Os arquivos enviados são processados exclusivamente para geração da análise e não são retidos após a conclusão.
               </p>
             </div>
           </div>
