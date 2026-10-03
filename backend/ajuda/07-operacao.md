@@ -42,11 +42,10 @@ perguntas:
 - como ligo o sistema ao banco de dados da empresa
 - quais bancos de dados são aceitos
 - como libero uma conexão para um operador
-curta: O administrador cadastra a conexão (PostgreSQL, MySQL, MariaDB, SQL Server, Oracle ou Google Sheets) e libera para os operadores. A senha fica criptografada e nunca volta para a tela.
+curta: O administrador cadastra a conexão (PostgreSQL, MySQL, MariaDB, SQL Server, Oracle ou Google Sheets) e libera para os operadores. A senha (e, no Google Sheets, a credencial da conta de serviço) fica criptografada e nunca volta para a tela.
 calculo: Só consultas SELECT são aceitas. A análise direta de um banco lê no máximo 50.000 linhas. A conexão salva pode ser sincronizada a cada 1, 4 ou 24 horas. O operador só usa conexões salvas e liberadas para ele, e sempre contra o servidor cadastrado.
 fazer: O administrador cria a conexão em Análise > banco de dados e libera operadores na tela de Usuários. Se precisar de mais de 50.000 linhas, exporte para arquivo.
-cuidado: A conexão é somente leitura, a menos que o administrador ative a escrita de volta. SQLite só funciona em instalação local, não no serviço hospedado. Endereços internos da rede são recusados. Conexões Google Sheets salvas não guardam as credenciais da conta de serviço, então a sincronização (manual e automática) não as atende: para Sheets, cole as credenciais na própria análise ou envie um arquivo.
-revisar: achado D12 do mapa do sistema (Sheets salvo não sincroniza).
+cuidado: A conexão é somente leitura, a menos que o administrador ative a escrita de volta. SQLite só funciona em instalação local, não no serviço hospedado. Endereços internos da rede são recusados. Conexões Google Sheets guardam a credencial da conta de serviço cifrada, como a senha, e ela nunca volta para a tela; as salvas antes de outubro de 2026 ficaram sem ela e precisam que a credencial seja colada de novo (editar a conexão e analisar) para sincronizar.
 fontes:
 - backend/main.py::_conexao_usavel
 - backend/main.py::ConexaoDB

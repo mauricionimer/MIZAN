@@ -663,6 +663,31 @@ def _exigir_conexao_da_empresa(db, conexao_id: str, payload: dict) -> dict:
     raise HTTPException(status_code=403, detail="Acesso negado.")
 
 
+def _cifrar_credencial_sheets(creds: dict) -> str:
+    """O JSON da conta de serviço tem a chave privada: só entra no banco cifrado."""
+    if not isinstance(creds, dict) or not creds.get("private_key") or not creds.get("client_email"):
+        raise HTTPException(status_code=400, detail="Credencial do Google inválida: cole o JSON da conta de serviço "
+                                                    "(com client_email e private_key).")
+    return _encrypt(json.dumps(creds))
+
+
+def _credencial_sheets_salva(r: dict) -> "dict | None":
+    bruto = r.get("sheets_credenciais")
+    if not bruto:
+        return None
+    if isinstance(bruto, dict):                     # gravada antes de ser cifrada
+        return bruto
+    return json.loads(_decrypt(bruto))              # _decrypt devolve o texto se não estiver cifrado
+
+
+def _sem_segredos(row: dict) -> dict:
+    """Linha de conexão para a tela: sem senha e sem credencial; diz só se a credencial existe."""
+    row["senha"] = ""
+    row["tem_credencial_sheets"] = bool(row.get("sheets_credenciais"))
+    row.pop("sheets_credenciais", None)
+    return row
+
+
 def _resolver_credenciais(conn: ConexaoDB, payload: dict) -> None:
     """Autoriza o uso da conexão e, se for o caso, preenche a senha salva.
 
@@ -689,6 +714,12 @@ def _resolver_credenciais(conn: ConexaoDB, payload: dict) -> None:
             setattr(conn, campo, r[campo])
     if not senha_da_requisicao and r.get("senha"):
         conn.senha = _decrypt(r["senha"])
+    if r.get("tipo") == "sheets":
+        for campo in ("sheets_id", "sheets_aba"):
+            if r.get(campo):
+                setattr(conn, campo, r[campo])
+        if not conn.sheets_credenciais:
+            conn.sheets_credenciais = _credencial_sheets_salva(r)
 
 
 _MIZAN_PROJECT_ID = "qbdxdtdxujluklyrtmjx"
@@ -1322,6 +1353,7 @@ class ConexaoSalvarIn(BaseModel):
     service_name: Optional[str] = None
     sheets_id: Optional[str] = None
     sheets_aba: Optional[str] = None
+    sheets_credenciais: Optional[dict] = None  # JSON da conta de serviço; gravado cifrado
     query: Optional[str] = None
     mapeamento: Optional[dict] = None
     empresa_id: Optional[str] = None  # COMANDO pode especificar a empresa destino
@@ -1334,6 +1366,7 @@ class ConexaoSalvarIn(BaseModel):
 
 class ConexaoUpdateIn(BaseModel):
     nome: Optional[str] = None
+    sheets_credenciais: Optional[dict] = None  # para completar conexões Sheets salvas sem ela
     query: Optional[str] = None
     mapeamento: Optional[dict] = None
     carteira_id: Optional[str] = None
@@ -1481,9 +1514,7 @@ def listar_conexoes(credentials: HTTPAuthorizationCredentials = Security(bearer)
             rows = r.data or []
 
     rows.sort(key=lambda r: r.get("created_at", ""), reverse=True)
-    for row in rows:
-        row["senha"] = ""
-    return rows
+    return [_sem_segredos(row) for row in rows]
 
 @app.post("/conexoes")
 def salvar_conexao(body: ConexaoSalvarIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
@@ -1499,15 +1530,20 @@ def salvar_conexao(body: ConexaoSalvarIn, credentials: HTTPAuthorizationCredenti
     else:
         row["empresa_id"] = payload.get("empresa_id") or None
     row["senha"] = _encrypt(body.senha)  # cifra antes de armazenar
+    if body.tipo == "sheets":
+        if not body.sheets_id or not body.sheets_credenciais:
+            raise HTTPException(status_code=400, detail="Para Google Sheets, informe o ID da planilha e a credencial da conta de serviço.")
+        row["sheets_credenciais"] = _cifrar_credencial_sheets(body.sheets_credenciais)
     try:
         res = db.table("conexoes_db").insert(row).execute()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao salvar conexão no banco: {e}")
+        if "sheets_credenciais" in str(e):
+            raise HTTPException(status_code=503, detail="O banco ainda não tem onde guardar a credencial do Google: "
+                                                        "rode backend/sql/migracao_conexoes_sheets.sql no Supabase.")
+        raise HTTPException(status_code=500, detail=f"Erro ao salvar conexão no banco: {type(e).__name__}")
     if not res.data:
         raise HTTPException(status_code=500, detail="Falha ao inserir conexão — verifique o schema da tabela conexoes_db no Supabase.")
-    saved = res.data[0]
-    saved["senha"] = ""  # não retorna a senha cifrada
-    return {"ok": True, "conexao": saved}
+    return {"ok": True, "conexao": _sem_segredos(res.data[0])}   # nem senha nem credencial voltam
 
 class ContatoIn(BaseModel):
     cpf: str
@@ -1716,7 +1752,15 @@ def atualizar_conexao(conexao_id: str, body: ConexaoUpdateIn, credentials: HTTPA
     if not updates:
         return {"ok": True}
     _exigir_conexao_da_empresa(db, conexao_id, payload)
-    db.table("conexoes_db").update(updates).eq("id", conexao_id).execute()
+    if "sheets_credenciais" in updates:
+        updates["sheets_credenciais"] = _cifrar_credencial_sheets(updates["sheets_credenciais"])
+    try:
+        db.table("conexoes_db").update(updates).eq("id", conexao_id).execute()
+    except Exception as e:
+        if "sheets_credenciais" in str(e):
+            raise HTTPException(status_code=503, detail="O banco ainda não tem onde guardar a credencial do Google: "
+                                                        "rode backend/sql/migracao_conexoes_sheets.sql no Supabase.")
+        raise
     return {"ok": True}
 
 
@@ -1730,7 +1774,8 @@ def deletar_conexao(conexao_id: str, credentials: HTTPAuthorizationCredentials =
     if not chk.data:
         return {"ok": True}
     r = chk.data[0]
-    if not ((eid and r.get("empresa_id") == eid) or r.get("usuario_id") == uid):
+    # COMANDO gere as conexões de todas as empresas (como em _exigir_conexao_da_empresa)
+    if payload.get("role") != "comando" and not ((eid and r.get("empresa_id") == eid) or r.get("usuario_id") == uid):
         raise HTTPException(status_code=403, detail="Acesso negado.")
     db.table("conexoes_db").delete().eq("id", conexao_id).execute()
     return {"ok": True}
@@ -2088,12 +2133,10 @@ def _sincronizar_conexao_row(row: dict, uemail: str, uid: str, eid: str) -> dict
     if conn.tipo == "sheets":
         if not conn.sheets_id:
             raise ValueError("Conexão do tipo Sheets sem sheets_id.")
-        sheets_creds = row.get("sheets_credenciais")
-        if sheets_creds and isinstance(sheets_creds, str):
-            import json as _json
-            conn.sheets_credenciais = _json.loads(sheets_creds)
-        else:
-            conn.sheets_credenciais = sheets_creds
+        conn.sheets_credenciais = _credencial_sheets_salva(row)
+        if not conn.sheets_credenciais:
+            raise ValueError("Conexão Sheets salva sem a credencial da conta de serviço. "
+                             "Edite a conexão e cole o JSON da credencial.")
         df = _ler_google_sheets(conn)
     else:
         q = (conn.query or "").strip()

@@ -171,7 +171,7 @@ o defeito que existia.
 | **D8** | página do devedor | a "Urgência" (≥70 Alta, ≥40 Média) vem só do score e pode contradizer a Prioridade (posição na fila). É um terceiro critério |
 | **D9** (resolvido: renda ausente, vazia ou zero fica desconhecida e o modelo usa a mediana; célula em branco não derruba mais a análise) | renda ausente | quando a coluna de renda não existe, vira 0, e a razão dívida ÷ renda vira 0 (o devedor parece sem comprometimento) |
 | **D10** (resolvido: modelo de preço por empresa, ativado junto com a versão; o arquivo global não é mais lido) | `price_model.pkl` | é um só para todas as empresas: se for treinado, passa a valer para todas, inclusive as que têm modelo próprio |
-| **D12** | conexão Google Sheets salva | o cadastro da conexão não guarda as credenciais da conta de serviço, então a sincronização (manual e automática) falha para Sheets. Só a análise avulsa, com as credenciais coladas, funciona |
+| **D12** (resolvido: credencial guardada cifrada; requer migracao_conexoes_sheets.sql) | conexão Google Sheets salva | o cadastro da conexão não guarda as credenciais da conta de serviço, então a sincronização (manual e automática) falha para Sheets. Só a análise avulsa, com as credenciais coladas, funciona |
 | **D11** (resolvido: "Disse que pagou" não ensina nada; o pagamento confirmado é creditado à oferta do contato) | registrar contato | o operador pode marcar "Pagou" no contato, o que treina o bandit mas não confirma o pagamento (isso é do admin) |
 
 ## Decisões suas (D)

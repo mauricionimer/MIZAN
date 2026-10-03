@@ -110,11 +110,15 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
   const isOracle    = form.tipo === 'oracle'
   const tipoInfo    = DB_TIPOS.find(t => t.value === form.tipo)
 
+  // JSON da conta de serviço digitado agora (null se vazio ou inválido). O servidor
+  // grava cifrado e nunca devolve: numa conexão salva o campo vem vazio.
+  function credsSheets() {
+    try { return form.sheets_credenciais ? JSON.parse(form.sheets_credenciais) : null } catch { return null }
+  }
+
   function paramsConexao() {
     if (isSheets) {
-      let creds = null
-      try { creds = form.sheets_credenciais ? JSON.parse(form.sheets_credenciais) : null } catch {}
-      return { tipo: 'sheets', sheets_id: form.sheets_id || null, sheets_aba: form.sheets_aba || null, sheets_credenciais: creds, nome_fonte: form.nome_fonte || 'google_sheets', query: null, conexao_id: conexaoSalvaId || null }
+      return { tipo: 'sheets', sheets_id: form.sheets_id || null, sheets_aba: form.sheets_aba || null, sheets_credenciais: credsSheets(), nome_fonte: form.nome_fonte || 'google_sheets', query: null, conexao_id: conexaoSalvaId || null }
     }
     return {
       tipo: form.tipo, host: isSQLite ? null : (form.host || null),
@@ -128,7 +132,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
   }
 
   function carregarConexaoSalva(c) {
-    setForm({ tipo: c.tipo, host: c.host || '', porta: c.porta || '', banco: c.banco || '', usuario: c.usuario || '', senha: c.senha || '', query: c.query || 'SELECT * FROM devedores', nome_fonte: c.nome || '', instance_name: c.instance_name || '', service_name: c.service_name || '', sheets_id: c.sheets_id || '', sheets_aba: c.sheets_aba || '', sheets_credenciais: '', intervalo_sync_horas: c.intervalo_sync_horas ?? 1, writeback_habilitado: !!c.writeback_habilitado, coluna_writeback: c.coluna_writeback || '', valor_pago: c.valor_pago || 'pago', valor_nao_pago: c.valor_nao_pago || '' })
+    setForm({ tipo: c.tipo, host: c.host || '', porta: c.porta || '', banco: c.banco || '', usuario: c.usuario || '', senha: c.senha || '', query: c.query || 'SELECT * FROM devedores', nome_fonte: c.nome || '', instance_name: c.instance_name || '', service_name: c.service_name || '', sheets_id: c.sheets_id || '', sheets_aba: c.sheets_aba || '', sheets_credenciais: '', sheets_tem_cred: !!c.tem_credencial_sheets, intervalo_sync_horas: c.intervalo_sync_horas ?? 1, writeback_habilitado: !!c.writeback_habilitado, coluna_writeback: c.coluna_writeback || '', valor_pago: c.valor_pago || 'pago', valor_nao_pago: c.valor_nao_pago || '' })
     setConexaoSalvaId(c.id); setNomeParaSalvar(''); setEtapa('conexao'); setModo('nova'); setErro(null)
   }
 
@@ -137,7 +141,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
     if (!nome) return
     setSalvandoConexao(true)
     try {
-      const dados = { nome, tipo: form.tipo, host: form.host || null, porta: form.porta ? Number(form.porta) : null, banco: form.banco || null, usuario: form.usuario || null, senha: form.senha || null, instance_name: form.instance_name || null, service_name: form.service_name || null, sheets_id: form.sheets_id || null, sheets_aba: form.sheets_aba || null, query: isSheets ? null : (form.query || null), mapeamento: Object.keys(mapa).length > 0 ? mapa : undefined, empresa_id: empresaAlvo || undefined, intervalo_sync_horas: Number(form.intervalo_sync_horas) || 1, writeback_habilitado: !!form.writeback_habilitado, coluna_writeback: form.coluna_writeback || null, valor_pago: form.valor_pago || 'pago', valor_nao_pago: form.valor_nao_pago || null }
+      const dados = { nome, tipo: form.tipo, host: form.host || null, porta: form.porta ? Number(form.porta) : null, banco: form.banco || null, usuario: form.usuario || null, senha: form.senha || null, instance_name: form.instance_name || null, service_name: form.service_name || null, sheets_id: form.sheets_id || null, sheets_aba: form.sheets_aba || null, sheets_credenciais: isSheets ? credsSheets() : undefined, query: isSheets ? null : (form.query || null), mapeamento: Object.keys(mapa).length > 0 ? mapa : undefined, empresa_id: empresaAlvo || undefined, intervalo_sync_horas: Number(form.intervalo_sync_horas) || 1, writeback_habilitado: !!form.writeback_habilitado, coluna_writeback: form.coluna_writeback || null, valor_pago: form.valor_pago || 'pago', valor_nao_pago: form.valor_nao_pago || null }
       const res = await salvarConexao(dados)
       setConexoes(prev => [res.conexao, ...prev]); setConexaoSalvaId(res.conexao.id); setNomeParaSalvar('')
     } catch (e) { setErro(`Erro ao salvar conexão: ${e.message}`) } finally { setSalvandoConexao(false) }
@@ -195,13 +199,13 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
       const autoNome = `${form.tipo.toUpperCase()} · ${(form.host || '').split('.')[0] || form.banco || 'banco'}`
       const nomeEfetivo = form.nome_fonte.trim() || nomeParaSalvar.trim() || autoNome
       try {
-        const res = await salvarConexao({ nome: nomeEfetivo, tipo: form.tipo, host: form.host || null, porta: form.porta ? Number(form.porta) : null, banco: form.banco || null, usuario: form.usuario || null, senha: form.senha || null, instance_name: form.instance_name || null, service_name: form.service_name || null, sheets_id: form.sheets_id || null, sheets_aba: form.sheets_aba || null, query: isSheets ? null : (form.query || null), mapeamento: mapa, intervalo_sync_horas: Number(form.intervalo_sync_horas) || 1, coluna_writeback: form.coluna_writeback || null, valor_pago: form.valor_pago || 'pago', valor_nao_pago: form.valor_nao_pago || null })
+        const res = await salvarConexao({ nome: nomeEfetivo, tipo: form.tipo, host: form.host || null, porta: form.porta ? Number(form.porta) : null, banco: form.banco || null, usuario: form.usuario || null, senha: form.senha || null, instance_name: form.instance_name || null, service_name: form.service_name || null, sheets_id: form.sheets_id || null, sheets_aba: form.sheets_aba || null, sheets_credenciais: isSheets ? credsSheets() : undefined, query: isSheets ? null : (form.query || null), mapeamento: mapa, intervalo_sync_horas: Number(form.intervalo_sync_horas) || 1, coluna_writeback: form.coluna_writeback || null, valor_pago: form.valor_pago || 'pago', valor_nao_pago: form.valor_nao_pago || null })
         savedId = res.conexao.id; setConexoes(prev => [res.conexao, ...prev]); setConexaoSalvaId(savedId); setModo('lista')
       } catch (saveErr) { setErro(`Erro ao salvar conexão: ${saveErr.message}`); setEtapa('mapeamento'); setLoadingAnalise(false); return }
     }
     try {
       const data = await analisarDB({ ...paramsConexao(), mapeamento: mapa, conexao_id: savedId, empresa_id_alvo: empresaAlvo || undefined })
-      if (savedId) { atualizarConexao(savedId, { mapeamento: mapa, query: form.query, carteira_id: data.resumo?.carteira_id || undefined, intervalo_sync_horas: Number(form.intervalo_sync_horas) || 1, writeback_habilitado: !!form.writeback_habilitado, coluna_writeback: form.coluna_writeback || null, valor_pago: form.valor_pago || 'pago', valor_nao_pago: form.valor_nao_pago || null }).catch(() => {}) }
+      if (savedId) { atualizarConexao(savedId, { ...(isSheets && credsSheets() ? { sheets_credenciais: credsSheets() } : {}), mapeamento: mapa, query: form.query, carteira_id: data.resumo?.carteira_id || undefined, intervalo_sync_horas: Number(form.intervalo_sync_horas) || 1, writeback_habilitado: !!form.writeback_habilitado, coluna_writeback: form.coluna_writeback || null, valor_pago: form.valor_pago || 'pago', valor_nao_pago: form.valor_nao_pago || null }).catch(() => {}) }
       onResult(data)
     } catch (e) { setErro(e.message); setEtapa('mapeamento') } finally { setLoadingAnalise(false) }
   }
@@ -353,6 +357,16 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
         <div>
           <label className="block text-xs font-medium mb-1" style={{ color: 'var(--ink-2)' }}>Credenciais da Service Account (JSON)</label>
           <textarea value={form.sheets_credenciais || ''} onChange={e => set('sheets_credenciais', e.target.value)} rows={4} placeholder='{"type":"service_account","project_id":"..."}' className={`${inp()} tabular-nums text-xs resize-none`} style={INP_DARK} />
+          <p className="text-xs mt-1" style={{ color: 'var(--ink-3)' }}>
+            {conexaoSalvaId
+              ? (form.sheets_tem_cred
+                  ? 'Já guardada, cifrada. Cole de novo só se quiser trocar.'
+                  : 'Esta conexão foi salva sem a credencial, por isso não sincroniza. Cole o JSON e analise de novo para guardá-la.')
+              : 'Guardada cifrada no servidor e nunca exibida de volta.'}
+          </p>
+          {form.sheets_credenciais && !credsSheets() && (
+            <p className="text-xs mt-1 text-red-400">O texto colado não é um JSON válido.</p>
+          )}
         </div>
       </>)}
       {!isSQLite && !isSheets && (

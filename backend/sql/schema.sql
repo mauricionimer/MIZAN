@@ -130,6 +130,7 @@ ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS instance_name        TEXT;
 ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS service_name         TEXT;
 ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS sheets_id            TEXT;
 ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS sheets_aba           TEXT;
+ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS sheets_credenciais   TEXT;  -- JSON da conta de serviço, cifrado
 ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS mapeamento           JSONB;
 ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS ultimo_sync          TIMESTAMPTZ;
 ALTER TABLE conexoes_db ADD COLUMN IF NOT EXISTS ultimo_sync_por      TEXT;
