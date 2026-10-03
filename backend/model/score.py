@@ -270,16 +270,16 @@ REASON_CODES: dict[str, dict[str, str]] = {
         "positivo": "Sem acordo descumprido no histórico",
     },
     "produto": {
-        "negativo": "Modalidade de crédito com recuperação historicamente menor",
-        "positivo": "Modalidade de crédito com recuperação historicamente maior",
+        "negativo": "Modalidade de crédito que o modelo associa a menor recuperação",
+        "positivo": "Modalidade de crédito que o modelo associa a maior recuperação",
     },
     "status": {
         "negativo": "Situação cadastral desfavorável",
         "positivo": "Situação cadastral favorável",
     },
     "uf": {
-        "negativo": "Região com recuperação historicamente menor",
-        "positivo": "Região com recuperação historicamente maior",
+        "negativo": "Região que o modelo associa a menor recuperação",
+        "positivo": "Região que o modelo associa a maior recuperação",
     },
     "mes_analise": {
         "negativo": "Época do ano desfavorável à cobrança",

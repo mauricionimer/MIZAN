@@ -154,7 +154,7 @@ perguntas:
 curta: Dá para buscar por nome ou CPF e filtrar por produto, UF, prioridade e situação do pagamento (pago, não pago, pendente).
 calculo: A busca e os filtros são aplicados no servidor e a tabela mostra uma página de 50 por vez. "Pago" e "não pago" usam o feedback mais recente de cada CPF; "pendente" é quem ainda não tem feedback.
 fazer: Use "pendente" para ver quem ainda não foi trabalhado.
-cuidado: A prioridade é calculada sobre a carteira inteira, não sobre o que sobrou do filtro. Em carteiras com milhares de feedbacks, o filtro por situação do pagamento pode falhar por tamanho da consulta.
-revisar: achado C6: o filtro de status envia uma lista de CPFs na consulta, que não aguenta milhares de itens.
+cuidado: A prioridade é calculada sobre a carteira inteira, não sobre o que sobrou do filtro.
+revisar: achado C6, resolvido: o filtro de status agora é aplicado no servidor, sem lista de CPFs na consulta.
 fontes:
 - backend/main.py::pagina_do_ranking

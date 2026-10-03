@@ -130,8 +130,8 @@ perguntas:
 curta: Mostra até três motivos que mais subiram e até três que mais baixaram o score deste devedor, em pontos.
 calculo: Para cada variável, o sistema troca só ela pela referência da população de treino (mediana ou moda), mantém as outras e o perfil, e mede quantos pontos o score mudaria. Mostra os três maiores efeitos de cada lado, ignorando os menores que 1 ponto.
 fazer: Use para conversar com o devedor e para justificar a ordem da fila (atende ao direito à explicação da LGPD, art. 20).
-cuidado: Com a nota no extremo (0 ou 100) nenhuma variável isolada move o score e a lista vem vazia, com um aviso. E os textos dos motivos usam a palavra "historicamente" para produto e região, o que só vale quando o modelo foi treinado com resultado real.
-revisar: o texto "historicamente" em produto e região precisa ser ajustado (achado T1 do mapa do sistema).
+cuidado: Com a nota no extremo (0 ou 100) nenhuma variável isolada move o score e a lista vem vazia, com um aviso. Os motivos de produto e região dizem que o modelo "associa" a maior ou menor recuperação: é o que o modelo aprendeu, não uma garantia de histórico real, e só vale tanto quanto os dados de treino.
+revisar: o texto dos motivos foi ajustado (achado T1, resolvido).
 fontes:
 - backend/model/score.py::explicar_predicao
 - backend/model/score.py::_reason_codes

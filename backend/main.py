@@ -2412,38 +2412,51 @@ def pagina_do_ranking(
     total = (db.table("predicoes").select("id", count="exact")
              .eq("carteira_id", carteira_id).limit(1).execute()).count or 0
 
-    q = base()
-    if produto:
-        q = q.eq("produto", produto)
-    if uf:
-        q = q.eq("uf", uf)
-    if busca:
-        alvo = busca.strip().replace("*", "").replace(",", "")
-        if alvo:
-            q = q.or_(f"nome.ilike.*{alvo}*,cpf.ilike.*{alvo}*")
+    vazio = {"itens": [], "total": total, "filtrado": 0, "offset": offset, "limit": limit}
+    faixa = None
     if prioridade:
         faixa = _faixa_de_ranks(prioridade, total)
         if faixa is None:
-            return {"itens": [], "total": total, "filtrado": 0,
-                    "offset": offset, "limit": limit}
-        q = q.gte("rank", faixa[0]).lte("rank", faixa[1])
+            return vazio
+
+    def filtrar(q):
+        if produto:
+            q = q.eq("produto", produto)
+        if uf:
+            q = q.eq("uf", uf)
+        if busca:
+            alvo = busca.strip().replace("*", "").replace(",", "")
+            if alvo:
+                q = q.or_(f"nome.ilike.*{alvo}*,cpf.ilike.*{alvo}*")
+        if faixa:
+            q = q.gte("rank", faixa[0]).lte("rank", faixa[1])
+        return q
+
     if status in ("pago", "nao_pago", "pendente"):
+        # O status é decidido aqui, e não com uma lista de CPFs na consulta: com
+        # milhares de feedbacks a URL estoura. Lê só id/cpf/rank da fila já
+        # filtrada, escolhe a página e busca as linhas completas só dela.
         pagos, nao_pagos = _cpfs_por_status(db, carteira_id)
         if status == "pago":
-            if not pagos:
-                return {"itens": [], "total": total, "filtrado": 0,
-                        "offset": offset, "limit": limit}
-            q = q.in_("cpf", sorted(pagos))
+            quer = lambda c: c in pagos
         elif status == "nao_pago":
-            if not nao_pagos:
-                return {"itens": [], "total": total, "filtrado": 0,
-                        "offset": offset, "limit": limit}
-            q = q.in_("cpf", sorted(nao_pagos))
+            quer = lambda c: c in nao_pagos
         else:
-            com_feedback = pagos | nao_pagos
-            if com_feedback:
-                q = q.not_.in_("cpf", sorted(com_feedback))
+            quer = lambda c: c not in pagos and c not in nao_pagos
+        leves = _todas_as_linhas(lambda: filtrar(
+            db.table("predicoes").select("id, cpf, rank").eq("carteira_id", carteira_id)))
+        certos = sorted((l for l in leves if quer(l["cpf"])), key=lambda l: (l.get("rank") is None, l.get("rank") or 0, l["id"]))
+        pagina = [l["id"] for l in certos[offset:offset + limit]]
+        linhas = []
+        for i in range(0, len(pagina), ITENS_POR_IN):
+            linhas += db.table("predicoes").select("*").in_("id", pagina[i:i + ITENS_POR_IN]).execute().data or []
+        linhas.sort(key=lambda r: (r.get("rank") is None, r.get("rank") or 0, r["id"]))
+        return {
+            "itens": _reconstruir_ranking(linhas, payload.get("empresa_id", "")),
+            "total": total, "filtrado": len(certos), "offset": offset, "limit": limit,
+        }
 
+    q = filtrar(base())
     res = q.order("rank").range(offset, offset + limit - 1).execute()
     itens = _reconstruir_ranking(res.data or [], payload.get("empresa_id", ""))
 

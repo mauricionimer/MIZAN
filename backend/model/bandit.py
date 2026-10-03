@@ -427,9 +427,9 @@ def recomendar(devedor: dict, empresa_id: "str | None") -> dict:
         recomp_media  = recomp_acumulada / n_acao
         modo          = "calibrado"
         justificativa = (
-            f"Baseado em {n_acao} interações com perfis similares, "
-            f"{CANAL_LABELS[acao['canal']]} + {OFERTA_LABELS[acao['oferta']]} "
-            f"apresentou taxa de recuperação média de {recomp_media:.0%}. "
+            f"Esta combinação ({CANAL_LABELS[acao['canal']]} + {OFERTA_LABELS[acao['oferta']]}) "
+            f"foi registrada {n_acao} vezes, com taxa de recuperação média de {recomp_media:.0%} "
+            "(média da combinação inteira, não só de perfis parecidos). "
             "O sistema continua aprendendo com cada feedback recebido."
         )
 

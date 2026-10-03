@@ -133,8 +133,8 @@ perguntas:
 curta: Sugere por qual canal (WhatsApp, telefone, carta/e-mail) e com qual oferta abordar este devedor, e vai melhorando com os resultados registrados.
 calculo: São 12 combinações (3 canais × 4 ofertas). Um algoritmo de aprendizado por reforço (LinUCB) pontua cada uma com a estimativa de retorno para o perfil do devedor mais um bônus de exploração (peso 1,0) para as combinações pouco testadas. O contexto tem 14 números: score, dias de atraso, comprometimento, produto, região e renda. O estado de aprendizado é separado por empresa. Modos: "exploração inicial" (sem nenhum feedback), "aprendendo" (menos de 3 interações com a combinação) e "calibrado" (3 ou mais).
 fazer: Registre o contato e o resultado, informando canal e oferta: é o que ensina o sistema.
-cuidado: "Calibrado" significa apenas 3 ou mais interações com aquela combinação: é um número pequeno. A justificativa mostra a taxa média daquela combinação em todos os perfis, não só nos parecidos.
-revisar: achado T2 e D2 (texto "perfis similares" e aprendizado offline).
+cuidado: "Calibrado" significa apenas 3 ou mais interações com aquela combinação: é um número pequeno. A justificativa agora diz isso com todas as letras: a taxa é a média daquela combinação em todos os perfis, não só nos parecidos.
+revisar: o texto "perfis similares" foi corrigido (T2); falta decidir o aprendizado offline (D2).
 fontes:
 - backend/model/bandit.py::recomendar
 - backend/model/bandit.py::LinUCB

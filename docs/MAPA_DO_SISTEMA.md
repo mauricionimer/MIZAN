@@ -167,7 +167,7 @@ o defeito que existia.
 
 | # | Onde | Problema |
 |---|---|---|
-| **C6** | filtro "pago / não pago / pendente" da fila | envia a lista de CPFs na consulta; com milhares de feedbacks a URL estoura |
+| **C6** (resolvido) | | filtro "pago / não pago / pendente" da fila | envia a lista de CPFs na consulta; com milhares de feedbacks a URL estoura |
 | **D8** | página do devedor | a "Urgência" (≥70 Alta, ≥40 Média) vem só do score e pode contradizer a Prioridade (posição na fila). É um terceiro critério |
 | **D9** | renda ausente | quando a coluna de renda não existe, vira 0, e a razão dívida ÷ renda vira 0 (o devedor parece sem comprometimento) |
 | **D10** | `price_model.pkl` | é um só para todas as empresas: se for treinado, passa a valer para todas, inclusive as que têm modelo próprio |
@@ -190,8 +190,8 @@ o defeito que existia.
 
 | # | Onde | Problema |
 |---|---|---|
-| **T1** (A5) | `REASON_CODES` (`score.py`) | "recuperação **historicamente** maior/menor" para produto e região. Com o alvo simulado, não há histórico |
-| **T2** | `bandit.recomendar` | a justificativa "Baseado em N interações com **perfis similares**" cita a média da ação **inteira**, não de perfis parecidos. E chama de "calibrado" com apenas 3 interações |
+| **T1** (resolvido) | (A5) | `REASON_CODES` (`score.py`) | "recuperação **historicamente** maior/menor" para produto e região. Com o alvo simulado, não há histórico |
+| **T2** (resolvido) | | `bandit.recomendar` | a justificativa "Baseado em N interações com **perfis similares**" cita a média da ação **inteira**, não de perfis parecidos. E chama de "calibrado" com apenas 3 interações |
 | **T3** | `Recuperabilidade` | a descrição não diz que o modelo está em dados simulados |
 
 ## O que ainda não foi mapeado
