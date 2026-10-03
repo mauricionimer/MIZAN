@@ -72,5 +72,17 @@ checar(not CART and not PRED, "a carteira parcial e suas predições foram desfe
        f"carteiras={len(CART)} predições={len(PRED)}")
 checar(r.get("total_devedores") == N,
        "a análise em si continua na resposta")
+
+# A tela pede a análise sem a fila (incluir_ranking=false) e busca as páginas
+# no servidor. Sem carteira gravada não há servidor para paginar: a fila tem de
+# vir na resposta, senão a tabela abre com "0 devedores".
+CART.clear(); PRED.clear()
+resp = main._analisar_df(df.copy(), "t.csv", _empresa_id="e1", _incluir_ranking=False)
+checar(len(resp.get("ranking_completo") or []) == N,
+       "gravação falhou: a fila inteira vem na resposta mesmo sem incluir_ranking",
+       str(len(resp.get("ranking_completo") or [])))
+CART.clear(); PRED.clear(); MODO["falhar_insercao"] = False
+resp = main._analisar_df(df.copy(), "t.csv", _empresa_id="e1", _incluir_ranking=False)
+checar("ranking_completo" not in resp, "gravação certa: a fila continua fora da resposta (vem por página)")
 print("\nRESULTADO:", "tudo certo" if falhas == 0 else f"{falhas} falha(s)")
 sys.exit(1 if falhas else 0)

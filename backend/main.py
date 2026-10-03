@@ -2704,22 +2704,24 @@ def pagina_do_ranking(
         for i in range(0, len(pagina), ITENS_POR_IN):
             linhas += db.table("predicoes").select("*").in_("id", pagina[i:i + ITENS_POR_IN]).execute().data or []
         linhas.sort(key=lambda r: (r.get("rank") is None, r.get("rank") or 0, r["id"]))
-        return {
+        return _sem_nan({
             "itens": _reconstruir_ranking(linhas, payload.get("empresa_id", "")),
             "total": total, "filtrado": len(certos), "offset": offset, "limit": limit,
-        }
+        })
 
     q = filtrar(base())
     res = q.order("rank").range(offset, offset + limit - 1).execute()
     itens = _reconstruir_ranking(res.data or [], payload.get("empresa_id", ""))
 
-    return {
+    # Um NaN gravado numa coluna numérica derrubava a resposta inteira (500) e
+    # a tabela aparecia vazia.
+    return _sem_nan({
         "itens": itens,
         "total": total,
         "filtrado": res.count if res.count is not None else len(itens),
         "offset": offset,
         "limit": limit,
-    }
+    })
 
 
 def _cpfs_por_status(db, carteira_id: str) -> "tuple[set, set]":
@@ -3810,7 +3812,10 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
 
     return _sem_nan({"resumo": resumo, "distribuicao_aging": aging_dist,
                      "distribuicao_cluster": cluster_dist, "top10_prioritarios": devedores[:10],
-                     **({"ranking_completo": devedores} if _incluir_ranking else {})})
+                     # Sem carteira gravada não há o que paginar no servidor: a
+                     # fila vai na resposta, senão a tabela abriria vazia.
+                     **({"ranking_completo": devedores}
+                        if _incluir_ranking or not resumo.get("carteira_id") else {})})
 
 
 @app.post("/listar-tabelas")

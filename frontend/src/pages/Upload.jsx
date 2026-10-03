@@ -742,29 +742,20 @@ export default function Upload({ onIrPara, temResultado = false }) {
               style={(!file || loading) ? { background: 'var(--raise-3)' } : { background: 'var(--royal)' }}>
               {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> Analisando carteira...</> : 'Analisar carteira'}
             </button>
-            <p className="mt-4 text-center text-xs" style={{ color: 'var(--ink-4)' }}>
-              Colunas esperadas: cpf, nome, produto, status, uf, valor_divida, renda_estimada, dias_em_atraso
-            </p>
           </>
         )}
 
         {aba === 'db' && <FormDB onResult={handleDBResult} isOperador={isOperador} empresaAlvo={isComando ? empresaAlvo : ''} />}
       </div>
 
-      {/* Histórico */}
-      <div className="mt-6">
+      {/* Histórico: some inteiro enquanto não houver análise. */}
+      {(histLoading || historico.length > 0) && <div className="mt-6">
         <div className="flex items-center gap-2 mb-3">
           <History className="h-4 w-4 text-blue-400" />
           <h3 className="text-sm font-semibold text-ink">Análises anteriores</h3>
         </div>
 
         {histLoading && <div className="flex items-center justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" style={{ color: 'var(--ink-4)' }} /></div>}
-
-        {!histLoading && historico.length === 0 && (
-          <p className="text-xs" style={{ color: 'var(--ink-3)' }}>
-            Nenhuma análise ainda. Comece carregando um arquivo acima — CSV ou Excel com CPF, valor da dívida e dias em atraso são suficientes.
-          </p>
-        )}
 
         {!histLoading && historico.length > 0 && (
           <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--line)', boxShadow: '0 8px 32px rgba(0,0,0,0.40)' }}>
@@ -806,7 +797,7 @@ export default function Upload({ onIrPara, temResultado = false }) {
             )}
           </div>
         )}
-      </div>
+      </div>}
       </div>
     </AppShell>
   )

@@ -16,7 +16,7 @@ import {
   Users, TrendingDown, BarChart2, Star,
   Download, Search, Loader2,
   Tag, Percent, ArrowUpRight, Banknote, FileSpreadsheet,
-  CheckCircle2, XCircle, TrendingUp, Clock, X, AlertTriangle,
+  CheckCircle2, XCircle, TrendingUp, X, AlertTriangle,
 } from 'lucide-react'
 import PriorityBadge from '../components/PriorityBadge'
 import { prioridadePorRank, CORTE_ALTA } from '../utils/prioridade'
@@ -345,6 +345,7 @@ export default function Dashboard({ onIrPara }) {
   const [pagina, setPagina]         = useState({ itens: [], filtrado: 0 })
   const [carregandoPag, setCarrPag] = useState(false)
   const [erroPagina, setErroPagina] = useState('')
+  const [tentativa, setTentativa]   = useState(0)
   const PAGE_SIZE = 50
 
   const buscaAdiada = useDebounce(search, 350)
@@ -368,7 +369,7 @@ export default function Dashboard({ onIrPara }) {
       .catch(e => { if (!cancelado) setErroPagina(e.message) })
       .finally(() => { if (!cancelado) setCarrPag(false) })
     return () => { cancelado = true }
-  }, [carteiraId, page, buscaAdiada, filtroProduto, filtroUF, filtroPrio, filtroStatus])
+  }, [carteiraId, page, buscaAdiada, filtroProduto, filtroUF, filtroPrio, filtroStatus, tentativa])
 
   // Alcance: a soma acumulada do topo da fila até a capacidade informada.
   const capacidadeAdiada = useDebounce(capacidade, 400)
@@ -622,17 +623,6 @@ export default function Dashboard({ onIrPara }) {
           <div className="mb-7">
             <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--ink-4)' }}>Análise de Carteira</p>
             <h1 className="text-2xl font-semibold tracking-tight mt-1" style={{ color: 'var(--ink)' }}>Dashboard</h1>
-            {resumo?.criado_por && (
-              <div className="mt-2 flex items-center gap-1.5 text-xs text-ink-2">
-                <Clock className="h-3 w-3 shrink-0" />
-                <span>
-                  Análise por <span className="font-medium text-ink-2">{resumo.criado_por}</span>
-                  {resumo.criado_em && (
-                    <> · {new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(resumo.criado_em))}</>
-                  )}
-                </span>
-              </div>
-            )}
           </div>
 
           {/* Em que dados o score se apoia: o número mais importante para não
@@ -663,12 +653,9 @@ export default function Dashboard({ onIrPara }) {
           {!isOperador && resumo.ciclo_cobranca?.length > 0 && (
             <section className="mt-6 rounded-xl border border-line bg-surface p-6">
               <p className="section-label">Ciclo de cobrança<DicaAjuda id="fases-do-ciclo" /></p>
-              <h3 className="text-sm font-semibold mt-0.5 mb-1" style={{ color: 'var(--ink)' }}>
+              <h3 className="text-sm font-semibold mt-0.5 mb-5" style={{ color: 'var(--ink)' }}>
                 Em que regime cada parte da carteira está
               </h3>
-              <p className="text-xs mb-5" style={{ color: 'var(--ink-2)' }}>
-                Quanto mais tarde a fase, menos sobra para o banco.
-              </p>
 
               <div className="space-y-3">
                 {resumo.ciclo_cobranca.map((f, i, todas) => {
@@ -836,13 +823,7 @@ export default function Dashboard({ onIrPara }) {
                   As linhas dentro do alcance aparecem marcadas na tabela abaixo.
                 </p>
               </>
-            ) : (
-              <p className="text-sm mt-4 leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-                Informe quantos devedores a equipe consegue trabalhar no ciclo — operadores ×
-                contatos por dia × dias úteis — e o Mizan mostra até onde a fila alcança e
-                quanto desse esforço deve voltar.
-              </p>
-            )}
+            ) : null}
           </section>
 
           {/* ── Precificação ── */}
@@ -853,10 +834,6 @@ export default function Dashboard({ onIrPara }) {
                   <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--ink-2)' }}>Precificação</p>
                   <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--ink)' }}>Carteira de Crédito<DicaAjuda id="precificacao-simulador" /></h3>
                 </div>
-                <p className="text-xs max-w-sm text-right" style={{ color: 'var(--ink-2)' }}>
-                  Ajuste custo e retorno para simular cenários. O custo aqui é o do controle, só para simular:
-                  não é a comissão por fase configurada, que dá o valor esperado líquido do ciclo.
-                </p>
               </div>
 
               <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-5">
@@ -943,10 +920,9 @@ export default function Dashboard({ onIrPara }) {
                 </div>
               )}
 
-              {/* PSI — esta carteira ainda parece com a do treino? */}
-              {resumo?.psi && (
+              {/* PSI — esta carteira ainda parece com a do treino? Só aparece quando foi medido. */}
+              {resumo?.psi?.ok && (
                 <div className="mt-4">
-                  {resumo.psi.ok ? (
                     <p className="text-xs" style={{
                       color: resumo.psi.nivel === 'critico' ? 'var(--danger)'
                         : resumo.psi.nivel === 'atencao' ? 'var(--warning)' : 'var(--text-muted)',
@@ -954,21 +930,9 @@ export default function Dashboard({ onIrPara }) {
                       <span className="font-semibold">PSI {resumo.psi.psi}</span><DicaAjuda id="psi" /> — {resumo.psi.leitura}
                       {' '}(atenção acima de {resumo.psi.corte_atencao}, crítico acima de {resumo.psi.corte_critico})
                     </p>
-                  ) : (
-                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                      <span className="font-semibold">PSI indisponível</span> — {resumo.psi.motivo}
-                    </p>
-                  )}
                 </div>
               )}
 
-              {!resumo?.precificacao_ml && (
-                <p className="mt-3 text-xs" style={{ color: 'var(--text-muted)' }}>
-                  Sem resultados reais suficientes, a taxa de recuperação não é medida: ela é a
-                  probabilidade de pagamento multiplicada pela premissa de quanto entra quando o
-                  devedor paga. A premissa é declarada por empresa e pode ser ajustada.
-                </p>
-              )}
             </section>
           )}
 
@@ -1281,6 +1245,16 @@ export default function Dashboard({ onIrPara }) {
                   </tr>
                 </thead>
                 <tbody>
+                  {/* Antes o erro ficava escondido e a tabela só dizia "0 devedores". */}
+                  {erroPagina && !carregandoPag && (
+                    <tr><td colSpan={20} className="px-6 py-8 text-center text-sm">
+                      <span style={{ color: 'var(--danger)' }}>Não foi possível carregar os devedores: {erroPagina}</span>
+                      <button onClick={() => setTentativa(t => t + 1)}
+                        className="ml-3 rounded-md border border-line bg-raise-1 px-2.5 py-1 text-xs text-ink-2 hover:text-ink">
+                        Tentar de novo
+                      </button>
+                    </td></tr>
+                  )}
                   {paginated.map((d) => (
                     <tr
                       key={d.rank}
