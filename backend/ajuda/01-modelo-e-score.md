@@ -51,6 +51,8 @@ perguntas:
 - qual a chance de o devedor pagar
 - diferença entre score e probabilidade
 - probabilidade é igual ao score
+- probabilidade de pagar
+- como a probabilidade é calculada
 curta: É o score dividido por 100, limitado entre 0 e 1. Está no devedor e alimenta as propostas.
 calculo: probabilidade_pagamento = score ÷ 100, entre 0 e 1.
 fazer: Use para comparar devedores entre si. Nas propostas, ela é substituída pela chance de pagamento por tipo de oferta quando já existe feedback real.
@@ -140,7 +142,7 @@ fontes:
 ## modelo-proprio-ou-geral
 titulo: Minha empresa usa um modelo próprio?
 perfis: admin, comando
-telas: Treinar modelo
+telas: Visão da carteira
 perguntas:
 - minha empresa tem modelo próprio
 - o modelo é só da minha empresa

@@ -5399,7 +5399,9 @@ def listar_auditoria(
     Histórico de ações auditadas — filtrado pela empresa do token (ou tudo para COMANDO).
     Suporta filtro por período/usuário/ação e paginação, para telas de auditoria/compliance.
     """
-    payload = _usuario_autenticado(credentials)
+    # A tela de auditoria é de admin e comando; a rota aceitava qualquer usuário
+    # autenticado, então um operador lia o histórico da empresa chamando a API.
+    payload = _exigir_admin_ou_comando(credentials)
     empresa_id = payload.get("empresa_id", "")
     role       = payload.get("role", "operador")
     db = get_db()

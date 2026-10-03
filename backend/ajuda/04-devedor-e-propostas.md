@@ -9,6 +9,8 @@ perguntas:
 - como o comprometimento de renda é calculado
 - por que o comprometimento passa de 100 por cento
 - comprometimento é a parcela
+- quanto da renda a dívida representa
+- razão dívida sobre renda
 curta: É a dívida total dividida pela renda mensal estimada, mostrada em porcentagem.
 calculo: comprometimento = valor da dívida ÷ renda estimada, limitado a 10 vezes (1.000%) no modelo. Sem renda, vale 0 no modelo.
 fazer: Use para medir o tamanho da dívida frente ao que o devedor ganha. Para saber se uma parcela cabe, veja a margem livre.
@@ -47,6 +49,8 @@ perguntas:
 - qual o valor máximo da parcela
 - como a parcela máxima é definida
 - o que é teto de comprometimento
+- qual a maior parcela que cabe
+- como a parcela máxima muda
 curta: É a maior parcela que a política do banco admite para a margem livre deste devedor.
 calculo: parcela máxima = margem livre × teto de comprometimento%. O teto padrão é 100%: a parcela pode ocupar toda a margem (que já tem a folga de 30%).
 fazer: Compare com a parcela de cada proposta: a marcada "dentro da margem" cabe.

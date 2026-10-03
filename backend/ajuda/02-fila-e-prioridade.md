@@ -72,6 +72,8 @@ perguntas:
 - de onde vem o número de prioritários
 - quantos devedores são prioritários
 - como o card de prioritários é calculado
+- por que o número de prioritários é sempre um quinto
+- prioritários é uma medida
 curta: É quantos devedores cabem na faixa Alta: um quinto da carteira.
 calculo: devedores prioritários = piso de (total de devedores × 20%).
 fazer: Use como tamanho de uma "meta de ciclo" inicial. Para saber até onde a sua equipe chega de verdade, use o Alcance da operação.
@@ -88,6 +90,8 @@ perguntas:
 - diferença entre urgência e prioridade
 - por que a urgência é baixa e a prioridade é alta
 - como a urgência é calculada
+- por que a urgência é diferente da prioridade
+- urgência é média o que significa
 curta: A urgência da página do devedor vem só do score: 70 ou mais é Alta, 40 a 69 é Média, abaixo de 40 é Baixa.
 calculo: urgência = Alta se score ≥ 70; Média se score ≥ 40; senão Baixa.
 fazer: Para decidir quem contatar primeiro, olhe a Prioridade e a posição na fila: elas consideram também o valor da dívida.

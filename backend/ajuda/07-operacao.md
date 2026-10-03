@@ -1,0 +1,188 @@
+# Operação: arquivos, conexões, pessoas e privacidade
+
+## enviar-carteira
+titulo: Como enviar uma carteira (arquivo)
+perfis: operador, admin, comando
+telas: Análise
+perguntas:
+- como enviar a carteira
+- quais colunas o arquivo precisa ter
+- quais formatos de arquivo aceita
+- qual o tamanho máximo do arquivo
+- por que o arquivo foi recusado
+- o sistema reconhece o nome da minha coluna
+- o que acontece quando falta uma coluna opcional
+curta: Envie CSV ou Excel com pelo menos CPF, valor da dívida e dias em atraso. O sistema reconhece vários nomes de coluna e preenche o que faltar com valores padrão.
+calculo: Obrigatórias: cpf, valor_divida e dias_em_atraso. Opcionais reconhecidas: nome, produto, status, uf, renda_estimada e despesas_mensais; uma coluna pagou (com valor_recuperado) registra os pagamentos junto. Sem a coluna, o padrão é: nome "Desconhecido", produto "pessoal", status "inadimplente", UF "SP" e renda 0. O limite é de 25 MB por arquivo.
+fazer: Revise o mapeamento e as colunas reconhecidas antes de analisar. Quanto mais completas as colunas, mais fiel o score.
+cuidado: Os padrões não são dados do devedor: UF "SP" e produto "pessoal" entram no modelo como se fossem verdade. Renda ausente vira 0. Informe essas colunas sempre que puder.
+fontes:
+- backend/main.py::COLUNAS_OBRIGATORIAS
+- backend/main.py::COLUNAS_COM_DEFAULT
+- backend/main.py::CAMPO_ALIASES
+- backend/limite.py::TETOS_CORPO
+constantes:
+- backend/limite.py::MB = 1048576
+
+## conexao-com-banco
+titulo: Conexão com banco de dados e Google Sheets
+perfis: operador, admin, comando
+telas: Análise
+perguntas:
+- como conectar meu banco de dados
+- quais bancos são aceitos
+- a conexão altera meus dados
+- por que o operador não vê minha senha
+- como liberar uma conexão para um operador
+- o que é sincronização automática
+- por que a conexão sqlite não funciona
+curta: O administrador cadastra a conexão (PostgreSQL, MySQL, MariaDB, SQL Server, Oracle ou Google Sheets) e libera para os operadores. A senha fica criptografada e nunca volta para a tela.
+calculo: Só consultas SELECT são aceitas. A análise direta de um banco lê no máximo 50.000 linhas. A conexão salva pode ser sincronizada a cada 1, 4 ou 24 horas. O operador só usa conexões salvas e liberadas para ele, e sempre contra o servidor cadastrado.
+fazer: O administrador cria a conexão em Análise > banco de dados e libera operadores na tela de Usuários. Se precisar de mais de 50.000 linhas, exporte para arquivo.
+cuidado: A conexão é somente leitura, a menos que o administrador ative a escrita de volta. SQLite só funciona em instalação local, não no serviço hospedado. Endereços internos da rede são recusados. Conexões Google Sheets salvas não guardam as credenciais da conta de serviço, então a sincronização (manual e automática) não as atende: para Sheets, cole as credenciais na própria análise ou envie um arquivo.
+revisar: achado D12 do mapa do sistema (Sheets salvo não sincroniza).
+fontes:
+- backend/main.py::_conexao_usavel
+- backend/main.py::ConexaoDB
+- backend/main.py::_validar_destino_externo
+
+## usuarios-e-papeis
+titulo: Usuários e papéis (operador, administrador, COMANDO)
+perfis: admin, comando
+telas: Usuários
+perguntas:
+- quais são os papéis do sistema
+- quem pode criar usuários
+- o que o administrador pode fazer
+- o que o operador não pode fazer
+- como desativar um usuário
+- como promover um operador
+- o que é o perfil comando
+- por que não consigo criar um usuário
+curta: Operador trabalha a fila; administrador gerencia a equipe e os dados da empresa; COMANDO é da plataforma e vê todas as empresas.
+calculo: Operador: analisa, vê a fila, registra contatos. Administrador: tudo isso mais precificação, ciclo, resultados, pagamentos, conexões, retenção, auditoria e ativar ou desativar usuários da própria empresa. COMANDO: todas as empresas, mais criar usuários, mudar papéis, treinar modelos e ver as telas de aprendizado. Só o COMANDO cria usuários e altera papéis, e o último COMANDO ativo não pode ser rebaixado nem desativado.
+fazer: Para incluir alguém na sua equipe, peça ao COMANDO. O administrador pode desativar quem sair.
+cuidado: O papel e a empresa de cada pessoa vêm do cadastro a cada chamada, não do token de login: mudar o papel vale na hora.
+fontes:
+- backend/main.py::auth_registrar
+- backend/main.py::auth_alterar_role
+- backend/auth.py::_ultimo_comando_ativo
+
+## senha-e-sessao
+titulo: Senha, sessão e esqueci a senha
+perfis: operador, admin, comando
+telas: Conta
+perguntas:
+- como trocar a senha
+- esqueci a senha
+- quantos caracteres tem a senha
+- quanto tempo dura a sessão
+- por que o login foi bloqueado
+- o link de redefinição expirou
+curta: A senha tem no mínimo 8 caracteres. A sessão dura 7 dias. O link de redefinição vale 1 hora.
+calculo: Troca em "Alterar senha". Esqueci a senha envia um link ao e-mail, com limite de 3 pedidos por hora por endereço, e a resposta é sempre a mesma exista ou não a conta. Após 5 tentativas erradas de login, há bloqueio de 15 minutos.
+fazer: Se o link expirou, peça outro. Se não chegar, confira o spam e se o e-mail é o cadastrado.
+cuidado: A mensagem é igual para e-mails que não existem: é proposital, para não revelar quem tem conta.
+fontes:
+- backend/auth.py::TOKEN_EXPIRE
+- backend/main.py::auth_esqueci_senha
+constantes:
+- backend/auth.py::TOKEN_EXPIRE = 604800
+- backend/main.py::_RATE_MAX = 5
+
+## retencao-de-dados
+titulo: Retenção de dados (LGPD)
+perfis: admin, comando
+telas: Retenção
+perguntas:
+- por quanto tempo o sistema guarda o cpf
+- o que é anonimizar
+- como definir o prazo de retenção
+- o que é executar agora
+- o modelo continua aprendendo depois da anonimização
+- anonimizar apaga a linha
+- o que é a prévia da retenção
+curta: Você escolhe por quanto tempo guardar o CPF e o nome dos devedores. Passado o prazo, eles são retirados da linha e o resto fica para o modelo continuar aprendendo.
+calculo: Prazo de 30 a 3.650 dias. Anonimizar zera cpf e nome (e, nos contatos, a observação) e marca a data; as variáveis e o resultado ficam. Nada roda sem prazo configurado: a prévia mostra o que aconteceria. "Executar agora" aplica o prazo escolhido.
+fazer: Escolha um prazo compatível com o fim da cobrança (ciclo encerrado) e com as obrigações do banco; rode a prévia antes.
+cuidado: Tirar CPF e nome de uma linha que mantém UF, valor e dias de atraso é despersonalização forte, não prova matemática de irreversibilidade. Quem precisa de garantia formal deve pedir o expurgo, que apaga a linha.
+fontes:
+- backend/model/retencao.py::patch_anonimo
+- backend/model/retencao.py::de_config
+constantes:
+- backend/model/retencao.py::MINIMO_DIAS = 30
+- backend/model/retencao.py::MAXIMO_DIAS = 3650
+
+## pedido-do-titular
+titulo: Pedido de um titular (direito de eliminação)
+perfis: admin, comando
+telas: Retenção
+perguntas:
+- um devedor pediu para apagar os dados dele
+- como atender o pedido do titular
+- lgpd artigo 18
+- como eliminar o cpf de uma pessoa
+- o que acontece quando elimino um cpf
+curta: Informe o CPF do titular: o sistema retira a identificação de todas as linhas dele na sua empresa, em qualquer formato de CPF.
+calculo: Procura o CPF formatado, só dígitos, com zeros à esquerda e sem zeros, em predições, feedbacks, contatos e recomendações da empresa, e anonimiza o que achar.
+fazer: Guarde o registro do pedido (a ação fica na auditoria) e responda ao titular.
+cuidado: Atua só na empresa de quem faz o pedido. O CPF pode existir em outras empresas clientes, que são controladoras do próprio dado.
+fontes:
+- backend/main.py::rota /retencao/titular
+
+## auditoria-de-acoes
+titulo: Auditoria (quem fez o quê)
+perfis: admin, comando
+telas: Auditoria
+perguntas:
+- como ver quem fez uma ação
+- o que a auditoria registra
+- como filtrar a auditoria
+- quem alterou o papel de um usuário
+- quem confirmou um pagamento
+curta: Registra as ações sensíveis (criar usuário, mudar papel, confirmar pagamento, treinar ou ativar modelo etc.), com quem fez e quando.
+calculo: Cada ação grava quem, quando, em qual empresa, qual entidade e detalhes sem dado pessoal. O administrador vê a da própria empresa; o COMANDO vê todas. Filtros por entidade, usuário, ação e período.
+fazer: Use para conferir mudanças de papel, pagamentos confirmados e ativações de modelo.
+cuidado: Só ações que o sistema audita aparecem; consultas e leituras não são registradas.
+fontes:
+- backend/main.py::_registrar_auditoria
+- backend/main.py::listar_auditoria
+
+## perfil-da-empresa
+titulo: Perfil da empresa (nome, cor e logo)
+perfis: admin, comando
+telas: Usuários
+perguntas:
+- como mudar o logo da empresa
+- como mudar a cor do sistema
+- como mudar o nome de exibição
+- qual o tamanho da foto
+- link de login com a marca da empresa
+curta: O administrador define nome, cor principal e logo da empresa, que aparecem no sistema e na tela de login pelo link da empresa.
+calculo: A foto aceita jpg, png, webp ou gif, até 5 MB. O link de login com a marca usa o endereço do sistema com o parâmetro ?empresa=identificador.
+fazer: Compartilhe com a equipe o link com ?empresa= para que a marca apareça antes do login.
+cuidado: A marca só aparece pelo link: digitar o e-mail não mostra a empresa, de propósito, para não revelar quem tem conta.
+fontes:
+- backend/main.py::rota /empresa/foto
+- backend/main.py::get_empresa_config_publica
+
+## como-configurar-premissas
+titulo: Como configurar as premissas da empresa
+perfis: admin, comando
+telas: Precificação
+perguntas:
+- onde configuro a comissão
+- onde configuro a cessão
+- como mudar o critério da fila
+- como mudar a recuperação se pagar
+- onde mudo o buffer da margem
+- por que não acho a tela de premissas
+curta: Comissão da fase especializada, percentual de cessão, recuperação se pagar, critério da fila, buffer da margem e teto de parcela são premissas por empresa. Hoje ainda não há tela para elas.
+calculo: As premissas ficam na configuração da empresa (campo extra). A tela de retenção grava só o prazo de retenção; as demais são gravadas pela API de configuração da empresa, por administrador ou COMANDO.
+fazer: Peça ao COMANDO para ajustar. Sem elas, valem os padrões descritos em cada tópico: recuperação se pagar 100%, comissão e cessão não aplicadas, critério por valor esperado, buffer 30%, teto de parcela 100%.
+cuidado: Sem comissão informada, o valor esperado da fase especializada fica bruto.
+revisar: achado E1: criar a tela de premissas elimina esta entrada.
+fontes:
+- backend/main.py::put_empresa_config
+- backend/model/ciclo.py::custos_de_config
+- backend/model/priorizacao.py::de_config

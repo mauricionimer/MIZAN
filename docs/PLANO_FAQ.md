@@ -20,6 +20,17 @@ teste quebra.
 | Resposta que vira ajuda | **Passa por revisão** antes de entrar no catálogo |
 | IA generativa | **Fora.** O conteúdo é um catálogo estático de perguntas e respostas, com busca local |
 
+## Andamento
+
+| Fase | Estado |
+|---|---|
+| 1. Mapa do sistema | **Pronta** (`MAPA_DO_SISTEMA.md`) |
+| 2. Catálogo de respostas | **Pronta**: 64 entradas em `backend/ajuda/`, validadas contra o código por `test_ajuda_catalogo.py` |
+| 3. Busca e página Ajuda | A fazer |
+| 4. "?" ao lado de cada métrica | A fazer |
+| 5. Dúvidas encaminhadas ao COMANDO | A fazer |
+| 6. Perguntas sem resposta | A fazer |
+
 ## 1. O que existe hoje (levantado no código, não suposto)
 
 A ajuda precisa cobrir cálculos que estão em **dois lugares**:

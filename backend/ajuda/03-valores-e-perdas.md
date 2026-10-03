@@ -9,6 +9,8 @@ perguntas:
 - como o valor de face é calculado
 - valor de face é o que vou recuperar
 - total em risco
+- quanto devem no total os devedores
+- valor total da carteira
 curta: É a soma das dívidas da carteira, como vieram no arquivo. Não é o que se espera recuperar.
 calculo: valor de face = soma de valor_divida de todos os devedores.
 fazer: Use como o teto do que existe em aberto. O que se espera recuperar é o "valor esperado".
@@ -36,8 +38,8 @@ fontes:
 
 ## taxa-de-recuperacao
 titulo: Taxa de recuperação prevista
-perfis: operador, admin, comando
-telas: Precificação; Devedor
+perfis: admin, comando
+telas: Precificação
 perguntas:
 - o que é taxa de recuperação
 - de onde vem a taxa de recuperação
@@ -65,6 +67,8 @@ perguntas:
 - quanto do saldo entra quando o devedor paga
 - como mudar a premissa de recuperação
 - por que a premissa é 100 por cento
+- premissa de recuperação
+- o devedor paga tudo ou só parte
 curta: Quanto da dívida entra quando o devedor efetivamente paga. O padrão é 100%: pagou, pagou tudo.
 calculo: Usada só quando o modelo de preço ainda não existe: taxa = probabilidade de pagamento × recuperação se pagar. Aceita valores entre 0 (exclusive) e 1.
 fazer: Se a empresa costuma fechar acordos com desconto, informe um valor menor para o valor esperado refletir isso.
@@ -164,6 +168,8 @@ perguntas:
 - quais são as faixas de aging
 - por que o aging é diferente das fases
 - como o aging é calculado
+- envelhecimento da carteira
+- faixa de dias de atraso
 curta: É a quantidade de devedores em cada faixa de dias em atraso.
 calculo: Faixas: 0 a 29, 30 a 59, 60 a 89, 90 a 179 e 180 ou mais dias. Cada devedor entra na faixa dos seus dias em atraso.
 fazer: Use para ver o envelhecimento da carteira. Para decisões de custo, use as fases do ciclo.
