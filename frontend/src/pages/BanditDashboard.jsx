@@ -1,11 +1,10 @@
-import ThemeToggle from '../components/ThemeToggle'
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell,
 } from 'recharts'
 import {
-  ArrowLeft, RefreshCw, Loader2, Zap, TrendingUp, Activity, Award, LogOut,
+  RefreshCw, Loader2, Zap, TrendingUp, Activity, Award,
 } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import { useAuth } from '../context/AuthContext'

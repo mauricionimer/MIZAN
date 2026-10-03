@@ -1,13 +1,10 @@
-import ThemeToggle from '../components/ThemeToggle'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft, Loader2, LogOut, Brain, AlertTriangle, CheckCircle2, ShieldCheck,
-  UploadCloud, Undo2, Play, XCircle, Database,
+  Loader2, Brain, AlertTriangle, CheckCircle2, ShieldCheck, UploadCloud, Undo2, Play, Database,
 } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import { useAuth } from '../context/AuthContext'
-import { LogoMark } from '../components/Logo'
 import {
   treinarModeloEmpresa, treinarComPagamentos, estadoTreino, listarModelosEmpresa,
   ativarModeloEmpresa, desativarModeloEmpresa,

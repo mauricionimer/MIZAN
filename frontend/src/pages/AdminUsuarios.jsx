@@ -1,4 +1,3 @@
-import ThemeToggle from '../components/ThemeToggle'
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
@@ -10,9 +9,7 @@ import {
   buscarAuditoria, putEmpresaConfig, uploadEmpresaFoto, getEmpresaConfigPublica,
 } from '../api'
 import {
-  Users, UserPlus, LogOut, ShieldCheck, ShieldOff, ToggleLeft, ToggleRight,
-  ArrowLeft, Database, Lock, Unlock, ChevronDown, ChevronUp,
-  Building2, Plus, X, UserMinus, Mail, Trash2, Clock, Camera, Pencil, Check,
+  Users, UserPlus, ShieldCheck, ShieldOff, ToggleLeft, ToggleRight, Database, Lock, Unlock, Building2, Plus, X, UserMinus, Mail, Trash2, Clock, Camera, Pencil, Check,
 } from 'lucide-react'
 import { LogoMark } from '../components/Logo'
 import DicaAjuda from '../components/DicaAjuda'

@@ -1,14 +1,12 @@
 import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft, Upload as UploadIcon, Loader2, AlertTriangle, TrendingUp, TrendingDown,
+  Upload as UploadIcon, Loader2, AlertTriangle, TrendingUp, TrendingDown,
 } from 'lucide-react'
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend,
 } from 'recharts'
-import ThemeToggle from '../components/ThemeToggle'
-import { LogoMark } from '../components/Logo'
 import { rodarBacktest, traduzirErroRede } from '../api'
 import DicaAjuda from '../components/DicaAjuda'
 import AppShell from '../components/AppShell'

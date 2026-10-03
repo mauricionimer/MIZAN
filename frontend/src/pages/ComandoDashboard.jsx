@@ -1,15 +1,10 @@
-import ThemeToggle from '../components/ThemeToggle'
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import { useAuth } from '../context/AuthContext'
 import {
-  Shield, AlertTriangle, TrendingUp, Users, DollarSign,
-  RefreshCw, Loader2, LogOut, Building2, CheckCircle2, Activity,
-  Eye, Upload, Zap, UserCog, X, Database, FileText, User,
-  ChevronRight, Brain, KeyRound,
+  AlertTriangle, TrendingUp, Users, DollarSign, RefreshCw, Loader2, Building2, CheckCircle2, Activity, Eye, X, Database, FileText, User, ChevronRight,
 } from 'lucide-react'
-import { LogoMark } from '../components/Logo'
 import { diagnosticoBanco } from '../api'
 import DicaAjuda from '../components/DicaAjuda'
 

@@ -1,14 +1,10 @@
-import ThemeToggle from '../components/ThemeToggle'
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft, RefreshCw, Loader2, LogOut, Brain, GitBranch, TrendingUp,
-  AlertTriangle, CheckCircle2, Zap, Sliders, Database, Clock, PlayCircle,
-  ShieldCheck, BarChart3, Award, Microscope, Target, XCircle,
+  RefreshCw, Loader2, GitBranch, AlertTriangle, CheckCircle2, Zap, Sliders, Database, Clock, PlayCircle, ShieldCheck, BarChart3, Award, Microscope, Target,
 } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import { useAuth } from '../context/AuthContext'
-import { LogoMark } from '../components/Logo'
 import DicaAjuda from '../components/DicaAjuda'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001'

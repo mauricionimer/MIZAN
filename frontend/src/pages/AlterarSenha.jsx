@@ -1,9 +1,10 @@
-import ThemeToggle from '../components/ThemeToggle'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import { useAuth } from '../context/AuthContext'
-import { KeyRound, ArrowLeft, Eye, EyeOff, LogOut, Trash2, CheckCircle2 } from 'lucide-react'
+import {
+  KeyRound, Eye, EyeOff, Trash2, CheckCircle2,
+} from 'lucide-react'
 import { deletarConta } from '../api'
 import { LogoMark } from '../components/Logo'
 import DicaAjuda from '../components/DicaAjuda'

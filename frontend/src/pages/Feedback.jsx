@@ -1,7 +1,8 @@
-import ThemeToggle from '../components/ThemeToggle'
 import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CheckCircle2, XCircle, Loader2, ClipboardList, ArrowLeft, Plus, Trash2, UploadCloud, FileText, Download, LogOut } from 'lucide-react'
+import {
+  CheckCircle2, XCircle, Loader2, ClipboardList, Plus, Trash2, UploadCloud, FileText, Download,
+} from 'lucide-react'
 import { feedbackLote } from '../api'
 import AppShell from '../components/AppShell'
 import { useAuth } from '../context/AuthContext'

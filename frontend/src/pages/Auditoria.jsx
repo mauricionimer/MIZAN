@@ -1,13 +1,11 @@
-import ThemeToggle from '../components/ThemeToggle'
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import { useAuth } from '../context/AuthContext'
 import { buscarAuditoria } from '../api'
 import {
-  ArrowLeft, LogOut, ShieldCheck, Download, Loader2, Filter, RefreshCw, ChevronDown,
+  Download, Loader2, Filter, RefreshCw, ChevronDown,
 } from 'lucide-react'
-import { LogoMark } from '../components/Logo'
 import DicaAjuda from '../components/DicaAjuda'
 
 const ACAO_LABEL = {

@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, KeyRound, Loader2, Copy, Ban } from 'lucide-react'
-import ThemeToggle from '../components/ThemeToggle'
-import { LogoMark } from '../components/Logo'
+import {
+  KeyRound, Loader2, Copy, Ban,
+} from 'lucide-react'
 import DicaAjuda from '../components/DicaAjuda'
 import AppShell from '../components/AppShell'
 import { useAuth } from '../context/AuthContext'
