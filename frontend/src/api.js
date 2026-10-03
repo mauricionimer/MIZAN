@@ -714,3 +714,25 @@ export async function revisarSugestao(token, id, estado) {
     method: 'POST', headers: _authHeader(token), body: JSON.stringify({ estado }),
   }))
 }
+
+
+// ── Buscas sem resposta (lacunas da Central) ─────────────────────────────────
+export async function naoResolveu(token, { pergunta, entrada_id }) {
+  return _jsonOuErro(await fetch(`${BASE}/ajuda/nao-resolveu`, {
+    method: 'POST', headers: _authHeader(token), body: JSON.stringify({ pergunta, entrada_id }),
+  }))
+}
+export async function listarLacunas(token, { estado = 'pendentes', dias = 90, limite = 50 } = {}) {
+  const qs = new URLSearchParams({ estado, dias, limite })
+  return _jsonOuErro(await fetch(`${BASE}/comando/ajuda/lacunas?${qs}`, { headers: _authHeader(token) }))
+}
+export async function tratarLacuna(token, chave, tratada) {
+  return _jsonOuErro(await fetch(`${BASE}/comando/ajuda/lacunas/tratar`, {
+    method: 'POST', headers: _authHeader(token), body: JSON.stringify({ chave, tratada }),
+  }))
+}
+export async function limparLacunas(token, dias) {
+  return _jsonOuErro(await fetch(`${BASE}/comando/ajuda/lacunas/limpar`, {
+    method: 'POST', headers: _authHeader(token), body: JSON.stringify({ dias }),
+  }))
+}

@@ -1,16 +1,18 @@
 import { useState, useEffect, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { Loader2, CheckCircle2, Send, Lightbulb, X } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import DicaAjuda from '../components/DicaAjuda'
 import { atualizarAvisosDeDuvida } from '../components/useAvisosDeDuvida'
 import { useAuth } from '../context/AuthContext'
 import { useAnalysis } from '../context/AnalysisContext'
-import { listarDuvidasComando, responderDuvida, sugerirDuvida, revisarSugestao } from '../api'
+import { listarDuvidasComando, responderDuvida, sugerirDuvida, revisarSugestao, listarLacunas, tratarLacuna, limparLacunas } from '../api'
 
 const ABAS = [
   { id: 'aberta',     rotulo: 'Abertas' },
   { id: 'respondida', rotulo: 'Respondidas' },
   { id: 'sugestao',   rotulo: 'Sugestões para a Central' },
+  { id: 'lacunas',    rotulo: 'Buscas sem resposta' },
 ]
 const fmtData = (iso) => (iso ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(iso)) : '')
 
@@ -95,6 +97,80 @@ function Cartao({ d, token, aba, onMudou }) {
   )
 }
 
+const NOMES_PERFIL = { operador: 'operador', admin: 'diretor', comando: 'COMANDO' }
+
+function Lacunas({ token }) {
+  const [estado, setEstado] = useState('pendentes')
+  const [dados, setDados]   = useState(null)
+  const [erro, setErro]     = useState('')
+  const [ocupado, setOcupado] = useState('')
+
+  const carregar = useCallback(async () => {
+    setErro('')
+    try { setDados(await listarLacunas(token, { estado })) } catch (e) { setErro(e.message) }
+  }, [token, estado])
+  useEffect(() => { setDados(null); carregar() }, [carregar])
+
+  async function agir(chave, fn) {
+    setOcupado(chave); setErro('')
+    try { await fn(); await carregar() } catch (e) { setErro(e.message) } finally { setOcupado('') }
+  }
+  async function limpar() {
+    if (!window.confirm('Apagar o registro de buscas com mais de 180 dias? Isso não pode ser desfeito.')) return
+    await agir('limpar', () => limparLacunas(token, 180))
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-ink-2">
+        <DicaAjuda id="buscas-sem-resposta" /> Perguntas que a busca não soube responder, ou que a pessoa disse que não resolveram. Estão sem nome de
+        usuário e sem empresa (só o perfil de quem buscou). Escreva a resposta no catálogo (backend/ajuda) e marque como tratada.
+      </p>
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        {[['pendentes', 'Pendentes'], ['tratadas', 'Tratadas'], ['todas', 'Todas']].map(([id, r]) => (
+          <button key={id} onClick={() => setEstado(id)}
+            className={`rounded-lg px-3 py-1 ${estado === id ? 'bg-raise-2 text-ink' : 'text-ink-2 hover:bg-raise-1'}`}>{r}</button>
+        ))}
+        <button disabled={!!ocupado} onClick={limpar} className="ml-auto text-xs text-ink-3 hover:text-ink">Apagar registros com mais de 180 dias</button>
+      </div>
+      {erro && <p className="text-sm text-red-400" role="alert">{erro}</p>}
+      {!dados && !erro && <div className="flex items-center gap-2 text-sm text-ink-3"><Loader2 className="h-4 w-4 animate-spin" /> Carregando…</div>}
+      {dados && dados.grupos.length === 0 && <p className="text-sm text-ink-3">Nada por aqui nos últimos {dados.dias} dias.</p>}
+      {dados && dados.total_de_grupos > dados.grupos.length && (
+        <p className="text-xs text-ink-3">Mostrando {dados.grupos.length} de {dados.total_de_grupos} perguntas.</p>
+      )}
+      <ul className="space-y-3">
+        {dados?.grupos.map(g => (
+          <li key={g.chave} className="rounded-xl border border-line bg-surface p-5">
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-ink-3">
+              <span className="rounded-full bg-blue-600 px-2 py-0.5 font-medium text-white">{g.total}×</span>
+              <span>{g.sem_resposta} sem resposta · {g.nao_resolveu} "não resolveu"</span>
+              <span>· {Object.entries(g.perfis).map(([p, n]) => `${NOMES_PERFIL[p] || p} ${n}`).join(', ')}</span>
+              <span>· última {fmtData(g.ultima)}</span>
+              {g.reapareceu && <span className="rounded-full bg-amber-500/15 px-2 py-0.5 font-medium text-amber-500">reapareceu depois de tratada</span>}
+            </div>
+            <p className="mt-2 text-sm text-ink">{g.exemplo}</p>
+            {g.mais_perto && (
+              <p className="mt-1 text-xs text-ink-3">
+                Resposta mais próxima hoje: <Link className="text-blue-400 hover:text-blue-300" to={`/ajuda?id=${encodeURIComponent(g.mais_perto.id)}`}>{g.mais_perto.titulo}</Link>
+              </p>
+            )}
+            {g.entradas_que_nao_resolveram.length > 0 && (
+              <p className="mt-1 text-xs text-ink-3">
+                Não resolveram: {g.entradas_que_nao_resolveram.map(e => `${e.id} (${e.vezes}×)`).join(', ')}
+              </p>
+            )}
+            <button disabled={ocupado === g.chave} onClick={() => agir(g.chave, () => tratarLacuna(token, g.chave, !g.tratada))}
+              className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-raise-2 px-3 py-1.5 text-xs font-medium text-ink hover:opacity-80 disabled:opacity-50">
+              <CheckCircle2 className="h-3.5 w-3.5" /> {g.tratada ? 'Reabrir' : 'Marcar como tratada'}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 export default function DuvidasComando() {
   const { token } = useAuth()
   const { result, setVista } = useAnalysis()
@@ -109,7 +185,7 @@ export default function DuvidasComando() {
     catch (e) { setErro(e.message) } finally { setCarregando(false) }
   }, [token, aba])
 
-  useEffect(() => { setCarregando(true); carregar() }, [carregar])
+  useEffect(() => { if (aba === 'lacunas') { setCarregando(false); return } setCarregando(true); carregar() }, [carregar, aba])
 
   const contagem = (id) => (id === 'aberta' ? dados?.abertas : id === 'sugestao' ? dados?.sugestoes_pendentes : null)
 
@@ -134,12 +210,13 @@ export default function DuvidasComando() {
           ))}
         </div>
 
-        {erro && <p className="text-sm text-red-400" role="alert">{erro}</p>}
-        {carregando && <div className="flex items-center gap-2 text-sm text-ink-3"><Loader2 className="h-4 w-4 animate-spin" /> Carregando…</div>}
-        {dados && !carregando && dados.itens.length === 0 && (
+        {aba === 'lacunas' && <Lacunas token={token} />}
+        {aba !== 'lacunas' && erro && <p className="text-sm text-red-400" role="alert">{erro}</p>}
+        {aba !== 'lacunas' && carregando && <div className="flex items-center gap-2 text-sm text-ink-3"><Loader2 className="h-4 w-4 animate-spin" /> Carregando…</div>}
+        {aba !== 'lacunas' && dados && !carregando && dados.itens.length === 0 && (
           <p className="text-sm text-ink-3">{aba === 'aberta' ? 'Nenhuma dúvida aberta. 🎉' : 'Nada por aqui.'}</p>
         )}
-        {dados && (
+        {aba !== 'lacunas' && dados && (
           <ul className="space-y-3">
             {dados.itens.map(d => <Cartao key={d.id} d={d} token={token} aba={aba} onMudou={carregar} />)}
           </ul>

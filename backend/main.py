@@ -4779,18 +4779,75 @@ class AjudaBuscaIn(BaseModel):
     pergunta: str = Field(..., min_length=2, max_length=300)
 
 
+_LACUNAS_VISTAS: dict = {}
+
+
+def _registrar_lacuna(tipo: str, pergunta: str, entrada_id: "str | None", perfil: str, sub: str) -> None:
+    """Guarda, sem identificar ninguém, uma busca que a Central não resolveu.
+
+    Só entra o texto já mascarado, o perfil e (em "não resolveu") qual resposta
+    foi mostrada. Quem buscou não é gravado. Para não contar a mesma pessoa
+    várias vezes, a memória do processo lembra por uma hora um resumo
+    irreversível de (pessoa, tipo, pergunta): isso nunca vai para o banco.
+    Qualquer falha é engolida e não loga o texto: é telemetria, não pode
+    atrapalhar a busca nem vazar a pergunta para o log.
+    """
+    import hashlib
+    from ajuda_duvidas import mascarar_pii
+    from ajuda_lacunas import chave_de
+    try:
+        texto, _ = mascarar_pii((pergunta or "").strip()[:300])
+        chave = chave_de(texto)
+        if len(texto) < 2 or not chave:
+            return
+        marca = hashlib.sha256(f"{sub}|{tipo}|{chave}".encode()).hexdigest()
+        agora = _time.time()
+        if len(_LACUNAS_VISTAS) > 5000:
+            _LACUNAS_VISTAS.clear()
+        if agora - _LACUNAS_VISTAS.get(marca, 0) < 3600:
+            return
+        _LACUNAS_VISTAS[marca] = agora
+        get_db().table("ajuda_lacunas").insert({
+            "tipo": tipo, "pergunta": texto, "chave": chave,
+            "entrada_id": entrada_id, "perfil": perfil}).execute()
+    except Exception:
+        print("[Ajuda] não consegui registrar uma busca sem resposta")
+
+
 @app.post("/ajuda/buscar")
-def ajuda_buscar(body: AjudaBuscaIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+def ajuda_buscar(body: AjudaBuscaIn, tarefas: BackgroundTasks,
+                 credentials: HTTPAuthorizationCredentials = Security(bearer)):
     import ajuda as _aj
     import ajuda_busca as _ab
-    perfil = _usuario_autenticado(credentials).get("role", "operador")
+    payload = _usuario_autenticado(credentials)
+    perfil = payload.get("role", "operador")
     achados = _ab.buscador_para(perfil).buscar(body.pergunta, k=3)
+    if not achados["certeza"]:
+        tarefas.add_task(_registrar_lacuna, "sem_resposta", body.pergunta, None, perfil, payload["sub"])
     por_id = {e.id: e for e in _aj.para_perfil(perfil)}
     return {
         "certeza": achados["certeza"],
         "resultados": [{**_aj.para_json(por_id[r["id"]], perfil), "score": r["score"]}
                        for r in achados["resultados"] if r["id"] in por_id],
     }
+
+
+class NaoResolveuIn(BaseModel):
+    pergunta: str = Field(..., min_length=2, max_length=300)
+    entrada_id: Optional[str] = Field(None, max_length=100)
+
+
+@app.post("/ajuda/nao-resolveu")
+def ajuda_nao_resolveu(body: NaoResolveuIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """"Isto não resolveu": a resposta mostrada não bastou. Anônimo, com o perfil."""
+    import ajuda as _aj
+    payload = _usuario_autenticado(credentials)
+    perfil = payload.get("role", "operador")
+    # só vale como "qual resposta" uma que este perfil pode ver
+    visiveis = {e.id for e in _aj.para_perfil(perfil)}
+    entrada = body.entrada_id if body.entrada_id in visiveis else None
+    _registrar_lacuna("nao_resolveu", body.pergunta, entrada, perfil, payload["sub"])
+    return {"ok": True}
 
 
 @app.get("/ajuda/indice")
@@ -5003,6 +5060,74 @@ def comando_revisar_sugestao(duvida_id: str, body: RevisaoIn,
     _registrar_auditoria(acao=f"duvida_sugestao_{body.estado}", entidade="duvida", entidade_id=d["id"],
                          usuario_email=payload.get("email", ""), empresa_id=d.get("empresa_id", ""),
                          usuario_id=payload.get("sub", ""), detalhes={})
+    return {"ok": True}
+
+
+@app.get("/comando/ajuda/lacunas")
+def comando_lacunas_da_ajuda(dias: int = 90, estado: str = "pendentes", limite: int = 50,
+                             credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """O que a Central não soube responder, agrupado, da pergunta mais repetida para a menos."""
+    from datetime import timedelta
+    import ajuda_busca as _ab
+    from ajuda_lacunas import agrupar
+    _exigir_comando(credentials)
+    if estado not in ("pendentes", "tratadas", "todas"):
+        raise HTTPException(status_code=422, detail="estado inválido.")
+    dias, limite = min(max(dias, 1), 365), min(max(limite, 1), 200)
+    db = get_db()
+    corte = (datetime.utcnow() - timedelta(days=dias)).isoformat()
+    linhas = _todas_as_linhas(lambda: db.table("ajuda_lacunas").select("*").gte("created_at", corte))
+    grupos = agrupar(linhas)
+    if estado == "pendentes":
+        grupos = [g for g in grupos if not g["tratada"]]
+    elif estado == "tratadas":
+        grupos = [g for g in grupos if g["tratada"]]
+    buscador = _ab.buscador_para("comando")
+    por_id = {e.id: e for e in buscador.entradas}
+    for g in grupos[:limite]:
+        # a resposta que a busca achou mais perto: o ponto de partida de quem vai escrever
+        perto = buscador.buscar(g["exemplo"], k=1)["resultados"]
+        g["mais_perto"] = ({"id": perto[0]["id"], "titulo": por_id[perto[0]["id"]].titulo, "score": perto[0]["score"]}
+                           if perto else None)
+    return {"grupos": grupos[:limite], "total_de_grupos": len(grupos), "total_de_registros": len(linhas), "dias": dias}
+
+
+class TratarLacunaIn(BaseModel):
+    chave: str = Field(..., min_length=1, max_length=300)
+    tratada: bool = True
+
+
+@app.post("/comando/ajuda/lacunas/tratar")
+def comando_tratar_lacuna(body: TratarLacunaIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Marca como tratada (a resposta foi escrita) ou desfaz. Se a pergunta voltar a
+    aparecer depois, ela volta para a lista como 'reapareceu'."""
+    payload = _exigir_comando(credentials)
+    patch = ({"tratada_em": datetime.utcnow().isoformat(), "tratada_por": payload.get("email", "")}
+             if body.tratada else {"tratada_em": None, "tratada_por": None})
+    q = get_db().table("ajuda_lacunas").update(patch).eq("chave", body.chave)
+    if body.tratada:
+        q = q.is_("tratada_em", "null")          # não sobrescreve quem já tratou antes
+    q.execute()
+    _registrar_auditoria(acao="lacuna_tratada" if body.tratada else "lacuna_reaberta", entidade="ajuda",
+                         entidade_id=body.chave[:80], usuario_email=payload.get("email", ""),
+                         usuario_id=payload.get("sub", ""), detalhes={})
+    return {"ok": True}
+
+
+class LimparLacunasIn(BaseModel):
+    dias: int = Field(..., ge=30, le=3650)
+
+
+@app.post("/comando/ajuda/lacunas/limpar")
+def comando_limpar_lacunas(body: LimparLacunasIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Apaga o registro de buscas mais antigo que `dias` (mínimo 30)."""
+    from datetime import timedelta
+    payload = _exigir_comando(credentials)
+    corte = (datetime.utcnow() - timedelta(days=body.dias)).isoformat()
+    get_db().table("ajuda_lacunas").delete().lt("created_at", corte).execute()
+    _registrar_auditoria(acao="lacunas_limpas", entidade="ajuda", entidade_id="lacunas",
+                         usuario_email=payload.get("email", ""), usuario_id=payload.get("sub", ""),
+                         detalhes={"mais_antigas_que_dias": body.dias})
     return {"ok": True}
 
 

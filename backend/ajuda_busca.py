@@ -30,7 +30,7 @@ import ajuda
 
 # Palavras de ligação. "não" fica: muda o sentido ("pago e não pago").
 _LIGACAO = {
-    "a", "o", "as", "os", "um", "uma", "uns", "umas", "de", "do", "da", "dos", "das", "em", "no", "na",
+    "a", "o", "eu", "as", "os", "um", "uma", "uns", "umas", "de", "do", "da", "dos", "das", "em", "no", "na",
     "nos", "nas", "por", "para", "pra", "pro", "com", "sem", "e", "ou", "que", "se", "ao", "aos", "me",
     "meu", "minha", "meus", "minhas", "seu", "sua", "isso", "isto", "esse", "essa", "esses", "essas",
     "este", "esta", "e", "eh", "ele", "ela", "eles", "elas", "qual", "quais", "como", "onde", "quando",

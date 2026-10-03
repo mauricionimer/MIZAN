@@ -30,6 +30,7 @@ teste quebra.
 | (extra) Tela de Premissas | **Pronta**: `/premissas`, admin e COMANDO, validada e auditada. A ajuda aponta para ela |
 | 4. "?" ao lado de cada métrica | **Pronta**: o "?" aparece em 63 das 64 respostas, só para quem pode lê-las; no celular abre como folha na base da tela. A outra (probabilidade de pagamento) não aparece como número em nenhuma tela e fica só na Central, com o motivo declarado. `test_ajuda_cobertura.py` impede "?" para resposta inexistente ou que o público da página não possa ler, e resposta sem "?" |
 | 5. Dúvidas encaminhadas ao COMANDO | **Pronta** (depende de rodar `backend/sql/migracao_duvidas.sql` no Supabase): envio com máscara de CPF, CNPJ, telefone e e-mail; COMANDO vê todas e responde; o administrador vê as da equipe (só leitura); o operador vê as próprias; aviso só na tela (número no menu); resposta pode ser sugerida para a Central e passa por revisão (aprovar não publica nada). Fora da política de retenção por enquanto |
+| 6. Buscas sem resposta | **Pronta** (depende de rodar `backend/sql/migracao_lacunas.sql` no Supabase): busca sem certeza e "Isto não resolveu" gravam o texto mascarado + só o perfil (sem nome, e-mail ou empresa; um registro por pessoa/pergunta/hora); aba "Buscas sem resposta" em Dúvidas (COMANDO) agrupa, mostra a resposta mais próxima, marca tratada/reabre/"reapareceu" e apaga registros com mais de 180 dias. Sem apagamento automático |
 | 6. Perguntas sem resposta | A fazer |
 
 ## 1. O que existe hoje (levantado no código, não suposto)

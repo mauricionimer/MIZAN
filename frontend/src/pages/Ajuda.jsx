@@ -7,7 +7,7 @@ import { useAnalysis } from '../context/AnalysisContext'
 import DicaAjuda from '../components/DicaAjuda'
 import { atualizarAvisosDeDuvida } from '../components/useAvisosDeDuvida'
 import {
-  buscarAjuda, indiceDaAjuda, entradaDaAjuda, estadoDoModelo,
+  buscarAjuda, naoResolveu, indiceDaAjuda, entradaDaAjuda, estadoDoModelo,
   enviarDuvida, minhasDuvidas, marcarDuvidasVistas, duvidasDaEquipe,
 } from '../api'
 
@@ -162,6 +162,7 @@ export default function Ajuda() {
   const [novas, setNovas]         = useState(new Set())
   const [equipe, setEquipe]       = useState([])
   const [pedindo, setPedindo]     = useState(false)
+  const [registrou, setRegistrou] = useState(false)   // 'isto não resolveu' já enviado para esta busca
   const [params] = useSearchParams()
 
   useEffect(() => {
@@ -193,7 +194,7 @@ export default function Ajuda() {
     e?.preventDefault()
     const q = pergunta.trim()
     if (q.length < 2) return
-    setErro(''); setNavegada(null); setBuscando(true)
+    setErro(''); setNavegada(null); setBuscando(true); setRegistrou(false)
     const minha = ++ultima.current
     try {
       const r = await buscarAjuda(token, q)
@@ -215,6 +216,11 @@ export default function Ajuda() {
     } catch (e2) { setErro(e2.message) }
   }
 
+  async function naoServiu() {
+    setRegistrou(true); setPedindo(true)
+    try { await naoResolveu(token, { pergunta: busca.pergunta, entrada_id: resultados[0]?.id }) } catch { /* o registro é só um aviso ao COMANDO */ }
+  }
+
   const alternar = (id) => setAbertas(a => ({ ...a, [id]: !a[id] }))
   const resultados = busca?.resultados || []
 
@@ -226,7 +232,8 @@ export default function Ajuda() {
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">Como posso ajudar?</h1>
           <p className="mt-1 text-sm text-ink-2">
             Pergunte como falaria com um colega: "por que esse devedor está no topo?", "o que é prioridade alta?".
-            A busca é feita aqui, no servidor do Mizan, e o que você digita nela não é guardado (só a dúvida que você decidir enviar).
+            A busca é feita aqui, no servidor do Mizan. Quando ela não encontra resposta, a pergunta é guardada sem o seu nome nem o da sua empresa
+            (só o perfil, e já sem CPF, CNPJ, telefone e e-mail), para o COMANDO saber o que escrever. Nada é guardado quando a busca acha a resposta.
           </p>
         </div>
 
@@ -266,6 +273,11 @@ export default function Ajuda() {
               <Resposta key={e.id} e={e} destaque={busca.certeza && i === 0}
                 aberta={!!abertas[e.id]} onAlternar={() => alternar(e.id)} />
             ))}
+            {busca.certeza && resultados.length > 0 && !registrou && (
+              <button onClick={naoServiu} className="text-sm font-medium text-ink-3 hover:text-ink">
+                Isto não resolveu a minha dúvida
+              </button>
+            )}
           </section>
         )}
 

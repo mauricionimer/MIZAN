@@ -446,3 +446,25 @@ CREATE INDEX IF NOT EXISTS idx_duvidas_novidade ON duvidas(autor_id)
 
 ALTER TABLE duvidas ENABLE ROW LEVEL SECURITY;
 
+
+-- ── O que a Central de Ajuda não soube responder ─────────────────
+-- Ver migracao_lacunas.sql, que traz os comentários completos.
+CREATE TABLE IF NOT EXISTS ajuda_lacunas (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  tipo         TEXT NOT NULL CHECK (tipo IN ('sem_resposta', 'nao_resolveu')),
+  pergunta     TEXT NOT NULL CHECK (char_length(pergunta) BETWEEN 2 AND 300),
+  chave        TEXT NOT NULL CHECK (char_length(chave) BETWEEN 1 AND 300),
+  -- só em 'nao_resolveu': a resposta que foi mostrada e não resolveu
+  entrada_id   TEXT,
+  perfil       TEXT NOT NULL CHECK (perfil IN ('operador', 'admin', 'comando')),
+  -- o COMANDO marca como tratada quando escreveu a resposta que faltava
+  tratada_em   TIMESTAMPTZ,
+  tratada_por  TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_ajuda_lacunas_chave ON ajuda_lacunas(chave, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ajuda_lacunas_data  ON ajuda_lacunas(created_at DESC);
+
+ALTER TABLE ajuda_lacunas ENABLE ROW LEVEL SECURITY;
+

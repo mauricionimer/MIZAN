@@ -232,7 +232,7 @@ perguntas:
 curta: Na página Ajuda, se a busca não resolver, use "Pergunte ao COMANDO". A resposta aparece em "Minhas dúvidas", e o menu Ajuda mostra um número quando chegar.
 calculo: A dúvida aceita até 2.000 caracteres e cada pessoa pode enviar até 10 por hora. O servidor retira CPF, CNPJ, telefone, e-mail e números longos antes de gravar. O COMANDO vê todas as dúvidas; o administrador vê, só para leitura, as da sua equipe; cada pessoa vê as suas. O número no menu some quando você abre a página Ajuda.
 fazer: Diga o que você não entendeu e em que tela estava. A dúvida leva junto a tela de onde você veio.
-cuidado: Nomes de pessoas não podem ser reconhecidos por regra e passam: não escreva nome de devedor. O que você digita na busca não é guardado, mas o que você ENVIA como dúvida é guardado e lido por pessoas. Não há prazo garantido para a resposta.
+cuidado: Nomes de pessoas não podem ser reconhecidos por regra e passam: não escreva nome de devedor. A busca só é guardada quando não achou resposta (sem seu nome nem empresa; veja "Buscas sem resposta"), e o que você ENVIA como dúvida é guardado com o seu nome e lido por pessoas. Não há prazo garantido para a resposta.
 fontes:
 - backend/main.py::rota /ajuda/duvidas
 - backend/ajuda_duvidas.py::mascarar_pii
@@ -258,3 +258,23 @@ fontes:
 - backend/main.py::rota /comando/duvidas
 - backend/main.py::comando_responder_duvida
 - backend/main.py::comando_revisar_sugestao
+
+## buscas-sem-resposta
+titulo: Buscas sem resposta (COMANDO)
+perfis: comando
+telas: Dúvidas
+perguntas:
+- como sei o que as pessoas procuram e a ajuda não responde
+- onde vejo as buscas sem resposta da ajuda
+- o que significa isto não resolveu a minha dúvida
+- o que quer dizer reapareceu depois de tratada
+- como marco uma busca como tratada
+- as buscas da ajuda ficam guardadas com meu nome
+- por quanto tempo ficam guardadas as buscas sem resposta
+curta: Na aba "Buscas sem resposta" de Dúvidas, o COMANDO vê as perguntas que a Central não soube responder, agrupadas e da mais repetida para a menos.
+calculo: Entra no registro a busca em que a Central não teve certeza da resposta e a busca em que a pessoa clicou em "Isto não resolveu a minha dúvida". Perguntas que só diferem em acento, maiúscula, plural, ordem ou palavras de ligação formam um grupo. Cada pessoa gera no máximo um registro por pergunta por hora. Marcar como tratada vale para os registros que existem agora; se a pergunta voltar, o grupo reaparece com o aviso "reapareceu depois de tratada", sinal de que a resposta escrita não bastou. "Resposta mais próxima hoje" é a entrada do catálogo de maior similaridade, ponto de partida para escrever ou corrigir.
+fazer: Comece pelas mais repetidas, escreva ou ajuste a entrada em backend/ajuda, rode os testes do catálogo e marque como tratada. Registros com mais de 180 dias podem ser apagados na própria aba.
+cuidado: O registro guarda só o texto buscado (sem CPF, CNPJ, telefone e e-mail) e o perfil de quem buscou, sem nome, e-mail ou empresa. Nomes digitados no texto não podem ser reconhecidos por regra. Não há apagamento automático: a limpeza é feita por quem é do COMANDO.
+fontes:
+- backend/main.py::comando_lacunas_da_ajuda
+- backend/ajuda_lacunas.py::agrupar

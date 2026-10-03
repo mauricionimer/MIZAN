@@ -52,7 +52,7 @@ export default function Privacidade() {
             },
             {
               titulo: '2. Dados coletados',
-              texto: 'Coletamos dados de devedores fornecidos pela empresa contratante (CPF, nome, produto, valor da dívida, dias em atraso, renda estimada, UF), dados de acesso dos usuários do sistema (e-mail, nome, hash de senha), histórico de análises e registros de contatos realizados com devedores. Guardamos também as dúvidas que os usuários enviam ao COMANDO pela Central de Ajuda, com o nome e o e-mail de quem perguntou e a resposta recebida; CPF, CNPJ, telefone e e-mail digitados no texto são removidos automaticamente antes de gravar.',
+              texto: 'Coletamos dados de devedores fornecidos pela empresa contratante (CPF, nome, produto, valor da dívida, dias em atraso, renda estimada, UF), dados de acesso dos usuários do sistema (e-mail, nome, hash de senha), histórico de análises e registros de contatos realizados com devedores. Guardamos também as dúvidas que os usuários enviam ao COMANDO pela Central de Ajuda, com o nome e o e-mail de quem perguntou e a resposta recebida; CPF, CNPJ, telefone e e-mail digitados no texto são removidos automaticamente antes de gravar. Quando a busca da Central de Ajuda não encontra resposta (ou a pessoa diz que não resolveu), guardamos o texto buscado, já sem esses dados, e apenas o perfil de quem buscou (operador, diretor ou COMANDO), sem nome, e-mail ou empresa, para que o COMANDO escreva a resposta que faltou.',
             },
             {
               titulo: '3. Finalidade do tratamento',
