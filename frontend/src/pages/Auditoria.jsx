@@ -1,6 +1,7 @@
 import ThemeToggle from '../components/ThemeToggle'
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import AppShell from '../components/AppShell'
 import { useAuth } from '../context/AuthContext'
 import { buscarAuditoria } from '../api'
 import {
@@ -102,25 +103,9 @@ export default function Auditoria() {
   useEffect(() => { carregar(0, false) }, [carregar])
 
   return (
-    <div className="min-h-screen">
-      <header className="navbar-glass px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button onClick={() => navigate(isComando ? '/comando' : '/')} className="p-1 rounded-lg transition-colors hover:bg-raise-2" style={{ color: 'var(--ink-3)' }}>
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-          <LogoMark className="h-5 w-5 shrink-0" />
-          <span className="font-bold text-ink text-sm">Mizan</span>
-          <span className="text-ink-4 text-sm">/</span>
-          <span className="text-sm" style={{ color: 'var(--ink-2)' }}>Auditoria</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-sm hidden sm:block" style={{ color: 'var(--ink-3)' }}>{usuario?.nome}</span>
-          <ThemeToggle />
-          <button onClick={logout} className="nav-link-danger"><LogOut className="w-4 h-4" /> Sair</button>
-        </div>
-      </header>
+    <AppShell titulo="Auditoria">
 
-      <div className="max-w-6xl mx-auto px-6 py-10">
+      <div className="w-full max-w-6xl mx-auto">
         <div className="flex items-start justify-between mb-6">
           <div>
             <h1 className="text-xl font-bold text-ink tracking-tight">Trilha de auditoria<DicaAjuda id="auditoria-de-acoes" /></h1>
@@ -224,6 +209,6 @@ export default function Auditoria() {
           </div>
         )}
       </div>
-    </div>
+    </AppShell>
   )
 }

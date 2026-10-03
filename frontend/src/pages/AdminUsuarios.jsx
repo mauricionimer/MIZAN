@@ -1,6 +1,7 @@
 import ThemeToggle from '../components/ThemeToggle'
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import AppShell from '../components/AppShell'
 import { useAuth } from '../context/AuthContext'
 import {
   listarUsuarios, registrarUsuario, toggleUsuarioAtivo, alterarRoleUsuario,
@@ -552,30 +553,13 @@ export default function AdminUsuarios() {
     : usuarios
 
   return (
-    <div className="min-h-screen">
-      <header className="navbar-glass px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button onClick={() => navigate(isComando ? '/comando' : '/')} className="p-1 rounded-lg transition-colors hover:bg-raise-2" style={{ color: 'var(--ink-3)' }}>
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-          <Logo />
-          <span className="font-bold text-ink text-sm">Mizan</span>
-          <span className="text-ink-4 text-sm">/</span>
-          <span className="text-sm" style={{ color: 'var(--ink-2)' }}>Usuários</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <ThemeToggle />
-          <button onClick={() => navigate('/auditoria')} className="nav-link"><ShieldCheck className="w-4 h-4" /> Auditoria</button>
-          <span className="text-sm hidden sm:block" style={{ color: 'var(--ink-3)' }}>{usuario?.nome}</span>
-          <button onClick={logout} className="nav-link-danger"><LogOut className="w-4 h-4" /> Sair</button>
-        </div>
-      </header>
+    <AppShell titulo="Usuários">
 
-      <div className="max-w-5xl mx-auto px-6 py-10">
+      <div className="w-full max-w-5xl mx-auto">
 
         {/* Abas */}
         {(isAdmin || isComando) && (
-          <div className="flex gap-1 mb-8 p-1 rounded-xl w-fit" style={{ background: 'var(--raise-2)' }}>
+          <div className="flex gap-1 mb-8 p-1 rounded-xl w-fit max-w-full overflow-x-auto" style={{ background: 'var(--raise-2)' }}>
             {[
               ['usuarios', <Users className="w-4 h-4" />, 'Usuários'],
               ...(isComando ? [['empresas', <Building2 className="w-4 h-4" />, 'Empresas']] : []),
@@ -681,7 +665,7 @@ export default function AdminUsuarios() {
             {isComando && showForm && (
               <div className="mb-6 rounded-2xl p-6" style={{ background: 'var(--surface)', border: '1px solid var(--line)', boxShadow: '0 2px 12px rgba(0,0,0,0.40)' }}>
                 <h2 className="text-sm font-bold text-ink mb-5">Criar novo usuário</h2>
-                <form onSubmit={handleRegistrar} className="grid grid-cols-2 gap-4">
+                <form onSubmit={handleRegistrar} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
                     <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>Nome completo</label>
                     <input type="text" required value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} className="input-base" placeholder="João Silva" />
@@ -738,7 +722,7 @@ export default function AdminUsuarios() {
             {carregando ? (
               <div className="text-center py-16 text-sm" style={{ color: 'var(--ink-3)' }}>Carregando...</div>
             ) : (
-              <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--line)', boxShadow: '0 2px 12px rgba(0,0,0,0.40)' }}>
+              <div className="rounded-2xl overflow-x-auto" style={{ background: 'var(--surface)', border: '1px solid var(--line)', boxShadow: '0 2px 12px rgba(0,0,0,0.40)' }}>
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b" style={{ background: 'var(--raised)', borderColor: 'var(--line)' }}>
@@ -916,6 +900,6 @@ export default function AdminUsuarios() {
           </>
         )}
       </div>
-    </div>
+    </AppShell>
   )
 }

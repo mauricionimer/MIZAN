@@ -11,6 +11,7 @@ import ThemeToggle from '../components/ThemeToggle'
 import { LogoMark } from '../components/Logo'
 import { rodarBacktest, traduzirErroRede } from '../api'
 import DicaAjuda from '../components/DicaAjuda'
+import AppShell from '../components/AppShell'
 
 const fmtBRL = (v) => v != null
   ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v)
@@ -86,22 +87,9 @@ export default function Backtest() {
   })) : []
 
   return (
-    <div className="min-h-screen">
-      <header className="sticky top-0 z-30 backdrop-blur"
-        style={{ background: 'rgb(var(--c-nav) / 0.92)', borderBottom: '1px solid var(--line)' }}>
-        <div className="mx-auto max-w-5xl px-5 py-3 flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="btn-ghost p-2" aria-label="Voltar">
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-          <LogoMark className="h-5 w-5" />
-          <h1 className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>
-            Backtest de carteira histórica<DicaAjuda id="backtest" />
-          </h1>
-          <div className="ml-auto"><ThemeToggle /></div>
-        </div>
-      </header>
+    <AppShell titulo={<>Backtest de carteira histórica<DicaAjuda id="backtest" /></>}>
 
-      <main className="mx-auto max-w-5xl px-5 py-6 space-y-5">
+      <div className="w-full mx-auto max-w-5xl space-y-5">
         {/* Entrada */}
         <section className="card p-5">
           <p className="text-sm leading-relaxed" style={{ color: 'var(--ink-2)' }}>
@@ -438,7 +426,7 @@ export default function Backtest() {
             )}
           </>
         )}
-      </main>
-    </div>
+      </div>
+    </AppShell>
   )
 }

@@ -5,6 +5,7 @@ import {
   ArrowLeft, Loader2, LogOut, Brain, AlertTriangle, CheckCircle2, ShieldCheck,
   UploadCloud, Undo2, Play, XCircle, Database,
 } from 'lucide-react'
+import AppShell from '../components/AppShell'
 import { useAuth } from '../context/AuthContext'
 import { LogoMark } from '../components/Logo'
 import {
@@ -182,27 +183,9 @@ export default function TreinoModelo() {
   const emAndamento = job && !['concluido', 'recusado', 'falhou'].includes(job.estado)
 
   return (
-    <div className="min-h-screen">
-      <header className="navbar-glass px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/comando')} className="p-1 rounded-lg transition-colors hover:bg-raise-2" style={{ color: 'var(--ink-3)' }}>
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-          <LogoMark className="h-5 w-5 shrink-0" />
-          <span className="font-bold text-ink text-sm">Mizan</span>
-          <span className="text-ink-4 text-sm">/</span>
-          <span className="text-sm" style={{ color: 'var(--ink-2)' }}>Treinar modelo de uma empresa</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-sm hidden sm:block" style={{ color: 'var(--ink-3)' }}>{usuario?.nome}</span>
-          <ThemeToggle />
-          <button onClick={() => { logout(); navigate('/login') }} className="nav-link-danger">
-            <LogOut className="h-4 w-4" /> Sair
-          </button>
-        </div>
-      </header>
+    <AppShell titulo="Treinar modelo">
 
-      <main className="max-w-4xl mx-auto px-6 py-10 space-y-6">
+      <div className="w-full max-w-4xl mx-auto space-y-6">
         <Cartao>
           <div className="flex items-start gap-3">
             <ShieldCheck className="h-5 w-5 mt-0.5 text-indigo-500 shrink-0" />
@@ -323,7 +306,7 @@ export default function TreinoModelo() {
             )}
           </Cartao>
         )}
-      </main>
-    </div>
+      </div>
+    </AppShell>
   )
 }

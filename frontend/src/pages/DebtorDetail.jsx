@@ -8,6 +8,7 @@ import PriorityBadge from '../components/PriorityBadge'
 import { buscarRecomendacao, registrarContato, listarContatos, buscarStatusFeedbacks, buscarExplicacaoScore, buscarPropostas, traduzirErroRede } from '../api'
 import { LogoMark } from '../components/Logo'
 import DicaAjuda from '../components/DicaAjuda'
+import AppShell from '../components/AppShell'
 
 const fmtBRL = (v) => v != null ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v) : '—'
 const fmtNum = (v) => v != null ? new Intl.NumberFormat('pt-BR').format(v) : '—'
@@ -609,21 +610,12 @@ export default function DebtorDetail() {
   const dash = (score / 100) * circumference
 
   return (
-    <div className="min-h-screen">
-      <header className="navbar-glass px-6 py-3 flex items-center gap-3">
-        <button onClick={voltarAoDashboard} className="p-1 rounded-lg transition-colors hover:bg-raise-2" style={{ color: 'var(--ink-3)' }}>
-          <ArrowLeft className="h-4 w-4" />
+    <AppShell titulo="Devedor">
+      <div className="w-full max-w-5xl mx-auto">
+        <button onClick={voltarAoDashboard}
+          className="mb-4 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 -ml-2 text-sm text-ink-2 transition-colors hover:bg-raise-1 hover:text-ink">
+          <ArrowLeft className="h-4 w-4" /> Voltar à fila
         </button>
-        <Logo />
-        <span className="font-bold text-ink text-sm">Mizan</span>
-        <span className="text-ink-4 text-sm">/</span>
-        <button onClick={voltarAoDashboard} className="text-sm transition-colors hover:text-ink" style={{ color: 'var(--ink-3)' }}>Dashboard</button>
-        <span className="text-ink-4 text-sm">/</span>
-        <span className="text-sm font-medium text-ink truncate max-w-xs">{d.nome}</span>
-        <ThemeToggle className="ml-auto" />
-      </header>
-
-      <main className="max-w-5xl mx-auto px-6 py-8">
         <div className="flex items-start justify-between mb-7">
           <div>
             <h1 className="text-2xl font-bold text-ink tracking-tight">{d.nome}</h1>
@@ -656,8 +648,8 @@ export default function DebtorDetail() {
           <PriorityBadge rank={d.rank} total={result?.resumo?.total_devedores ?? result?.ranking_completo?.length ?? 0} large />
         </div>
 
-        <div className="grid grid-cols-3 gap-6">
-          <div className="col-span-1 flex flex-col gap-5">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-1 flex flex-col gap-5">
             {/* Score ring */}
             <div className="rounded-2xl p-6 flex flex-col items-center" style={CARD}>
               <p className="section-label mb-5 text-center">Score de Recuperabilidade<DicaAjuda id="score-recuperabilidade" /></p>
@@ -693,7 +685,7 @@ export default function DebtorDetail() {
             </div>
           </div>
 
-          <div className="col-span-2 flex flex-col gap-4">
+          <div className="lg:col-span-2 flex flex-col gap-4">
             <Section title="Dados Cadastrais">
               <DataRow label="Nome completo" value={d.nome} />
               <DataRow label="CPF" value={d.cpf} />
@@ -755,7 +747,7 @@ export default function DebtorDetail() {
             <HistoricoContatos cpf={d.cpf} rec={rec} propostas={propostas} />
           </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </AppShell>
   )
 }

@@ -4,8 +4,8 @@ import { Loader2 } from 'lucide-react'
 import { AnalysisProvider } from './context/AnalysisContext'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
-import { AnimatePresence } from 'framer-motion'
 import PageTransition from './components/PageTransition'
+import { ShellLayout } from './components/AppShell'
 
 class ErrorBoundary extends Component {
   state = { error: null }
@@ -110,41 +110,39 @@ function TelaCarregando() {
 
 function RotasAnimadas() {
   const location = useLocation()
+  const P = (roles, el) => <RotaProtegida roles={roles}>{el}</RotaProtegida>
   return (
-    <AnimatePresence mode="wait" initial={false}>
-      <Suspense fallback={<TelaCarregando />}>
-          <Routes location={location} key={location.pathname}>
-            <Route path="/login" element={<PageTransition><Login /></PageTransition>} />
-            <Route path="/esqueci-senha" element={<PageTransition><EsqueciSenha /></PageTransition>} />
-            <Route path="/redefinir-senha" element={<PageTransition><RedefinirSenha /></PageTransition>} />
-            {/* Uma tela só: a análise de carteira e o dashboard são vistas
-                dentro dela, não rotas. "/dashboard" ficou de links salvos e cai
-                na regra coringa, que leva para "/". */}
-            <Route path="/" element={<PageTransition><RotaProtegida><Home /></RotaProtegida></PageTransition>} />
-            <Route path="/devedor/:rank" element={<PageTransition><RotaProtegida><DebtorDetail /></RotaProtegida></PageTransition>} />
-            <Route path="/ajuda" element={<PageTransition><RotaProtegida><Ajuda /></RotaProtegida></PageTransition>} />
-            <Route path="/feedback" element={<PageTransition><RotaProtegida><Feedback /></RotaProtegida></PageTransition>} />
-            <Route path="/bandit" element={<PageTransition><RotaProtegida roles={['comando']}><BanditDashboard /></RotaProtegida></PageTransition>} />
-            <Route path="/aprendizado" element={<PageTransition><RotaProtegida roles={['comando']}><AprendizadoDashboard /></RotaProtegida></PageTransition>} />
-            <Route path="/comando/duvidas" element={<PageTransition><RotaProtegida roles={['comando']}><DuvidasComando /></RotaProtegida></PageTransition>} />
-            <Route path="/comando/treino" element={<PageTransition><RotaProtegida roles={['comando']}><TreinoModelo /></RotaProtegida></PageTransition>} />
-            <Route path="/comando/chaves" element={<PageTransition><RotaProtegida roles={['comando']}><ChavesApi /></RotaProtegida></PageTransition>} />
-            <Route path="/comando" element={<PageTransition><RotaProtegida roles={['comando']}><ComandoDashboard /></RotaProtegida></PageTransition>} />
-            {/* /admin e /operador eram menus de atalhos para telas que já
-                existiam. As opções foram para dentro da tela de trabalho e as
-                rotas saíram; quem tiver link salvo cai na regra "*" abaixo,
-                que leva para "/". */}
-            <Route path="/admin/usuarios" element={<PageTransition><RotaProtegida roles={['admin', 'comando']}><AdminUsuarios /></RotaProtegida></PageTransition>} />
-            <Route path="/backtest" element={<PageTransition><RotaProtegida roles={['admin', 'comando']}><Backtest /></RotaProtegida></PageTransition>} />
-            <Route path="/premissas" element={<PageTransition><RotaProtegida roles={['admin', 'comando']}><Premissas /></RotaProtegida></PageTransition>} />
-            <Route path="/retencao" element={<PageTransition><RotaProtegida roles={['admin', 'comando']}><Retencao /></RotaProtegida></PageTransition>} />
-            <Route path="/auditoria" element={<PageTransition><RotaProtegida roles={['admin', 'comando']}><Auditoria /></RotaProtegida></PageTransition>} />
-            <Route path="/alterar-senha" element={<PageTransition><RotaProtegida><AlterarSenha /></RotaProtegida></PageTransition>} />
-            <Route path="/privacidade" element={<PageTransition><Privacidade /></PageTransition>} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-      </Suspense>
-    </AnimatePresence>
+    <Suspense fallback={<TelaCarregando />}>
+      <Routes location={location}>
+        <Route path="/login" element={<PageTransition><Login /></PageTransition>} />
+        <Route path="/esqueci-senha" element={<PageTransition><EsqueciSenha /></PageTransition>} />
+        <Route path="/redefinir-senha" element={<PageTransition><RedefinirSenha /></PageTransition>} />
+        <Route path="/privacidade" element={<PageTransition><Privacidade /></PageTransition>} />
+        {/* Todas as telas logadas dentro de um layout só: o menu fica montado e
+            só o conteúdo troca (ver components/AppShell.jsx). A análise de
+            carteira e o dashboard são vistas de "/", não rotas; "/dashboard"
+            ficou de links salvos e cai na regra coringa. */}
+        <Route element={<RotaProtegida><ShellLayout /></RotaProtegida>}>
+          <Route path="/" element={<Home />} />
+          <Route path="/devedor/:rank" element={<DebtorDetail />} />
+          <Route path="/ajuda" element={<Ajuda />} />
+          <Route path="/feedback" element={<Feedback />} />
+          <Route path="/alterar-senha" element={<AlterarSenha />} />
+          <Route path="/bandit" element={P(['comando'], <BanditDashboard />)} />
+          <Route path="/aprendizado" element={P(['comando'], <AprendizadoDashboard />)} />
+          <Route path="/comando/duvidas" element={P(['comando'], <DuvidasComando />)} />
+          <Route path="/comando/treino" element={P(['comando'], <TreinoModelo />)} />
+          <Route path="/comando/chaves" element={P(['comando'], <ChavesApi />)} />
+          <Route path="/comando" element={P(['comando'], <ComandoDashboard />)} />
+          <Route path="/admin/usuarios" element={P(['admin', 'comando'], <AdminUsuarios />)} />
+          <Route path="/backtest" element={P(['admin', 'comando'], <Backtest />)} />
+          <Route path="/premissas" element={P(['admin', 'comando'], <Premissas />)} />
+          <Route path="/retencao" element={P(['admin', 'comando'], <Retencao />)} />
+          <Route path="/auditoria" element={P(['admin', 'comando'], <Auditoria />)} />
+        </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Suspense>
   )
 }
 

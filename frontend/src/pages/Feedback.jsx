@@ -3,6 +3,7 @@ import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CheckCircle2, XCircle, Loader2, ClipboardList, ArrowLeft, Plus, Trash2, UploadCloud, FileText, Download, LogOut } from 'lucide-react'
 import { feedbackLote } from '../api'
+import AppShell from '../components/AppShell'
 import { useAuth } from '../context/AuthContext'
 import { useAnalysis } from '../context/AnalysisContext'
 import { LogoMark } from '../components/Logo'
@@ -69,7 +70,7 @@ function ImportacaoLote({ token }) {
   const erros = resultado?.detalhes?.filter(d => !d.ok) ?? []
 
   return (
-    <div className="col-span-5 space-y-5">
+    <div className="lg:col-span-5 space-y-5">
       <div className="rounded-2xl p-5 flex gap-4 items-start" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
         <FileText className="h-5 w-5 shrink-0 mt-0.5" style={{ color: 'var(--ink-3)' }} />
         <div className="flex-1 min-w-0">
@@ -245,27 +246,9 @@ export default function Feedback() {
   }
 
   return (
-    <div className="min-h-screen">
-      <header className="navbar-glass px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button onClick={voltarAoDashboard} className="transition-colors p-1 rounded-lg hover:bg-raise-2" style={{ color: 'var(--ink-3)' }}>
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-          <Logo />
-          <span className="font-bold text-ink text-sm">Mizan</span>
-          <span className="text-ink-4 text-sm">/</span>
-          <span className="text-sm" style={{ color: 'var(--ink-2)' }}>Pagamentos</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-sm hidden sm:block" style={{ color: 'var(--ink-3)' }}>{usuario?.nome}</span>
-          <ThemeToggle />
-          <button onClick={() => { logout(); navigate('/login') }} className="nav-link-danger">
-            <LogOut className="h-4 w-4" /> Sair
-          </button>
-        </div>
-      </header>
+    <AppShell titulo="Pagamentos">
 
-      <main className="max-w-5xl mx-auto px-6 py-10 space-y-6">
+      <div className="w-full max-w-5xl mx-auto space-y-6">
         <div>
           <h1 className="text-xl font-bold text-ink tracking-tight">Pagamentos<DicaAjuda id="registrar-pagamento" /></h1>
           <p className="text-sm mt-1" style={{ color: 'var(--ink-2)' }}>
@@ -311,14 +294,14 @@ export default function Feedback() {
             </div>
 
             {aba === 'lote' && (
-              <div className="grid grid-cols-5 gap-6">
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
                 <ImportacaoLote token={token} />
               </div>
             )}
 
             {aba === 'manual' && (
-              <div className="grid grid-cols-5 gap-6 items-start">
-                <form onSubmit={enviar} className="col-span-2 rounded-2xl p-6 space-y-5" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
+              <div className="grid grid-cols-1 gap-6 items-start lg:grid-cols-5">
+                <form onSubmit={enviar} className="lg:col-span-2 rounded-2xl p-6 space-y-5" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
                   <div>
                     <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>CPF do devedor</label>
                     <input type="text" inputMode="numeric" placeholder="000.000.000-00"
@@ -386,7 +369,7 @@ export default function Feedback() {
                   </button>
                 </form>
 
-                <div className="col-span-3 rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
+                <div className="lg:col-span-3 rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
                   <div className="px-5 py-4 border-b border-line flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <ClipboardList className="h-4 w-4 text-ink-3" />
@@ -450,7 +433,7 @@ export default function Feedback() {
             </p>
           </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </AppShell>
   )
 }

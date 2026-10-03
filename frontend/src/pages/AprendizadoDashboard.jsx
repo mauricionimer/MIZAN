@@ -6,6 +6,7 @@ import {
   AlertTriangle, CheckCircle2, Zap, Sliders, Database, Clock, PlayCircle,
   ShieldCheck, BarChart3, Award, Microscope, Target, XCircle,
 } from 'lucide-react'
+import AppShell from '../components/AppShell'
 import { useAuth } from '../context/AuthContext'
 import { LogoMark } from '../components/Logo'
 import DicaAjuda from '../components/DicaAjuda'
@@ -210,30 +211,9 @@ export default function AprendizadoDashboard() {
   })
 
   return (
-    <div className="min-h-screen">
-      <header className="navbar-glass px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/comando')} className="p-1 rounded-lg transition-colors hover:bg-raise-2" style={{ color: MUTED }}>
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-          <LogoMark className="h-5 w-5 shrink-0" />
-          <span className="font-bold text-ink text-sm">Mizan</span>
-          <span className="text-ink-4 text-sm">/</span>
-          <span className="text-sm" style={{ color: MUTED_LIGHT }}>Gestão do Aprendizado</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <button onClick={carregar} disabled={loading} className="nav-link disabled:opacity-50">
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Atualizar
-          </button>
-          <span className="text-sm hidden sm:block" style={{ color: MUTED }}>{usuario?.nome}</span>
-          <ThemeToggle />
-          <button onClick={() => { logout(); navigate('/login') }} className="nav-link-danger">
-            <LogOut className="h-4 w-4" /> Sair
-          </button>
-        </div>
-      </header>
+    <AppShell titulo="Aprendizado" acoes={<button onClick={carregar} disabled={loading} className="nav-link disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> <span className="hidden sm:inline">Atualizar</span></button>}>
 
-      <main className="max-w-6xl mx-auto px-6 py-10 space-y-6">
+      <div className="w-full max-w-6xl mx-auto space-y-6">
         {loading && !modelos && (
           <div className="flex flex-col items-center justify-center py-28 gap-3" style={{ color: MUTED }}>
             <Loader2 className="h-8 w-8 animate-spin" />
@@ -376,7 +356,7 @@ export default function AprendizadoDashboard() {
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                     {/* Matriz de confusão */}
                     <div>
                       <p className="section-label mb-3">Matriz de confusão ({qualidade.medicao.n_amostras} casos, corte em 50%)</p>
@@ -398,7 +378,7 @@ export default function AprendizadoDashboard() {
                           <p className="text-[11px] mt-0.5" style={{ color: MUTED }}>Previu que não pagava — não pagou</p>
                         </div>
                       </div>
-                      <div className="grid grid-cols-4 gap-3 mt-3 text-center">
+                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mt-3 text-center">
                         <div><p className="text-xs" style={{ color: MUTED }}>Acurácia</p><p className="font-bold text-ink text-sm">{fmtPct(qualidade.medicao.acuracia)}</p></div>
                         <div><p className="text-xs" style={{ color: MUTED }}>Precisão</p><p className="font-bold text-ink text-sm">{fmtPct(qualidade.medicao.precisao)}</p></div>
                         <div><p className="text-xs" style={{ color: MUTED }}>Revocação</p><p className="font-bold text-ink text-sm">{fmtPct(qualidade.medicao.revocacao)}</p></div>
@@ -555,7 +535,7 @@ export default function AprendizadoDashboard() {
               )}
             </Secao>
 
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               {/* Price model */}
               <Secao icon={Award} ajuda="taxa-de-recuperacao" titulo="Modelo de precificação" sub="Estima quanto da dívida deve voltar, já contando quem não paga. É por empresa.">
                 <p className="mb-3 text-xs" style={{ color: MUTED }}>
@@ -623,7 +603,7 @@ export default function AprendizadoDashboard() {
                 </Botao>
               }
             >
-              <div className="grid grid-cols-3 gap-4 text-sm">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 text-sm">
                 <div><p className="text-xs" style={{ color: MUTED }}>Próxima verificação</p><p className="font-semibold text-ink">{fmtData(scheduler?.proxima_verificacao)}</p></div>
                 <div><p className="text-xs" style={{ color: MUTED }}>Versões treinadas (inativas)</p><p className="font-semibold text-ink">{scheduler?.n_retreinamentos ?? 0}</p></div>
                 <div>
@@ -670,7 +650,7 @@ export default function AprendizadoDashboard() {
               {!dbSyncCfg ? (
                 <p className="text-sm" style={{ color: MUTED }}>Configuração indisponível.</p>
               ) : (
-                <div className="grid grid-cols-4 gap-4 text-sm">
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 text-sm">
                   <div><p className="text-xs" style={{ color: MUTED }}>Status</p><p className="font-semibold" style={{ color: dbSyncCfg.ativo ? 'var(--success)' : MUTED_LIGHT }}>{dbSyncCfg.ativo ? 'Ativo' : 'Inativo'}</p></div>
                   <div><p className="text-xs" style={{ color: MUTED }}>Tipo</p><p className="font-semibold text-ink uppercase">{dbSyncCfg.tipo}</p></div>
                   <div><p className="text-xs" style={{ color: MUTED }}>Última sincronização</p><p className="font-semibold text-ink">{fmtData(dbSyncStatus?.ultimo_sync)}</p></div>
@@ -684,7 +664,7 @@ export default function AprendizadoDashboard() {
             </Secao>
           </>
         )}
-      </main>
-    </div>
+      </div>
+    </AppShell>
   )
 }

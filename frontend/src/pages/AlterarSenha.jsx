@@ -1,6 +1,7 @@
 import ThemeToggle from '../components/ThemeToggle'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import AppShell from '../components/AppShell'
 import { useAuth } from '../context/AuthContext'
 import { KeyRound, ArrowLeft, Eye, EyeOff, LogOut, Trash2, CheckCircle2 } from 'lucide-react'
 import { deletarConta } from '../api'
@@ -79,29 +80,9 @@ export default function AlterarSenha() {
   }
 
   return (
-    <div className="min-h-screen">
-      <header className="navbar-glass px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button onClick={() => navigate(homePath)}
-            className="transition-colors p-1 rounded-lg hover:bg-raise-2"
-            style={{ color: 'var(--ink-3)' }}>
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-          <Logo />
-          <span className="font-bold text-ink text-sm">Mizan</span>
-          <span className="text-ink-4 text-sm">/</span>
-          <span className="text-sm" style={{ color: 'var(--ink-2)' }}>Alterar senha</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-sm hidden sm:block" style={{ color: 'var(--ink-3)' }}>{usuario?.nome}</span>
-          <ThemeToggle />
-          <button onClick={logout} className="nav-link-danger">
-            <LogOut className="w-4 h-4" /> Sair
-          </button>
-        </div>
-      </header>
+    <AppShell titulo="Alterar senha">
 
-      <div className="max-w-md mx-auto px-6 py-12">
+      <div className="w-full max-w-md mx-auto">
         <div className="rounded-2xl p-8"
           style={{
             background: 'var(--surface)',
@@ -154,7 +135,7 @@ export default function AlterarSenha() {
           )}
         </div>
       </div>
-    </div>
+    </AppShell>
   )
 }
 

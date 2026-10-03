@@ -774,7 +774,7 @@ export default function Upload({ onIrPara, temResultado = false }) {
               <h3 className="text-base font-semibold text-ink mb-1">Bem-vindo ao Mizan</h3>
               <p className="text-sm" style={{ color: 'var(--ink-2)' }}>Siga os passos abaixo para começar a recuperar valor da sua carteira</p>
             </div>
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
               {[
                 { num: '1', cor: 'blue',    titulo: 'Importe sua carteira',   desc: 'Faça upload de um CSV/Excel ou conecte diretamente ao seu banco de dados.', icon: '📂' },
                 { num: '2', cor: 'indigo',  titulo: 'IA analisa e ranqueia',  desc: 'O modelo de ML classifica cada devedor por probabilidade de pagamento.',    icon: '🤖' },

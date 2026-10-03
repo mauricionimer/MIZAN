@@ -1,6 +1,7 @@
 import ThemeToggle from '../components/ThemeToggle'
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import AppShell from '../components/AppShell'
 import { useAuth } from '../context/AuthContext'
 import {
   Shield, AlertTriangle, TrendingUp, Users, DollarSign,
@@ -288,58 +289,9 @@ export default function ComandoDashboard() {
   const suspeitas = dados?.empresas?.filter(e => e.flag_suspeita) || []
 
   return (
-    <div className="min-h-screen bg-page text-ink">
-      <header className="navbar-glass px-6 py-3.5 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <LogoMark className="h-5 w-5 shrink-0" />
-          <div>
-            <span className="font-bold text-ink tracking-wide text-sm">COMANDO</span>
-            <span className="ml-2 text-xs text-ink-2">Visão geral do ecossistema</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <button onClick={() => navigate('/')}
-            className="flex items-center gap-1.5 text-xs text-ink-2 hover:text-ink transition-colors px-3 py-1.5 rounded-lg hover:bg-raise-2 font-medium">
-            <Upload className="h-3.5 w-3.5" /> Análise
-          </button>
-          <button onClick={() => navigate('/admin/usuarios')}
-            className="flex items-center gap-1.5 text-xs text-ink-2 hover:text-ink transition-colors px-3 py-1.5 rounded-lg hover:bg-raise-2 font-medium">
-            <UserCog className="h-3.5 w-3.5" /> Usuários
-          </button>
-          <button onClick={() => navigate('/auditoria')}
-            className="flex items-center gap-1.5 text-xs text-ink-2 hover:text-ink transition-colors px-3 py-1.5 rounded-lg hover:bg-raise-2 font-medium">
-            <Shield className="h-3.5 w-3.5" /> Auditoria
-          </button>
-          <button onClick={() => navigate('/comando/treino')}
-            className="flex items-center gap-1.5 text-xs text-ink-2 hover:text-ink transition-colors px-3 py-1.5 rounded-lg hover:bg-raise-2 font-medium">
-            <Brain className="h-3.5 w-3.5" /> Treinar modelo
-          </button>
-          <button onClick={() => navigate('/comando/chaves')}
-            className="flex items-center gap-1.5 text-xs text-ink-2 hover:text-ink transition-colors px-3 py-1.5 rounded-lg hover:bg-raise-2 font-medium">
-            <KeyRound className="h-3.5 w-3.5" /> Chaves de API
-          </button>
-          <button onClick={() => navigate('/aprendizado')}
-            className="flex items-center gap-1.5 text-xs text-ink-2 hover:text-ink transition-colors px-3 py-1.5 rounded-lg hover:bg-raise-2 font-medium">
-            <Brain className="h-3.5 w-3.5" /> Aprendizado
-          </button>
-          <button onClick={() => navigate('/bandit')}
-            className="flex items-center gap-1.5 text-xs text-ink-2 hover:text-ink transition-colors px-3 py-1.5 rounded-lg hover:bg-raise-2 font-medium">
-            <Zap className="h-3.5 w-3.5" /> Performance IA
-          </button>
-          <button onClick={carregar} disabled={loadingMain}
-            className="flex items-center gap-1.5 text-xs text-ink-2 hover:text-ink transition-colors px-3 py-1.5 rounded-lg hover:bg-raise-2 disabled:opacity-40 font-medium">
-            <RefreshCw className={`h-3.5 w-3.5 ${loadingMain ? 'animate-spin' : ''}`} /> Atualizar
-          </button>
-          <span className="text-xs text-ink-3 hidden md:block">{usuario?.nome}</span>
-          <ThemeToggle />
-          <button onClick={() => { logout(); navigate('/login') }}
-            className="flex items-center gap-1.5 text-xs text-ink-2 hover:text-red-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-red-950/40 font-medium">
-            <LogOut className="h-3.5 w-3.5" /> Sair
-          </button>
-        </div>
-      </header>
+    <AppShell titulo="Comando" acoes={<button onClick={carregar} disabled={loadingMain} className="nav-link disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${loadingMain ? 'animate-spin' : ''}`} /> <span className="hidden sm:inline">Atualizar</span></button>}>
 
-      <main className="max-w-7xl mx-auto px-6 py-10 space-y-6">
+      <div className="w-full max-w-7xl mx-auto space-y-6">
         <section className="rounded-xl border border-line p-4">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
@@ -383,7 +335,7 @@ export default function ComandoDashboard() {
               </div>
             </div>
 
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
               <KpiCard
                 label="Empresas na plataforma"
                 value={fmtNum(t?.total_empresas)}
@@ -456,7 +408,7 @@ export default function ComandoDashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line/50">
-                    {dados.empresas.map(e => {
+                    {(dados.empresas ?? []).map(e => {
                       const isSusp = e.flag_suspeita
                       const isSel  = empresaSel?.empresa_id === e.empresa_id
                       return (
@@ -547,7 +499,7 @@ export default function ComandoDashboard() {
             </div>
           </>
         )}
-      </main>
+      </div>
 
       {empresaSel && (
         <EmpresaDetalhePanel
@@ -556,6 +508,6 @@ export default function ComandoDashboard() {
           onClose={() => setEmpresaSel(null)}
         />
       )}
-    </div>
+    </AppShell>
   )
 }

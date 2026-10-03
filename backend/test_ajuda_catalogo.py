@@ -101,7 +101,8 @@ checar(len(cm) == len(entradas), "o COMANDO recebe tudo")
 # ── a tabela de telas bate com o front ───────────────────────────────────
 app = (REPO / "frontend/src/App.jsx").read_text(encoding="utf-8")
 def papeis(rota):
-    m = re.search(r'<Route path="' + re.escape(rota) + r'"[^\n]*?roles=\{\[([^\]]*)\]\}', app)
+    # roles={[...]} ou P([...], ...) (rotas dentro do layout, ver App.jsx)
+    m = re.search(r'<Route path="' + re.escape(rota) + r'"[^\n]*?(?:roles=\{\[|P\(\[)([^\]]*)\]', app)
     return tuple(sorted(x.strip().strip("'\"") for x in m.group(1).split(","))) if m else None
 esperado = {
     "/admin/usuarios": "Usuários", "/retencao": "Retenção", "/premissas": "Premissas", "/comando/duvidas": "Dúvidas", "/backtest": "Backtest",

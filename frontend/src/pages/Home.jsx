@@ -24,7 +24,7 @@ export default function Home() {
   // perdeu — que é exatamente o que deixou de acontecer.
   if (restaurando) {
     return (
-      <div className="flex min-h-screen items-center justify-center gap-2" role="status" aria-live="polite">
+      <div className="flex min-h-[50vh] items-center justify-center gap-2" role="status" aria-live="polite">
         <Loader2 className="h-5 w-5 animate-spin text-ink-3" />
         <span className="text-sm text-ink-2">Recuperando a análise…</span>
       </div>
@@ -39,7 +39,7 @@ export default function Home() {
   if (atual === 'dashboard') {
     return (
       <Suspense fallback={
-        <div className="flex min-h-screen items-center justify-center" role="status" aria-live="polite">
+        <div className="flex min-h-[50vh] items-center justify-center" role="status" aria-live="polite">
           <Loader2 className="h-6 w-6 animate-spin text-ink-3" />
           <span className="sr-only">Carregando dashboard…</span>
         </div>

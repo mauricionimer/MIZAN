@@ -4,6 +4,7 @@ import { ArrowLeft, KeyRound, Loader2, Copy, Ban } from 'lucide-react'
 import ThemeToggle from '../components/ThemeToggle'
 import { LogoMark } from '../components/Logo'
 import DicaAjuda from '../components/DicaAjuda'
+import AppShell from '../components/AppShell'
 import { useAuth } from '../context/AuthContext'
 import { listarChavesApi, criarChaveApi, revogarChaveApi } from '../api'
 
@@ -41,21 +42,9 @@ export default function ChavesApi() {
   }
 
   return (
-    <div className="min-h-screen">
-      <header className="navbar-glass px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/comando')} className="p-1 rounded-lg hover:bg-raise-2" style={{ color: 'var(--ink-3)' }} aria-label="Voltar">
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-          <LogoMark className="h-5 w-5 shrink-0" />
-          <span className="font-bold text-ink text-sm">Mizan</span>
-          <span className="text-ink-4 text-sm">/</span>
-          <span className="text-sm" style={{ color: 'var(--ink-2)' }}>Chaves de API</span>
-        </div>
-        <ThemeToggle />
-      </header>
+    <AppShell titulo="Chaves de API">
 
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-10 space-y-6">
+      <div className="w-full max-w-3xl mx-auto space-y-6">
         <section className="rounded-xl border border-line bg-surface p-6 space-y-4">
           <h1 className="text-lg font-bold text-ink flex items-center gap-2"><KeyRound className="h-5 w-5" /> Nova chave<DicaAjuda id="chaves-de-api" /></h1>
           <p className="text-sm text-ink-2">
@@ -104,7 +93,7 @@ export default function ChavesApi() {
             ))}
           </ul>
         </section>
-      </main>
-    </div>
+      </div>
+    </AppShell>
   )
 }

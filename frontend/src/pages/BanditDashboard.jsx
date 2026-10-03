@@ -7,6 +7,7 @@ import {
 import {
   ArrowLeft, RefreshCw, Loader2, Zap, TrendingUp, Activity, Award, LogOut,
 } from 'lucide-react'
+import AppShell from '../components/AppShell'
 import { useAuth } from '../context/AuthContext'
 import { LogoMark } from '../components/Logo'
 import DicaAjuda from '../components/DicaAjuda'
@@ -146,34 +147,9 @@ export default function BanditDashboard() {
   const fase = dados ? (FASE_META[dados.fase] ?? FASE_META['aprendendo']) : null
 
   return (
-    <div className="min-h-screen">
-      <header className="navbar-glass px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/comando')} className="p-1 rounded-lg transition-colors hover:bg-raise-2" style={{ color: MUTED }}>
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-          <Logo />
-          <span className="font-bold text-ink text-sm">Mizan</span>
-          <span className="text-ink-4 text-sm">/</span>
-          <span className="text-sm" style={{ color: MUTED_LIGHT }}>Bandit LinUCB</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={carregar}
-            disabled={loading}
-            className="nav-link disabled:opacity-50"
-          >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Atualizar
-          </button>
-          <span className="text-sm hidden sm:block" style={{ color: MUTED }}>{usuario?.nome}</span>
-          <ThemeToggle />
-          <button onClick={() => { logout(); navigate('/login') }} className="nav-link-danger">
-            <LogOut className="h-4 w-4" /> Sair
-          </button>
-        </div>
-      </header>
+    <AppShell titulo="Performance IA" acoes={<button onClick={carregar} disabled={loading} className="nav-link disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> <span className="hidden sm:inline">Atualizar</span></button>}>
 
-      <main className="max-w-6xl mx-auto px-6 py-10 space-y-6">
+      <div className="w-full max-w-6xl mx-auto space-y-6">
         {loading && !dados && (
           <div className="flex flex-col items-center justify-center py-28 gap-3" style={{ color: MUTED }}>
             <Loader2 className="h-8 w-8 animate-spin" />
@@ -202,7 +178,7 @@ export default function BanditDashboard() {
               )}
             </div>
 
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
               <LocalStatCard
                 label="Total de interações"
                 value={dados.total_interacoes.toLocaleString('pt-BR')}
@@ -233,7 +209,7 @@ export default function BanditDashboard() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               <div className="rounded-2xl p-6" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
                 <p className="section-label mb-5">Taxa de recuperação por canal</p>
                 {porCanal.every(c => c.taxa == null) ? (
@@ -300,7 +276,7 @@ export default function BanditDashboard() {
                 <p className="section-label">Ranking das 12 combinações</p>
                 <p className="text-xs mt-0.5" style={{ color: MUTED }}>Ordenado por taxa de recuperação média</p>
               </div>
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto"><table className="w-full min-w-[560px] text-sm">
                 <thead style={{ background: 'var(--raise-1)', borderBottom: '1px solid var(--line)' }}>
                   <tr>
                     {['#', 'Canal', 'Oferta', 'Interações', 'Taxa de recuperação', 'Barra'].map((h, i) => (
@@ -355,7 +331,7 @@ export default function BanditDashboard() {
                     )
                   })}
                 </tbody>
-              </table>
+              </table></div>
             </div>
 
             {dados.total_interacoes < 50 && (
@@ -367,7 +343,7 @@ export default function BanditDashboard() {
             )}
           </>
         )}
-      </main>
-    </div>
+      </div>
+    </AppShell>
   )
 }
