@@ -409,16 +409,16 @@
     display: flex; align-items: center; gap: clamp(10px, 1.2vw, 14px); min-width: 0;
     padding-left: 2px;
   }
-  /* O "&" é um ornamento, não texto: itálico de serifa clássica, na cor de
-     destaque das barras do logo. Cor direta, sem opacity: opacity junto com o
-     filtro da animação virava um retângulo escuro atrás do glifo no Chrome. */
+  /* O "&" tem o mesmo desenho da palavra "Mizan": mesma fonte, peso e cor,
+     para ler como uma assinatura só. Cor direta, sem opacity: opacity junto
+     com o filtro da animação virava um retângulo escuro atrás do glifo. */
   .login-cobrand-e {
-    font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, 'Times New Roman', serif;
-    font-style: italic; font-weight: 400;
-    font-size: clamp(30px, 3.9vw, 46px); line-height: 1;
-    color: var(--accent-text);
-    margin-right: clamp(2px, 0.3vw, 4px);
-    transform: translateY(-0.04em);
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: clamp(30px, 3.9vw, 46px);
+    letter-spacing: -0.03em;
+    line-height: 1;
+    color: var(--panel-ink);
     user-select: none;
   }
   .login-cobrand-foto, .login-cobrand-inicial {
