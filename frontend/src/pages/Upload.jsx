@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { analisarCarteira, analisarDB, testarDB, listarTabelas, listarCarteiras, carregarCarteira, listarConexoes, salvarConexao, deletarConexao, sincronizarConexao, atualizarConexao, listarEmpresas } from '../api'
 import { LogoMark } from '../components/Logo'
 import AppShell from '../components/AppShell'
+import DicaAjuda from '../components/DicaAjuda'
 
 const fmtBRL = (v) => v != null
   ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v)
@@ -210,7 +211,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
   // ── Lista de conexões salvas ──
   if (etapa === 'conexao' && modo === 'lista') return (
     <div className="space-y-3">
-      <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--ink-3)' }}>Bancos de dados conectados</p>
+      <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--ink-3)' }}>Bancos de dados conectados<DicaAjuda id="conexao-com-banco" /></p>
       {carregandoConexoes && (
         <div className="flex items-center gap-2 text-sm py-4 justify-center" style={{ color: 'var(--ink-3)' }}>
           <Loader2 className="h-4 w-4 animate-spin" /> Carregando conexões...
@@ -299,7 +300,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
   // ── Operador sem conexões ──
   if (etapa === 'conexao' && isOperador) return (
     <div className="space-y-3">
-      <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--ink-3)' }}>Bancos de dados conectados</p>
+      <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--ink-3)' }}>Bancos de dados conectados<DicaAjuda id="conexao-com-banco" /></p>
       {carregandoConexoes && <div className="flex items-center gap-2 text-sm py-4 justify-center" style={{ color: 'var(--ink-3)' }}><Loader2 className="h-4 w-4 animate-spin" /> Carregando...</div>}
       {!carregandoConexoes && conexoes.length === 0 && <p className="text-sm text-center py-4" style={{ color: 'var(--ink-3)' }}>Nenhuma conexão disponível. Solicite acesso ao administrador.</p>}
     </div>
@@ -410,7 +411,7 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
             onChange={e => set('writeback_habilitado', e.target.checked)}
             className="mt-0.5 h-4 w-4 shrink-0 accent-blue-500" />
           <span>
-            <span className="text-xs font-semibold text-ink">Gravar pagamentos de volta no banco (opcional)</span>
+            <span className="text-xs font-semibold text-ink">Gravar pagamentos de volta no banco (opcional)<DicaAjuda id="escrita-de-volta" /></span>
             <span className="block text-xs leading-relaxed mt-0.5" style={{ color: 'var(--ink-3)' }}>
               Por padrão a conexão é <strong style={{ color: 'var(--ink-2)' }}>somente-leitura</strong> — o Mizan nunca altera seu banco. Marque esta opção apenas se quiser que o sistema atualize a coluna de status quando um pagamento for registrado. Requer credencial com permissão de escrita.
             </span>
@@ -653,7 +654,7 @@ export default function Upload({ onIrPara, temResultado = false }) {
 
       {/* Card principal */}
       <div className="w-full rounded-2xl p-8" style={CARD_STYLE}>
-        <h2 className="text-base font-semibold text-ink mb-1">Carregar carteira</h2>
+        <h2 className="text-base font-semibold text-ink mb-1">Carregar carteira<DicaAjuda id="enviar-carteira" /></h2>
         <p className="text-sm mb-5" style={{ color: 'var(--ink-2)' }}>
           Importe os dados dos devedores via arquivo ou conexão direta com banco de dados.
         </p>

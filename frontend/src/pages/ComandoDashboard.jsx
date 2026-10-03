@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { LogoMark } from '../components/Logo'
 import { diagnosticoBanco } from '../api'
+import DicaAjuda from '../components/DicaAjuda'
 
 const BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001'
 
@@ -338,7 +339,7 @@ export default function ComandoDashboard() {
         <section className="rounded-xl border border-line p-4">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
-              <p className="text-sm font-semibold text-ink">Limites do banco</p>
+              <p className="text-sm font-semibold text-ink">Limites do banco<DicaAjuda id="limites-do-banco" /></p>
               <p className="text-xs text-ink-3">Mede no Supabase real o que a paginação supõe. Só leitura, sem dados de cliente.</p>
             </div>
             <button onClick={medirBanco} disabled={diagLoading}
@@ -410,7 +411,7 @@ export default function ComandoDashboard() {
                 <AlertTriangle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-semibold text-red-300">
-                    {suspeitas.length} empresa{suspeitas.length > 1 ? 's' : ''} com comportamento suspeito
+                    {suspeitas.length} empresa{suspeitas.length > 1 ? 's' : ''} com comportamento suspeito<DicaAjuda id="empresa-suspeita" />
                   </p>
                   <p className="text-xs text-red-400/70 mt-1 leading-relaxed">
                     Essas empresas analisaram mais de 50 devedores mas registraram menos de 5% de feedback.

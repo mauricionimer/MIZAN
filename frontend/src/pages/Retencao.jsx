@@ -8,6 +8,7 @@ import { useAnalysis } from '../context/AnalysisContext'
 import {
   buscarRetencao, executarRetencao, eliminarTitular, putEmpresaConfig,
 } from '../api'
+import DicaAjuda from '../components/DicaAjuda'
 
 const fmt = (v) => new Intl.NumberFormat('pt-BR').format(v ?? 0)
 
@@ -121,7 +122,7 @@ export default function Retencao() {
 
         <div className="mb-7">
           <p className="section-label">Privacidade</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">Retenção de dados</h1>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">Retenção de dados<DicaAjuda id="retencao-de-dados" /></h1>
           <p className="mt-1.5 text-sm" style={{ color: 'var(--ink-2)' }}>
             Por quanto tempo o CPF e o nome dos devedores ficam no sistema. Vencido o
             prazo, a identificação é removida e o restante do registro permanece — o
@@ -286,7 +287,7 @@ export default function Retencao() {
             {/* ── Titular ── */}
             <Cartao>
               <p className="section-label">Pedido de titular</p>
-              <h2 className="mt-0.5 mb-1 text-sm font-semibold text-ink">Um devedor pediu a exclusão dos dados</h2>
+              <h2 className="mt-0.5 mb-1 text-sm font-semibold text-ink">Um devedor pediu a exclusão dos dados<DicaAjuda id="pedido-do-titular" /></h2>
               <p className="mb-4 text-xs" style={{ color: 'var(--ink-2)' }}>
                 Direito de eliminação (LGPD art. 18, V). Não depende de prazo: a
                 identificação sai de todos os registros deste CPF hoje.

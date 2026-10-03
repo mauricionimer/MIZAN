@@ -78,6 +78,15 @@ ASSUNTOS = {
     "07-operacao.md": "Arquivos, conexões, pessoas e privacidade",
 }
 
+# Respostas que não têm um "?" numa tela: só se chega a elas pela busca e pelo
+# índice da Central. O teste de cobertura exige que toda resposta tenha um "?"
+# ou esteja aqui, com o motivo.
+SO_NA_CENTRAL = {
+    "probabilidade-de-pagamento":
+        "Não aparece como número em nenhuma tela: entra nas propostas como a chance de cada oferta "
+        "(ligada a 'chance-de-pagamento-por-oferta'). Quem pergunta o que é encontra pela busca.",
+}
+
 _CHAVES_TEXTO = ("titulo", "curta", "calculo", "fazer", "cuidado", "revisar")
 _CHAVES_LISTA = ("perguntas", "fontes", "constantes")
 _CHAVES = _CHAVES_TEXTO + _CHAVES_LISTA + ("perfis", "telas")

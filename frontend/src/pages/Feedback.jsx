@@ -6,6 +6,7 @@ import { feedbackLote } from '../api'
 import { useAuth } from '../context/AuthContext'
 import { useAnalysis } from '../context/AnalysisContext'
 import { LogoMark } from '../components/Logo'
+import DicaAjuda from '../components/DicaAjuda'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001'
 
@@ -266,7 +267,7 @@ export default function Feedback() {
 
       <main className="max-w-5xl mx-auto px-6 py-10 space-y-6">
         <div>
-          <h1 className="text-xl font-bold text-ink tracking-tight">Pagamentos</h1>
+          <h1 className="text-xl font-bold text-ink tracking-tight">Pagamentos<DicaAjuda id="registrar-pagamento" /></h1>
           <p className="text-sm mt-1" style={{ color: 'var(--ink-2)' }}>
             Acompanhe e registre pagamentos da carteira.
           </p>

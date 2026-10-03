@@ -7,6 +7,7 @@ import { buscarPaginaRanking } from '../api'
 import PriorityBadge from '../components/PriorityBadge'
 import { buscarRecomendacao, registrarContato, listarContatos, buscarStatusFeedbacks, buscarExplicacaoScore, buscarPropostas, traduzirErroRede } from '../api'
 import { LogoMark } from '../components/Logo'
+import DicaAjuda from '../components/DicaAjuda'
 
 const fmtBRL = (v) => v != null ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v) : '—'
 const fmtNum = (v) => v != null ? new Intl.NumberFormat('pt-BR').format(v) : '—'
@@ -24,10 +25,10 @@ function Logo() {
   return <LogoMark className="h-5 w-5 shrink-0" />
 }
 
-function DataRow({ label, value }) {
+function DataRow({ label, value, ajuda }) {
   return (
     <div className="flex items-center justify-between py-2.5 border-b last:border-0" style={DIVIDER}>
-      <span className="text-sm" style={{ color: 'var(--ink-2)' }}>{label}</span>
+      <span className="text-sm" style={{ color: 'var(--ink-2)' }}>{label}{ajuda && <DicaAjuda id={ajuda} />}</span>
       <span className="text-sm font-semibold text-ink">{value ?? '—'}</span>
     </div>
   )
@@ -65,11 +66,11 @@ function Propostas({ dados, loading, erro, despesas, setDespesas, onRecalcular }
         <div className="flex items-start gap-2.5">
           <Wallet className="h-4 w-4 mt-0.5 shrink-0" style={{ color: 'var(--c-royal)' }} />
           <div className="flex-1">
-            <p className="section-label mb-1">Margem livre mensal</p>
+            <p className="section-label mb-1">Margem livre mensal<DicaAjuda id="margem-livre" /></p>
             {margem?.valor != null ? (
               <p className="text-sm" style={{ color: 'var(--ink)' }}>
                 {fmtBRL(margem.valor)} por mês
-                {teto != null && <span style={{ color: 'var(--ink-3)' }}> · parcela máxima {fmtBRL(teto)}</span>}
+                {teto != null && <span style={{ color: 'var(--ink-3)' }}> · parcela máxima {fmtBRL(teto)}<DicaAjuda id="parcela-maxima" /></span>}
               </p>
             ) : (
               <p className="text-sm" style={{ color: 'var(--ink-2)' }}>{margem?.motivo || 'Não calculada.'}</p>
@@ -140,7 +141,7 @@ function Propostas({ dados, loading, erro, despesas, setDespesas, onRecalcular }
                   {p.pop != null && (
                     <>
                       <p className="text-[11px] tabular-nums" style={{ color: 'var(--ink-3)' }}>
-                        {fmtPct(p.pop)} de chance
+                        {fmtPct(p.pop)} de chance<DicaAjuda id="chance-de-pagamento-por-oferta" />
                       </p>
                       {/* 65% do modelo e 65% de vinte renegociações reais não
                           valem o mesmo — a origem precisa estar à vista. */}
@@ -182,7 +183,7 @@ function ExplicacaoScore({ explicacao, loading, erro }) {
           precisar, para o regulador — sem expor peso de modelo. */}
       {rc && (rc.desfavoraveis?.length > 0 || rc.favoraveis?.length > 0 || rc.motivo) && (
         <div className="mb-5 rounded-xl p-4" style={{ background: 'var(--raise-2)' }}>
-          <p className="section-label mb-3">Principais motivos</p>
+          <p className="section-label mb-3">Principais motivos<DicaAjuda id="por-que-esse-score" /></p>
           {rc.motivo ? (
             <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-3)' }}>{rc.motivo}</p>
           ) : (
@@ -241,10 +242,10 @@ function ExplicacaoScore({ explicacao, loading, erro }) {
   )
 }
 
-function Section({ title, children }) {
+function Section({ title, children, ajuda }) {
   return (
     <div className="rounded-2xl p-5" style={CARD}>
-      <p className="section-label mb-3">{title}</p>
+      <p className="section-label mb-3">{title}{ajuda && <DicaAjuda id={ajuda} />}</p>
       {children}
     </div>
   )
@@ -325,7 +326,7 @@ function HistoricoContatos({ cpf, rec, propostas }) {
       <div className="px-5 py-4 border-b flex items-center justify-between" style={DIVIDER}>
         <div className="flex items-center gap-2">
           <ClipboardList className="h-3.5 w-3.5" style={{ color: 'var(--ink-3)' }} />
-          <p className="section-label">Histórico de Contatos{contatos.length > 0 && ` (${contatos.length})`}</p>
+          <p className="section-label">Histórico de Contatos{contatos.length > 0 && ` (${contatos.length})`}<DicaAjuda id="registrar-contato" /></p>
         </div>
         <button onClick={() => setFormAberto(o => !o)}
           className="flex items-center gap-1.5 text-xs font-semibold text-blue-400 px-3 py-1.5 rounded-lg transition-colors"
@@ -469,7 +470,7 @@ function ApproachRecommendation({ devedor, rec, loading, erro }) {
   return (
     <div className="rounded-2xl overflow-hidden" style={CARD}>
       <div className="px-5 py-4 border-b flex items-center justify-between" style={DIVIDER}>
-        <p className="section-label">Recomendação de Abordagem</p>
+        <p className="section-label">Recomendação de Abordagem<DicaAjuda id="recomendacao-de-abordagem" /></p>
         {modoCfg && (
           <span className={`flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full ${modoCfg.color}`}
             style={{ background: modoCfg.bg, border: `1px solid ${modoCfg.border}` }}>
@@ -491,7 +492,7 @@ function ApproachRecommendation({ devedor, rec, loading, erro }) {
               <div className="flex flex-col items-center gap-1.5 rounded-xl p-3"
                 style={{ background: urgCfg.bg, border: `1px solid ${urgCfg.border}` }}>
                 <Zap className="h-4 w-4" style={{ color: urgCfg.color }} />
-                <p className="text-xs font-medium" style={{ color: 'var(--ink-2)' }}>Urgência</p>
+                <p className="text-xs font-medium" style={{ color: 'var(--ink-2)' }}>Urgência<DicaAjuda id="urgencia-do-devedor" /></p>
                 <span className="text-sm font-bold" style={{ color: urgCfg.color }}>{urgencia}</span>
               </div>
               <div className="flex flex-col items-center gap-1.5 rounded-xl p-3"
@@ -658,7 +659,7 @@ export default function DebtorDetail() {
           <div className="col-span-1 flex flex-col gap-5">
             {/* Score ring */}
             <div className="rounded-2xl p-6 flex flex-col items-center" style={CARD}>
-              <p className="section-label mb-5 text-center">Score de Recuperabilidade</p>
+              <p className="section-label mb-5 text-center">Score de Recuperabilidade<DicaAjuda id="score-recuperabilidade" /></p>
               <div className="relative w-36 h-36">
                 <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
                   <circle cx="50" cy="50" r="38" fill="none" stroke="rgba(128,141,166,0.25)" strokeWidth="8" />
@@ -683,7 +684,7 @@ export default function DebtorDetail() {
 
             {/* Perfil IA */}
             <div className="rounded-2xl p-5" style={CARD}>
-              <p className="section-label mb-3">Perfil IA</p>
+              <p className="section-label mb-3">Perfil IA<DicaAjuda id="perfil-cluster" /></p>
               <div className="text-center py-3 rounded-xl text-sm font-semibold"
                 style={{ backgroundColor: `${scoreColor}18`, color: scoreColor }}>
                 {d.perfil_cluster}
@@ -700,7 +701,7 @@ export default function DebtorDetail() {
               <DataRow label="UF" value={d.uf} />
             </Section>
 
-            <Section title="Propostas de renegociação">
+            <Section title="Propostas de renegociação" ajuda="propostas-de-renegociacao">
               <Propostas
                 dados={propostas} loading={propostasLoading} erro={propostasErro}
                 despesas={despesas} setDespesas={setDespesas}
@@ -708,16 +709,23 @@ export default function DebtorDetail() {
               />
             </Section>
 
-            <Section title="Por que esse score?">
+            <Section title="Por que esse score?" ajuda="por-que-esse-score">
               <ExplicacaoScore explicacao={explicacao} loading={explicacaoLoading} erro={explicacaoErro} />
             </Section>
 
             <Section title="Dados Financeiros">
+              {d.dados_incompletos && (
+                <div className="mb-3 flex items-start gap-2 rounded-xl p-3 text-xs"
+                  style={{ background: 'rgb(var(--c-warning) / 0.08)', border: '1px solid rgb(var(--c-warning) / 0.18)', color: 'var(--ink-2)' }}>
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" style={{ color: 'var(--warning)' }} />
+                  <span>Dados incompletos: {d.aviso_dados || 'faltam informações deste devedor'}. O score é uma estimativa com esse dado faltando.<DicaAjuda id="dados-incompletos" /></span>
+                </div>
+              )}
               <DataRow label="Valor da Dívida (face)" value={fmtBRL(d.valor_divida)} />
-              <DataRow label="Valor Esperado de Recuperação" value={<span className="text-emerald-400 font-bold">{fmtBRL(d.valor_esperado_recuperacao)}</span>} />
+              <DataRow ajuda="valor-esperado" label="Valor Esperado de Recuperação" value={<span className="text-emerald-400 font-bold">{fmtBRL(d.valor_esperado_recuperacao)}</span>} />
               <DataRow label="Renda Estimada" value={fmtBRL(d.renda_estimada)} />
               <DataRow label="Dias em Atraso" value={fmtNum(d.dias_em_atraso)} />
-              {d.comprometimento_renda != null && <DataRow label="Comprometimento de Renda" value={fmtPct(d.comprometimento_renda)} />}
+              {d.comprometimento_renda != null && <DataRow ajuda="comprometimento-de-renda" label="Comprometimento de Renda" value={fmtPct(d.comprometimento_renda)} />}
             </Section>
 
             {(d.tentativas_contato != null || d.promessa_quebrada != null) && (
@@ -734,7 +742,7 @@ export default function DebtorDetail() {
             )}
 
             {(d.desconto_sugerido_pct != null || d.estrategia_oferta) && (
-              <Section title="Precificação Sugerida">
+              <Section title="Precificação Sugerida" ajuda="oferta-na-planilha">
                 {d.desconto_sugerido_pct != null && <DataRow label="Desconto Sugerido" value={`${d.desconto_sugerido_pct}%`} />}
                 {d.valor_proposta != null && <DataRow label="Valor da Proposta" value={fmtBRL(d.valor_proposta)} />}
                 {d.parcelas_max != null && <DataRow label="Parcelas Máx." value={String(d.parcelas_max)} />}

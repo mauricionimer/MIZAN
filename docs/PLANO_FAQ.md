@@ -28,7 +28,7 @@ teste quebra.
 | 2. Catálogo de respostas | **Pronta**: 64 entradas em `backend/ajuda/`, validadas contra o código por `test_ajuda_catalogo.py` |
 | 3. Busca e página Ajuda | **Pronta** (`/ajuda`, busca local). Qualidade medida em perguntas de teste que nunca serviram para ajuste: resposta certa em 1º lugar **70,3%**, entre as 3 primeiras **87,5%**, recusa de pergunta fora do assunto **91,7%**, precisão quando diz ter certeza **83,7%**. As metas eram 75% e 90%: **ficaram um pouco abaixo**. Ver ressalva abaixo |
 | (extra) Tela de Premissas | **Pronta**: `/premissas`, admin e COMANDO, validada e auditada. A ajuda aponta para ela |
-| 4. "?" ao lado de cada métrica | A fazer |
+| 4. "?" ao lado de cada métrica | **Pronta**: o "?" aparece em 63 das 64 respostas, só para quem pode lê-las; no celular abre como folha na base da tela. A outra (probabilidade de pagamento) não aparece como número em nenhuma tela e fica só na Central, com o motivo declarado. `test_ajuda_cobertura.py` impede "?" para resposta inexistente ou que o público da página não possa ler, e resposta sem "?" |
 | 5. Dúvidas encaminhadas ao COMANDO | A fazer |
 | 6. Perguntas sem resposta | A fazer |
 

@@ -10,6 +10,7 @@ import {
 import ThemeToggle from '../components/ThemeToggle'
 import { LogoMark } from '../components/Logo'
 import { rodarBacktest, traduzirErroRede } from '../api'
+import DicaAjuda from '../components/DicaAjuda'
 
 const fmtBRL = (v) => v != null
   ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v)
@@ -94,7 +95,7 @@ export default function Backtest() {
           </button>
           <LogoMark className="h-5 w-5" />
           <h1 className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>
-            Backtest de carteira histórica
+            Backtest de carteira histórica<DicaAjuda id="backtest" />
           </h1>
           <div className="ml-auto"><ThemeToggle /></div>
         </div>
@@ -338,7 +339,7 @@ export default function Backtest() {
             {r.equidade?.ok && (
               <section className="card p-5">
                 <h2 className="text-sm font-semibold mb-1" style={{ color: 'var(--ink)' }}>
-                  Equidade entre regiões
+                  Equidade entre regiões<DicaAjuda id="equidade" />
                 </h2>
                 <p className="text-xs mb-4" style={{ color: 'var(--ink-3)' }}>
                   A priorização trata as regiões de forma desigual? E, se trata, isso

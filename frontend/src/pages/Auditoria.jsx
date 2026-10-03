@@ -7,6 +7,7 @@ import {
   ArrowLeft, LogOut, ShieldCheck, Download, Loader2, Filter, RefreshCw, ChevronDown,
 } from 'lucide-react'
 import { LogoMark } from '../components/Logo'
+import DicaAjuda from '../components/DicaAjuda'
 
 const ACAO_LABEL = {
   carteira_criada:        'Carteira criada',
@@ -122,7 +123,7 @@ export default function Auditoria() {
       <div className="max-w-6xl mx-auto px-6 py-10">
         <div className="flex items-start justify-between mb-6">
           <div>
-            <h1 className="text-xl font-bold text-ink tracking-tight">Trilha de auditoria</h1>
+            <h1 className="text-xl font-bold text-ink tracking-tight">Trilha de auditoria<DicaAjuda id="auditoria-de-acoes" /></h1>
             <p className="text-sm mt-1" style={{ color: 'var(--ink-2)' }}>
               Histórico de ações {isComando ? 'de toda a plataforma' : 'da sua empresa'} — compliance e rastreabilidade
             </p>

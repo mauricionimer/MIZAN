@@ -5,6 +5,7 @@ import AppShell from '../components/AppShell'
 import { useAuth } from '../context/AuthContext'
 import { useAnalysis } from '../context/AnalysisContext'
 import { buscarPremissas, gravarPremissas, listarEmpresas } from '../api'
+import DicaAjuda from '../components/DicaAjuda'
 
 const ROTULO_ESCOLHA = {
   valor_esperado: 'Maior valor esperado (recupera mais)',
@@ -126,7 +127,7 @@ export default function Premissas() {
       <div className="mx-auto w-full max-w-3xl space-y-6">
         <div>
           <p className="section-label">Configuração da empresa</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">Premissas</h1>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">Premissas<DicaAjuda id="como-configurar-premissas" /></h1>
           <p className="mt-1 text-sm text-ink-2">
             São números que pertencem ao banco, não ao Mizan: comissão do escritório, valor de cessão,
             critério da fila e limites da renegociação. Onde não houver número, o sistema não escolhe um

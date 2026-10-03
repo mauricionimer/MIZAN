@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { KeyRound, ArrowLeft, Eye, EyeOff, LogOut, Trash2, CheckCircle2 } from 'lucide-react'
 import { deletarConta } from '../api'
 import { LogoMark } from '../components/Logo'
+import DicaAjuda from '../components/DicaAjuda'
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
 
@@ -111,7 +112,7 @@ export default function AlterarSenha() {
               <KeyRound className="w-5 h-5 text-blue-400" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-ink tracking-tight">Alterar senha</h1>
+              <h1 className="text-lg font-bold text-ink tracking-tight">Alterar senha<DicaAjuda id="senha-e-sessao" /></h1>
               <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Mínimo 8 caracteres, letras e números</p>
             </div>
           </div>

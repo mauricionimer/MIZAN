@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { LogoMark } from '../components/Logo'
+import DicaAjuda from '../components/DicaAjuda'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001'
 const MUTED = 'var(--ink-3)'
@@ -19,7 +20,7 @@ const fmtData = iso => iso
   ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(iso))
   : '—'
 
-function Secao({ icon: Icon, titulo, sub, children, right }) {
+function Secao({ icon: Icon, titulo, sub, children, right, ajuda }) {
   return (
     <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
       <div className="px-6 py-4 border-b flex items-center justify-between flex-wrap gap-3" style={{ borderColor: 'var(--line)' }}>
@@ -28,7 +29,7 @@ function Secao({ icon: Icon, titulo, sub, children, right }) {
             <Icon className="h-4 w-4" />
           </div>
           <div>
-            <p className="text-sm font-bold text-ink">{titulo}</p>
+            <p className="text-sm font-bold text-ink">{titulo}{ajuda && <DicaAjuda id={ajuda} />}</p>
             {sub && <p className="text-xs mt-0.5" style={{ color: MUTED }}>{sub}</p>}
           </div>
         </div>
@@ -259,7 +260,7 @@ export default function AprendizadoDashboard() {
                 <div className="flex items-start gap-3 rounded-2xl px-5 py-4 text-sm text-amber-300" style={{ background: 'rgb(var(--c-warning) / 0.10)', border: '1px solid rgb(var(--c-warning) / 0.25)' }}>
                   <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
                   <div>
-                    <p className="font-semibold">Possível drift do modelo detectado</p>
+                    <p className="font-semibold">Possível drift do modelo detectado<DicaAjuda id="deriva-do-score" /></p>
                     <p className="opacity-90 mt-0.5">{drift.mensagem}</p>
                   </div>
                 </div>
@@ -273,7 +274,7 @@ export default function AprendizadoDashboard() {
             {/* Qualidade da IA: overfitting, calibração, matriz de confusão */}
             <Secao
               icon={Microscope}
-              titulo="Qualidade da IA — overfitting e confiabilidade"
+              titulo="Qualidade da IA — overfitting e confiabilidade" ajuda="overfitting"
               sub="O modelo está generalizando ou decorando os próprios dados de treino?"
             >
               {!qualidade?.ok ? (
@@ -322,7 +323,7 @@ export default function AprendizadoDashboard() {
                             return (
                               <div key={m.sigla} className="rounded-xl p-4" style={{ background: 'var(--raise-2)' }}>
                                 <div className="flex items-baseline justify-between">
-                                  <span className="section-label">{m.sigla}</span>
+                                  <span className="section-label">{m.sigla}<DicaAjuda id={m.sigla === 'KS' ? 'ks' : 'gini'} /></span>
                                   <span className="text-xs font-semibold" style={{ color: cor }}>{m.leitura}</span>
                                 </div>
                                 <p className="tnum text-2xl font-bold mt-1" style={{ color: cor }}>{m.valor}</p>
@@ -403,7 +404,7 @@ export default function AprendizadoDashboard() {
                     {/* Calibração */}
                     <div>
                       <p className="section-label mb-3">
-                        Calibração — a probabilidade é confiável? <span className="tabular-nums" style={{ color: MUTED }}>(Brier: {qualidade.holdout.brier_score})</span>
+                        Calibração — a probabilidade é confiável?<DicaAjuda id="calibracao" /> <span className="tabular-nums" style={{ color: MUTED }}>(Brier: {qualidade.holdout.brier_score})</span>
                       </p>
                       <div className="space-y-1.5">
                         {qualidade.calibracao_por_faixa.map((f, i) => {
@@ -436,7 +437,7 @@ export default function AprendizadoDashboard() {
                       : { background: 'rgb(var(--c-warning) / 0.10)', borderColor: 'rgb(var(--c-warning) / 0.25)', color: 'rgb(var(--c-warning))' }}>
                     <Target className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                     <span>
-                      {qualidade.n_amostras} amostras para {qualidade.n_features} variáveis do modelo
+                      <DicaAjuda id="dados-suficientes" />{qualidade.n_amostras} amostras para {qualidade.n_features} variáveis do modelo
                       ({qualidade.amostras_por_feature} amostras/variável).
                       {qualidade.complexidade_adequada
                         ? ' Volume de dados adequado para a complexidade atual do modelo.'
@@ -450,7 +451,7 @@ export default function AprendizadoDashboard() {
             {/* Versões do modelo */}
             <Secao
               icon={GitBranch}
-              titulo="Versões do modelo de crédito"
+              titulo="Versões do modelo de crédito" ajuda="versoes-e-promocao"
               sub={modelos ? `Ativa: ${modelos.versao_ativa} · ${modelos.total_versoes} versão(ões)` : ''}
               right={
                 <div className="flex items-center gap-3 flex-wrap">
@@ -484,7 +485,7 @@ export default function AprendizadoDashboard() {
                         <th className="px-2 py-2">Origem</th>
                         <th className="px-2 py-2">Criada em</th>
                         <th className="px-2 py-2 text-right">Amostras</th>
-                        <th className="px-2 py-2 text-right">AUC-ROC (CV)</th>
+                        <th className="px-2 py-2 text-right">AUC-ROC (CV)<DicaAjuda id="auc-e-brier" /></th>
                         <th className="px-2 py-2 text-right">Acurácia real</th>
                         <th className="px-2 py-2"></th>
                       </tr>
@@ -527,7 +528,7 @@ export default function AprendizadoDashboard() {
             {/* Importância das variáveis */}
             <Secao
               icon={BarChart3}
-              titulo="O que mais pesa no score"
+              titulo="O que mais pesa no score" ajuda="variaveis-do-modelo"
               sub={importancia ? `${importancia.total_features} variáveis no modelo ativo` : 'Importância de cada variável no modelo ativo'}
             >
               {!importancia?.features?.length ? (
@@ -547,7 +548,7 @@ export default function AprendizadoDashboard() {
 
             <div className="grid grid-cols-2 gap-6">
               {/* Price model */}
-              <Secao icon={Award} titulo="Modelo de precificação" sub="Estima quanto do valor devido é recuperado quando o devedor paga">
+              <Secao icon={Award} ajuda="taxa-de-recuperacao" titulo="Modelo de precificação" sub="Estima quanto do valor devido é recuperado quando o devedor paga">
                 {!priceModel?.disponivel ? (
                   <p className="text-sm" style={{ color: MUTED }}>{priceModel?.mensagem || 'Indisponível.'}</p>
                 ) : (
@@ -562,7 +563,7 @@ export default function AprendizadoDashboard() {
               {/* Bandit: convergência + alpha */}
               <Secao
                 icon={Zap}
-                titulo="Bandit de abordagem (LinUCB)"
+                titulo="Bandit de abordagem (LinUCB)" ajuda="estatisticas-do-bandit"
                 sub={convergencia ? `${convergencia.acoes_convergidas}/${convergencia.acoes_total} ações convergidas` : ''}
                 right={<Botao variante="secundario" onClick={() => navigate('/bandit')}>Ver detalhes</Botao>}
               >
@@ -588,7 +589,7 @@ export default function AprendizadoDashboard() {
             {/* Retreinamento automático */}
             <Secao
               icon={Clock}
-              titulo="Retreinamento automático (scheduler)"
+              titulo="Retreinamento automático (scheduler)" ajuda="como-o-sistema-aprende"
               sub={scheduler ? `Última verificação: ${fmtData(scheduler.ultima_verificacao)}` : ''}
               right={
                 <Botao variante="secundario" onClick={verificarSchedulerAgora} disabled={acao === 'scheduler'}>

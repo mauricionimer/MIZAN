@@ -11,6 +11,7 @@ import {
   treinarModeloEmpresa, estadoTreino, listarModelosEmpresa,
   ativarModeloEmpresa, desativarModeloEmpresa,
 } from '../api'
+import DicaAjuda from '../components/DicaAjuda'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001'
 const fmtData = iso => iso
@@ -193,7 +194,7 @@ export default function TreinoModelo() {
           <div className="flex items-start gap-3">
             <ShieldCheck className="h-5 w-5 mt-0.5 text-indigo-500 shrink-0" />
             <div className="space-y-2">
-              <h1 className="text-lg font-bold text-ink">O que acontece com o arquivo</h1>
+              <h1 className="text-lg font-bold text-ink">O que acontece com o arquivo<DicaAjuda id="treino-por-empresa" /></h1>
               <ul className="text-sm text-ink-2 space-y-1 list-disc pl-5">
                 <li>O arquivo é lido na memória do servidor, usado para treinar e <b>descartado</b>. Nada dele é gravado em disco, banco ou log.</li>
                 <li>CPF, nome e contatos são removidos antes de o treino começar.</li>
@@ -266,7 +267,7 @@ export default function TreinoModelo() {
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2">
                 <Brain className="h-5 w-5 text-indigo-500" />
-                <h2 className="font-bold text-ink">Modelos de {modelos.empresa_id}</h2>
+                <h2 className="font-bold text-ink">Modelos de {modelos.empresa_id}<DicaAjuda id="modelo-proprio-ou-geral" /></h2>
               </div>
               <span className="text-xs px-2 py-1 rounded-full bg-raise-2 text-ink-2">
                 Usando: {modelos.usando === 'proprio' ? `modelo próprio (${modelos.versao_ativa})` : 'modelo geral'}

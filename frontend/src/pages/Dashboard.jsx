@@ -9,6 +9,7 @@ import {
 import {
   buscarPagamentos, buscarStatusFeedbacks, confirmarPagamento,
   buscarPaginaRanking, buscarAlcance, buscarRankingCompleto,
+  estadoDoModelo,
 } from '../api'
 import { useDebounce } from '../hooks/useDebounce'
 import {
@@ -23,6 +24,7 @@ import { calcularAlcance } from '../utils/alcance'
 import { useAnalysis } from '../context/AnalysisContext'
 import { useAuth } from '../context/AuthContext'
 import AppShell from '../components/AppShell'
+import DicaAjuda from '../components/DicaAjuda'
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
 
@@ -72,7 +74,7 @@ function StatusBadge({ cpf, statusMap }) {
 }
 
 /* ───────────────────────── KPI card (chic minimal) ───────────────────────── */
-function KpiCard({ label, value, danger = false, icon: Icon, accent }) {
+function KpiCard({ label, value, danger = false, icon: Icon, accent, ajuda }) {
   const cor = {
     blue: 'var(--royal)', amber: 'var(--warning)',
     violet: 'var(--accent-text)', emerald: 'var(--success)',
@@ -81,7 +83,7 @@ function KpiCard({ label, value, danger = false, icon: Icon, accent }) {
     <div className="card px-6 py-5 flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-muted)' }}>
-          {label}
+          {label}{ajuda && <DicaAjuda id={ajuda} />}
         </p>
         {Icon && <Icon className="h-3.5 w-3.5" style={{ color: cor }} />}
       </div>
@@ -203,7 +205,7 @@ function Slider({ label, hint, value, min, max, step, onChange, color = 'blue' }
   )
 }
 
-function PricingCard({ label, value, sub, highlight = false, accent = null, icon: Icon }) {
+function PricingCard({ label, value, sub, highlight = false, accent = null, icon: Icon, ajuda }) {
   const lucroCard = accent === 'emerald'
   const box = highlight
     ? 'border-blue-500/40 bg-blue-600/15 shadow-[0_0_0_1px_rgb(var(--c-royal) / 0.25),0_8px_28px_-8px_rgb(var(--c-royal) / 0.4)]'
@@ -217,7 +219,7 @@ function PricingCard({ label, value, sub, highlight = false, accent = null, icon
     <div className={`flex flex-col gap-1 rounded-xl border p-4 ${box}`}>
       <div className="flex items-center justify-between">
         <p className={`text-xs font-semibold uppercase tracking-wide ${head}`}>
-          {label}
+          {label}{ajuda && <DicaAjuda id={ajuda} />}
         </p>
         {Icon && <Icon className={`h-4 w-4 ${head}`} />}
       </div>
@@ -262,6 +264,7 @@ export default function Dashboard({ onIrPara }) {
   }, [result, custoCobranca, retornoAlvo])
 
   const [perf, setPerf]                   = useState(null)
+  const [estadoModelo, setEstadoModelo]   = useState(null)
   const [loadingPerf, setLoadingPerf]     = useState(true)
   const [pagamentos, setPagamentos]       = useState([])
   const [searchPag, setSearchPag]         = useState('')
@@ -284,6 +287,10 @@ export default function Dashboard({ onIrPara }) {
       .then(p => { if (p) setPerf(p) })
       .catch(() => {})
   }
+
+  useEffect(() => {
+    if (token) estadoDoModelo(token).then(setEstadoModelo).catch(() => {})
+  }, [token])
 
   // Carrega dados iniciais + polling periódico de status a cada 15s
   useEffect(() => {
@@ -628,13 +635,25 @@ export default function Dashboard({ onIrPara }) {
             )}
           </div>
 
+          {/* Em que dados o score se apoia: o número mais importante para não
+              superestimar o que a tela mostra. Some quando o modelo é de dados reais. */}
+          {estadoModelo && estadoModelo.nivel !== 'ok' && (
+            <div className="mb-4 flex items-start gap-2.5 rounded-xl p-3"
+              style={{ background: 'rgb(var(--c-warning) / 0.08)', border: '1px solid rgb(var(--c-warning) / 0.18)' }}>
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" style={{ color: 'var(--warning)' }} />
+              <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-2)' }}>
+                {estadoModelo.aviso}<DicaAjuda id="estado-do-modelo" />
+              </p>
+            </div>
+          )}
+
           {/* ── KPIs ── */}
           <motion.div variants={lista} initial="inicial" animate="entra"
             className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <motion.div variants={item}><KpiCard label="Total de Devedores"     value={fmtNum(resumo.total_devedores)}  icon={Users}       accent="blue"    /></motion.div>
-            <motion.div variants={item}><KpiCard label="Valor de Face"           value={fmtBRL(resumo.total_em_risco)}   icon={TrendingDown} accent="amber"   /></motion.div>
-            <motion.div variants={item}><KpiCard label="Score Médio"             value={resumo.score_medio.toFixed(1)}    icon={BarChart2}    accent="violet"  /></motion.div>
-            <motion.div variants={item}><KpiCard label="Devedores Prioritários" value={fmtNum(prioritarios)}                  icon={Star}         accent="emerald" /></motion.div>
+            <motion.div variants={item}><KpiCard ajuda="valor-de-face" label="Valor de Face"           value={fmtBRL(resumo.total_em_risco)}   icon={TrendingDown} accent="amber"   /></motion.div>
+            <motion.div variants={item}><KpiCard ajuda="score-recuperabilidade" label="Score Médio"             value={resumo.score_medio.toFixed(1)}    icon={BarChart2}    accent="violet"  /></motion.div>
+            <motion.div variants={item}><KpiCard ajuda="devedores-prioritarios" label="Devedores Prioritários" value={fmtNum(prioritarios)}                  icon={Star}         accent="emerald" /></motion.div>
           </motion.div>
 
           {/* ── Ciclo de cobrança ──
@@ -643,7 +662,7 @@ export default function Dashboard({ onIrPara }) {
               comissão; acima de 360 a alternativa passa a ser vender. */}
           {!isOperador && resumo.ciclo_cobranca?.length > 0 && (
             <section className="mt-6 rounded-xl border border-line bg-surface p-6">
-              <p className="section-label">Ciclo de cobrança</p>
+              <p className="section-label">Ciclo de cobrança<DicaAjuda id="fases-do-ciclo" /></p>
               <h3 className="text-sm font-semibold mt-0.5 mb-1" style={{ color: 'var(--ink)' }}>
                 Em que regime cada parte da carteira está
               </h3>
@@ -678,7 +697,7 @@ export default function Dashboard({ onIrPara }) {
                             {fmtBRL(f.valor_esperado_liquido)}
                           </span>
                           <span className="text-xs ml-2" style={{ color: 'var(--ink-3)' }}>
-                            esperado · {fmtNum(f.devedores)} devedores
+                            <DicaAjuda id="valor-esperado-liquido" />esperado · {fmtNum(f.devedores)} devedores
                           </span>
                         </div>
                       </div>
@@ -699,7 +718,7 @@ export default function Dashboard({ onIrPara }) {
               {/* Acima de 360 dias: cobrar ou vender */}
               {resumo.write_off && (
                 <div className="mt-5 rounded-xl p-4" style={{ background: 'var(--raise-2)' }}>
-                  <p className="section-label mb-2">Acima de 360 dias: cobrar ou vender?</p>
+                  <p className="section-label mb-2">Acima de 360 dias: cobrar ou vender?<DicaAjuda id="cessao-e-write-off" /></p>
                   <div className="flex flex-wrap items-baseline gap-x-8 gap-y-2">
                     <div>
                       <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Cobrando</p>
@@ -727,7 +746,7 @@ export default function Dashboard({ onIrPara }) {
                   style={{ background: 'rgb(var(--c-warning) / 0.08)', border: '1px solid rgb(var(--c-warning) / 0.18)' }}>
                   <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" style={{ color: 'var(--warning)' }} />
                   <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-                    {resumo.aviso_ciclo}
+                    {resumo.aviso_ciclo}<DicaAjuda id="comissao-de-cobranca" />
                   </p>
                 </div>
               )}
@@ -752,7 +771,7 @@ export default function Dashboard({ onIrPara }) {
           <section className="mt-6 rounded-xl border border-line bg-surface p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="section-label">Alcance da operação</p>
+                <p className="section-label">Alcance da operação<DicaAjuda id="alcance-da-operacao" /></p>
                 <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--ink)' }}>
                   Até onde a equipe chega neste ciclo
                 </h3>
@@ -829,7 +848,7 @@ export default function Dashboard({ onIrPara }) {
               <div className="mb-6 flex items-center justify-between">
                 <div>
                   <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--ink-2)' }}>Precificação</p>
-                  <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--ink)' }}>Carteira de Crédito</h3>
+                  <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--ink)' }}>Carteira de Crédito<DicaAjuda id="precificacao-simulador" /></h3>
                 </div>
                 <p className="text-xs" style={{ color: 'var(--ink-2)' }}>Ajuste custo e retorno para simular cenários</p>
               </div>
@@ -845,12 +864,12 @@ export default function Dashboard({ onIrPara }) {
 
                 <motion.div variants={lista} initial="inicial" animate="entra"
                   className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5 lg:col-span-4">
-                  <motion.div variants={item}><PricingCard label="Valor Esperado de Recuperação" value={fmtBRL(pricing.ver)}
+                  <motion.div variants={item}><PricingCard ajuda="valor-esperado" label="Valor Esperado de Recuperação" value={fmtBRL(pricing.ver)}
                     icon={ArrowUpRight} /></motion.div>
                   <motion.div variants={item}><PricingCard label="Valor Líquido (após custos)" value={fmtBRL(pricing.liquido)} icon={Percent} /></motion.div>
                   <motion.div variants={item}><PricingCard label="Preço Sugerido de Compra" value={fmtBRL(pricing.preco)} highlight icon={Tag} /></motion.div>
                   <motion.div variants={item}><PricingCard label="Lucro Final (líquido)" value={fmtBRL(pricing.lucro)} accent="emerald" icon={Banknote} /></motion.div>
-                  <motion.div variants={item}><PricingCard label="Taxa de Recuperação Estimada" value={`${pricing.taxaRecuperacao.toFixed(1)}%`} icon={TrendingUp} /></motion.div>
+                  <motion.div variants={item}><PricingCard ajuda="taxa-de-recuperacao" label="Taxa de Recuperação Estimada" value={`${pricing.taxaRecuperacao.toFixed(1)}%`} icon={TrendingUp} /></motion.div>
                 </motion.div>
               </div>
 
@@ -858,14 +877,14 @@ export default function Dashboard({ onIrPara }) {
                 {resumo?.precificacao_ml ? (
                   <>
                     <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-300">
-                      ✦ ML ativo
+                      ✦ ML ativo<DicaAjuda id="taxa-de-recuperacao" />
                     </span>
                     <span><span className="font-medium text-ink-2">VER</span> = Σ (valor_dívida × <span className="font-medium text-emerald-400">taxa_ML</span>)</span>
                   </>
                 ) : (
                   <>
                     <span className="inline-flex items-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-300">
-                      ⚠ Premissa
+                      ⚠ Premissa<DicaAjuda id="taxa-de-recuperacao" />
                     </span>
                     <span>
                       <span className="font-medium text-ink-2">VER</span> = Σ (valor_dívida ×{' '}
@@ -888,7 +907,7 @@ export default function Dashboard({ onIrPara }) {
                   aconteceu, e o que interessa é quanto do exposto não volta. */}
               {resumo?.perda_esperada_total != null && (
                 <div className="mt-5 border-t border-line pt-4">
-                  <p className="section-label mb-3">Perda esperada da carteira</p>
+                  <p className="section-label mb-3">Perda esperada da carteira<DicaAjuda id="perda-esperada" /></p>
                   <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                     {[
                       { sigla: 'EAD', rotulo: 'Exposição', valor: fmtBRL(resumo.ead_total),
@@ -926,7 +945,7 @@ export default function Dashboard({ onIrPara }) {
                       color: resumo.psi.nivel === 'critico' ? 'var(--danger)'
                         : resumo.psi.nivel === 'atencao' ? 'var(--warning)' : 'var(--text-muted)',
                     }}>
-                      <span className="font-semibold">PSI {resumo.psi.psi}</span> — {resumo.psi.leitura}
+                      <span className="font-semibold">PSI {resumo.psi.psi}</span><DicaAjuda id="psi" /> — {resumo.psi.leitura}
                       {' '}(atenção acima de {resumo.psi.corte_atencao}, crítico acima de {resumo.psi.corte_critico})
                     </p>
                   ) : (
@@ -954,7 +973,7 @@ export default function Dashboard({ onIrPara }) {
             <div className="rounded-xl border border-line bg-surface p-6 lg:col-span-3">
               <div className="mb-5">
                 <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--ink-2)' }}>Distribuição</p>
-                <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--ink)' }}>Aging da Carteira</h3>
+                <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--ink)' }}>Aging da Carteira<DicaAjuda id="aging" /></h3>
               </div>
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={agingData} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
@@ -982,7 +1001,7 @@ export default function Dashboard({ onIrPara }) {
             <div className="rounded-xl border border-line bg-surface p-6 lg:col-span-2">
               <div className="mb-5">
                 <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--ink-2)' }}>Segmentação</p>
-                <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--ink)' }}>Perfis de Devedores</h3>
+                <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--ink)' }}>Perfis de Devedores<DicaAjuda id="perfil-cluster" /></h3>
               </div>
               <ResponsiveContainer width="100%" height={220}>
                 <PieChart>
@@ -1020,12 +1039,12 @@ export default function Dashboard({ onIrPara }) {
               <div className="flex items-center justify-between border-b border-line px-6 py-4">
                 <div>
                   <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--ink-2)' }}>Resultados Reais</p>
-                  <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--ink)' }}>Quem Pagou</h3>
+                  <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--ink)' }}>Quem Pagou<DicaAjuda id="quem-pagou" /></h3>
                   <p className="text-xs mt-0.5" style={{ color: 'var(--ink-2)' }}>{perf.total_feedbacks} feedbacks registrados</p>
                 </div>
                 {perf.acuracia_geral != null && (
                   <span className="rounded-md border border-blue-500/30 bg-blue-500/10 px-2.5 py-1 text-xs font-medium text-blue-300">
-                    Acurácia do modelo: {perf.acuracia_geral}%
+                    Acurácia do modelo: {perf.acuracia_geral}%<DicaAjuda id="acuracia-geral" />
                   </span>
                 )}
               </div>
@@ -1079,7 +1098,7 @@ export default function Dashboard({ onIrPara }) {
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-6 py-4">
                 <div>
                   <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--ink-2)' }}>Histórico</p>
-                  <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--ink)' }}>Pagamentos Registrados</h3>
+                  <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--ink)' }}>Pagamentos Registrados<DicaAjuda id="pagamentos-registrados" /></h3>
                   <p className="text-xs mt-0.5" style={{ color: 'var(--ink-2)' }}>{pagamentos.filter(p => p.pagou).length} pagamentos · {pagamentos.filter(p => !p.pagou).length} não pagaram</p>
                 </div>
                 <div className="relative">
@@ -1157,7 +1176,7 @@ export default function Dashboard({ onIrPara }) {
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--ink-2)' }}>Ranking</p>
-                  <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--ink)' }}>Recuperabilidade</h3>
+                  <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--ink)' }}>Recuperabilidade<DicaAjuda id="fila-ordem" /></h3>
                   <p className="text-xs mt-0.5" style={{ color: 'var(--ink-2)' }}>
                     {fmtNum(totalFiltrado)} devedores{search || filtroPrio !== 'todos' || filtroProduto !== 'todos' || filtroUF !== 'todas' ? ' filtrados' : ''}
                     {totalPages > 1 && ` · página ${page} de ${totalPages}`}
@@ -1238,14 +1257,14 @@ export default function Dashboard({ onIrPara }) {
                       { label: 'CPF',            align: 'left'   },
                       { label: 'Produto',        align: 'left'   },
                       { label: 'Valor Face',     align: 'right'  },
-                      { label: 'Valor Esperado', align: 'right'  },
+                      { label: 'Valor Esperado', align: 'right', ajuda: 'valor-esperado' },
                       { label: 'Dias Atraso',    align: 'right'  },
-                      { label: 'Score',          align: 'right'  },
-                      { label: 'Prioridade',     align: 'center' },
-                      { label: 'Status',         align: 'center' },
-                    ].map(({ label, align }) => (
+                      { label: 'Score',          align: 'right', ajuda: 'score-recuperabilidade' },
+                      { label: 'Prioridade',     align: 'center', ajuda: 'prioridade-alta-media-baixa' },
+                      { label: 'Status',         align: 'center', ajuda: 'filtros-da-fila' },
+                    ].map(({ label, align, ajuda }) => (
                       <th key={label} className={`whitespace-nowrap px-4 py-3 text-xs font-medium uppercase tracking-wider text-ink-2 text-${align}`}>
-                        {label}
+                        {label}{ajuda && <DicaAjuda id={ajuda} />}
                       </th>
                     ))}
                   </tr>
@@ -1269,7 +1288,13 @@ export default function Dashboard({ onIrPara }) {
                             style={{ color: 'var(--chart-1)' }}>limite</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 font-medium text-ink transition-colors group-hover:text-blue-300">{d.nome}</td>
+                      <td className="px-4 py-3 font-medium text-ink transition-colors group-hover:text-blue-300">
+                        {d.nome}
+                        {d.dados_incompletos && (
+                          <AlertTriangle className="ml-1.5 inline h-3.5 w-3.5 align-text-bottom" style={{ color: 'var(--warning)' }}
+                            aria-label={`Dados incompletos: ${d.aviso_dados || ''}`} title={`Dados incompletos: ${d.aviso_dados || ''}`} />
+                        )}
+                      </td>
                       <td className="whitespace-nowrap px-4 py-3 tabular-nums text-xs text-ink-2">{d.cpf}</td>
                       <td className="px-4 py-3 capitalize text-ink-2">{d.produto}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-xs text-ink-2">{fmtBRL(d.valor_divida)}</td>

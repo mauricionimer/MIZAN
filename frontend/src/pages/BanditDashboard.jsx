@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { LogoMark } from '../components/Logo'
+import DicaAjuda from '../components/DicaAjuda'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001'
 const MUTED = 'var(--ink-3)'
@@ -216,7 +217,7 @@ export default function BanditDashboard() {
           <>
             <div className="flex items-start justify-between">
               <div>
-                <h1 className="text-xl font-bold text-ink tracking-tight">Performance do Bandit LinUCB</h1>
+                <h1 className="text-xl font-bold text-ink tracking-tight">Performance do Bandit LinUCB<DicaAjuda id="estatisticas-do-bandit" /></h1>
                 <p className="text-sm mt-1" style={{ color: MUTED_LIGHT }}>Quais canais e ofertas estão gerando mais pagamentos</p>
               </div>
               {fase && (

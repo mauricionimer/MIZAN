@@ -14,6 +14,7 @@ import {
   Building2, Plus, X, UserMinus, Mail, Trash2, Clock, Camera, Pencil, Check,
 } from 'lucide-react'
 import { LogoMark } from '../components/Logo'
+import DicaAjuda from '../components/DicaAjuda'
 
 const ACAO_LABEL = {
   carteira_criada:      'Carteira criada',
@@ -600,7 +601,7 @@ export default function AdminUsuarios() {
               <div className="mb-8 rounded-2xl p-5" style={{ background: 'var(--surface)', border: '1px solid var(--line)', boxShadow: '0 2px 12px rgba(0,0,0,0.40)' }}>
                 <div className="flex items-center justify-between mb-4">
                   <p className="text-xs font-semibold uppercase tracking-wide flex items-center gap-1.5" style={{ color: 'var(--ink-3)' }}>
-                    <Building2 className="h-3.5 w-3.5" /> Perfil da empresa
+                    <Building2 className="h-3.5 w-3.5" /> Perfil da empresa<DicaAjuda id="perfil-da-empresa" />
                   </p>
                   {!editandoBrand ? (
                     <button onClick={abrirEdicaoBrand} className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors font-semibold">
@@ -665,7 +666,7 @@ export default function AdminUsuarios() {
 
             <div className="flex items-center justify-between mb-8">
               <div>
-                <h1 className="text-xl font-bold text-ink tracking-tight">Usuários do sistema</h1>
+                <h1 className="text-xl font-bold text-ink tracking-tight">Usuários do sistema<DicaAjuda id="usuarios-e-papeis" /></h1>
                 <p className="text-sm mt-1" style={{ color: 'var(--ink-2)' }}>
                   {isComando ? 'Gerencie todos os usuários e empresas.' : 'Gerencie os operadores da sua empresa.'}
                 </p>
@@ -897,7 +898,7 @@ export default function AdminUsuarios() {
         {aba === 'permissoes' && (isAdmin || isComando) && (
           <>
             <div className="mb-8">
-              <h1 className="text-xl font-bold text-ink tracking-tight">Permissões de banco de dados</h1>
+              <h1 className="text-xl font-bold text-ink tracking-tight">Permissões de banco de dados<DicaAjuda id="conexao-com-banco" /></h1>
               <p className="text-sm mt-1" style={{ color: 'var(--ink-2)' }}>Controle quais operadores podem sincronizar cada conexão cadastrada.</p>
             </div>
 
