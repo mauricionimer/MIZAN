@@ -67,7 +67,7 @@ function inp(cls = '') {
   return `w-full rounded-xl px-3.5 py-2.5 text-sm focus:outline-none transition-all ${cls}`
 }
 
-function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
+function FormDB({ onResult, isOperador = false, empresaAlvo = '', exigirEmpresa = false }) {
   const [etapa, setEtapa]       = useState('conexao')
   const [form, setForm]         = useState({
     tipo: 'postgres', host: '', porta: '', banco: '',
@@ -193,13 +193,14 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '' }) {
   async function analisar() {
     const faltando = CAMPOS_MIZAN.filter(c => c.obrigatorio && !mapa[c.key])
     if (faltando.length) { setErro(`Mapeie os campos obrigatórios: ${faltando.map(c => c.label).join(', ')}`); return }
+    if (exigirEmpresa && !empresaAlvo) { setErro('Selecione a empresa cliente antes de analisar.'); return }
     setLoadingAnalise(true); setEtapa('analisando'); setErro(null)
     let savedId = conexaoSalvaId
     if (!savedId) {
       const autoNome = `${form.tipo.toUpperCase()} · ${(form.host || '').split('.')[0] || form.banco || 'banco'}`
       const nomeEfetivo = form.nome_fonte.trim() || nomeParaSalvar.trim() || autoNome
       try {
-        const res = await salvarConexao({ nome: nomeEfetivo, tipo: form.tipo, host: form.host || null, porta: form.porta ? Number(form.porta) : null, banco: form.banco || null, usuario: form.usuario || null, senha: form.senha || null, instance_name: form.instance_name || null, service_name: form.service_name || null, sheets_id: form.sheets_id || null, sheets_aba: form.sheets_aba || null, sheets_credenciais: isSheets ? credsSheets() : undefined, query: isSheets ? null : (form.query || null), mapeamento: mapa, intervalo_sync_horas: Number(form.intervalo_sync_horas) || 1, coluna_writeback: form.coluna_writeback || null, valor_pago: form.valor_pago || 'pago', valor_nao_pago: form.valor_nao_pago || null })
+        const res = await salvarConexao({ nome: nomeEfetivo, tipo: form.tipo, host: form.host || null, porta: form.porta ? Number(form.porta) : null, banco: form.banco || null, usuario: form.usuario || null, senha: form.senha || null, instance_name: form.instance_name || null, service_name: form.service_name || null, sheets_id: form.sheets_id || null, sheets_aba: form.sheets_aba || null, sheets_credenciais: isSheets ? credsSheets() : undefined, query: isSheets ? null : (form.query || null), mapeamento: mapa, intervalo_sync_horas: Number(form.intervalo_sync_horas) || 1, coluna_writeback: form.coluna_writeback || null, valor_pago: form.valor_pago || 'pago', valor_nao_pago: form.valor_nao_pago || null, empresa_id: empresaAlvo || undefined })
         savedId = res.conexao.id; setConexoes(prev => [res.conexao, ...prev]); setConexaoSalvaId(savedId); setModo('lista')
       } catch (saveErr) { setErro(`Erro ao salvar conexão: ${saveErr.message}`); setEtapa('mapeamento'); setLoadingAnalise(false); return }
     }
@@ -749,7 +750,7 @@ export default function Upload({ onIrPara, temResultado = false }) {
           </>
         )}
 
-        {aba === 'db' && <FormDB onResult={handleDBResult} isOperador={isOperador} empresaAlvo={isComando ? empresaAlvo : ''} />}
+        {aba === 'db' && <FormDB onResult={handleDBResult} isOperador={isOperador} empresaAlvo={isComando ? empresaAlvo : ''} exigirEmpresa={isComando} />}
       </div>
 
       {/* Histórico: some inteiro enquanto não houver análise. */}

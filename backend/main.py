@@ -783,6 +783,26 @@ def _empresa_do_bandit(payload: dict, empresa_id: "str | None") -> str:
     return (payload.get("empresa_id") or "").strip().lower()
 
 
+def _empresa_destino_da_analise(payload: dict, alvo: "str | None") -> str:
+    """Empresa em que a carteira analisada vai ficar gravada.
+
+    Sem empresa a carteira vira órfã: nenhum admin a enxerga, só o COMANDO.
+    Foi o que aconteceu com três carteiras de teste em produção. Agora a
+    análise é recusada antes de começar: o COMANDO escolhe a empresa cliente;
+    os demais usam a própria e, sem uma, não analisam.
+    """
+    if payload.get("role") == "comando":
+        eid = (alvo or "").strip().lower()
+        if not eid:
+            raise HTTPException(status_code=400, detail="Escolha a empresa cliente antes de analisar.")
+        return eid
+    eid = (payload.get("empresa_id") or "").strip()
+    if not eid:
+        raise HTTPException(status_code=400,
+                            detail="Seu usuário não está ligado a nenhuma empresa. Fale com o administrador.")
+    return eid
+
+
 def _exigir_comando(credentials: HTTPAuthorizationCredentials) -> dict:
     # Via _usuario_autenticado, não validar_token: o painel COMANDO cria
     # empresas e usuários, muda papéis e promove modelo. Conferir só a
@@ -2316,6 +2336,9 @@ def _sincronizar_conexao_row(row: dict, uemail: str, uid: str, eid: str) -> dict
         df = df.rename(columns=rename)
 
     nome = conn.nome_fonte or f"sync_{conexao_id[:8]}"
+    if not (eid or "").strip():
+        raise ValueError("Conexão sem empresa: a carteira ficaria invisível para os clientes. "
+                         "Edite a conexão e escolha a empresa.")
 
     db = get_db()
     carteira_id_existente = row.get("carteira_id")
@@ -2994,10 +3017,7 @@ async def analisar(
     payload = _usuario_autenticado(credentials)
     uid   = payload.get("sub")
     uemail = payload.get("email")
-    eid   = payload.get("empresa_id", "")
-    # COMANDO pode especificar a empresa destino da análise
-    if payload.get("role") == "comando" and empresa_id:
-        eid = empresa_id.strip().lower()
+    eid   = _empresa_destino_da_analise(payload, empresa_id)
 
     nome = (file.filename or "").lower()
     if not (nome.endswith(".csv") or nome.endswith(".xlsx") or nome.endswith(".xls")):
@@ -3918,6 +3938,8 @@ def analisar_db(conn: ConexaoDB, incluir_ranking: bool = True,
                 credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """Analisa uma carteira carregada diretamente de um banco de dados externo."""
     _payload = _usuario_autenticado(credentials)  # valida o token ANTES de conectar
+    # Antes de conectar: sem empresa de destino não adianta ler o banco do cliente.
+    eid = _empresa_destino_da_analise(_payload, conn.empresa_id_alvo)
     _resolver_credenciais(conn, _payload)
     _bloquear_autoconexao(conn)
     try:
@@ -3957,10 +3979,7 @@ def analisar_db(conn: ConexaoDB, incluir_ranking: bool = True,
         rename = {col_banco: campo for campo, col_banco in conn.mapeamento.items() if col_banco in df.columns}
         df = df.rename(columns=rename)
 
-    uid, uemail, eid = _payload["sub"], _payload.get("email", ""), _payload.get("empresa_id", "")
-    # COMANDO pode especificar a empresa destino da análise
-    if _payload.get("role") == "comando" and conn.empresa_id_alvo:
-        eid = conn.empresa_id_alvo.strip().lower()
+    uid, uemail = _payload["sub"], _payload.get("email", "")
     nome = conn.nome_fonte or "consulta_db"
     resultado = _analisar_df(df, nome, _usuario_id=uid, _usuario_email=uemail, _empresa_id=eid,
                              _incluir_ranking=incluir_ranking)
