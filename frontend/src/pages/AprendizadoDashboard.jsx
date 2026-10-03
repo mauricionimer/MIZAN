@@ -165,11 +165,12 @@ export default function AprendizadoDashboard() {
 
   const verEmpresa = () => executar('empresa', async () => {
     const emp = encodeURIComponent(empresaSel.trim().toLowerCase())
-    const [q, pm] = await Promise.all([
+    const [q, pm, d] = await Promise.all([
       _get(`/admin/modelo/qualidade?empresa_id=${emp}`, token),
       _get(`/admin/price-model?empresa_id=${emp}`, token),
+      _get(`/admin/drift?empresa_id=${emp}`, token).catch(() => null),
     ])
-    setQualidade(q); setPriceModel(pm)
+    setQualidade(q); setPriceModel(pm); setDrift(d)
     return { mensagem: `Modelo em uso por ${empresaSel.trim().toLowerCase()} medido.` }
   }, false)
 
@@ -279,21 +280,21 @@ export default function AprendizadoDashboard() {
               </div>
             )}
 
-            {/* Drift */}
-            {drift && (
+            {/* Deriva: PSI da população recente da empresa escolhida (D4) */}
+            {drift?.psi?.ok && (
               drift.drift_detectado ? (
                 <div className="flex items-start gap-3 rounded-2xl px-5 py-4 text-sm text-amber-300" style={{ background: 'rgb(var(--c-warning) / 0.10)', border: '1px solid rgb(var(--c-warning) / 0.25)' }}>
                   <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
                   <div>
-                    <p className="font-semibold">Possível drift do modelo detectado<DicaAjuda id="deriva-do-score" /></p>
+                    <p className="font-semibold">A população de {drift.empresa_id} mudou em relação ao treino do modelo<DicaAjuda id="deriva-do-score" /></p>
                     <p className="opacity-90 mt-0.5">{drift.mensagem}</p>
                   </div>
                 </div>
-              ) : drift.media_recente_30d != null ? (
+              ) : (
                 <div className="flex items-center gap-3 rounded-2xl px-5 py-3.5 text-sm text-emerald-300" style={{ background: 'rgb(var(--c-success) / 0.10)', border: '1px solid rgb(var(--c-success) / 0.25)' }}>
-                  <CheckCircle2 className="h-4 w-4 shrink-0" /> {drift.mensagem}
+                  <CheckCircle2 className="h-4 w-4 shrink-0" /> {drift.mensagem}<DicaAjuda id="deriva-do-score" />
                 </div>
-              ) : null
+              )
             )}
 
             {/* Qualidade do modelo EM USO por uma empresa (D6): mede o modelo que

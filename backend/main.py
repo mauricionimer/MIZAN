@@ -5325,51 +5325,52 @@ def admin_price_model_stats(empresa_id: Optional[str] = None,
 
 
 @app.get("/admin/drift")
-def detectar_drift(credentials: HTTPAuthorizationCredentials = Security(bearer)):
+def detectar_drift(empresa_id: Optional[str] = None, dias: int = 30,
+                   credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Deriva da população de UMA empresa: PSI dos scores das análises dela nos
+    últimos `dias` contra a distribuição congelada no treino do modelo em uso.
+
+    Antes havia uma segunda "deriva", diferente do PSI da análise: a média de
+    score dos últimos 30 dias contra a do histórico inteiro (que incluía os
+    próprios 30 dias), todas as empresas juntas, com um limite fixo de 10
+    pontos, e um e-mail a cada vez que a tela abria (achado D4). Agora é o mesmo
+    PSI, com a mesma régua (model/psi.py), por empresa e sem efeito colateral.
+    """
     _exigir_comando(credentials)
+    empresa = (empresa_id or "").strip().lower()
+    if not empresa:
+        return {"status": "escolha_empresa", "drift_detectado": False,
+                "mensagem": "Escolha uma empresa para medir a deriva da população dela."}
+    from datetime import timedelta
+    from model.psi import calcular
+    from model.score import _carregar_modelos
+
+    dias = min(max(int(dias or 30), 1), 365)
     db = get_db()
+    corte = (datetime.utcnow() - timedelta(days=dias)).isoformat()
+    cart_ids = [c["id"] for c in _todas_as_linhas(
+        lambda: db.table("carteiras").select("id").eq("empresa_id", empresa))]
+    scores: list = []
+    for i in range(0, len(cart_ids), ITENS_POR_IN):
+        parte = cart_ids[i:i + ITENS_POR_IN]
+        scores += [float(p["score_recuperabilidade"]) for p in _todas_as_linhas(
+            lambda: db.table("predicoes").select("id, score_recuperabilidade")
+                      .in_("carteira_id", parte).gte("created_at", corte))
+                   if p.get("score_recuperabilidade") is not None]
 
-    # Sem paginar, a "média histórica" seria a das primeiras mil predições
-    # gravadas — e comparar o mês corrente contra elas não é medir deriva.
-    todas = _todas_as_linhas(
-        lambda: db.table("predicoes").select("score_recuperabilidade, created_at"))
-
-    if len(todas) < 50:
-        return {"status": "dados_insuficientes", "mensagem": "Mínimo de 50 predições necessário.", "drift_detectado": False}
-
-    scores_todos = [float(p["score_recuperabilidade"]) for p in todas if p.get("score_recuperabilidade") is not None]
-
-    cutoff = (datetime.now().astimezone().replace(microsecond=0) - __import__("datetime").timedelta(days=30)).isoformat()
-    recentes = [p for p in todas if (p.get("created_at") or "") >= cutoff]
-
-    if len(recentes) < 10:
-        return {"status": "dados_insuficientes", "mensagem": "Menos de 10 predições nos últimos 30 dias.", "drift_detectado": False}
-
-    scores_recentes = [float(p["score_recuperabilidade"]) for p in recentes if p.get("score_recuperabilidade") is not None]
-
-    media_historica = round(sum(scores_todos) / len(scores_todos), 1)
-    media_recente   = round(sum(scores_recentes) / len(scores_recentes), 1)
-    diferenca       = round(abs(media_recente - media_historica), 1)
-    drift           = diferenca > 10
-
-    if drift:
-        admin_email = os.getenv("ADMIN_EMAIL", "")
-        if admin_email:
-            try:
-                from email_utils import email_drift
-                email_drift(admin_email, media_recente, media_historica)
-            except Exception as e:
-                print(f"[Drift] Erro ao enviar e-mail: {e}")
-
+    _, _, meta = _carregar_modelos(empresa)
+    r = calcular(scores, meta.get("psi_referencia"))
+    if not r.get("ok"):
+        return {"status": "indisponivel", "drift_detectado": False, "empresa_id": empresa, "dias": dias,
+                "n": len(scores), "psi": r, "mensagem": r.get("motivo")}
     return {
-        "status":            "drift_detectado" if drift else "normal",
-        "drift_detectado":   drift,
-        "media_historica":   media_historica,
-        "media_recente_30d": media_recente,
-        "diferenca":         diferenca,
-        "total_predicoes":   len(scores_todos),
-        "predicoes_30d":     len(scores_recentes),
-        "mensagem": f"Score médio variou {diferenca} pontos nos últimos 30 dias — verifique o modelo." if drift else "Modelo estável.",
+        "status": r["nivel"],
+        "drift_detectado": r["nivel"] != "estavel",
+        "empresa_id": empresa,
+        "dias": dias,
+        "n": len(scores),
+        "psi": r,
+        "mensagem": f"PSI {r['psi']} nos devedores analisados nos últimos {dias} dias: {r['leitura']}",
     }
 
 

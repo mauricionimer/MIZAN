@@ -154,26 +154,28 @@ constantes:
 - backend/model/psi.py::PSI_CRITICO = 0.25
 
 ## deriva-do-score
-titulo: Deriva do score (alerta por e-mail)
+titulo: Deriva do score de uma empresa
 perfis: comando
 telas: Aprendizado
 perguntas:
 - o que é deriva do score
-- por que recebi e-mail de drift
 - como o drift é calculado
 - diferença entre drift e psi
 - por que o score médio mudou
-- o que significa score médio variou 10 pontos
-- por que recebi um alerta de deriva por e-mail
-- como a deriva do score médio é calculada
-- o que fazer quando o score médio mudou muito
-curta: Compara o score médio dos últimos 30 dias com o score médio de todo o histórico e avisa se a diferença passar de 10 pontos.
-calculo: diferença = |média dos últimos 30 dias − média de todo o histórico|. Alerta se for maior que 10 pontos, e nesse caso um e-mail é enviado ao endereço de administração. Considera todas as empresas juntas, e exige pelo menos 50 análises no total e 10 nos últimos 30 dias.
-fazer: Use como sinal de "olhe isto". Para uma medida por carteira e com régua, use o PSI.
-cuidado: O limite de 10 pontos é escolha de projeto. O "histórico" inclui os próprios 30 dias, e a medida mistura empresas diferentes.
-revisar: achado D4 do mapa do sistema.
+- a população da empresa mudou
+- como a deriva do score é calculada
+- o que fazer quando a população mudou em relação ao treino
+- o que é o aviso de deriva na tela de aprendizado
+curta: É o PSI dos devedores que uma empresa analisou nos últimos 30 dias, contra a distribuição de score congelada no treino do modelo que pontua essa empresa.
+calculo: Em Aprendizado, escolha a empresa e clique em Medir. Entram os scores das predições da empresa gravadas nos últimos 30 dias. O PSI usa as mesmas faixas e a mesma régua do PSI da análise: até 0,10 estável; acima de 0,10 atenção; acima de 0,25 crítico. Precisa de pelo menos 20 devedores no período.
+fazer: Com "atenção" ou "crítico", meça a qualidade do modelo em uso (mesma tela) e considere treinar uma versão nova da empresa.
+cuidado: Até outubro de 2026 havia outra "deriva", que comparava o score médio dos últimos 30 dias com o histórico inteiro, misturando todas as empresas, com limite fixo de 10 pontos e e-mail a cada abertura da tela. Ela deixou de existir: a deriva agora é só o PSI, por empresa, e não manda e-mail.
 fontes:
 - backend/main.py::rota /admin/drift
+- backend/model/psi.py::calcular
+constantes:
+- backend/model/psi.py::PSI_ATENCAO = 0.10
+- backend/model/psi.py::PSI_CRITICO = 0.25
 
 ## equidade
 titulo: Equidade entre grupos
