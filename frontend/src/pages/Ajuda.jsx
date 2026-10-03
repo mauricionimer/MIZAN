@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Search, Loader2, HelpCircle, ChevronDown, AlertTriangle, Info, BookOpen } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import { useAuth } from '../context/AuthContext'
@@ -75,10 +76,16 @@ export default function Ajuda() {
   const [abertas, setAbertas]     = useState({})
   const [navegada, setNavegada]   = useState(null)     // entrada aberta pelo índice
   const ultima = useRef(0)
+  const [params] = useSearchParams()
 
   useEffect(() => {
     indiceDaAjuda(token).then(setIndice).catch(() => {})
     estadoDoModelo(token).then(setModelo).catch(() => {})
+    // Link de outra tela ("O que é isto?") abre a resposta direto.
+    const direto = params.get('id')
+    if (direto) {
+      entradaDaAjuda(token, direto).then(e => { setNavegada(e); setAbertas({ [e.id]: true }) }).catch(() => {})
+    }
   }, [token])
 
   async function perguntar(e) {

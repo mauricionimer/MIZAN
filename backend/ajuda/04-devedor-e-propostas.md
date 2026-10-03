@@ -39,8 +39,7 @@ perguntas:
 curta: É quanto do mês sobra para o devedor pagar uma parcela, depois das despesas e de uma folga de segurança.
 calculo: margem livre = (renda − despesas mensais) × (1 − buffer%). O buffer padrão é 30%. Se as despesas ou a renda não forem informadas, a margem fica indisponível: o sistema não estima despesas.
 fazer: Informe as despesas na hora da conversa (campo na seção de propostas) ou inclua a coluna despesas_mensais na carteira.
-cuidado: Sem margem, nenhuma parcela é marcada como "cabe no bolso" e nenhuma proposta é sugerida, de propósito: sugerir sem saber se cabe é pior que não sugerir. O buffer de 30% vem do material de referência, mas é regra do banco; ele pode ser ajustado por empresa (hoje só pela API).
-revisar: achado E1 (premissas sem tela).
+cuidado: Sem margem, nenhuma parcela é marcada como "cabe no bolso" e nenhuma proposta é sugerida, de propósito: sugerir sem saber se cabe é pior que não sugerir. O buffer de 30% vem do material de referência, mas é regra do banco: o administrador ajusta em Premissas > Folga de segurança na margem livre, e vale na hora nas propostas.
 fontes:
 - backend/model/proposta.py::calcular_margem
 constantes:

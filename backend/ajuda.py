@@ -58,6 +58,7 @@ TELAS = {
     "Quem pagou":              ("admin", "comando"),
     "Usuários":                ("admin", "comando"),
     "Retenção":                ("admin", "comando"),
+    "Premissas":               ("admin", "comando"),
     "Backtest":                ("admin", "comando"),
     "Auditoria":               ("admin", "comando"),
     "Painel COMANDO":          ("comando",),

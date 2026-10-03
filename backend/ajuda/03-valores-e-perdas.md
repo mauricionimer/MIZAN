@@ -83,9 +83,8 @@ perguntas:
 - o que é a recuperação se pagar
 curta: Quanto da dívida entra quando o devedor efetivamente paga. O padrão é 100%: pagou, pagou tudo.
 calculo: Usada só quando o modelo de preço ainda não existe: taxa = probabilidade de pagamento × recuperação se pagar. Aceita valores entre 0 (exclusive) e 1.
-fazer: Se a empresa costuma fechar acordos com desconto, informe um valor menor para o valor esperado refletir isso.
-cuidado: O padrão 1,0 é uma premissa declarada, não uma medida. Hoje a configuração é gravada pela API; ainda não há tela para ela.
-revisar: achado E1: as premissas da empresa (recuperação se pagar, comissão, cessão, critério da fila, buffer e teto de parcela) não têm tela.
+fazer: Se a empresa costuma fechar acordos com desconto, informe um valor menor em Premissas > Quanto entra quando o devedor paga, para o valor esperado refletir isso. Vale para as próximas análises.
+cuidado: O padrão 1,0 é uma premissa declarada, não uma medida.
 fontes:
 - backend/main.py::_premissa_recuperacao_se_pagar
 constantes:
@@ -106,7 +105,7 @@ perguntas:
 - diferença entre valor esperado bruto e líquido
 curta: É o valor esperado depois de descontar a comissão que o banco paga na fase especializada. É o que ordena a fila.
 calculo: Na fase especializada (31 a 360 dias): líquido = esperado × (1 − comissão%). Nas outras fases, e sem comissão informada, o líquido é igual ao bruto, e o sistema avisa.
-fazer: Informe a comissão do contrato com o escritório de cobrança para a fila refletir o que sobra para o banco.
+fazer: Informe a comissão do contrato com o escritório de cobrança em Premissas > Comissão do escritório de cobrança, para a fila refletir o que sobra para o banco. Vale para as próximas análises.
 cuidado: Não é o "Valor Líquido" do simulador de precificação, que usa um custo de cobrança escolhido no controle deslizante. São dois conceitos com nomes parecidos.
 revisar: achado D3: dois "líquidos" com nomes parecidos.
 fontes:
@@ -154,8 +153,7 @@ perguntas:
 curta: É o percentual que o banco paga ao escritório sobre o que é recuperado na fase especializada. Sem ele informado, o valor esperado dessa fase fica bruto.
 calculo: Aceita qualquer valor de 0 a 100, conforme o contrato. A referência cita que o mercado pratica de 10% a 25%, mas esse intervalo não é aplicado por padrão.
 fazer: Informe o percentual do seu contrato para a fila deixar de superestimar essas dívidas.
-cuidado: O sistema não escolhe um número dentro da faixa por conta própria: aplicar uma taxa que ninguém informou erraria na direção que favorece o produto. Hoje a configuração é gravada pela API; ainda não há tela.
-revisar: achado E1 (premissas sem tela).
+cuidado: O sistema não escolhe um número dentro da faixa por conta própria: aplicar uma taxa que ninguém informou erraria na direção que favorece o produto.
 fontes:
 - backend/model/ciclo.py::aviso
 constantes:
@@ -176,7 +174,7 @@ perguntas:
 - comparação entre cobrar e ceder a carteira
 curta: Acima de 360 dias a alternativa a cobrar é vender a dívida a um fundo. A tela compara as duas opções e diz qual rende mais.
 calculo: valor se vendida = valor de face × percentual de cessão (informado pela empresa). "Vale mais vender" quando esse valor é maior que o valor esperado líquido de continuar cobrando.
-fazer: Considere ceder as faixas em que a comparação aponta "vale mais vender".
+fazer: Considere ceder as faixas em que a comparação aponta "vale mais vender". Informe o percentual em Premissas > Valor de venda da carteira (cessão).
 cuidado: Só aparece se o percentual de cessão estiver informado. A referência cita 2% a 5% do valor de face como faixa de mercado; não é aplicada por padrão.
 fontes:
 - backend/model/ciclo.py::valor_cessao

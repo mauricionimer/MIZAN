@@ -193,23 +193,25 @@ fontes:
 ## como-configurar-premissas
 titulo: Como configurar as premissas da empresa
 perfis: admin, comando
-telas: Precificação
+telas: Premissas
 perguntas:
 - onde configuro a comissão
 - onde configuro a cessão
 - como mudar o critério da fila
 - como mudar a recuperação se pagar
 - onde mudo o buffer da margem
-- por que não acho a tela de premissas
+- onde ficam as premissas da empresa
+- o que são premissas
+- onde ajusto a comissão e a cessão
 - onde configuro comissão cessão e critério da fila
-- por que não há tela para as premissas da empresa
 - como ajusto a margem e o teto de parcela
-curta: Comissão da fase especializada, percentual de cessão, recuperação se pagar, critério da fila, buffer da margem e teto de parcela são premissas por empresa. Hoje ainda não há tela para elas.
-calculo: As premissas ficam na configuração da empresa (campo extra). A tela de retenção grava só o prazo de retenção; as demais são gravadas pela API de configuração da empresa, por administrador ou COMANDO.
-fazer: Peça ao COMANDO para ajustar. Sem elas, valem os padrões descritos em cada tópico: recuperação se pagar 100%, comissão e cessão não aplicadas, critério por valor esperado, buffer 30%, teto de parcela 100%.
-cuidado: Sem comissão informada, o valor esperado da fase especializada fica bruto.
-revisar: achado E1: criar a tela de premissas elimina esta entrada.
+- como volto uma premissa ao padrão
+- as premissas mudam as carteiras que já analisei
+curta: Em Premissas (menu lateral) o administrador define comissão do escritório, valor de cessão, quanto entra quando o devedor paga, critério da fila, folga da margem e teto da parcela.
+calculo: Cada campo vazio vale o padrão: recuperação se pagar 100%, critério por valor esperado, folga 30% e teto de parcela 100%; comissão e cessão não têm padrão e, sem elas, o sistema avisa em vez de escolher um número. Os valores são validados (por exemplo, percentuais entre 0 e 100) e cada mudança fica na auditoria, com o valor antes e depois. Folga e teto da parcela valem na hora, nas propostas; as demais valem para as próximas análises, e as carteiras já analisadas não mudam. O COMANDO escolhe a empresa no alto da tela.
+fazer: Preencha só o que o contrato do banco define. Para voltar ao padrão, apague o campo e salve.
+cuidado: Um valor inválido em qualquer campo impede salvar todos, para não gravar só uma parte. Cada campo tem um "O que é isto?" que abre a explicação.
 fontes:
-- backend/main.py::put_empresa_config
-- backend/model/ciclo.py::custos_de_config
-- backend/model/priorizacao.py::de_config
+- backend/model/premissas.py::PREMISSAS
+- backend/main.py::rota /empresa/premissas
+- frontend/src/pages/Premissas.jsx::texto "Premissas"

@@ -161,12 +161,13 @@ o defeito que existia.
 | **C9** | `POST /feedback/lote` | a tela esconde o lote do operador, mas a rota aceitava operador: qualquer operador com o token registrava pagamentos em lote. `/feedback` já barrava | mesma barreira; `test_feedback_escopo.py` cobre |
 | **C10** | conexões de banco | `_resolver_credenciais` decifrava a senha **salva** de qualquer `conexao_id` da requisição, sem conferir de quem era, e a usava contra o host que a requisição indicasse: bastava apontar o host para um servidor próprio para receber a senha do cliente. Em volta: operador testava conexão com host e senha digitados; qualquer usuário da empresa editava a conexão; as rotas de permissão aceitavam conexão de outra empresa | conexão só é usada por quem pode (comando, admin da empresa, operador liberado) e **contra o servidor salvo**; operador só usa conexão salva; editar é de admin e comando; permissões conferem a empresa. `test_conexoes_escopo.py` reprova 14 verificações no código anterior |
 
+| **E1** | premissas da empresa | as premissas (recuperação se pagar, comissão, cessão, critério da fila, folga da margem e teto de parcela) não tinham tela nem validação, e o aviso do sistema mandava "configurar" sem dizer onde | tela **Premissas** (admin e COMANDO), rotas `GET/PUT /empresa/premissas` com validação, antes/depois na auditoria; `PUT /empresa/config` também valida. `test_premissas.py` cobre |
+
 ### Ainda abertos (sem correção nesta entrega)
 
 | # | Onde | Problema |
 |---|---|---|
 | **C6** | filtro "pago / não pago / pendente" da fila | envia a lista de CPFs na consulta; com milhares de feedbacks a URL estoura |
-| **E1** | premissas da empresa | recuperação se pagar, comissão, cessão, critério da fila, buffer e teto de parcela **não têm tela**: só a API as grava. O aviso do sistema manda "configurar", mas não há onde |
 | **D8** | página do devedor | a "Urgência" (≥70 Alta, ≥40 Média) vem só do score e pode contradizer a Prioridade (posição na fila). É um terceiro critério |
 | **D9** | renda ausente | quando a coluna de renda não existe, vira 0, e a razão dívida ÷ renda vira 0 (o devedor parece sem comprometimento) |
 | **D10** | `price_model.pkl` | é um só para todas as empresas: se for treinado, passa a valer para todas, inclusive as que têm modelo próprio |

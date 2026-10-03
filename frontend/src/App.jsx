@@ -84,6 +84,7 @@ const Backtest = lazy(() => import('./pages/Backtest'))
 const Retencao = lazy(() => import('./pages/Retencao'))
 const TreinoModelo = lazy(() => import('./pages/TreinoModelo'))
 const Ajuda = lazy(() => import('./pages/Ajuda'))
+const Premissas = lazy(() => import('./pages/Premissas'))
 
 function RotaProtegida({ children, roles }) {
   const { autenticado, usuario } = useAuth()
@@ -131,6 +132,7 @@ function RotasAnimadas() {
                 que leva para "/". */}
             <Route path="/admin/usuarios" element={<PageTransition><RotaProtegida roles={['admin', 'comando']}><AdminUsuarios /></RotaProtegida></PageTransition>} />
             <Route path="/backtest" element={<PageTransition><RotaProtegida roles={['admin', 'comando']}><Backtest /></RotaProtegida></PageTransition>} />
+            <Route path="/premissas" element={<PageTransition><RotaProtegida roles={['admin', 'comando']}><Premissas /></RotaProtegida></PageTransition>} />
             <Route path="/retencao" element={<PageTransition><RotaProtegida roles={['admin', 'comando']}><Retencao /></RotaProtegida></PageTransition>} />
             <Route path="/auditoria" element={<PageTransition><RotaProtegida roles={['admin', 'comando']}><Auditoria /></RotaProtegida></PageTransition>} />
             <Route path="/alterar-senha" element={<PageTransition><RotaProtegida><AlterarSenha /></RotaProtegida></PageTransition>} />

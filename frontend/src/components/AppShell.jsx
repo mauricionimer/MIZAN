@@ -1,7 +1,7 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, UploadCloud, ClipboardList, Users, KeyRound, LogOut,
-  ShieldCheck, Zap, Brain, Command, FlaskConical, Lock, HelpCircle,
+  ShieldCheck, Zap, Brain, Command, FlaskConical, Lock, HelpCircle, SlidersHorizontal,
 } from 'lucide-react'
 import ThemeToggle from './ThemeToggle'
 import { LogoMark } from './Logo'
@@ -40,6 +40,7 @@ export default function AppShell({ secao, onIrPara, titulo, acoes, temResultado 
       { id: 'backtest', label: 'Backtest',  icon: FlaskConical, rota: '/backtest' },
       { id: 'usuarios', label: 'Usuários',  icon: Users,        rota: '/admin/usuarios' },
       { id: 'auditoria', label: 'Auditoria', icon: ShieldCheck, rota: '/auditoria' },
+      { id: 'premissas', label: 'Premissas', icon: SlidersHorizontal, rota: '/premissas' },
       { id: 'retencao',  label: 'Retenção',  icon: Lock,        rota: '/retencao' },
     ] : []),
     ...(isComando ? [

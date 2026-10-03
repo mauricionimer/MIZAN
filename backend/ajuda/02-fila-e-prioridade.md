@@ -39,9 +39,8 @@ perguntas:
 - existe outra regra de ordenação da fila
 curta: O padrão maximiza a recuperação. A alternativa reparte o esforço entre as regiões na proporção do tamanho de cada uma, e recupera um pouco menos.
 calculo: valor_esperado: ordena por dívida × taxa, sem olhar região. proporcional_por_grupo: dentro de cada UF vale o valor esperado, e a fila alterna as UFs de modo que, em qualquer ponto de corte, cada região apareça na proporção do seu tamanho.
-fazer: É decisão de política da empresa, não do sistema. Antes de mudar, rode a análise de equidade e o backtest para ver o custo de cada critério.
+fazer: É decisão de política da empresa, não do sistema. Antes de mudar, rode a análise de equidade e o backtest para ver o custo de cada critério. Troque em Premissas > Critério da fila; vale para as próximas análises.
 cuidado: Ordenar por valor esperado tende a deixar para trás regiões de dívidas menores, mesmo quando pagam igual. Nenhum dos dois critérios é "o certo".
-revisar: a configuração do critério (criterio_priorizacao) ainda não tem tela; hoje é gravada na configuração da empresa pela API.
 fontes:
 - backend/model/priorizacao.py::de_config
 - backend/model/priorizacao.py::ordenar

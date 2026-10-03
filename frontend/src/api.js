@@ -653,3 +653,25 @@ export async function entradaDaAjuda(token, id) {
 export async function estadoDoModelo(token) {
   return _jsonOuErro(await fetch(`${BASE}/ajuda/estado-do-modelo`, { headers: _authHeader(token) }))
 }
+
+
+// ── Premissas da empresa ─────────────────────────────────────────────────────
+export async function buscarPremissas(token, empresaIdAlvo) {
+  const qs = empresaIdAlvo ? `?empresa_id_alvo=${encodeURIComponent(empresaIdAlvo)}` : ''
+  return _jsonOuErro(await fetch(`${BASE}/empresa/premissas${qs}`, { headers: _authHeader(token) }))
+}
+
+export async function gravarPremissas(token, valores, empresaIdAlvo) {
+  const qs = empresaIdAlvo ? `?empresa_id_alvo=${encodeURIComponent(empresaIdAlvo)}` : ''
+  const res = await fetch(`${BASE}/empresa/premissas${qs}`, {
+    method: 'PUT', headers: _authHeader(token), body: JSON.stringify({ valores }),
+  })
+  if (res.status === 422) {
+    // detail = { mensagem, erros: { chave: texto } }: a tela mostra cada erro no seu campo
+    const { detail } = await res.json().catch(() => ({}))
+    const e = new Error(detail?.mensagem || 'Há valores inválidos.')
+    e.erros = detail?.erros || {}
+    throw e
+  }
+  return _jsonOuErro(res)
+}

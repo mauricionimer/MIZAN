@@ -1852,6 +1852,19 @@ def put_empresa_config(body: EmpresaConfigIn, empresa_id_alvo: Optional[str] = N
     if body.extra is not None:
         atual = _get_empresa_config(empresa_id).get("extra") or {}
         mesclado = {**atual, **body.extra}
+        # As premissas (comissão, cessão, critério da fila...) têm limites: esta
+        # rota genérica não pode ser o caminho para gravar um valor que a tela
+        # de premissas recusaria.
+        from model.premissas import PREMISSAS as _PREM, validar as _validar_prem
+        _so_prem = {k: v for k, v in body.extra.items() if k in _PREM}
+        if _so_prem:
+            _limpos, _erros = _validar_prem(_so_prem)
+            if _erros:
+                raise HTTPException(status_code=400, detail="; ".join(f"{k}: {m}" for k, m in _erros.items()))
+            mesclado = {**mesclado, **{k: v for k, v in _limpos.items() if v is not None}}
+            for _k, _v in _limpos.items():
+                if _v is None:
+                    mesclado.pop(_k, None)
         # Um prazo de retenção inválido guardado aqui só apareceria na hora de
         # executar — quando já seria tarde para discutir. Recusa na gravação.
         if "retencao" in body.extra:
@@ -1875,6 +1888,63 @@ def put_empresa_config(body: EmpresaConfigIn, empresa_id_alvo: Optional[str] = N
     _registrar_auditoria("config_empresa_atualizada", "empresa", empresa_id,
                          payload.get("email"), empresa_id, updates, payload["sub"])
     return _get_empresa_config(empresa_id)
+
+
+def _empresa_das_premissas(payload: dict, alvo: "str | None") -> str:
+    """Empresa cujas premissas se lê ou grava. Admin: a dele. Comando: a escolhida."""
+    role = payload.get("role", "operador")
+    if role not in ("admin", "comando"):
+        raise HTTPException(status_code=403, detail="Apenas admin e comando acessam as premissas da empresa.")
+    empresa = (alvo or "").strip().lower() if role == "comando" else payload.get("empresa_id", "")
+    if not empresa:
+        raise HTTPException(status_code=400, detail="Informe a empresa.")
+    return empresa
+
+
+@app.get("/empresa/premissas")
+def get_premissas(empresa_id_alvo: Optional[str] = None,
+                  credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    from model.premissas import descrever
+    payload = _usuario_autenticado(credentials)
+    empresa = _empresa_das_premissas(payload, empresa_id_alvo)
+    return {"empresa_id": empresa, "premissas": descrever(_extra_empresa(empresa))}
+
+
+class PremissasIn(BaseModel):
+    # chave -> valor; null apaga e devolve ao padrão
+    valores: dict
+
+
+@app.put("/empresa/premissas")
+def put_premissas(body: PremissasIn, empresa_id_alvo: Optional[str] = None,
+                  credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    from model.premissas import aplicar, descrever, validar
+    payload = _usuario_autenticado(credentials)
+    empresa = _empresa_das_premissas(payload, empresa_id_alvo)
+    limpos, erros = validar(body.valores)
+    if erros:
+        raise HTTPException(status_code=422, detail={"mensagem": "Há valores inválidos.", "erros": erros})
+    db = get_db()
+    # Leitura estrita: _extra_empresa devolve {} quando o banco falha, e gravar
+    # por cima de {} apagaria o resto da configuração (retenção, por exemplo).
+    try:
+        lido = db.table("empresa_config").select("extra").eq("empresa_id", empresa).limit(1).execute()
+    except Exception:
+        raise HTTPException(status_code=503, detail="Não foi possível ler a configuração atual. Tente de novo.")
+    antes = (lido.data or [{}])[0].get("extra") or {}
+    depois = aplicar(antes, limpos)
+    updates = {"extra": depois, "updated_by": payload.get("email", ""),
+               "updated_at": datetime.utcnow().isoformat()}
+    existente = db.table("empresa_config").select("id").eq("empresa_id", empresa).limit(1).execute()
+    if existente.data:
+        db.table("empresa_config").update(updates).eq("empresa_id", empresa).execute()
+    else:
+        db.table("empresa_config").insert({"empresa_id": empresa, **updates}).execute()
+    _registrar_auditoria(
+        acao="premissas_atualizadas", entidade="empresa", entidade_id=empresa,
+        usuario_email=payload.get("email", ""), empresa_id=empresa, usuario_id=payload.get("sub", ""),
+        detalhes={chave: {"antes": antes.get(chave), "depois": depois.get(chave)} for chave in limpos})
+    return {"empresa_id": empresa, "premissas": descrever(depois)}
 
 
 @app.post("/empresa/foto")
