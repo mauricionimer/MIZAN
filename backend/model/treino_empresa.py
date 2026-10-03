@@ -117,6 +117,22 @@ def _parse_alvo(serie: pd.Series) -> pd.Series:
     return r.astype(float)
 
 
+def _ler_datas(serie: pd.Series) -> pd.Series:
+    """Datas no padrão ISO (2026-03-05) ou brasileiro (05/03/2026), linha a linha.
+
+    `pd.to_datetime(..., dayfirst=True)` numa coluna inteira adivinha o formato
+    pela primeira linha: com "2026-01-01" no topo, lia "2026-03-05" como 3 de
+    maio e "2026-01-27" como vazio. Separar as duas formas evita a troca.
+    """
+    if pd.api.types.is_datetime64_any_dtype(serie):
+        return pd.to_datetime(serie, errors="coerce")
+    texto = serie.astype(str).str.strip()
+    iso = texto.str.match(r"^\d{4}-\d{2}-\d{2}")
+    d_iso = pd.to_datetime(texto.where(iso).str[:10], format="%Y-%m-%d", errors="coerce")
+    d_br = pd.to_datetime(texto.where(~iso), errors="coerce", dayfirst=True)
+    return d_iso.fillna(d_br)
+
+
 def _preparar(df: pd.DataFrame) -> tuple:
     """Valida e devolve (df_limpo, y, datas|None, avisos, colunas_removidas)."""
     from model.train import _normalizar_colunas
@@ -142,7 +158,7 @@ def _preparar(df: pd.DataFrame) -> tuple:
     datas = None
     data_col = next((c for c in ALIAS_DATA if c in df.columns), None)
     if data_col is not None:
-        d = pd.to_datetime(df[data_col], errors="coerce", dayfirst=True)
+        d = _ler_datas(df[data_col])
         if d.notna().mean() >= 0.8:
             datas = d
         else:
@@ -255,7 +271,7 @@ def _metricas(y_true, p) -> dict:
 
 
 def treinar(conteudo: bytes, nome_arquivo: str, empresa_id: str, usuario_email: str = "",
-            df: "pd.DataFrame | None" = None) -> dict:
+            df: "pd.DataFrame | None" = None, origem: str = "arquivo") -> dict:
     """Treina o modelo da empresa e o deixa guardado, inativo. Descarta os dados.
 
     Devolve o registro da versão. Levanta DadosInvalidos para erro do arquivo.
@@ -343,6 +359,8 @@ def treinar(conteudo: bytes, nome_arquivo: str, empresa_id: str, usuario_email: 
         "empresa_id": empresa_id,
         "treinado_por": usuario_email,
         "tipo_alvo": "real",
+        # "arquivo": carteira histórica enviada; "feedbacks": pagamentos registrados no Mizan
+        "origem": origem,
         "arquivo": {"nome": nome_arquivo, "sha256": impressao, "linhas_recebidas": n_recebidas,
                     "colunas_recebidas": colunas_recebidas},
         "n_amostras": n,

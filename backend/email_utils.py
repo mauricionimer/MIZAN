@@ -40,13 +40,14 @@ def enviar_email(destinatario: str, assunto: str, corpo_html: str) -> bool:
         return False
 
 
-def email_retreino(admin_email: str, resultado: dict) -> bool:
-    retrain   = resultado.get("retrain", {})
-    versao    = retrain.get("versao", "nova versão")
-    acc       = retrain.get("acuracia")
-    n_fb      = resultado.get("n_feedbacks_novos", 0)
-    acc_linha = f"<p style='margin:4px 0;color:#475569'><strong>Acurácia:</strong> {acc:.1%}</p>" if acc else ""
-    assunto   = f"[Mizan] Modelo retreinado — {versao}"
+def email_retreino(admin_email: str, treinadas: dict) -> bool:
+    """Avisa que há versões novas, inativas, esperando o COMANDO conferir."""
+    from html import escape
+    itens = "".join(
+        f"<p style='margin:4px 0;color:#475569'><strong>{escape(str(emp))}:</strong> "
+        f"versão {escape(str(r.get('versao', '')))}, {int(r.get('novos') or 0)} pagamentos novos</p>"
+        for emp, r in treinadas.items())
+    assunto = f"[Mizan] {len(treinadas)} modelo(s) novo(s) aguardando conferência"
     corpo = f"""
     <div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;padding:32px">
       <div style="text-align:center;margin-bottom:24px">
@@ -54,14 +55,13 @@ def email_retreino(admin_email: str, resultado: dict) -> bool:
           <span style="color:white;font-size:20px;font-weight:bold">⚖ Mizan</span>
         </div>
       </div>
-      <h2 style="color:#1e293b">Modelo retreinado com sucesso</h2>
-      <p style="color:#475569">O sistema de ML foi atualizado automaticamente com feedbacks reais.</p>
+      <h2 style="color:#1e293b">Modelos novos treinados, ainda não ativos</h2>
+      <p style="color:#475569">Cada empresa abaixo teve o próprio modelo treinado só com os pagamentos dela.</p>
       <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin:20px 0">
-        <p style="margin:4px 0;color:#475569"><strong>Versão:</strong> {versao}</p>
-        <p style="margin:4px 0;color:#475569"><strong>Feedbacks usados:</strong> {n_fb}</p>
-        {acc_linha}
+        {itens}
       </div>
-      <p style="color:#94a3b8;font-size:13px">O modelo anterior foi substituído. Acesse o painel de IA para ver a performance.</p>
+      <p style="color:#94a3b8;font-size:13px">Nada mudou nas análises. Confira as métricas e ative, se for o caso, em
+      COMANDO → Treinar modelo de uma empresa.</p>
       <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0">
       <p style="color:#cbd5e1;font-size:12px;text-align:center">Mizan — Plataforma de análise de carteira de crédito com IA</p>
     </div>

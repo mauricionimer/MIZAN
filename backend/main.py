@@ -160,10 +160,10 @@ def _decrypt(text: str | None) -> str | None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _scheduler
-    from scheduler import verificar_e_retreinar, estado as sched_estado
+    from scheduler import verificar_e_retreinar, estado as sched_estado, MIN_NOVOS_PADRAO
 
     intervalo = int(os.getenv("SCHEDULER_INTERVALO_HORAS", 24))
-    min_fb    = int(os.getenv("SCHEDULER_MIN_FEEDBACKS", 10))
+    min_fb    = int(os.getenv("SCHEDULER_MIN_FEEDBACKS", MIN_NOVOS_PADRAO))
     sync_min  = int(os.getenv("SYNC_CONEXOES_INTERVALO_MIN", 15))  # default 15min
 
     sched_estado["ativo"]                     = True
@@ -4634,19 +4634,25 @@ def _resumo_job(j: dict) -> dict:
     return {k: v for k, v in j.items() if not k.startswith("_")}
 
 
-def _correr_treino(job_id: str, conteudo: bytes, nome: str, empresa: str, email: str,
+def _correr_treino(job_id: str, conteudo: "bytes | None", nome: str, empresa: str, email: str,
                    uid: str, trava: bool) -> None:
+    """Treina em segundo plano. Sem `conteudo`, treina com os pagamentos registrados no Mizan."""
     from model import treino_empresa as _te
     job = _JOBS_TREINO[job_id]
     job["estado"] = "treinando"
     try:
-        reg = _te.treinar(conteudo, nome, empresa, email)
+        if conteudo is None:
+            from model import treino_feedbacks as _tf
+            reg = _tf.treinar_empresa(get_db(), empresa, email)
+        else:
+            reg = _te.treinar(conteudo, nome, empresa, email)
         job.update(estado="concluido", versao=reg["versao"], registro=reg)
         _registrar_auditoria(
             acao="modelo_treinado", entidade="modelo", entidade_id=reg["versao"],
             usuario_email=email, empresa_id=empresa, usuario_id=uid,
             detalhes={"sha256": reg["arquivo"]["sha256"], "n_amostras": reg["n_amostras"],
-                      "validacao": reg["validacao"], "dados_descartados": True})
+                      "validacao": reg["validacao"], "origem": reg.get("origem", "arquivo"),
+                      "dados_descartados": True})
     except _te.DadosInvalidos as e:
         job.update(estado="recusado", erro=str(e))
     except Exception as e:
@@ -4693,6 +4699,41 @@ async def comando_treinar_modelo(
               payload.get("sub", ""), True),
         daemon=True).start()
     del conteudo
+    return {"id": job_id, "estado": "na_fila"}
+
+
+class TreinoFeedbacksIn(BaseModel):
+    empresa_id: str = Field(..., min_length=1, max_length=100)
+
+
+@app.post("/comando/treino/feedbacks", status_code=202)
+def comando_treinar_com_feedbacks(body: TreinoFeedbacksIn,
+                                  credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Treina o modelo de uma empresa com os pagamentos registrados no Mizan para ELA.
+
+    Mesmo fluxo do treino por arquivo: em segundo plano, um por vez, e a versão
+    nasce inativa. Os pagamentos de outras empresas não entram.
+    """
+    payload = _exigir_comando(credentials)
+    empresa = body.empresa_id.strip().lower()
+    from model import modelos_empresa as _me
+    try:
+        _me.slug(empresa)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Empresa inválida.")
+    if not _travas.adquirir(_TRAVA_TREINO, duracao_min=30):
+        raise HTTPException(status_code=409, detail="Já há um treino em andamento. Aguarde terminar.")
+    job_id = uuid.uuid4().hex[:12]
+    with _JOBS_TREINO_LOCK:
+        while len(_JOBS_TREINO) >= _JOBS_TREINO_MAX:
+            _JOBS_TREINO.pop(next(iter(_JOBS_TREINO)))
+        _JOBS_TREINO[job_id] = {"id": job_id, "empresa_id": empresa, "estado": "na_fila",
+                                "arquivo": None, "origem": "feedbacks",
+                                "iniciou_em": datetime.utcnow().isoformat()}
+    threading.Thread(
+        target=_correr_treino,
+        args=(job_id, None, "", empresa, payload.get("email", ""), payload.get("sub", ""), True),
+        daemon=True).start()
     return {"id": job_id, "estado": "na_fila"}
 
 
@@ -5636,27 +5677,15 @@ class PromoverIn(BaseModel):
 
 
 @app.post("/admin/retreinar")
-def admin_retreinar(
-    min_feedbacks: int = 30,
-    auto_promover: bool = False,
-    credentials: HTTPAuthorizationCredentials = Security(bearer),
-):
-    """
-    Dispara o pipeline de retreinamento com dados reais de feedback.
-    Requer API key válida. Promoção automática opcional via ?auto_promover=true.
-    """
+def admin_retreinar(credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Desativado: retreinava o modelo geral com os pagamentos de TODAS as empresas
+    juntos e podia ativá-lo sozinho (achado D1). O treino com pagamentos agora é
+    por empresa, em POST /comando/treino/feedbacks, e nasce inativo."""
     _exigir_comando(credentials)
-
-    try:
-        from model.retrain import retreinar
-        resultado = retreinar(min_feedbacks=min_feedbacks, auto_promover=auto_promover)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro no retreinamento: {e}")
-
-    if resultado.get("promovido"):
-        _score_cache.clear()
-
-    return resultado
+    raise HTTPException(
+        status_code=410,
+        detail="O retreino geral foi desativado: ele misturava os pagamentos de todas as empresas. "
+               "Treine o modelo de cada empresa com os pagamentos dela em COMANDO → Treinar modelo de uma empresa.")
 
 
 @app.post("/admin/retreinar/promover")
@@ -5729,8 +5758,8 @@ async def scheduler_verificar_agora(
     Útil para testar ou forçar retreinamento fora do horário programado.
     """
     _exigir_comando(credentials)
-    min_fb = int(os.getenv("SCHEDULER_MIN_FEEDBACKS", 10))
-    from scheduler import verificar_e_retreinar
+    from scheduler import verificar_e_retreinar, MIN_NOVOS_PADRAO
+    min_fb = int(os.getenv("SCHEDULER_MIN_FEEDBACKS", MIN_NOVOS_PADRAO))
     resultado = await asyncio.to_thread(verificar_e_retreinar, min_fb)
     return resultado
 

@@ -59,16 +59,17 @@ perguntas:
 - o modelo se atualiza sozinho com o tempo
 - por que preciso registrar também quem não pagou
 curta: Cada pagamento (ou não pagamento) registrado ensina três coisas: qual abordagem funciona, quanto se recupera de verdade e, com volume, um modelo novo.
-calculo: (1) O aprendizado de abordagem (canal e oferta) é atualizado a cada resultado, por empresa. (2) Com pelo menos 15 pagamentos ligados à predição e 5 pagamentos reais com valor, treina-se o modelo de preço (taxa de recuperação). (3) O retreino automático do modelo de score roda periodicamente e, com pelo menos 30 resultados novos (padrão), treina um modelo e o promove se a acurácia melhorar.
+calculo: (1) O aprendizado de abordagem (canal e oferta) é atualizado a cada resultado, por empresa. (2) Com pelo menos 15 pagamentos ligados à predição e 5 pagamentos reais com valor, treina-se o modelo de preço (taxa de recuperação). (3) Periodicamente, para cada empresa com pelo menos 30 pagamentos novos desde o último treino dela (padrão), o sistema treina uma versão nova do modelo DELA, só com os pagamentos dela. O treino exige 300 devedores com resultado e 30 de cada tipo, e a versão nasce inativa: só passa a pontuar quando o COMANDO confere as métricas e ativa.
 fazer: Registre também quem NÃO pagou: sem os dois lados o modelo não aprende a separar. Uma carteira só com pagamentos positivos não ensina nada.
-cuidado: Hoje o retreino automático junta os resultados de todas as empresas e promove sozinho. Para um modelo só da sua empresa, o COMANDO treina com a carteira histórica.
-revisar: decisão D1 do mapa do sistema.
+cuidado: Nada muda nas análises até o COMANDO ativar a versão nova. Os pagamentos de uma empresa nunca entram no modelo de outra.
 fontes:
 - backend/scheduler.py::verificar_e_retreinar
-- backend/model/retrain.py::retreinar
+- backend/model/treino_feedbacks.py::treinar
 - backend/model/price_model.py::treinar
 constantes:
-- backend/model/retrain.py::MIN_FEEDBACKS_DEFAULT = 30
+- backend/scheduler.py::MIN_NOVOS_PADRAO = 30
+- backend/model/treino_empresa.py::MIN_LINHAS = 300
+- backend/model/treino_empresa.py::MIN_POR_CLASSE = 30
 - backend/model/price_model.py::MIN_AMOSTRAS = 15
 - backend/model/price_model.py::MIN_PAGAMENTOS = 5
 

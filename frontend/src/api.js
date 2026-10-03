@@ -612,6 +612,12 @@ export async function treinarModeloEmpresa(token, empresaId, arquivo) {
   return _jsonOuErro(res)
 }
 
+export async function treinarComPagamentos(token, empresaId) {
+  return _jsonOuErro(await fetch(`${BASE}/comando/treino/feedbacks`, {
+    method: 'POST', headers: _authHeader(token), body: JSON.stringify({ empresa_id: empresaId }),
+  }))
+}
+
 export async function estadoTreino(token, id) {
   return _jsonOuErro(await fetch(`${BASE}/comando/treino/${encodeURIComponent(id)}`, { headers: _authHeader(token) }))
 }

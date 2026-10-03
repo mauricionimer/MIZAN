@@ -103,8 +103,6 @@ export default function AprendizadoDashboard() {
   const [acao, setAcao]       = useState('')   // ação em andamento (retreinar/promover/sync/etc.)
   const [msg, setMsg]         = useState('')
 
-  const [minFeedbacks, setMinFeedbacks] = useState(30)
-  const [autoPromover, setAutoPromover] = useState(false)
   const [alphaInput, setAlphaInput]     = useState(1.0)
 
   const carregar = useCallback(async () => {
@@ -147,9 +145,6 @@ export default function AprendizadoDashboard() {
       setAcao('')
     }
   }
-
-  const dispararRetreino = () => executar('retreinar', () =>
-    _post(`/admin/retreinar?min_feedbacks=${minFeedbacks}&auto_promover=${autoPromover}`, token))
 
   const promoverVersao = (versao) => executar(`promover-${versao}`, () =>
     _post('/admin/retreinar/promover', token, { versao }))
@@ -454,26 +449,16 @@ export default function AprendizadoDashboard() {
               titulo="Versões do modelo de crédito" ajuda="versoes-e-promocao"
               sub={modelos ? `Ativa: ${modelos.versao_ativa} · ${modelos.total_versoes} versão(ões)` : ''}
               right={
-                <div className="flex items-center gap-3 flex-wrap">
-                  <label className="flex items-center gap-1.5 text-xs" style={{ color: MUTED }}>
-                    Mín. feedbacks p/ retreinar
-                    <input
-                      type="number" min={1} value={minFeedbacks}
-                      onChange={e => setMinFeedbacks(Number(e.target.value))}
-                      className="input-base w-16 text-xs py-1.5 px-2"
-                    />
-                  </label>
-                  <label className="flex items-center gap-1.5 text-xs" style={{ color: MUTED }}>
-                    <input type="checkbox" checked={autoPromover} onChange={e => setAutoPromover(e.target.checked)} />
-                    auto-promover
-                  </label>
-                  <Botao onClick={dispararRetreino} disabled={acao === 'retreinar'}>
-                    {acao === 'retreinar' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PlayCircle className="h-3.5 w-3.5" />}
-                    Retreinar agora
-                  </Botao>
-                </div>
+                <Botao variante="secundario" onClick={() => navigate('/comando/treino')}>
+                  <PlayCircle className="h-3.5 w-3.5" /> Treinar por empresa
+                </Botao>
               }
             >
+              <p className="mb-3 text-xs" style={{ color: MUTED }}>
+                Este é o modelo geral, usado pelas empresas sem modelo próprio. Ele não é mais retreinado com os
+                pagamentos dos clientes: misturaria o que cada empresa ensina. O treino com pagamentos reais é feito
+                por empresa, e a versão só passa a valer quando o COMANDO ativa.
+              </p>
               {!modelos?.versoes?.length ? (
                 <p className="text-sm" style={{ color: MUTED }}>Nenhuma versão de modelo registrada ainda.</p>
               ) : (
@@ -589,7 +574,7 @@ export default function AprendizadoDashboard() {
             {/* Retreinamento automático */}
             <Secao
               icon={Clock}
-              titulo="Retreinamento automático (scheduler)" ajuda="como-o-sistema-aprende"
+              titulo="Treino automático por empresa" ajuda="como-o-sistema-aprende"
               sub={scheduler ? `Última verificação: ${fmtData(scheduler.ultima_verificacao)}` : ''}
               right={
                 <Botao variante="secundario" onClick={verificarSchedulerAgora} disabled={acao === 'scheduler'}>
@@ -600,16 +585,27 @@ export default function AprendizadoDashboard() {
             >
               <div className="grid grid-cols-3 gap-4 text-sm">
                 <div><p className="text-xs" style={{ color: MUTED }}>Próxima verificação</p><p className="font-semibold text-ink">{fmtData(scheduler?.proxima_verificacao)}</p></div>
-                <div><p className="text-xs" style={{ color: MUTED }}>Retreinamentos automáticos</p><p className="font-semibold text-ink">{scheduler?.n_retreinamentos ?? 0}</p></div>
+                <div><p className="text-xs" style={{ color: MUTED }}>Versões treinadas (inativas)</p><p className="font-semibold text-ink">{scheduler?.n_retreinamentos ?? 0}</p></div>
                 <div>
                   <p className="text-xs" style={{ color: MUTED }}>Último resultado</p>
                   <p className="font-semibold text-ink">
                     {scheduler?.ultimo_resultado
-                      ? (scheduler.ultimo_resultado.motivo || (scheduler.ultimo_resultado.ok ? 'Sucesso' : 'Falha'))
+                      ? (scheduler.ultimo_resultado.mensagem || scheduler.ultimo_resultado.motivo || scheduler.ultimo_resultado.erro || '—')
                       : '—'}
                   </p>
                 </div>
               </div>
+              <p className="mt-3 text-xs" style={{ color: MUTED }}>
+                A cada verificação, cada empresa com pagamentos novos suficientes ganha uma versão nova do próprio modelo,
+                treinada só com os pagamentos dela. Nada é ativado sozinho: confira e ative em Treinar por empresa.
+              </p>
+              {scheduler?.ultimo_resultado?.empresas && (
+                <ul className="mt-3 space-y-1 text-xs" style={{ color: MUTED_LIGHT }}>
+                  {Object.entries(scheduler.ultimo_resultado.empresas).map(([emp, r]) => (
+                    <li key={emp}><span className="font-semibold text-ink">{emp}</span>: {r.mensagem} ({r.novos} novos)</li>
+                  ))}
+                </ul>
+              )}
             </Secao>
 
             {/* Conexão de sincronização de pagamentos */}

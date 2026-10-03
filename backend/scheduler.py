@@ -1,13 +1,19 @@
 """
-Scheduler de retreinamento automático do Mizan.
+Verificação automática de treino do Mizan, empresa por empresa.
 
 Roda no mesmo processo do FastAPI — sem Redis, sem Celery, sem custo externo.
 Usa APScheduler (BackgroundScheduler) para não bloquear o event loop do servidor.
 
 Comportamento:
-  1. A cada SCHEDULER_INTERVALO_HORAS horas, conta feedbacks novos desde o último treino
-  2. Se n_novos >= SCHEDULER_MIN_FEEDBACKS → dispara retreinamento com auto_promover=True
-  3. Estado em memória (reseta no restart) + log no console
+  1. A cada SCHEDULER_INTERVALO_HORAS horas, conta, para cada empresa, os
+     pagamentos registrados desde o último treino dela com esses pagamentos
+  2. Se a empresa tem SCHEDULER_MIN_FEEDBACKS ou mais novos, treina uma versão
+     do modelo DELA com os pagamentos DELA (model/treino_feedbacks.py)
+  3. Nada é ativado: a versão fica guardada para o COMANDO conferir as métricas
+     e ativar em "Treinar modelo de uma empresa". O modelo geral não é tocado.
+
+Antes, o agendador retreinava o modelo geral com os pagamentos de todas as
+empresas juntos e o promovia sozinho (achado D1 do mapa do sistema).
 """
 
 import os
@@ -29,17 +35,29 @@ estado: dict = {
 # Nome da trava e por quanto tempo ela vale. O prazo cobre um retreino demorado
 # com folga; passar disso significa que o processo morreu, e aí outra instância
 # deve poder assumir em vez de o retreino parar para sempre.
+# Pagamentos novos de uma empresa, desde o último treino dela, para treinar de
+# novo. Sobe por SCHEDULER_MIN_FEEDBACKS. O treino ainda exige 300 devedores com
+# resultado (treino_empresa.MIN_LINHAS); este número só evita gerar uma versão
+# nova a cada punhado de pagamentos.
+MIN_NOVOS_PADRAO = 30
+
 TRAVA_RETREINO = "retreino"
 DURACAO_TRAVA_MIN = 30
 
 
-def verificar_e_retreinar(min_feedbacks: int = 30) -> dict:
+# A mesma trava do treino manual (main._TRAVA_TREINO): dois treinos ao mesmo
+# tempo não cabem na memória do servidor.
+TRAVA_TREINO_EMPRESA = "treino_modelo_empresa"
+
+
+def verificar_e_retreinar(min_feedbacks: int = MIN_NOVOS_PADRAO) -> dict:
     """
-    Verifica se há feedbacks suficientes desde o último retreinamento e retreina se necessário.
+    Treina, inativa, uma versão nova para cada empresa com pagamentos novos suficientes.
     Função síncrona — roda em thread de background (BackgroundScheduler).
     """
-    from model.retrain import retreinar, _carregar_versoes
     from db import get_db
+    from model import treino_feedbacks as tf
+    from model.treino_empresa import DadosInvalidos
     from travas import adquirir, liberar
 
     agora = datetime.now(timezone.utc)
@@ -47,74 +65,58 @@ def verificar_e_retreinar(min_feedbacks: int = 30) -> dict:
     estado["n_verificacoes"] += 1
 
     # Este agendador vive dentro do processo do app. Com duas instâncias, os
-    # dois acordam no mesmo intervalo e disparam o mesmo retreino, disputando o
-    # estado das versões e o bucket de modelos. A trava elege um; os outros
-    # pulam o ciclo e tentam no próximo.
+    # dois acordam no mesmo intervalo e disparariam o mesmo treino. A trava
+    # elege um; os outros pulam o ciclo e tentam no próximo.
     if not adquirir(TRAVA_RETREINO, duracao_min=DURACAO_TRAVA_MIN):
-        estado["ultimo_resultado"] = "outra instância está verificando"
+        estado["ultimo_resultado"] = {"acao": "pulado", "motivo": "outra instância está verificando"}
         return {"acao": "pulado", "motivo": "trava em uso por outra instância"}
 
     try:
-        db = get_db()
-        versoes = _carregar_versoes()
-
-        # Timestamp do último retreinamento real (tipo_alvo = "real")
-        ultimo_treino_em = None
-        for v in reversed(versoes.get("versoes", [])):
-            if v.get("tipo_alvo") == "real" and v.get("criado_em"):
-                ultimo_treino_em = v["criado_em"]
-                break
-
-        # Conta predicao_ids distintos com feedback desde o último treino
-        # (retrain deduplica por predicao_id — usar o mesmo critério evita disparar com
-        #  30 feedbacks de apenas 2 devedores únicos)
-        query = (db.table("feedbacks")
-                   .select("predicao_id")
-                   .not_.is_("predicao_id", "null"))
-        if ultimo_treino_em:
-            query = query.gt("created_at", ultimo_treino_em)
-        res = query.execute()
-        n_novos = len({r["predicao_id"] for r in (res.data or [])})
-
-        base = {
-            "verificado_em":    agora.isoformat(),
-            "n_feedbacks_novos": n_novos,
-            "min_feedbacks":    min_feedbacks,
-            "ultimo_treino_em": ultimo_treino_em,
-        }
-
-        print(f"[Scheduler] {agora.strftime('%H:%M:%S')} — {n_novos} feedbacks novos (mínimo: {min_feedbacks})")
-
-        if n_novos < min_feedbacks:
-            faltam = min_feedbacks - n_novos
-            resultado = {**base, "acao": "aguardando", "retreinou": False,
-                         "mensagem": f"Aguardando {faltam} feedbacks para próximo treino."}
-            estado["ultimo_resultado"] = resultado
-            return resultado
-
-        print("[Scheduler] Disparando retreinamento automático...")
-        retrain_result = retreinar(min_feedbacks=min_feedbacks, auto_promover=True)
-
-        if retrain_result.get("ok") and retrain_result.get("promovido"):
-            estado["n_retreinamentos"] += 1
+        por_empresa: dict = {}
+        for empresa, (df, datas) in sorted(tf.datasets(get_db()).items()):
+            novos = tf.novos_desde(datas, tf.ultimo_treino(empresa))
+            if novos < min_feedbacks:
+                por_empresa[empresa] = {"acao": "aguardando", "novos": novos,
+                                        "mensagem": f"Aguardando {min_feedbacks - novos} pagamentos novos."}
+                continue
+            if not adquirir(TRAVA_TREINO_EMPRESA, duracao_min=DURACAO_TRAVA_MIN):
+                por_empresa[empresa] = {"acao": "pulado", "novos": novos,
+                                        "mensagem": "Outro treino em andamento; tenta no próximo ciclo."}
+                continue
             try:
-                from model.score import _cache as _score_cache
-                _score_cache.clear()
-            except Exception:
-                pass
+                reg = tf.treinar(df, empresa, "treino automático")
+                por_empresa[empresa] = {"acao": "treinou", "novos": novos, "versao": reg["versao"],
+                                        "mensagem": f"Versão {reg['versao']} treinada e guardada, inativa."}
+                estado["n_retreinamentos"] += 1
+            except DadosInvalidos as e:
+                por_empresa[empresa] = {"acao": "dados_insuficientes", "novos": novos, "mensagem": str(e)}
+            except Exception as e:
+                por_empresa[empresa] = {"acao": "erro", "novos": novos, "mensagem": type(e).__name__}
+                print(f"[Scheduler] Erro no treino de {empresa}: {type(e).__name__}")
+            finally:
+                liberar(TRAVA_TREINO_EMPRESA)
+            del df
+
+        treinadas = [e for e, r in por_empresa.items() if r["acao"] == "treinou"]
+        print(f"[Scheduler] {agora.strftime('%H:%M:%S')} — {len(por_empresa)} empresa(s) com pagamentos; "
+              f"{len(treinadas)} treinada(s) (mínimo: {min_feedbacks})")
+        if treinadas:
             admin_email = os.getenv("ADMIN_EMAIL", "")
             if admin_email:
                 try:
                     from email_utils import email_retreino
-                    email_retreino(admin_email, {**base, "retrain": retrain_result})
+                    email_retreino(admin_email, {e: por_empresa[e] for e in treinadas})
                 except Exception as e:
-                    print(f"[Scheduler] Erro ao enviar e-mail de retreino: {e}")
+                    print(f"[Scheduler] Erro ao enviar e-mail de treino: {type(e).__name__}")
 
         resultado = {
-            **base,
-            "acao":     "retreinou" if retrain_result.get("ok") else "falhou",
-            "retreinou": retrain_result.get("ok", False),
-            "retrain":  retrain_result,
+            "verificado_em": agora.isoformat(),
+            "acao": "treinou" if treinadas else "aguardando",
+            "min_feedbacks": min_feedbacks,
+            "empresas": por_empresa,
+            "mensagem": (f"Versões novas, ainda inativas, para: {', '.join(treinadas)}. "
+                         "Confira e ative em Treinar modelo de uma empresa."
+                         if treinadas else "Nenhuma empresa com pagamentos novos suficientes."),
         }
         estado["ultimo_resultado"] = resultado
         return resultado
@@ -124,13 +126,13 @@ def verificar_e_retreinar(min_feedbacks: int = 30) -> dict:
             "verificado_em": agora.isoformat(),
             "acao":          "erro",
             "retreinou":     False,
-            "erro":          str(e),
+            "erro":          type(e).__name__,
         }
         estado["ultimo_resultado"] = resultado
-        print(f"[Scheduler] Erro: {e}")
+        print(f"[Scheduler] Erro: {type(e).__name__}")
         return resultado
 
     finally:
-        # Devolve a trava mesmo quando o retreino estoura: sem isto, um erro
-        # bloquearia o retreino até o prazo vencer.
+        # Devolve a trava mesmo quando o treino estoura: sem isto, um erro
+        # bloquearia a verificação até o prazo vencer.
         liberar(TRAVA_RETREINO)

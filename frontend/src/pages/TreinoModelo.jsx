@@ -3,12 +3,12 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Loader2, LogOut, Brain, AlertTriangle, CheckCircle2, ShieldCheck,
-  UploadCloud, Undo2, Play, XCircle,
+  UploadCloud, Undo2, Play, XCircle, Database,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { LogoMark } from '../components/Logo'
 import {
-  treinarModeloEmpresa, estadoTreino, listarModelosEmpresa,
+  treinarModeloEmpresa, treinarComPagamentos, estadoTreino, listarModelosEmpresa,
   ativarModeloEmpresa, desativarModeloEmpresa,
 } from '../api'
 import DicaAjuda from '../components/DicaAjuda'
@@ -140,6 +140,19 @@ export default function TreinoModelo() {
     }
   }
 
+  async function treinarComOsPagamentos() {
+    setErro(''); setInfo(''); setJob(null)
+    if (!empresa.trim()) { setErro('Informe a empresa.'); return }
+    setEnviando(true)
+    try {
+      const r = await treinarComPagamentos(token, empresa.trim())
+      setJob({ id: r.id, estado: 'na_fila' })
+      acompanhar(r.id, empresa.trim())
+    } catch (e2) {
+      setErro(e2.message); setEnviando(false)
+    }
+  }
+
   async function ativar(versao) {
     setAgindo(true); setErro(''); setInfo('')
     try {
@@ -230,6 +243,17 @@ export default function TreinoModelo() {
               {enviando ? 'Treinando…' : 'Treinar modelo'}
             </button>
           </form>
+          <div className="mt-5 border-t border-line pt-4 space-y-2">
+            <p className="text-xs text-ink-2 leading-relaxed">
+              Ou treine com os <b>pagamentos já registrados no Mizan</b> para esta empresa (baixas, webhooks e
+              sincronizações ligados às análises dela). Os de outras empresas não entram. As mesmas exigências valem:
+              300 devedores com resultado e 30 de cada tipo.
+            </p>
+            <button type="button" onClick={treinarComOsPagamentos} disabled={enviando}
+              className="flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg bg-raise-2 text-ink hover:opacity-80 disabled:opacity-50">
+              <Database className="h-4 w-4" /> Treinar com os pagamentos registrados
+            </button>
+          </div>
         </Cartao>
 
         {erro && <Aviso tom="erro">{erro}</Aviso>}
@@ -243,7 +267,7 @@ export default function TreinoModelo() {
             </div>
           </Cartao>
         )}
-        {job?.estado === 'recusado' && <Aviso tom="erro">Arquivo recusado: {job.erro}</Aviso>}
+        {job?.estado === 'recusado' && <Aviso tom="erro">{job.origem === 'feedbacks' ? 'Não deu para treinar' : 'Arquivo recusado'}: {job.erro}</Aviso>}
         {job?.estado === 'falhou' && <Aviso tom="erro">{job.erro}</Aviso>}
 
         {reg && (
@@ -255,7 +279,7 @@ export default function TreinoModelo() {
             <p className="text-xs text-ink-3">
               {reg.n_amostras} devedores · {Math.round((reg.taxa_pagamento || 0) * 1000) / 10}% pagaram ·
               validação {reg.validacao === 'temporal' ? 'no tempo' : 'aleatória'}
-              {reg.periodo ? ` · ${reg.periodo.inicio} a ${reg.periodo.fim}` : ''} · arquivo descartado
+              {reg.periodo ? ` · ${reg.periodo.inicio} a ${reg.periodo.fim}` : ''} · {reg.origem === 'feedbacks' ? 'pagamentos registrados no Mizan' : 'arquivo descartado'}
             </p>
             <Metricas m={reg.metricas} />
             {(reg.avisos || []).map((a, i) => <Aviso key={i}>{a}</Aviso>)}
@@ -280,7 +304,7 @@ export default function TreinoModelo() {
                 <div key={v.versao} className="rounded-lg border border-line p-3 flex items-center justify-between gap-3 flex-wrap">
                   <div className="text-xs text-ink-2 space-y-0.5">
                     <p className="font-semibold text-ink">{v.versao} {ativa && <span className="text-emerald-500">· ativo</span>}</p>
-                    <p>{fmtData(v.criado_em)} · {v.n_amostras} devedores · KS {num(v.metricas?.novo?.ks)} · AUC {num(v.metricas?.novo?.auc, 3)} · por {v.treinado_por || '—'}</p>
+                    <p>{v.origem === 'feedbacks' ? 'Pagamentos do Mizan' : 'Arquivo histórico'} · {fmtData(v.criado_em)} · {v.n_amostras} devedores · KS {num(v.metricas?.novo?.ks)} · AUC {num(v.metricas?.novo?.auc, 3)} · por {v.treinado_por || '—'}</p>
                   </div>
                   {!ativa && (
                     <button onClick={() => ativar(v.versao)} disabled={agindo}

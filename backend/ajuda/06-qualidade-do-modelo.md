@@ -238,7 +238,7 @@ perguntas:
 curta: Cada treino gera uma versão guardada. Só a promovida pontua. Dá para promover outra ou voltar atrás.
 calculo: A promoção copia os arquivos da versão para os de produção. Uma versão com poucas amostras reais não pode ser promovida sem confirmação explícita. O "tipo de alvo" diz se a versão aprendeu com resultado real ou simulado.
 fazer: Antes de promover, compare as métricas com a versão ativa na mesma fatia de teste.
-cuidado: Versão de alvo simulado não mede desempenho: só mostra que o modelo roda.
+cuidado: Versão de alvo simulado não mede desempenho: só mostra que o modelo roda. Estas são as versões do modelo geral, que não é mais retreinado com pagamentos de clientes; as versões treinadas com pagamentos são por empresa e ficam em Treinar modelo.
 fontes:
 - backend/model/retrain.py::promover_versao
 

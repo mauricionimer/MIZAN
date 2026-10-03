@@ -176,9 +176,8 @@ perguntas:
 curta: Cada empresa usa o modelo geral até que o COMANDO treine e ative um modelo só dela. O modelo próprio nunca pontua outra empresa.
 calculo: Ao pontuar, o sistema procura o modelo ativo da empresa; se não houver, usa o geral. A versão usada fica gravada na carteira.
 fazer: Peça ao COMANDO para treinar o modelo com a carteira histórica, se quiser pontuar com base no seu histórico.
-cuidado: Hoje o retreino automático do modelo geral ainda usa os pagamentos de todas as empresas juntos; essa política está em revisão.
-revisar: decisão D1 do mapa do sistema (retreino automático misturando empresas).
+cuidado: Os pagamentos registrados por uma empresa só treinam o modelo dela, e a versão nova só vale depois que o COMANDO ativa. O modelo geral não é mais retreinado com pagamentos de clientes.
 fontes:
 - backend/model/modelos_empresa.py::carregar_ativo
 - backend/model/score.py::_carregar_modelos
-- backend/model/retrain.py::_buscar_feedbacks
+- backend/model/treino_feedbacks.py::datasets
