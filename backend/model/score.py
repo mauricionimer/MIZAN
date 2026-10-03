@@ -51,7 +51,17 @@ def _adicionar_derivadas(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def _carregar_modelos() -> tuple:
+def _carregar_modelos(empresa_id: "str | None" = None) -> tuple:
+    """Modelo da empresa, se ela tiver um ativo; senão o global.
+
+    Empresa sem modelo próprio cai no global, sem erro: quem nunca treinou
+    continua exatamente como antes.
+    """
+    if empresa_id:
+        from model.modelos_empresa import carregar_ativo
+        proprio = carregar_ativo(empresa_id)
+        if proprio is not None:
+            return proprio
     modelos = _cache.get("modelos")
     if modelos is not None:
         return modelos
@@ -168,8 +178,8 @@ def _avaliar_qualidade_dados(df_original: pd.DataFrame) -> pd.Series:
 LOTE_SCORE = 20_000
 
 
-def score_carteira(df: pd.DataFrame) -> pd.DataFrame:
-    clf, kmeans, meta = _carregar_modelos()
+def score_carteira(df: pd.DataFrame, empresa_id: "str | None" = None) -> pd.DataFrame:
+    clf, kmeans, meta = _carregar_modelos(empresa_id)
     scaler = meta["scaler"]
 
     # Avalia qualidade dos dados ANTES de imputar — assim a flag reflete o CSV original
@@ -329,7 +339,7 @@ def _reason_codes(contribuicoes: list[dict], limite: int = MAX_REASON_CODES) -> 
     return saida
 
 
-def explicar_predicao(registro: dict) -> dict:
+def explicar_predicao(registro: dict, empresa_id: "str | None" = None) -> dict:
     """
     Explicação local do score de UM devedor: para cada variável do modelo, compara o
     score real com o score que o registro teria se aquela variável, isoladamente, fosse
@@ -340,7 +350,7 @@ def explicar_predicao(registro: dict) -> dict:
     Não usa nenhuma biblioteca de explicabilidade externa — é um "what-if" (ceteris
     paribus) direto sobre o próprio modelo em produção.
     """
-    clf, kmeans, meta = _carregar_modelos()
+    clf, kmeans, meta = _carregar_modelos(empresa_id)
     scaler = meta["scaler"]
 
     features_numericas = meta.get("features_numericas") or _FEATURES_V2

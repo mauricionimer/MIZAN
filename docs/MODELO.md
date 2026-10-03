@@ -281,3 +281,54 @@ Na ordem em que deve ser feito:
    controle — alguém que não foi contatado.
 6. Só então discutir champion/challenger, que exige volume para ter poder
    estatístico.
+
+---
+
+## 11. Modelo por empresa, treinado sem guardar os dados
+
+O perfil COMANDO pode enviar a carteira histórica de um cliente (tela
+`/comando/treino`), treinar um modelo **só dele** e ativá-lo. O arquivo é
+descartado; o plano e as decisões estão em `PLANO_TREINO_POR_EMPRESA.md`.
+
+**O que o código garante** (cada item tem teste, e o teste foi quebrado de
+propósito para confirmar que pega o defeito):
+
+- Alvo é pagamento real. Sem a coluna de resultado, recusa; não cai no alvo
+  simulado. Valor de resultado que não sabe ler é erro, não palpite.
+- CPF, nome e contatos saem do DataFrame antes do ajuste. Nenhum `.csv`, CPF ou
+  nome fica em disco: os `.json` e `.pkl` gerados são varridos no teste.
+- Treinar não ativa. Ativar é ação do COMANDO, auditada; se o modelo novo for
+  pior que o atual (AUC) na mesma fatia de teste, pede confirmação.
+- Empresa sem modelo próprio usa o modelo global, como antes. O modelo de uma
+  empresa nunca pontua outra.
+- `empresa_id` nunca vira caminho cru (`slug()` + conferência de que o destino
+  está dentro da pasta).
+
+**Como as métricas são medidas.** O modelo é treinado no passado e medido no
+período mais recente (20%), que ele não viu — se o arquivo tem data. Sem data,
+a fatia é aleatória e a tela avisa que isso tende a ser mais favorável. O
+modelo que a empresa usa hoje é medido na **mesma** fatia. O modelo guardado é
+refeito com todos os dados; as métricas mostradas são as do modelo treinado
+só no passado. KS acima de 50 e variável que sozinha separa quase perfeitamente
+(AUC ≥ 0,90) geram aviso de provável vazamento.
+
+**O que fica registrado**, sem dado pessoal: SHA-256 do arquivo, nome, número de
+linhas, taxa de pagamento, período, colunas do modelo, métricas, faixas do PSI,
+quem treinou e quando.
+
+**Limites medidos** (Python 3.12 local, não o Render):
+
+| Linhas no treino | Tempo | Pico de memória do processo |
+|---|---|---|
+| 100 mil | ~37 s | ~310 MB (167 MB só de bibliotecas) |
+| 200 mil | ~44 s | ~410 MB |
+
+Por isso o treino usa no máximo 100 mil linhas (amostra aleatória, com aviso),
+ajustável em `MIZAN_TREINO_MAX_LINHAS` num plano com mais memória. O pico é do
+processo isolado: com a API no ar e uma análise em curso, o plano de 512 MB fica
+apertado. Um treino por vez, entre instâncias (`travas`).
+
+**Limitações assumidas.** Não há treino incremental: para refazer, reenvia-se o
+histórico completo. O backtest segue usando o modelo global. O modelo é derivado
+de dados pessoais; ele não contém registros individuais, mas não deve ser
+descrito como "anônimo" em contrato.

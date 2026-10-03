@@ -309,6 +309,10 @@ export default function ComandoDashboard() {
             className="flex items-center gap-1.5 text-xs text-ink-2 hover:text-ink transition-colors px-3 py-1.5 rounded-lg hover:bg-raise-2 font-medium">
             <Shield className="h-3.5 w-3.5" /> Auditoria
           </button>
+          <button onClick={() => navigate('/comando/treino')}
+            className="flex items-center gap-1.5 text-xs text-ink-2 hover:text-ink transition-colors px-3 py-1.5 rounded-lg hover:bg-raise-2 font-medium">
+            <Brain className="h-3.5 w-3.5" /> Treinar modelo
+          </button>
           <button onClick={() => navigate('/aprendizado')}
             className="flex items-center gap-1.5 text-xs text-ink-2 hover:text-ink transition-colors px-3 py-1.5 rounded-lg hover:bg-raise-2 font-medium">
             <Brain className="h-3.5 w-3.5" /> Aprendizado

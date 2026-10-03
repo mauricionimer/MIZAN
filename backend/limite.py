@@ -68,6 +68,12 @@ REGRAS = {
         "Muitas tentativas de conexão. Aguarde {espera} s."),
     ("POST", "/testar-db"):      Regra("sonda_db", 20, 600,
         "Muitas tentativas de conexão. Aguarde {espera} s."),
+    # Treinar modelo: cota própria, bem menor. Não passa pelo portão de análises
+    # porque a requisição devolve 202 na hora e o treino segue em segundo plano,
+    # fora do alcance do portão; quem segura "um treino por vez" é a trava em
+    # main.py (travas.adquirir), que vale entre instâncias.
+    ("POST", "/comando/treino"): Regra("treino", 6, 3600,
+        "Muitos treinos em pouco tempo. Aguarde {espera} s."),
 }
 
 
@@ -202,6 +208,7 @@ TETOS_CORPO = {
     ("POST", "/upload"):          25 * MB,
     ("POST", "/feedback/lote"):   25 * MB,
     ("POST", "/empresa/foto"):    5 * MB,
+    ("POST", "/comando/treino"):  25 * MB,
 }
 TETO_PADRAO = 2 * MB   # qualquer outra rota POST/PUT/PATCH: JSON pequeno
 

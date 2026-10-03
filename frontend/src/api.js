@@ -589,3 +589,47 @@ export async function buscarRankingCompleto(carteiraId, aoProgredir) {
   }
   return tudo
 }
+
+
+// ── Modelo por empresa (COMANDO) ─────────────────────────────────────────────
+async function _jsonOuErro(res) {
+  if (!res.ok) {
+    const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
+    const e = new Error(typeof detail === 'string' ? detail : `Erro HTTP ${res.status}`)
+    e.status = res.status
+    throw e
+  }
+  return res.json()
+}
+
+export async function treinarModeloEmpresa(token, empresaId, arquivo) {
+  const fd = new FormData()
+  fd.append('file', arquivo)
+  fd.append('empresa_id', empresaId)
+  const res = await fetch(`${BASE}/comando/treino`, {
+    method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd,
+  })
+  return _jsonOuErro(res)
+}
+
+export async function estadoTreino(token, id) {
+  return _jsonOuErro(await fetch(`${BASE}/comando/treino/${encodeURIComponent(id)}`, { headers: _authHeader(token) }))
+}
+
+export async function listarModelosEmpresa(token, empresaId) {
+  return _jsonOuErro(await fetch(`${BASE}/comando/modelos?empresa_id=${encodeURIComponent(empresaId)}`, { headers: _authHeader(token) }))
+}
+
+export async function ativarModeloEmpresa(token, empresaId, versao, forcar = false) {
+  return _jsonOuErro(await fetch(`${BASE}/comando/modelos/ativar`, {
+    method: 'POST', headers: _authHeader(token),
+    body: JSON.stringify({ empresa_id: empresaId, versao, forcar }),
+  }))
+}
+
+export async function desativarModeloEmpresa(token, empresaId) {
+  return _jsonOuErro(await fetch(`${BASE}/comando/modelos/desativar`, {
+    method: 'POST', headers: _authHeader(token),
+    body: JSON.stringify({ empresa_id: empresaId }),
+  }))
+}

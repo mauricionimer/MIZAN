@@ -82,6 +82,7 @@ const Login = lazy(() => import('./pages/Login'))
 const Privacidade = lazy(() => import('./pages/Privacidade'))
 const Backtest = lazy(() => import('./pages/Backtest'))
 const Retencao = lazy(() => import('./pages/Retencao'))
+const TreinoModelo = lazy(() => import('./pages/TreinoModelo'))
 
 function RotaProtegida({ children, roles }) {
   const { autenticado, usuario } = useAuth()
@@ -120,6 +121,7 @@ function RotasAnimadas() {
             <Route path="/feedback" element={<PageTransition><RotaProtegida><Feedback /></RotaProtegida></PageTransition>} />
             <Route path="/bandit" element={<PageTransition><RotaProtegida roles={['comando']}><BanditDashboard /></RotaProtegida></PageTransition>} />
             <Route path="/aprendizado" element={<PageTransition><RotaProtegida roles={['comando']}><AprendizadoDashboard /></RotaProtegida></PageTransition>} />
+            <Route path="/comando/treino" element={<PageTransition><RotaProtegida roles={['comando']}><TreinoModelo /></RotaProtegida></PageTransition>} />
             <Route path="/comando" element={<PageTransition><RotaProtegida roles={['comando']}><ComandoDashboard /></RotaProtegida></PageTransition>} />
             {/* /admin e /operador eram menus de atalhos para telas que já
                 existiam. As opções foram para dentro da tela de trabalho e as

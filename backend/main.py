@@ -2,7 +2,9 @@ import asyncio
 import io
 import json
 import os
+import threading
 import time as _time
+import uuid
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from datetime import date, datetime
@@ -264,8 +266,15 @@ def _read_csv_auto(raw: bytes) -> pd.DataFrame:
         return pd.read_csv(io.BytesIO(raw), encoding="latin-1")
 
 
-def _get_versao_ativa() -> str:
-    """Lê a versão ativa do modelo em versions.json. Retorna 'v1_inicial' se não existir."""
+def _get_versao_ativa(empresa_id: "str | None" = None) -> str:
+    """Versão do modelo que pontua esta empresa: o próprio, se ativo; senão o global."""
+    if empresa_id:
+        try:
+            from model import modelos_empresa as _me
+            if _me.tem_modelo_proprio(empresa_id):
+                return _me.versao_ativa(empresa_id) or "v1_inicial"
+        except Exception:
+            pass
     try:
         from model.retrain import _carregar_versoes
         return _carregar_versoes().get("versao_ativa", "v1_inicial")
@@ -343,6 +352,7 @@ _ALLOWED_ORIGINS = [
 # cliente vê só "Failed to fetch", sem o código do erro. Ver erros.py.
 import erros as _erros                                     # noqa: E402
 import limite as _limite                                   # noqa: E402
+import travas as _travas                                   # noqa: E402
 # Ordem de instalação, da mais interna para a mais externa: limite, captura de
 # erros, CORS. O limite rejeita antes de o corpo ser lido e precisa estar por
 # dentro do CORS para o 429 sair com o cabeçalho. Ver limite.py.
@@ -2766,7 +2776,7 @@ def _ler_google_sheets(conn: ConexaoDB) -> pd.DataFrame:
 PREMISSA_RECUPERACAO_SE_PAGAR_PADRAO = 1.0
 
 
-def _psi_da_carteira(scores: list) -> dict:
+def _psi_da_carteira(scores: list, empresa_id: "str | None" = None) -> dict:
     """PSI desta carteira contra a distribuição de score congelada no treino.
 
     Roda a cada análise porque é aí que existe a população atual. Nunca derruba
@@ -2778,7 +2788,8 @@ def _psi_da_carteira(scores: list) -> dict:
         from model.score import _carregar_modelos
         # Usa o cache de modelos do score.py em vez de reler scaler.pkl do
         # disco: a análise já carregou esses artefatos para pontuar a carteira.
-        _, _, meta = _carregar_modelos()
+        # A referência do PSI é a do modelo que pontuou: o da empresa, se houver.
+        _, _, meta = _carregar_modelos(empresa_id)
         return calcular(scores, meta.get("psi_referencia"))
     except Exception as e:
         return {"ok": False, "motivo": f"Não foi possível calcular o PSI: {e}"}
@@ -2960,7 +2971,7 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
             df[col] = default
 
     try:
-        resultado = score_carteira(df)
+        resultado = score_carteira(df, _empresa_id or None)
     except FileNotFoundError as e:
         raise HTTPException(status_code=503, detail=f"Modelos não encontrados ({e.filename}).")
     except Exception as e:
@@ -3157,7 +3168,7 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
         "criado_em":        datetime.utcnow().isoformat(),
         "precificacao_ml":  _precificacao_ml,
         # Esta carteira ainda parece com aquela em que o modelo aprendeu?
-        "psi":              _psi_da_carteira(resultado["score_recuperabilidade"].tolist()),
+        "psi":              _psi_da_carteira(resultado["score_recuperabilidade"].tolist(), _empresa_id or None),
         # Perda esperada da carteira — o número que vai para a provisão.
         "ead_total":            round(total_em_risco, 2),
         "perda_esperada_total": round(total_em_risco - ver_total, 2),
@@ -3234,7 +3245,7 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
 
     try:
         db = get_db()
-        versao_modelo = _get_versao_ativa()  # captura uma vez para update e insert usarem a mesma versão
+        versao_modelo = _get_versao_ativa(_empresa_id or None)  # captura uma vez para update e insert usarem a mesma versão
 
         def _py(val):
             if val is None: return None
@@ -4411,12 +4422,16 @@ def admin_modelo_qualidade(credentials: HTTPAuthorizationCredentials = Security(
     return resultado
 
 
-def _procedencia_modelo_ativo() -> dict:
+def _procedencia_modelo_ativo(empresa_id: "str | None" = None) -> dict:
     """Origem e confiabilidade declarada do modelo que está decidendo hoje."""
     from model.retrain import MIN_FEEDBACKS_DEFAULT
     try:
         from model.retrain import _carregar_versoes
         versoes = _carregar_versoes()
+        if empresa_id:
+            from model import modelos_empresa as _me
+            if _me.tem_modelo_proprio(empresa_id):
+                versoes = _me.carregar_versoes(empresa_id)
         ativa = versoes.get("versao_ativa", "v1_inicial")
         meta = next((v for v in versoes.get("versoes", []) if v.get("versao") == ativa), {})
     except Exception:
@@ -4450,6 +4465,170 @@ def _procedencia_modelo_ativo() -> dict:
         "nivel": nivel,       # sintetico | insuficiente | ok
         "aviso": aviso,
     }
+
+
+# ── Modelo por empresa ───────────────────────────────────────────────────────
+# Enviar a carteira histórica de um cliente, treinar o modelo DELE e descartar os
+# dados. O treino roda em segundo plano (leva minutos), um por vez; o resultado
+# fica no versions.json da empresa. Ver docs/PLANO_TREINO_POR_EMPRESA.md.
+
+_JOBS_TREINO: dict = {}
+_JOBS_TREINO_MAX = 50
+_JOBS_TREINO_LOCK = threading.Lock()
+_TRAVA_TREINO = "treino_modelo_empresa"
+
+
+def _resumo_job(j: dict) -> dict:
+    return {k: v for k, v in j.items() if not k.startswith("_")}
+
+
+def _correr_treino(job_id: str, conteudo: bytes, nome: str, empresa: str, email: str,
+                   uid: str, trava: bool) -> None:
+    from model import treino_empresa as _te
+    job = _JOBS_TREINO[job_id]
+    job["estado"] = "treinando"
+    try:
+        reg = _te.treinar(conteudo, nome, empresa, email)
+        job.update(estado="concluido", versao=reg["versao"], registro=reg)
+        _registrar_auditoria(
+            acao="modelo_treinado", entidade="modelo", entidade_id=reg["versao"],
+            usuario_email=email, empresa_id=empresa, usuario_id=uid,
+            detalhes={"sha256": reg["arquivo"]["sha256"], "n_amostras": reg["n_amostras"],
+                      "validacao": reg["validacao"], "dados_descartados": True})
+    except _te.DadosInvalidos as e:
+        job.update(estado="recusado", erro=str(e))
+    except Exception as e:
+        # Mensagem genérica ao cliente; o detalhe vai para o log mascarado.
+        codigo = _erros.registrar({"path": "/comando/treino"}, e, 500)
+        job.update(estado="falhou", erro=f"O treino falhou por um erro interno. Código: {codigo}.")
+    finally:
+        job["terminou_em"] = datetime.utcnow().isoformat()
+        if trava:
+            try:
+                _travas.liberar(_TRAVA_TREINO)
+            except Exception:
+                pass
+
+
+@app.post("/comando/treino", status_code=202)
+async def comando_treinar_modelo(
+    file: UploadFile = File(...),
+    empresa_id: str = Form(...),
+    credentials: HTTPAuthorizationCredentials = Security(bearer),
+):
+    """Inicia o treino do modelo de uma empresa. Devolve o id da tarefa."""
+    payload = _exigir_comando(credentials)
+    empresa = (empresa_id or "").strip().lower()
+    if not empresa:
+        raise HTTPException(status_code=422, detail="Informe a empresa.")
+    nome = (file.filename or "").lower()
+    if not nome.endswith((".csv", ".xlsx", ".xls")):
+        raise HTTPException(status_code=400, detail="Arquivo deve ser CSV ou Excel (.csv / .xlsx / .xls).")
+    conteudo = await file.read()
+
+    # Um treino por vez, entre instâncias também: ele ocupa memória demais para dois.
+    if not _travas.adquirir(_TRAVA_TREINO, duracao_min=30):
+        raise HTTPException(status_code=409, detail="Já há um treino em andamento. Aguarde terminar.")
+    job_id = uuid.uuid4().hex[:12]
+    with _JOBS_TREINO_LOCK:
+        while len(_JOBS_TREINO) >= _JOBS_TREINO_MAX:
+            _JOBS_TREINO.pop(next(iter(_JOBS_TREINO)))
+        _JOBS_TREINO[job_id] = {"id": job_id, "empresa_id": empresa, "estado": "na_fila",
+                                "arquivo": file.filename, "iniciou_em": datetime.utcnow().isoformat()}
+    threading.Thread(
+        target=_correr_treino,
+        args=(job_id, conteudo, file.filename or "", empresa, payload.get("email", ""),
+              payload.get("sub", ""), True),
+        daemon=True).start()
+    del conteudo
+    return {"id": job_id, "estado": "na_fila"}
+
+
+@app.get("/comando/treino/{job_id}")
+def comando_estado_treino(job_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    _exigir_comando(credentials)
+    j = _JOBS_TREINO.get(job_id)
+    if j is None:
+        # Reinício do servidor apaga as tarefas em memória; o resultado de um
+        # treino concluído continua em /comando/modelos.
+        raise HTTPException(status_code=404, detail="Tarefa não encontrada (o servidor pode ter reiniciado). Veja a lista de versões.")
+    return _resumo_job(j)
+
+
+@app.get("/comando/modelos")
+def comando_listar_modelos(empresa_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    _exigir_comando(credentials)
+    from model import modelos_empresa as _me
+    empresa = (empresa_id or "").strip().lower()
+    try:
+        v = _me.carregar_versoes(empresa)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Empresa inválida.")
+    return {"empresa_id": empresa, "versao_ativa": v.get("versao_ativa"),
+            "usando": "proprio" if v.get("versao_ativa") else "global",
+            "versoes": list(reversed(v.get("versoes", [])))}
+
+
+class AtivarModeloIn(BaseModel):
+    empresa_id: str
+    versao: Optional[str] = None
+    forcar: bool = False
+
+
+@app.post("/comando/modelos/ativar")
+def comando_ativar_modelo(body: AtivarModeloIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    payload = _exigir_comando(credentials)
+    from model import modelos_empresa as _me
+    empresa = (body.empresa_id or "").strip().lower()
+    try:
+        dados = _me.carregar_versoes(empresa)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Empresa inválida.")
+    reg = next((v for v in dados["versoes"] if v.get("versao") == body.versao), None)
+    if reg is None:
+        raise HTTPException(status_code=404, detail="Versão não encontrada.")
+    m = reg.get("metricas") or {}
+    auc_novo = (m.get("novo") or {}).get("auc")
+    auc_atual = (m.get("atual") or {}).get("auc")
+    if not body.forcar and auc_novo is not None and auc_atual is not None and auc_novo < auc_atual:
+        raise HTTPException(
+            status_code=409,
+            detail=f"O modelo novo (AUC {auc_novo}) não supera o que a empresa usa hoje (AUC {auc_atual}) "
+                   "na mesma fatia de teste. Confirme para ativar mesmo assim.")
+    try:
+        _me.ativar(empresa, body.versao)
+    except (KeyError, FileNotFoundError) as e:
+        raise HTTPException(status_code=404, detail=f"Não foi possível ativar: {e}")
+    try:
+        from storage_ml import upload_empresa
+        upload_empresa(_me.slug(empresa), _me.pasta(empresa))
+    except Exception as e:
+        print(f"[Storage] Aviso: upload pós-ativação falhou: {e}")
+    _registrar_auditoria(acao="modelo_ativado", entidade="modelo", entidade_id=body.versao,
+                         usuario_email=payload.get("email", ""), empresa_id=empresa,
+                         usuario_id=payload.get("sub", ""), detalhes={"forcado": body.forcar})
+    return {"ok": True, "empresa_id": empresa, "versao_ativa": body.versao}
+
+
+@app.post("/comando/modelos/desativar")
+def comando_desativar_modelo(body: AtivarModeloIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Volta a empresa ao modelo global. As versões treinadas ficam guardadas."""
+    payload = _exigir_comando(credentials)
+    from model import modelos_empresa as _me
+    empresa = (body.empresa_id or "").strip().lower()
+    try:
+        _me.desativar(empresa)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Empresa inválida.")
+    try:
+        from storage_ml import upload_empresa
+        upload_empresa(_me.slug(empresa), _me.pasta(empresa))
+    except Exception as e:
+        print(f"[Storage] Aviso: upload pós-desativação falhou: {e}")
+    _registrar_auditoria(acao="modelo_desativado", entidade="modelo", entidade_id=empresa,
+                         usuario_email=payload.get("email", ""), empresa_id=empresa,
+                         usuario_id=payload.get("sub", ""), detalhes={})
+    return {"ok": True, "empresa_id": empresa, "usando": "global"}
 
 
 @app.get("/admin/price-model")
@@ -4638,6 +4817,16 @@ def propostas_devedor(
     }
 
 
+def _empresa_da_carteira(db, carteira_id) -> str:
+    if not carteira_id:
+        return ""
+    try:
+        r = db.table("carteiras").select("empresa_id").eq("id", carteira_id).limit(1).execute()
+        return (r.data or [{}])[0].get("empresa_id") or ""
+    except Exception:
+        return ""
+
+
 @app.get("/predicoes/{cpf}/explicacao")
 def explicar_score_devedor(cpf: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """
@@ -4661,7 +4850,8 @@ def explicar_score_devedor(cpf: str, credentials: HTTPAuthorizationCredentials =
         raise HTTPException(status_code=404, detail=f"Nenhuma predição encontrada para CPF: {cpf}")
     from model.score import explicar_predicao
     try:
-        explicacao = explicar_predicao(pred)
+        # Explica com o modelo que de fato pontuou: o da empresa dona da carteira.
+        explicacao = explicar_predicao(pred, empresa_id or _empresa_da_carteira(db, pred.get("carteira_id")))
     except FileNotFoundError:
         raise HTTPException(status_code=503, detail="Modelo não encontrado.")
     except Exception as e:
