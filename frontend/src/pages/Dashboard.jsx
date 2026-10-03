@@ -28,7 +28,7 @@ import DicaAjuda from '../components/DicaAjuda'
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
 
-const AGING_ORDER = ['0-29 dias', '30-59 dias', '60-89 dias', '90-179 dias', '180+ dias']
+const AGING_ORDER = ['0-30 dias', '31-60 dias', '61-90 dias', '91-180 dias', '181+ dias']
 // Gráficos usam --chart-1..5 (brief, seção 5): os tokens invertem por tema,
 // então as séries seguem legíveis no claro e no escuro.
 const AGING_COLORS   = ['var(--chart-2)', 'var(--chart-1)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)']
@@ -1187,6 +1187,11 @@ export default function Dashboard({ onIrPara }) {
                     {fmtNum(totalFiltrado)} devedores{search || filtroPrio !== 'todos' || filtroProduto !== 'todos' || filtroUF !== 'todas' ? ' filtrados' : ''}
                     {totalPages > 1 && ` · página ${page} de ${totalPages}`}
                   </p>
+                  {estadoModelo?.nivel === 'sintetico' && (
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--warning)' }}>
+                      O score desta fila vem de um modelo treinado com dados simulados: ordena por premissas declaradas, não pelo histórico desta carteira.
+                    </p>
+                  )}
                 </div>
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-2" />

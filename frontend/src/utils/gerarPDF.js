@@ -27,7 +27,7 @@ const C = {
   teal:      [20,  184, 166],
 }
 
-const AGING_ORDER  = ['0-29 dias', '30-59 dias', '60-89 dias', '90-179 dias', '180+ dias']
+const AGING_ORDER  = ['0-30 dias', '31-60 dias', '61-90 dias', '91-180 dias', '181+ dias']
 const AGING_COLORS = [C.emerald, C.blue, C.amber, [249,115,22], C.red]
 const CLUSTER_COLORS = [C.blue, C.violet, C.emerald, C.amber, C.red, C.indigo, C.teal]
 

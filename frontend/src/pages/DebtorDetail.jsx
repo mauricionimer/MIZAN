@@ -455,12 +455,6 @@ function HistoricoContatos({ cpf, rec, propostas }) {
   )
 }
 
-const URGENCIA_CONFIG = {
-  Alta:  { color: 'rgb(var(--c-danger))', bg: 'rgb(var(--c-danger) / 0.10)',  border: 'rgb(var(--c-danger) / 0.20)'  },
-  Média: { color: 'rgb(var(--c-warning))', bg: 'rgb(var(--c-warning) / 0.10)', border: 'rgb(var(--c-warning) / 0.20)' },
-  Baixa: { color: 'rgb(var(--c-success))', bg: 'rgb(var(--c-success) / 0.10)', border: 'rgb(var(--c-success) / 0.20)' },
-}
-
 const MODO_CONFIG = {
   exploração_inicial: { label: 'Explorando', color: 'text-amber-400',   bg: 'rgb(var(--c-warning) / 0.10)',  border: 'rgb(var(--c-warning) / 0.20)'  },
   aprendendo:         { label: 'Aprendendo', color: 'text-blue-400',    bg: 'rgb(var(--c-royal) / 0.10)',  border: 'rgb(var(--c-royal) / 0.20)'  },
@@ -468,9 +462,10 @@ const MODO_CONFIG = {
 }
 
 function ApproachRecommendation({ devedor, rec, loading, erro }) {
-  const score = devedor.score_recuperabilidade ?? 0
-  const urgencia = score >= 70 ? 'Alta' : score >= 40 ? 'Média' : 'Baixa'
-  const urgCfg = URGENCIA_CONFIG[urgencia]
+  // Antes havia aqui uma "Urgência" Alta/Média/Baixa tirada só do score (≥70,
+  // ≥40), um terceiro critério que podia contradizer a Prioridade da fila
+  // (achado D8). Quem decide a ordem é a fila; aqui fica só o número.
+  const score = devedor.score_recuperabilidade
   const modoCfg = rec ? (MODO_CONFIG[rec.modo] ?? MODO_CONFIG.aprendendo) : null
 
   return (
@@ -496,10 +491,10 @@ function ApproachRecommendation({ devedor, rec, loading, erro }) {
           <>
             <div className="grid grid-cols-3 gap-3">
               <div className="flex flex-col items-center gap-1.5 rounded-xl p-3"
-                style={{ background: urgCfg.bg, border: `1px solid ${urgCfg.border}` }}>
-                <Zap className="h-4 w-4" style={{ color: urgCfg.color }} />
-                <p className="text-xs font-medium" style={{ color: 'var(--ink-2)' }}>Urgência<DicaAjuda id="urgencia-do-devedor" /></p>
-                <span className="text-sm font-bold" style={{ color: urgCfg.color }}>{urgencia}</span>
+                style={{ background: 'var(--raise-1)', border: '1px solid var(--line)' }}>
+                <Zap className="h-4 w-4" style={{ color: 'var(--ink-3)' }} />
+                <p className="text-xs font-medium" style={{ color: 'var(--ink-2)' }}>Chance de pagar<DicaAjuda id="urgencia-do-devedor" /></p>
+                <span className="text-sm font-bold tabular-nums text-ink">{score == null ? '—' : `${Math.round(score)}%`}</span>
               </div>
               <div className="flex flex-col items-center gap-1.5 rounded-xl p-3"
                 style={{ background: 'rgb(var(--c-royal) / 0.10)', border: '1px solid rgb(var(--c-royal) / 0.20)' }}>

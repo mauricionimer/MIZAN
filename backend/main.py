@@ -1044,15 +1044,19 @@ def comando_carteiras(
 
 
 def _aging_label(dias: int) -> str:
-    if dias < 30:
-        return "0-29 dias"
-    if dias < 60:
-        return "30-59 dias"
-    if dias < 90:
-        return "60-89 dias"
-    if dias < 180:
-        return "90-179 dias"
-    return "180+ dias"
+    # Faixas fechadas à direita (até 30, 31 a 60...), como as fases do ciclo
+    # (model/ciclo.py: administrativa até 30, especializada de 31 a 360). Antes
+    # eram 0-29, 30-59...: o dia 30 caía em "30-59" no aging e na fase
+    # administrativa no ciclo (achado D7).
+    if dias <= 30:
+        return "0-30 dias"
+    if dias <= 60:
+        return "31-60 dias"
+    if dias <= 90:
+        return "61-90 dias"
+    if dias <= 180:
+        return "91-180 dias"
+    return "181+ dias"
 
 
 def _cpf_no_log(cpf) -> str:

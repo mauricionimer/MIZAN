@@ -65,7 +65,7 @@ total da carteira`. Origem: dado (capacidade, informada pelo gestor) e modelo.
 | **EAD** | `_analisar_df` | exposição = saldo devedor (é dado: o default já ocorreu) | dado |
 | **LGD** | `_analisar_df` | `1 − taxa_recuperacao_prevista`, em [0, 1] | modelo/premissa |
 | **Perda esperada** | `_analisar_df` | `EAD − valor esperado de recuperação` (= `EAD × LGD`) | derivado |
-| **Aging** (5 faixas) | `main._aging_label` | `<30` · `30–59` · `60–89` · `90–179` · `180+` dias | escolha nossa |
+| **Aging** (5 faixas) | `main._aging_label` | `0–30` · `31–60` · `61–90` · `91–180` · `181+` dias | escolha nossa (fronteiras iguais às do ciclo) |
 
 ## 3. Precificação (Dashboard, **admin e comando; o operador não vê**)
 
@@ -168,7 +168,7 @@ o defeito que existia.
 | # | Onde | Problema |
 |---|---|---|
 | **C6** (resolvido) | | filtro "pago / não pago / pendente" da fila | envia a lista de CPFs na consulta; com milhares de feedbacks a URL estoura |
-| **D8** | página do devedor | a "Urgência" (≥70 Alta, ≥40 Média) vem só do score e pode contradizer a Prioridade (posição na fila). É um terceiro critério |
+| **D8** (resolvido: a "Urgência" virou "Chance de pagar", sem faixas) | página do devedor | a "Urgência" (≥70 Alta, ≥40 Média) vem só do score e pode contradizer a Prioridade (posição na fila). É um terceiro critério |
 | **D9** (resolvido: renda ausente, vazia ou zero fica desconhecida e o modelo usa a mediana; célula em branco não derruba mais a análise) | renda ausente | quando a coluna de renda não existe, vira 0, e a razão dívida ÷ renda vira 0 (o devedor parece sem comprometimento) |
 | **D10** (resolvido: modelo de preço por empresa, ativado junto com a versão; o arquivo global não é mais lido) | `price_model.pkl` | é um só para todas as empresas: se for treinado, passa a valer para todas, inclusive as que têm modelo próprio |
 | **D12** (resolvido: credencial guardada cifrada; requer migracao_conexoes_sheets.sql) | conexão Google Sheets salva | o cadastro da conexão não guarda as credenciais da conta de serviço, então a sincronização (manual e automática) falha para Sheets. Só a análise avulsa, com as credenciais coladas, funciona |
@@ -184,7 +184,7 @@ o defeito que existia.
 | **D4** (resolvido: a deriva é só o PSI, por empresa, sem e-mail) | **Duas "derivas"**: o PSI (por carteira, contra o treino, com régua) e `/admin/drift` (média de 30 dias contra o histórico inteiro, limite fixo de 10 pontos, sem separar empresas, e o histórico inclui os próprios 30 dias) |
 | **D5** (resolvido: o Alcance soma o líquido, contra o líquido da carteira) | **Alcance usa o bruto** enquanto a fila é ordenada pelo **líquido**. Com comissão configurada, o topo da fila não é o topo do bruto |
 | **D6** (resolvido: mede o modelo em uso pela empresa, nos pagamentos dela que ele não viu) | O diagnóstico de qualidade (`/admin/modelo/qualidade`) **retreina um modelo novo** sobre os feedbacks para medir. Mede "esse tipo de modelo com esses dados", **não o modelo que está ativo**, e com k de clusters diferente. Também é global |
-| **D7** | A fronteira entre aging e fase: dia 30 cai na faixa de aging "30–59" mas na fase "administrativa" |
+| **D7** (resolvido: aging em 0–30, 31–60…, como as fases) | A fronteira entre aging e fase: dia 30 cai na faixa de aging "30–59" mas na fase "administrativa" |
 
 ## Textos (T)
 
@@ -192,7 +192,7 @@ o defeito que existia.
 |---|---|---|
 | **T1** (resolvido) | (A5) | `REASON_CODES` (`score.py`) | "recuperação **historicamente** maior/menor" para produto e região. Com o alvo simulado, não há histórico |
 | **T2** (resolvido) | | `bandit.recomendar` | a justificativa "Baseado em N interações com **perfis similares**" cita a média da ação **inteira**, não de perfis parecidos. E chama de "calibrado" com apenas 3 interações |
-| **T3** | `Recuperabilidade` | a descrição não diz que o modelo está em dados simulados |
+| **T3** (resolvido: a fila avisa quando o score vem de modelo com dados simulados) | `Recuperabilidade` | a descrição não diz que o modelo está em dados simulados |
 
 ## O que ainda não foi mapeado
 

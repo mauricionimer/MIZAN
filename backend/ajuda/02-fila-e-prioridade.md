@@ -93,26 +93,24 @@ fontes:
 - frontend/src/pages/Dashboard.jsx::texto "Devedores Prioritários"
 
 ## urgencia-do-devedor
-titulo: Urgência (na página do devedor)
+titulo: Chance de pagar (onde antes ficava a "Urgência")
 perfis: operador, admin, comando
 telas: Devedor
 perguntas:
 - o que é urgência
 - diferença entre urgência e prioridade
 - por que a urgência é baixa e a prioridade é alta
-- como a urgência é calculada
-- por que a urgência é diferente da prioridade
-- urgência é média o que significa
-- o selo de urgência da página do devedor
-- por que urgência e prioridade mostram coisas diferentes
+- onde foi parar a urgência
+- o que é a chance de pagar na recomendação
 - urgência vem da nota ou da fila
-curta: A urgência da página do devedor vem só do score: 70 ou mais é Alta, 40 a 69 é Média, abaixo de 40 é Baixa.
-calculo: urgência = Alta se score ≥ 70; Média se score ≥ 40; senão Baixa.
-fazer: Para decidir quem contatar primeiro, olhe a Prioridade e a posição na fila: elas consideram também o valor da dívida.
-cuidado: Urgência e Prioridade são conceitos diferentes e podem discordar: um devedor com score 35 e dívida grande pode ser Prioridade Alta e Urgência Baixa.
-revisar: achado D8: a urgência por score contradiz a lógica da fila; decisão pendente sobre unificar ou remover.
+- por que urgência e prioridade mostravam coisas diferentes
+- o que significa a porcentagem ao lado do canal e da oferta
+curta: Na recomendação de abordagem, ao lado do canal e da oferta, aparece a chance de pagar deste devedor: o próprio score, em porcentagem. Não há mais o selo "Urgência".
+calculo: Chance de pagar = score de recuperabilidade (0 a 100) lido como porcentagem. Até outubro de 2026 esse lugar mostrava "Urgência" Alta (score 70 ou mais), Média (40 a 69) ou Baixa, um terceiro critério que podia contradizer a Prioridade.
+fazer: Para decidir quem contatar primeiro, use a Prioridade e a posição na fila: elas consideram também o valor da dívida e a comissão. A chance de pagar ajuda a calibrar a conversa, não a ordem.
+cuidado: Um devedor com chance de 35% e dívida grande pode estar no topo da fila: é a fila que pesa chance × valor.
 fontes:
-- frontend/src/pages/DebtorDetail.jsx::texto "Urgência"
+- frontend/src/pages/DebtorDetail.jsx::texto "Chance de pagar"
 
 ## alcance-da-operacao
 titulo: Alcance da operação

@@ -193,12 +193,11 @@ perguntas:
 - faixa de dias de atraso
 - distribuição dos devedores por faixa de atraso
 - o gráfico de aging mostra o quê
-- faixas de zero a vinte e nove dias e assim por diante
+- faixas de zero a trinta dias e assim por diante
 curta: É a quantidade de devedores em cada faixa de dias em atraso.
-calculo: Faixas: 0 a 29, 30 a 59, 60 a 89, 90 a 179 e 180 ou mais dias. Cada devedor entra na faixa dos seus dias em atraso.
+calculo: Faixas: 0 a 30, 31 a 60, 61 a 90, 91 a 180 e 181 ou mais dias. Cada devedor entra na faixa dos seus dias em atraso.
 fazer: Use para ver o envelhecimento da carteira. Para decisões de custo, use as fases do ciclo.
-cuidado: As faixas são escolha de projeto e não coincidem com as fases (por exemplo, o dia 30 cai em "30–59" no aging, mas na fase administrativa).
-revisar: achado D7: fronteira do dia 30.
+cuidado: As faixas são escolha de projeto. A primeira termina no dia 30, como a fase administrativa do ciclo, então um devedor com 30 dias está em "0–30" e na fase administrativa; as faixas de aging continuam mais finas que as fases.
 fontes:
 - backend/main.py::_aging_label
 
