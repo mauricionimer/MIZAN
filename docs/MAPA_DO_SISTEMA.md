@@ -194,9 +194,22 @@ o defeito que existia.
 | **T2** (resolvido) | | `bandit.recomendar` | a justificativa "Baseado em N interações com **perfis similares**" cita a média da ação **inteira**, não de perfis parecidos. E chama de "calibrado" com apenas 3 interações |
 | **T3** (resolvido: a fila avisa quando o score vem de modelo com dados simulados) | `Recuperabilidade` | a descrição não diz que o modelo está em dados simulados |
 
-## O que ainda não foi mapeado
+## Varredura das telas de conta, empresa, retenção e chaves (outubro de 2026)
 
-Telas sem cálculo de métrica: login, senha, usuários e papéis, chaves de API,
-conexões de banco e permissões, retenção e titular, auditoria, perfil da empresa,
-upload (colunas e limites). Entram na Fase 2 em linguagem de procedimento, não de
-fórmula.
+Telas sem cálculo de métrica, auditadas por segurança e LGPD. Achados, todos corrigidos
+e cobertos por `backend/test_varredura_contas.py`:
+
+| # | Onde | Problema | Correção |
+|---|---|---|---|
+| **V1** | senha | trocar ou redefinir a senha não derrubava as sessões abertas (token de 7 dias) | o token leva uma marca da senha (`auth.versao_da_senha`); trocou, os outros caem; quem trocou recebe token novo; redefinir mata todos os links do e-mail |
+| **V2** | excluir minha conta | apagava o histórico de contatos e as conexões da empresa; o último COMANDO podia se excluir | sai o cadastro e o nome da pessoa; os registros da empresa ficam; o último COMANDO é recusado; vai à auditoria sem e-mail |
+| **V3** | auditoria | confirmar pagamento gravava o CPF inteiro, que o pedido do titular não alcança | só os 4 últimos dígitos |
+| **V4** | retenção e titular | feedbacks escopados pelo campo `empresa`, que em registros antigos guarda o nome de exibição | também pelo vínculo com as predições da empresa |
+| **V5** | empresas | mover usuário não normalizava o id ("Goias_Bank") nem ia para a auditoria | minúscula e auditoria em mover, remover e esvaziar |
+| **V6** | logo da empresa | o tipo do arquivo vinha do navegador: um HTML com nome .png ia para o bucket público | o tipo vem dos bytes do arquivo |
+| **V7** | configuração | cor sem validação, nome sem limite | `#rrggbb`, nome até 80 caracteres |
+| **V8** | chaves de API | só podiam ser criadas por SQL | tela COMANDO › Chaves de API: cria (mostra uma vez, guarda só o hash) e revoga |
+
+Já estavam certos: admin sem empresa é barrado (`_exigir_admin_ou_comando`), o último COMANDO
+não é rebaixado nem desativado, o login não revela se o e-mail existe, o "esqueci a senha"
+tem limite por e-mail, a chave de API é guardada como hash, a auditoria é escopada por empresa.

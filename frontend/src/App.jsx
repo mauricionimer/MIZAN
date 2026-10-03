@@ -83,6 +83,7 @@ const Privacidade = lazy(() => import('./pages/Privacidade'))
 const Backtest = lazy(() => import('./pages/Backtest'))
 const Retencao = lazy(() => import('./pages/Retencao'))
 const TreinoModelo = lazy(() => import('./pages/TreinoModelo'))
+const ChavesApi = lazy(() => import('./pages/ChavesApi'))
 const Ajuda = lazy(() => import('./pages/Ajuda'))
 const Premissas = lazy(() => import('./pages/Premissas'))
 const DuvidasComando = lazy(() => import('./pages/DuvidasComando'))
@@ -127,6 +128,7 @@ function RotasAnimadas() {
             <Route path="/aprendizado" element={<PageTransition><RotaProtegida roles={['comando']}><AprendizadoDashboard /></RotaProtegida></PageTransition>} />
             <Route path="/comando/duvidas" element={<PageTransition><RotaProtegida roles={['comando']}><DuvidasComando /></RotaProtegida></PageTransition>} />
             <Route path="/comando/treino" element={<PageTransition><RotaProtegida roles={['comando']}><TreinoModelo /></RotaProtegida></PageTransition>} />
+            <Route path="/comando/chaves" element={<PageTransition><RotaProtegida roles={['comando']}><ChavesApi /></RotaProtegida></PageTransition>} />
             <Route path="/comando" element={<PageTransition><RotaProtegida roles={['comando']}><ComandoDashboard /></RotaProtegida></PageTransition>} />
             {/* /admin e /operador eram menus de atalhos para telas que já
                 existiam. As opções foram para dentro da tela de trabalho e as

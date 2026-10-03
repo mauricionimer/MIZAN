@@ -132,6 +132,13 @@ export function AuthProvider({ children }) {
     window.dispatchEvent(new Event('mizan:logout'))
   }
 
+  // Depois de trocar a senha o token antigo deixa de valer: guarda o novo.
+  function trocarToken(novo) {
+    if (!novo) return
+    sessionStorage.setItem(TOKEN_KEY, novo)
+    setToken(novo)
+  }
+
   function refreshEmpresaConfig() {
     const t = sessionStorage.getItem(TOKEN_KEY)
     if (t) _loadEmpresaConfig(t)
@@ -146,7 +153,7 @@ export function AuthProvider({ children }) {
     <AuthContext.Provider value={{
       token, usuario, login, logout, loading, erro,
       isAdmin, isComando, isOperador, autenticado: !!token,
-      empresaConfig, refreshEmpresaConfig,
+      empresaConfig, refreshEmpresaConfig, trocarToken,
       empresaId,
     }}>
       {children}

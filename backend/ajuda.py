@@ -67,6 +67,7 @@ TELAS = {
     "Aprendizado":             ("comando",),
     "Performance IA":          ("comando",),
     "Treinar modelo":          ("comando",),
+    "Chaves de API":           ("comando",),
 }
 
 # Nome de cada arquivo na lista de assuntos da página de Ajuda.

@@ -14,7 +14,7 @@ function Logo() {
 }
 
 export default function AlterarSenha() {
-  const { token, usuario, logout, isComando, isAdmin } = useAuth()
+  const { token, usuario, logout, isComando, isAdmin, trocarToken } = useAuth()
   const navigate = useNavigate()
   const homePath = isComando ? '/comando' : '/'
 
@@ -45,6 +45,8 @@ export default function AlterarSenha() {
         const { detail } = await res.json().catch(() => ({ detail: `Erro ${res.status}` }))
         throw new Error(detail)
       }
+      const dados = await res.json().catch(() => ({}))
+      trocarToken(dados.token)          // as outras sessões abertas caem; esta continua
       setSucesso(true)
       setForm({ senha_atual: '', nova_senha: '', confirmar: '' })
     } catch (e) {
@@ -126,7 +128,7 @@ export default function AlterarSenha() {
                 <CheckCircle2 className="w-7 h-7 text-emerald-400" />
               </div>
               <h2 className="text-base font-bold text-ink mb-1 tracking-tight">Senha alterada!</h2>
-              <p className="text-sm mb-6" style={{ color: 'var(--ink-2)' }}>Sua senha foi atualizada com sucesso.</p>
+              <p className="text-sm mb-6" style={{ color: 'var(--ink-2)' }}>Sua senha foi atualizada. As outras sessões abertas com a senha antiga foram encerradas.</p>
               <button onClick={() => navigate(homePath)} className="btn-primary px-6 py-2.5">
                 Voltar
               </button>
@@ -184,7 +186,7 @@ function DeletarConta({ onDeleted }) {
         <div className="space-y-3">
           <div className="text-sm text-red-400 rounded-xl px-4 py-3 leading-relaxed"
             style={{ background: 'rgb(var(--c-danger) / 0.10)', border: '1px solid rgb(var(--c-danger) / 0.20)' }}>
-            Isso removerá permanentemente sua conta, conexões salvas e histórico de contatos.{' '}
+            Isso removerá permanentemente sua conta e seu nome dos registros. O histórico de contatos e as conexões continuam com a empresa, sem o seu nome.{' '}
             <strong>Essa ação não pode ser desfeita.</strong>
           </div>
           {erro && <p className="text-xs text-red-400">{erro}</p>}

@@ -277,3 +277,24 @@ cuidado: O registro guarda só o texto buscado (sem CPF, CNPJ, telefone e e-mail
 fontes:
 - backend/main.py::comando_lacunas_da_ajuda
 - backend/ajuda_lacunas.py::agrupar
+
+## chaves-de-api
+titulo: Chaves de API (integração de pagamentos)
+perfis: comando
+telas: Chaves de API
+perguntas:
+- como crio uma chave de api
+- como o banco avisa o mizan dos pagamentos
+- o que é o webhook de pagamento
+- como revogo uma chave de api
+- perdi a chave de api e agora
+- onde vejo se a chave está sendo usada
+- como trocar a chave de api sem parar a integração
+curta: A chave permite que o sistema do cliente envie ao Mizan os pagamentos dos devedores (webhook). Cada chave vale só para uma empresa.
+calculo: No painel COMANDO, em Chaves de API, informe a empresa e um rótulo e clique em Criar. A chave aparece uma única vez: o Mizan guarda só uma impressão (SHA-256) dela e não consegue mostrá-la de novo. O pagamento enviado com a chave entra sempre na empresa da chave, mesmo que o corpo da mensagem diga outra. A lista mostra quando cada chave foi usada pela última vez.
+fazer: Para trocar sem parar a integração: crie a nova, passe ao cliente, confira que o último uso da antiga parou e só então revogue a antiga. Perdeu a chave? Crie outra e revogue a perdida.
+cuidado: Quem tem a chave registra pagamentos em nome da empresa. Envie por canal seguro e revogue na hora se vazar. Criação e revogação ficam na auditoria.
+fontes:
+- backend/main.py::comando_criar_chave
+- backend/main.py::_validar_api_key
+

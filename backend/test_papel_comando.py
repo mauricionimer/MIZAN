@@ -97,7 +97,9 @@ def token(role="comando", empresa=""):
     sub = _SUB_POR_PAPEL[role]
     return {"Authorization": "Bearer " + A.criar_token(
         {"sub": sub, "email": f"{sub}@mizan.app", "nome": sub,
-         "role": role, "empresa_id": empresa})}
+         "role": role, "empresa_id": empresa,
+         # como o login emite: com a marca da senha atual (ver auth.versao_da_senha)
+         "sv": A.versao_da_senha(main.buscar_usuario_por_id(sub) or {})})}
 
 
 def reset():

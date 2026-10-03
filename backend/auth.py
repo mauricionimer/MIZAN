@@ -64,6 +64,18 @@ def validar_forca_senha(senha: str) -> None:
         raise ValueError("A senha deve combinar letras e números.")
 
 
+def versao_da_senha(usuario: dict) -> "str | None":
+    """Impressão curta do hash da senha atual, que vai dentro do token.
+
+    Trocar ou redefinir a senha muda o hash, e com ele esta impressão: todo
+    token emitido antes deixa de valer. Sem isso, quem tivesse um token roubado
+    continuava dentro por até sete dias depois de a vítima trocar a senha.
+    Não revela nada da senha: é um pedaço do SHA-256 de um hash com sal.
+    """
+    h = (usuario or {}).get("senha_hash")
+    return hashlib.sha256(h.encode()).hexdigest()[:16] if h else None
+
+
 def hash_senha(senha: str) -> str:
     salt = secrets.token_hex(16)
     h = hashlib.pbkdf2_hmac("sha256", senha.encode(), salt.encode(), 100_000)
@@ -185,7 +197,9 @@ def redefinir_senha_com_token(token: str, nova_senha: str) -> bool:
         return False
     validar_forca_senha(nova_senha)
     db.table("usuarios").update({"senha_hash": hash_senha(nova_senha)}).eq("email", rec["email"]).execute()
-    db.table("reset_tokens").update({"usado": True}).eq("token", token).execute()
+    # Todos os links pedidos para este e-mail morrem juntos, não só o usado: um
+    # link antigo que vazou não pode servir para trocar a senha de novo.
+    db.table("reset_tokens").update({"usado": True}).eq("email", rec["email"]).execute()
     return True
 
 ROLES_VALIDOS = ("comando", "admin", "operador")

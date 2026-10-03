@@ -374,6 +374,14 @@ app.add_middleware(
 bearer          = HTTPBearer()
 
 
+def _conferir_versao_da_senha(payload: dict, user: dict) -> None:
+    """Token emitido antes da última troca de senha não vale mais (ver auth.versao_da_senha)."""
+    from auth import versao_da_senha
+    atual = versao_da_senha(user)
+    if atual is not None and payload.get("sv") != atual:
+        raise HTTPException(status_code=401, detail="Sessão encerrada: a senha foi alterada. Entre de novo.")
+
+
 def _usuario_autenticado(credentials: HTTPAuthorizationCredentials) -> dict:
     """Valida JWT e verifica que o usuário ainda está ativo no banco.
     Levanta 401 para token inválido/expirado ou usuário desativado."""
@@ -384,6 +392,7 @@ def _usuario_autenticado(credentials: HTTPAuthorizationCredentials) -> dict:
     user = buscar_usuario_por_id(payload["sub"])
     if not user or not user.get("ativo"):
         raise HTTPException(status_code=401, detail="Usuário inativo ou não encontrado.")
+    _conferir_versao_da_senha(payload, user)
 
     # O token prova QUEM é o usuário. O que ele pode fazer vem do cadastro, a
     # cada chamada. O JWT dura sete dias e carrega role e empresa_id de quando
@@ -1252,9 +1261,11 @@ def auth_login(body: LoginIn, request: Request):
         _registrar_tentativa(chave)
         raise HTTPException(status_code=401, detail="E-mail ou senha incorretos.")
     _limpar_tentativas(chave)
+    from auth import versao_da_senha
     token = criar_token({"sub": usuario["id"], "email": usuario["email"],
                          "nome": usuario["nome"], "role": usuario["role"],
-                         "empresa_id": usuario.get("empresa_id", "")})
+                         "empresa_id": usuario.get("empresa_id", ""),
+                         "sv": versao_da_senha(usuario)})
     return {"token": token, "usuario": {k: v for k, v in usuario.items() if k != "senha_hash"}}
 
 @app.get("/auth/me")
@@ -1274,10 +1285,14 @@ def auth_refresh(credentials: HTTPAuthorizationCredentials = Security(bearer)):
     user = buscar_usuario_por_id(payload["sub"])
     if not user or not user.get("ativo"):
         raise HTTPException(status_code=401, detail="Usuário inativo ou não encontrado.")
+    # Renovar não pode ressuscitar um token de antes da troca de senha.
+    _conferir_versao_da_senha(payload, user)
+    from auth import versao_da_senha
     new_token = criar_token({
         "sub": user["id"], "email": user["email"],
         "nome": user["nome"], "role": user["role"],
         "empresa_id": user.get("empresa_id", ""),
+        "sv": versao_da_senha(user),
     })
     return {"token": new_token, "usuario": {k: v for k, v in user.items() if k != "senha_hash"}}
 
@@ -1336,7 +1351,15 @@ def auth_alterar_senha(body: AlterarSenhaIn, credentials: HTTPAuthorizationCrede
         empresa_id=payload.get("empresa_id", ""),
         usuario_id=payload["sub"],
     )
-    return {"ok": True}
+    # O token de quem trocou a senha também caiu (a versão da senha mudou):
+    # devolve um novo para a pessoa continuar onde está. As outras sessões dela
+    # (outro aparelho, ou um token roubado) param de valer.
+    from auth import versao_da_senha
+    u = buscar_usuario_por_id(payload["sub"]) or {}
+    novo = criar_token({"sub": payload["sub"], "email": payload["email"], "nome": payload.get("nome", ""),
+                        "role": payload.get("role"), "empresa_id": payload.get("empresa_id", ""),
+                        "sv": versao_da_senha(u)})
+    return {"ok": True, "token": novo}
 
 
 class AtivoIn(BaseModel):
@@ -1739,9 +1762,25 @@ def deletar_conta(credentials: HTTPAuthorizationCredentials = Security(bearer)):
     payload = _usuario_autenticado(credentials)
     usuario_id = payload["sub"]
     db = get_db()
-    db.table("contatos").delete().eq("usuario_id", usuario_id).execute()
-    db.table("conexoes_db").delete().eq("usuario_id", usuario_id).execute()
+    from auth import _ultimo_comando_ativo
+    if _ultimo_comando_ativo(db, usuario_id):
+        raise HTTPException(status_code=400, detail="Você é o único COMANDO ativo: excluir a conta trancaria a "
+                                                    "plataforma. Promova outro usuário a COMANDO antes.")
+    # Saem os dados pessoais DE QUEM PEDIU: o cadastro, e o nome dele onde ficou
+    # gravado. Ficam os registros que são da empresa: o histórico de contatos com
+    # devedores e as conexões com o banco do cliente. Antes a rota apagava os
+    # dois — um operador que saísse levava junto o histórico de cobrança e as
+    # conexões que a empresa usa.
+    db.table("contatos").update({"usuario_nome": "Usuário removido"}).eq("usuario_id", usuario_id).execute()
+    try:
+        db.table("duvidas").update({"autor_nome": "Usuário removido", "autor_email": ""}).eq("autor_id", usuario_id).execute()
+    except Exception:
+        pass                                   # tabela da Central ainda não criada
     db.table("usuarios").delete().eq("id", usuario_id).execute()
+    # A trilha de auditoria guarda o fato, sem o e-mail (é ele o dado pessoal).
+    _registrar_auditoria(acao="conta_excluida", entidade="usuario", entidade_id=usuario_id,
+                         usuario_email="", empresa_id=payload.get("empresa_id", ""),
+                         usuario_id=usuario_id, detalhes={})
     return {"ok": True, "mensagem": "Conta e dados pessoais removidos."}
 
 
@@ -1823,48 +1862,60 @@ class AdicionarUsuarioEmpresaIn(BaseModel):
 
 @app.post("/empresas/{empresa_id}/usuarios")
 def adicionar_usuario_empresa(empresa_id: str, body: AdicionarUsuarioEmpresaIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
-    _exigir_comando(credentials)
-    empresa_id = empresa_id.strip()
+    payload = _exigir_comando(credentials)
+    # minúscula, como em todo o resto: "Goias_Bank" e "goias_bank" virariam duas
+    # empresas, e o usuário movido não enxergaria as carteiras da dele
+    empresa_id = empresa_id.strip().lower()
     if not empresa_id:
         raise HTTPException(status_code=400, detail="empresa_id inválido.")
     db = get_db()
-    res = db.table("usuarios").select("id, email, nome, role, empresa_id").eq("email", body.email.strip()).limit(1).execute()
+    res = db.table("usuarios").select("id, email, nome, role, empresa_id").eq("email", body.email.strip().lower()).limit(1).execute()
     if not res.data:
         raise HTTPException(status_code=404, detail="Usuário não encontrado.")
     u = res.data[0]
     if u.get("role") == "comando":
         raise HTTPException(status_code=403, detail="Não é possível mover um usuário COMANDO para uma empresa.")
     db.table("usuarios").update({"empresa_id": empresa_id}).eq("id", u["id"]).execute()
+    _registrar_auditoria(acao="usuario_movido_para_empresa", entidade="usuario", entidade_id=u["id"],
+                         usuario_email=payload.get("email", ""), empresa_id=empresa_id, usuario_id=payload.get("sub", ""),
+                         detalhes={"email_alvo": u.get("email"), "empresa_anterior": u.get("empresa_id") or ""})
     return {"ok": True, "usuario": {**u, "empresa_id": empresa_id}}
 
 
 @app.delete("/empresas/{empresa_id}")
 def deletar_empresa(empresa_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
-    _exigir_comando(credentials)
+    payload = _exigir_comando(credentials)
     db = get_db()
     membros = db.table("usuarios").select("id, role").eq("empresa_id", empresa_id).execute()
     for u in (membros.data or []):
         if u.get("role") == "comando":
             raise HTTPException(status_code=400, detail="Não é possível excluir empresa com usuário COMANDO.")
     db.table("usuarios").update({"empresa_id": ""}).eq("empresa_id", empresa_id).execute()
+    _registrar_auditoria(acao="empresa_esvaziada", entidade="empresa", entidade_id=empresa_id,
+                         usuario_email=payload.get("email", ""), empresa_id=empresa_id, usuario_id=payload.get("sub", ""),
+                         detalhes={"usuarios_removidos": len(membros.data or [])})
     return {"ok": True, "removidos": len(membros.data or [])}
 
 @app.delete("/empresas/{empresa_id}/usuarios/{usuario_id}")
 def remover_usuario_empresa(empresa_id: str, usuario_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
-    _exigir_comando(credentials)
+    payload = _exigir_comando(credentials)
     db = get_db()
     chk = db.table("usuarios").select("role").eq("id", usuario_id).limit(1).execute()
     if chk.data and chk.data[0].get("role") == "comando":
         raise HTTPException(status_code=403, detail="Não é possível remover um usuário COMANDO.")
     db.table("usuarios").update({"empresa_id": ""}).eq("id", usuario_id).execute()
+    _registrar_auditoria(acao="usuario_removido_da_empresa", entidade="usuario", entidade_id=usuario_id,
+                         usuario_email=payload.get("email", ""), empresa_id=empresa_id, usuario_id=payload.get("sub", ""),
+                         detalhes={})
     return {"ok": True}
 
 
 # ── Branding / configuração visual por empresa ────────────────────────────────
 
 class EmpresaConfigIn(BaseModel):
-    nome_exibicao: Optional[str] = None
-    cor_primaria: Optional[str] = None
+    nome_exibicao: Optional[str] = Field(None, max_length=80)
+    # cor em #rrggbb: o valor vai para o estilo da tela de todos da empresa
+    cor_primaria: Optional[str] = Field(None, pattern=r"^#[0-9a-fA-F]{6}$")
     # Flags/preferências extras (ex: {"permitir_upload_db": true}). Mescladas, nunca substituídas por inteiro.
     extra: Optional[dict] = None
 
@@ -2025,6 +2076,19 @@ def put_premissas(body: PremissasIn, empresa_id_alvo: Optional[str] = None,
     return {"empresa_id": empresa, "premissas": descrever(depois)}
 
 
+def _tipo_de_imagem(conteudo: bytes) -> "str | None":
+    """Tipo da imagem pelos primeiros bytes (assinatura do formato)."""
+    if conteudo.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if conteudo.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if conteudo[:6] in (b"GIF87a", b"GIF89a"):
+        return "image/gif"
+    if conteudo[:4] == b"RIFF" and conteudo[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
+
 @app.post("/empresa/foto")
 async def upload_empresa_foto(file: UploadFile = File(...), empresa_id_alvo: Optional[str] = None, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     payload = _usuario_autenticado(credentials)
@@ -2046,13 +2110,19 @@ async def upload_empresa_foto(file: UploadFile = File(...), empresa_id_alvo: Opt
         ext = (file.filename or "").rsplit(".", 1)[-1].lower()
         if ext not in ("jpg", "jpeg", "png", "webp", "gif"):
             raise HTTPException(status_code=400, detail="Formato não suportado. Use JPG, PNG ou WebP.")
+        # O tipo vem do conteúdo, não do que o navegador declarou: um HTML com
+        # nome "logo.png" e content-type text/html ficaria num bucket público
+        # servido como página.
+        tipo = _tipo_de_imagem(conteudo)
+        if tipo is None:
+            raise HTTPException(status_code=400, detail="O arquivo não é uma imagem JPG, PNG, WebP ou GIF válida.")
 
         db = get_db()
         caminho = f"empresa-fotos/{empresa_id}.{ext}"
         try:
             db.storage.from_("mizan-public").upload(
                 caminho, conteudo,
-                {"content-type": file.content_type or f"image/{ext}", "upsert": "true"},
+                {"content-type": tipo, "upsert": "true"},
             )
             foto_url = db.storage.from_("mizan-public").get_public_url(caminho)
         except Exception as e:
@@ -4111,7 +4181,10 @@ def confirmar_pagamento(
                 entidade_id=feedback_id,
                 usuario_email=payload.get("email", ""),
                 empresa_id=empresa_id,
-                detalhes={"cpf": cpf, "valor_recuperado": body.valor_recuperado, "writeback": writeback_info},
+                # só o final do CPF: a trilha de auditoria não é apagada pelo pedido de
+                # eliminação do titular, então não pode guardar o identificador inteiro
+                detalhes={"cpf_final": "".join(ch for ch in str(cpf) if ch.isdigit())[-4:],
+                          "valor_recuperado": body.valor_recuperado, "writeback": writeback_info},
                 usuario_id=usuario_id,
             )
         except Exception as _ae:
@@ -4942,6 +5015,57 @@ def comando_desativar_modelo(body: AtivarModeloIn, credentials: HTTPAuthorizatio
                          usuario_email=payload.get("email", ""), empresa_id=empresa,
                          usuario_id=payload.get("sub", ""), detalhes={})
     return {"ok": True, "empresa_id": empresa, "usando": "global"}
+
+
+# ── Chaves de API (integração: webhook de pagamento) ─────────────────────────
+# Antes só dava para criar uma chave inserindo a linha à mão no Supabase. A
+# chave é mostrada UMA vez, na criação; o banco guarda só o SHA-256.
+
+class ChaveApiIn(BaseModel):
+    empresa_id: str = Field(..., min_length=1, max_length=100)
+    rotulo: str = Field(..., min_length=2, max_length=80)
+
+
+@app.get("/comando/api-keys")
+def comando_listar_chaves(empresa_id: Optional[str] = None,
+                          credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    _exigir_comando(credentials)
+    q = get_db().table("api_keys").select(_COLS_API_KEY)
+    if empresa_id:
+        q = q.eq("empresa_id", empresa_id.strip().lower())
+    return q.order("created_at", desc=True).limit(200).execute().data or []
+
+
+@app.post("/comando/api-keys")
+def comando_criar_chave(body: ChaveApiIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    payload = _exigir_comando(credentials)
+    import secrets as _secrets
+    empresa = body.empresa_id.strip().lower()
+    chave = "mzk_" + _secrets.token_urlsafe(32)
+    linha = {"empresa_id": empresa, "empresa_nome": empresa, "rotulo": body.rotulo.strip(),
+             "api_key_hash": _hash_api_key(chave), "ativa": True}
+    res = get_db().table("api_keys").insert(linha).execute()
+    criada = (res.data or [{}])[0]
+    _registrar_auditoria(acao="chave_api_criada", entidade="api_key", entidade_id=str(criada.get("id", "")),
+                         usuario_email=payload.get("email", ""), empresa_id=empresa, usuario_id=payload.get("sub", ""),
+                         detalhes={"rotulo": linha["rotulo"]})
+    return {"id": criada.get("id"), "empresa_id": empresa, "rotulo": linha["rotulo"], "chave": chave,
+            "aviso": "Copie agora: a chave não é mostrada de novo. O Mizan guarda só uma impressão dela."}
+
+
+@app.post("/comando/api-keys/{chave_id}/revogar")
+def comando_revogar_chave(chave_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    payload = _exigir_comando(credentials)
+    chave_id = _uuid_ou_404(chave_id)
+    db = get_db()
+    atual = db.table("api_keys").select(_COLS_API_KEY).eq("id", chave_id).limit(1).execute().data
+    if not atual:
+        raise HTTPException(status_code=404, detail="Chave não encontrada.")
+    db.table("api_keys").update({"ativa": False}).eq("id", chave_id).execute()
+    _registrar_auditoria(acao="chave_api_revogada", entidade="api_key", entidade_id=chave_id,
+                         usuario_email=payload.get("email", ""), empresa_id=atual[0].get("empresa_id") or "",
+                         usuario_id=payload.get("sub", ""), detalhes={"rotulo": atual[0].get("rotulo")})
+    return {"ok": True}
 
 
 # ── Central de Ajuda ─────────────────────────────────────────────────────────
@@ -6115,8 +6239,23 @@ def _linhas_da_empresa(db, tabela: str, empresa_id: str, carteiras: list, refina
             linhas += _todas_as_linhas(
                 lambda lote=lote: refinar(base().in_("carteira_id", lote)))
         return linhas
-    coluna = "empresa" if tabela == "feedbacks" else "empresa_id"
-    return _todas_as_linhas(lambda: refinar(base().eq(coluna, empresa_id)))
+    if tabela == "feedbacks":
+        # O campo `empresa` do feedback guarda, em registros antigos, o NOME de
+        # exibição em vez do id. Filtrar só por ele deixava esses pagamentos
+        # fora da retenção e do pedido do titular, com o CPF lá dentro. Entram
+        # também os ligados a uma predição das carteiras da empresa.
+        linhas = {l["id"]: l for l in _todas_as_linhas(lambda: refinar(base().eq("empresa", empresa_id)))}
+        pred_ids = []
+        for i in range(0, len(carteiras), ITENS_POR_IN):
+            lote = carteiras[i:i + ITENS_POR_IN]
+            pred_ids += [p["id"] for p in _todas_as_linhas(
+                lambda lote=lote: db.table("predicoes").select("id").in_("carteira_id", lote))]
+        for i in range(0, len(pred_ids), ITENS_POR_IN):
+            lote = pred_ids[i:i + ITENS_POR_IN]
+            for l in _todas_as_linhas(lambda lote=lote: refinar(base().in_("predicao_id", lote))):
+                linhas[l["id"]] = l
+        return list(linhas.values())
+    return _todas_as_linhas(lambda: refinar(base().eq("empresa_id", empresa_id)))
 
 
 def _anonimizar_ids(db, tabela: str, ids: list, patch: dict) -> None:

@@ -6,7 +6,7 @@ import {
   Shield, AlertTriangle, TrendingUp, Users, DollarSign,
   RefreshCw, Loader2, LogOut, Building2, CheckCircle2, Activity,
   Eye, Upload, Zap, UserCog, X, Database, FileText, User,
-  ChevronRight, Brain,
+  ChevronRight, Brain, KeyRound,
 } from 'lucide-react'
 import { LogoMark } from '../components/Logo'
 import { diagnosticoBanco } from '../api'
@@ -313,6 +313,10 @@ export default function ComandoDashboard() {
           <button onClick={() => navigate('/comando/treino')}
             className="flex items-center gap-1.5 text-xs text-ink-2 hover:text-ink transition-colors px-3 py-1.5 rounded-lg hover:bg-raise-2 font-medium">
             <Brain className="h-3.5 w-3.5" /> Treinar modelo
+          </button>
+          <button onClick={() => navigate('/comando/chaves')}
+            className="flex items-center gap-1.5 text-xs text-ink-2 hover:text-ink transition-colors px-3 py-1.5 rounded-lg hover:bg-raise-2 font-medium">
+            <KeyRound className="h-3.5 w-3.5" /> Chaves de API
           </button>
           <button onClick={() => navigate('/aprendizado')}
             className="flex items-center gap-1.5 text-xs text-ink-2 hover:text-ink transition-colors px-3 py-1.5 rounded-lg hover:bg-raise-2 font-medium">

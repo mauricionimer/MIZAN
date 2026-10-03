@@ -742,3 +742,20 @@ export async function limparLacunas(token, dias) {
     method: 'POST', headers: _authHeader(token), body: JSON.stringify({ dias }),
   }))
 }
+
+
+// ── Chaves de API (COMANDO) ──────────────────────────────────────────────────
+export async function listarChavesApi(token, empresaId) {
+  const qs = empresaId ? `?empresa_id=${encodeURIComponent(empresaId)}` : ''
+  return _jsonOuErro(await fetch(`${BASE}/comando/api-keys${qs}`, { headers: _authHeader(token) }))
+}
+export async function criarChaveApi(token, empresaId, rotulo) {
+  return _jsonOuErro(await fetch(`${BASE}/comando/api-keys`, {
+    method: 'POST', headers: _authHeader(token), body: JSON.stringify({ empresa_id: empresaId, rotulo }),
+  }))
+}
+export async function revogarChaveApi(token, id) {
+  return _jsonOuErro(await fetch(`${BASE}/comando/api-keys/${encodeURIComponent(id)}/revogar`, {
+    method: 'POST', headers: _authHeader(token),
+  }))
+}
