@@ -723,7 +723,7 @@ export default function AdminUsuarios() {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>Senha inicial</label>
-                    <input type="password" required minLength={6} value={form.senha} onChange={e => setForm(f => ({ ...f, senha: e.target.value }))} className="input-base" placeholder="mínimo 6 caracteres" />
+                    <input type="password" required minLength={8} value={form.senha} onChange={e => setForm(f => ({ ...f, senha: e.target.value }))} className="input-base" placeholder="mínimo 8 caracteres, letras e números" />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>Permissão</label>
