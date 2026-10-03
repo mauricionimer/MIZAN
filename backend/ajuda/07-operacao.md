@@ -298,3 +298,22 @@ fontes:
 - backend/main.py::comando_criar_chave
 - backend/main.py::_validar_api_key
 
+## marca-no-login
+titulo: Marca da empresa na tela de login
+perfis: admin, comando
+telas: Usuários
+perguntas:
+- como aparece mizan e o nome do banco no login
+- como colocar o logo do cliente na tela de entrada
+- o que é domínio de e-mail da empresa
+- por que o login não mostra a marca da minha empresa
+- o login revela se o e-mail tem conta
+- posso cadastrar gmail como domínio da empresa
+curta: Quem digita no login um e-mail de um domínio cadastrado (por exemplo, @goiasbank.com.br) vê "Mizan & Goiás Bank", com o logo e a cor da empresa.
+calculo: Em Usuários, no cartão de cada empresa, o COMANDO cadastra em "Marca no login" os domínios de e-mail dela. A tela de login consulta só o domínio (o que vem depois do @), nunca o e-mail inteiro, e a resposta é a mesma para quem tem conta e para quem não tem. O logo e a cor são os do perfil da empresa. Um domínio pertence a uma empresa só.
+fazer: Cadastre os domínios corporativos do cliente e confira o logo no perfil da empresa. Administrador de empresa: peça ao COMANDO para cadastrar os domínios da sua.
+cuidado: E-mails públicos (gmail, hotmail, outlook, yahoo, icloud, uol, bol e outros) não podem ser cadastrados: mostrariam a marca para qualquer pessoa. Quem usa e-mail público vê só a marca do Mizan. Qualquer pessoa que digite um domínio cadastrado vê a marca: isso diz que o domínio é de um cliente, mas não quem tem conta.
+fontes:
+- backend/marca.py::dominio_do_email
+- backend/main.py::marca_por_email
+

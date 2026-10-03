@@ -1953,6 +1953,86 @@ def get_empresa_config_publica(empresa_id: Optional[str] = None):
     return {k: cfg.get(k) for k in ("empresa_id", "nome_exibicao", "foto_url", "cor_primaria")}
 
 
+_MARCAS_CACHE: dict = {}
+
+
+def _marcas_por_dominio() -> dict:
+    """{domínio: marca} de todas as empresas, guardado por 5 minutos."""
+    import time as _t
+    if _MARCAS_CACHE.get("expira", 0) > _t.time():
+        return _MARCAS_CACHE["mapa"]
+    mapa = {}
+    for c in get_db().table("empresa_config").select("empresa_id, nome_exibicao, foto_url, cor_primaria, extra").execute().data or []:
+        for d in (c.get("extra") or {}).get("dominios_email") or []:
+            mapa[d] = {"nome_exibicao": c.get("nome_exibicao") or c.get("empresa_id"),
+                       "foto_url": c.get("foto_url"), "cor_primaria": c.get("cor_primaria")}
+    _MARCAS_CACHE.update(mapa=mapa, expira=_t.time() + 300)
+    return mapa
+
+
+@app.get("/empresa/marca")
+def marca_por_email(email: str = ""):
+    """Marca da empresa para o login, pelo domínio do e-mail (ver marca.py).
+
+    Sem login. Responde igual para quem tem conta e para quem não tem, e não
+    devolve o id da empresa nem as configurações internas.
+    """
+    import marca as _marca
+    dominio = _marca.dominio_do_email(email)
+    vazio = {"empresa": None}
+    if not dominio or dominio in _marca.DOMINIOS_PUBLICOS:
+        return vazio
+    try:
+        achada = _marcas_por_dominio().get(dominio)
+    except Exception:
+        return vazio                       # sem banco, o login segue com a marca do Mizan
+    return {"empresa": achada} if achada else vazio
+
+
+class DominiosIn(BaseModel):
+    dominios: list = Field(default_factory=list)
+
+
+@app.get("/comando/empresas/{empresa_id}/dominios")
+def comando_ver_dominios(empresa_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    _exigir_comando(credentials)
+    empresa = empresa_id.strip().lower()
+    return {"empresa_id": empresa, "dominios": (_get_empresa_config(empresa).get("extra") or {}).get("dominios_email") or []}
+
+
+@app.put("/comando/empresas/{empresa_id}/dominios")
+def comando_dominios_da_empresa(empresa_id: str, body: DominiosIn,
+                                credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Domínios de e-mail da empresa, para a marca no login. Só o COMANDO: um
+    cliente que cadastrasse o domínio de outro passaria a aparecer no login dele."""
+    payload = _exigir_comando(credentials)
+    import marca as _marca
+    empresa = empresa_id.strip().lower()
+    limpos, erro = _marca.validar_dominios(body.dominios)
+    if erro:
+        raise HTTPException(status_code=422, detail=erro)
+    db = get_db()
+    for c in db.table("empresa_config").select("empresa_id, extra").execute().data or []:
+        if (c.get("empresa_id") or "") == empresa:
+            continue
+        repetidos = set(limpos) & set((c.get("extra") or {}).get("dominios_email") or [])
+        if repetidos:
+            raise HTTPException(status_code=409, detail=f"{', '.join(sorted(repetidos))} já é de outra empresa ({c.get('empresa_id')}).")
+    atual = _get_empresa_config(empresa).get("extra") or {}
+    novo = {**atual, "dominios_email": limpos}
+    updates = {"extra": novo, "updated_by": payload.get("email", ""), "updated_at": datetime.utcnow().isoformat()}
+    existe = db.table("empresa_config").select("id").eq("empresa_id", empresa).limit(1).execute()
+    if existe.data:
+        db.table("empresa_config").update(updates).eq("empresa_id", empresa).execute()
+    else:
+        db.table("empresa_config").insert({"empresa_id": empresa, **updates}).execute()
+    _MARCAS_CACHE.clear()
+    _registrar_auditoria(acao="dominios_atualizados", entidade="empresa", entidade_id=empresa,
+                         usuario_email=payload.get("email", ""), empresa_id=empresa, usuario_id=payload.get("sub", ""),
+                         detalhes={"antes": atual.get("dominios_email") or [], "depois": limpos})
+    return {"empresa_id": empresa, "dominios": limpos}
+
+
 @app.get("/empresa/config")
 def get_empresa_config(credentials: HTTPAuthorizationCredentials = Security(bearer)):
     payload = _usuario_autenticado(credentials)
@@ -1979,6 +2059,8 @@ def put_empresa_config(body: EmpresaConfigIn, empresa_id_alvo: Optional[str] = N
     if body.cor_primaria is not None:
         updates["cor_primaria"] = body.cor_primaria.strip()
     if body.extra is not None:
+        if "dominios_email" in body.extra:
+            raise HTTPException(status_code=400, detail="Domínios de e-mail são definidos pelo COMANDO, em Usuários › empresa.")
         atual = _get_empresa_config(empresa_id).get("extra") or {}
         mesclado = {**atual, **body.extra}
         # As premissas (comissão, cessão, critério da fila...) têm limites: esta

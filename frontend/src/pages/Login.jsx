@@ -1,10 +1,11 @@
 import ThemeToggle from '../components/ThemeToggle'
 import { useState, useEffect } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { LogoMark } from '../components/Logo'
-import { getEmpresaConfigPublica } from '../api'
+import { getEmpresaConfigPublica, marcaPorEmail } from '../api'
 
 const BASE_API = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
 
@@ -28,8 +29,22 @@ export default function Login() {
     }
   }, [])
 
-  // Sem consulta por e-mail: mostrar a marca conforme o que se digita revelaria
-  // quem tem conta e de qual empresa. A marca vem só do link `?empresa=`.
+  const reduzir = useReducedMotion()
+  const [marcaDoEmail, setMarcaDoEmail] = useState(null)
+
+  // Marca pelo DOMÍNIO do e-mail ("Mizan & Goiás Bank"). O servidor responde
+  // só pelo domínio cadastrado pelo COMANDO, nunca pela pessoa: o mesmo para
+  // quem tem conta e para quem não tem (ver backend/marca.py).
+  const dominio = (email.split('@')[1] || '').trim().toLowerCase()
+  useEffect(() => {
+    if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(dominio)) { setMarcaDoEmail(null); return }
+    const ctrl = new AbortController()
+    const t = setTimeout(() => {
+      marcaPorEmail(`x@${dominio}`, ctrl.signal).then(setMarcaDoEmail).catch(() => {})
+    }, 350)
+    return () => { clearTimeout(t); ctrl.abort() }
+  }, [dominio])
+
   function handleEmailChange(value) {
     setEmail(value)
   }
@@ -44,7 +59,9 @@ export default function Login() {
     else navigate('/')
   }
 
-  const cor = empresaBrand?.cor_primaria
+  // O link `?empresa=` vale primeiro; sem ele, a marca do domínio digitado.
+  const marca = empresaBrand || marcaDoEmail
+  const cor = marca?.cor_primaria
 
   // Antes do login o AuthContext ainda não tem empresaConfig, então a cor da
   // empresa precisa ser aplicada aqui para o branding valer já na entrada.
@@ -56,8 +73,9 @@ export default function Login() {
     else raiz.style.removeProperty('--royal')
   }, [cor])
 
-  const nomEmpresa = empresaBrand?.nome_exibicao
-  const fotoEmpresa = empresaBrand?.foto_url
+  const nomEmpresa = marca?.nome_exibicao
+  const fotoEmpresa = marca?.foto_url
+  const inicial = (nomEmpresa || '?').trim().charAt(0).toUpperCase()
 
   return (
     <div className="login-shell">
@@ -65,11 +83,27 @@ export default function Login() {
 
       <div className="login-stack">
         {/* Marca — grande à esquerda no desktop, no topo no mobile */}
-        <div className="login-brand">
-          {fotoEmpresa
-            ? <img src={fotoEmpresa} alt={nomEmpresa} className="login-brand-foto" />
-            : <LogoMark className="login-brand-mark" />}
-          <span className="login-brand-word">{nomEmpresa || 'Mizan'}</span>
+        <div className="login-brand-bloco">
+          <div className="login-brand">
+            <LogoMark className="login-brand-mark" />
+            <span className="login-brand-word">Mizan</span>
+          </div>
+          {/* "& Empresa": aparece quando o domínio do e-mail é de um cliente */}
+          <AnimatePresence initial={false}>
+            {nomEmpresa && (
+              <motion.div key={nomEmpresa} className="login-cobrand" aria-live="polite"
+                initial={reduzir ? { opacity: 0 } : { opacity: 0, y: 10, filter: 'blur(4px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                exit={reduzir ? { opacity: 0 } : { opacity: 0, y: -6, filter: 'blur(4px)' }}
+                transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}>
+                <span className="login-cobrand-e">&amp;</span>
+                {fotoEmpresa
+                  ? <img src={fotoEmpresa} alt="" className="login-cobrand-foto" />
+                  : <span className="login-cobrand-inicial" aria-hidden="true">{inicial}</span>}
+                <span className="login-cobrand-nome">{nomEmpresa}</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Card do formulário */}

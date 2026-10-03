@@ -7,9 +7,10 @@ import {
   listarConexoes, listarPermissoesConexao, concederPermissaoConexao, revogarPermissaoConexao,
   listarEmpresas, adicionarUsuarioEmpresa, removerUsuarioEmpresa, deletarEmpresa,
   buscarAuditoria, putEmpresaConfig, uploadEmpresaFoto, getEmpresaConfigPublica,
+  verDominios, gravarDominios,
 } from '../api'
 import {
-  Users, UserPlus, ShieldCheck, ShieldOff, ToggleLeft, ToggleRight, Database, Lock, Unlock, Building2, Plus, X, UserMinus, Mail, Trash2, Clock, Camera, Pencil, Check,
+  Users, UserPlus, ShieldCheck, ShieldOff, ToggleLeft, ToggleRight, Database, Lock, Unlock, Building2, Plus, X, UserMinus, Mail, Trash2, Clock, Camera, Pencil, Check, AtSign,
 } from 'lucide-react'
 import { LogoMark } from '../components/Logo'
 import DicaAjuda from '../components/DicaAjuda'
@@ -199,6 +200,54 @@ function CardPermissoes({ conexao, operadores, token }) {
 }
 
 // ── Card de empresa ──────────────────────────────────────────────────────────
+// Domínios de e-mail da empresa: quem digita um e-mail desses no login vê
+// "Mizan & <empresa>" com o logo dela. Só o COMANDO grava (ver backend/marca.py).
+function DominiosEmpresa({ empresaId, token }) {
+  const [dominios, setDominios] = useState([])
+  const [texto, setTexto]       = useState('')
+  const [editando, setEditando] = useState(false)
+  const [erro, setErro]         = useState('')
+  const [ocupado, setOcupado]   = useState(false)
+  useEffect(() => { verDominios(token, empresaId).then(r => setDominios(r.dominios || [])).catch(() => {}) }, [token, empresaId])
+
+  async function salvar() {
+    setOcupado(true); setErro('')
+    try {
+      const lista = texto.split(/[\s,;]+/).map(d => d.trim()).filter(Boolean)
+      const r = await gravarDominios(token, empresaId, lista)
+      setDominios(r.dominios); setEditando(false)
+    } catch (e) { setErro(e.message) } finally { setOcupado(false) }
+  }
+
+  return (
+    <div className="px-5 py-3 border-b text-xs" style={{ borderColor: 'var(--line)', color: 'var(--ink-2)' }}>
+      <div className="flex flex-wrap items-center gap-2">
+        <AtSign className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--ink-3)' }} />
+        <span className="font-medium">Marca no login<DicaAjuda id="marca-no-login" />:</span>
+        {!editando && (dominios.length
+          ? dominios.map(d => <span key={d} className="rounded-md bg-raise-2 px-2 py-0.5 text-ink">@{d}</span>)
+          : <span style={{ color: 'var(--ink-3)' }}>nenhum domínio</span>)}
+        {!editando && (
+          <button onClick={() => { setTexto(dominios.join(', ')); setEditando(true); setErro('') }}
+            className="ml-auto font-medium text-indigo-400 hover:text-indigo-300">Editar</button>
+        )}
+      </div>
+      {editando && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <input autoFocus value={texto} onChange={e => setTexto(e.target.value)} aria-label="Domínios de e-mail"
+            placeholder="goiasbank.com.br, goias.com.br"
+            className="min-w-0 flex-1 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none"
+            style={{ background: 'var(--surface-2)', border: '1px solid rgb(var(--c-royal) / 0.30)', color: 'var(--ink)' }} />
+          <button onClick={salvar} disabled={ocupado}
+            className="rounded-lg bg-indigo-600 px-3 py-1.5 font-medium text-white hover:bg-indigo-700 disabled:opacity-50">Salvar</button>
+          <button onClick={() => setEditando(false)} className="px-2 py-1.5" style={{ color: 'var(--ink-3)' }}>Cancelar</button>
+        </div>
+      )}
+      {erro && <p className="mt-1.5 text-red-400" role="alert">{erro}</p>}
+    </div>
+  )
+}
+
 function CardEmpresa({ empresa, token, onAtualizar }) {
   const [membros, setMembros] = useState(empresa.usuarios)
   const [emailInput, setEmailInput] = useState('')
@@ -348,6 +397,8 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
           </button>
         </div>
       </div>
+
+      <DominiosEmpresa empresaId={empresa.empresa_id} token={token} />
 
       {showInput && (
         <form onSubmit={handleAdicionar} className="px-5 py-3 border-b flex gap-2 items-center" style={{ borderColor: 'var(--line)', background: 'var(--raise-1)' }}>

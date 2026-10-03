@@ -77,6 +77,10 @@ REGRAS = {
         "Você enviou muitas dúvidas em pouco tempo. Aguarde {espera} s."),
     ("POST", "/ajuda/buscar"): Regra("ajuda", 60, 600,
         "Muitas buscas em pouco tempo. Aguarde {espera} s."),
+    # Marca no login: pública, sem login. Responde só pelo domínio, mas sem
+    # freio serviria para varrer a lista de clientes domínio por domínio.
+    ("GET", "/empresa/marca"): Regra("marca", 60, 600,
+        "Muitas consultas em pouco tempo. Aguarde {espera} s."),
     ("POST", "/comando/treino"): Regra("treino", 6, 3600,
         "Muitos treinos em pouco tempo. Aguarde {espera} s."),
 }

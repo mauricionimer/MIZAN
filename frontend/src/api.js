@@ -759,3 +759,19 @@ export async function revogarChaveApi(token, id) {
     method: 'POST', headers: _authHeader(token),
   }))
 }
+
+
+// ── Marca no login pelo domínio do e-mail ────────────────────────────────────
+export async function marcaPorEmail(email, sinal) {
+  const res = await fetch(`${BASE}/empresa/marca?email=${encodeURIComponent(email)}`, { signal: sinal })
+  if (!res.ok) return null
+  return (await res.json()).empresa
+}
+export async function verDominios(token, empresaId) {
+  return _jsonOuErro(await fetch(`${BASE}/comando/empresas/${encodeURIComponent(empresaId)}/dominios`, { headers: _authHeader(token) }))
+}
+export async function gravarDominios(token, empresaId, dominios) {
+  return _jsonOuErro(await fetch(`${BASE}/comando/empresas/${encodeURIComponent(empresaId)}/dominios`, {
+    method: 'PUT', headers: _authHeader(token), body: JSON.stringify({ dominios }),
+  }))
+}
