@@ -2117,6 +2117,7 @@ def put_empresa_config(body: EmpresaConfigIn, empresa_id_alvo: Optional[str] = N
         db.table("empresa_config").update(updates).eq("empresa_id", empresa_id).execute()
     else:
         db.table("empresa_config").insert({"empresa_id": empresa_id, **updates}).execute()
+    _MARCAS_CACHE.clear()          # nome novo aparece no login na hora, não em 5 min
 
     _registrar_auditoria("config_empresa_atualizada", "empresa", empresa_id,
                          payload.get("email"), empresa_id, updates, payload["sub"])
@@ -2238,6 +2239,7 @@ async def upload_empresa_foto(file: UploadFile = File(...), empresa_id_alvo: Opt
             db.table("empresa_config").update(updates).eq("empresa_id", empresa_id).execute()
         else:
             db.table("empresa_config").insert({"empresa_id": empresa_id, **updates}).execute()
+        _MARCAS_CACHE.clear()      # foto nova aparece no login na hora
 
         _registrar_auditoria("foto_empresa_atualizada", "empresa", empresa_id,
                              payload.get("email"), empresa_id, {"foto_url": foto_url}, payload["sub"])
