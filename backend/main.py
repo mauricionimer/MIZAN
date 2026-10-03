@@ -8,6 +8,7 @@ import uuid
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from datetime import date, datetime
+from types import SimpleNamespace
 from typing import Optional
 
 import numpy as np
@@ -532,6 +533,32 @@ def _ids_carteiras(db, empresa_id: str) -> list:
         lambda: db.table("carteiras").select("id").eq("empresa_id", empresa_id))]
 
 
+def _ids_das_predicoes(db, carteira_id: str) -> set:
+    """Ids das predições de uma carteira, TODAS. Sem paginar, o servidor entrega
+    mil: uma carteira de 2.600 devedores perdia 1.600 do escopo, e os pagamentos
+    dessas pessoas sumiam das telas de resultado."""
+    return {p["id"] for p in _todas_as_linhas(
+        lambda: db.table("predicoes").select("id").eq("carteira_id", carteira_id))}
+
+
+def _feedbacks_das_predicoes(db, colunas: str, pred_ids) -> list:
+    """Feedbacks ligados às predições dadas, do mais novo para o mais antigo.
+
+    Lê em lotes de ITENS_POR_IN (a URL não aceita lista longa de UUIDs) e pagina
+    cada lote. A versão anterior lia lotes de 500, sem medida de que a URL
+    aguentava, e sem paginar cada resposta.
+    """
+    ids = list(pred_ids)
+    saida: list = []
+    for i in range(0, len(ids), ITENS_POR_IN):
+        lote = ids[i:i + ITENS_POR_IN]
+        saida.extend(_todas_as_linhas(
+            lambda lote=lote: db.table("feedbacks").select(colunas).in_("predicao_id", lote)
+                                .order("created_at", desc=True)))
+    saida.sort(key=lambda f: f.get("created_at") or "", reverse=True)
+    return saida
+
+
 def _registrar_auditoria(
     acao: str,
     entidade: str | None = None,
@@ -690,7 +717,7 @@ def comando_diagnostico_banco(credentials: HTTPAuthorizationCredentials = Securi
     out: dict = {"itens_por_in_adotado": ITENS_POR_IN, "lote_leitura_adotado": LOTE_LEITURA}
 
     maior_ok, primeira_falha = 0, None
-    for n in (100, 200, 400, 800, 1600, 3200):
+    for n in (100, 200, 400, 500, 600, 800, 1600, 3200):
         ids = [str(uuid.uuid4()) for _ in range(n)]
         try:
             db.table("predicoes").select("id").in_("carteira_id", ids).limit(1).execute()
@@ -728,16 +755,16 @@ def comando_visao_geral(credentials: HTTPAuthorizationCredentials = Security(bea
 
     _VAZIO = {"empresas": [], "totais": {"total_empresas": 0, "total_devedores": 0, "valor_face_total": 0, "valor_recuperado_real": 0, "n_suspeitas": 0}}
 
+    # Paginado: sem isso o servidor entrega mil carteiras e o painel do COMANDO
+    # somaria só essas — devedores, valor de face e empresas a menos, sem erro.
     try:
-        cart_res = db.table("carteiras").select(
-            "id, empresa_id, usuario_email, total_devedores, valor_face, valor_esperado, score_medio, created_at"
-        ).execute()
+        cart_res = SimpleNamespace(data=_todas_as_linhas(lambda: db.table("carteiras").select(
+            "id, empresa_id, usuario_email, total_devedores, valor_face, valor_esperado, score_medio, created_at")))
     except Exception:
         # colunas empresa_id/usuario_email ainda não existem — fallback sem agrupamento por empresa
         try:
-            cart_res = db.table("carteiras").select(
-                "id, total_devedores, valor_face, valor_esperado, score_medio, created_at"
-            ).execute()
+            cart_res = SimpleNamespace(data=_todas_as_linhas(lambda: db.table("carteiras").select(
+                "id, total_devedores, valor_face, valor_esperado, score_medio, created_at")))
         except Exception:
             return _VAZIO
 
@@ -767,13 +794,14 @@ def comando_visao_geral(credentials: HTTPAuthorizationCredentials = Security(bea
         if ca and (e["ultima_atividade"] is None or ca > e["ultima_atividade"]):
             e["ultima_atividade"] = ca
 
+    # Todos os feedbacks, paginando: "valor recuperado real", o número de
+    # feedbacks e a bandeira de empresa suspeita (< 5% de feedback) saem daqui.
     try:
-        fb_res = db.table("feedbacks").select("predicao_id, pagou, valor_recuperado").execute()
-        fb_data = fb_res.data or []
+        fb_data = _todas_as_linhas(
+            lambda: db.table("feedbacks").select("predicao_id, pagou, valor_recuperado"))
     except Exception:
         try:
-            fb_res = db.table("feedbacks").select("predicao_id, pagou").execute()
-            fb_data = fb_res.data or []
+            fb_data = _todas_as_linhas(lambda: db.table("feedbacks").select("predicao_id, pagou"))
         except Exception:
             fb_data = []
 
@@ -891,10 +919,9 @@ def comando_empresa_detalhe(empresa_id: str, credentials: HTTPAuthorizationCrede
         conexoes = []
 
     try:
-        cart_res = db.table("carteiras").select(
+        carteiras = _todas_as_linhas(lambda: db.table("carteiras").select(
             "id, nome_arquivo, total_devedores, valor_face, valor_esperado, score_medio, created_at"
-        ).eq("empresa_id", empresa_id).order("created_at", desc=True).execute()
-        carteiras = cart_res.data or []
+        ).eq("empresa_id", empresa_id).order("created_at", desc=True))
     except Exception:
         carteiras = []
 
@@ -2318,13 +2345,7 @@ def _cpfs_por_status(db, carteira_id: str) -> "tuple[set, set]":
     if not pred_ids:
         return set(), set()
 
-    linhas: list = []
-    for i in range(0, len(pred_ids), 500):
-        r = (db.table("feedbacks")
-             .select("cpf, pagou, created_at")
-             .in_("predicao_id", pred_ids[i:i + 500])
-             .order("created_at", desc=True).execute())
-        linhas.extend(r.data or [])
+    linhas = _feedbacks_das_predicoes(db, "cpf, pagou, created_at", pred_ids)
 
     visto, pagos, nao_pagos = set(), set(), set()
     for f in linhas:                      # já vem do mais recente para o mais antigo
@@ -4112,9 +4133,7 @@ def performance(
     empresa_pred_ids: set | None = None
     if carteira_id:
         try:
-            pr = db.table("predicoes").select("id").eq("carteira_id", carteira_id).execute()
-            ids = {p["id"] for p in (pr.data or [])}
-            empresa_pred_ids = ids if ids else set()
+            empresa_pred_ids = _ids_das_predicoes(db, carteira_id)
         except Exception:
             # Não conseguir montar o escopo da empresa não pode virar consulta
             # global: isso vazaria feedbacks de outras empresas.
@@ -4138,11 +4157,15 @@ def performance(
             # global: isso vazaria feedbacks de outras empresas.
             raise HTTPException(status_code=503, detail="Não foi possível montar o escopo da empresa.")
 
-    fb_res = db.table("feedbacks").select("pagou, predicao_id").order("created_at", desc=True).limit(5000).execute()
-    feedbacks = fb_res.data
-
+    # Com escopo, lê só os feedbacks das predições dele. Antes lia os 5.000
+    # (na prática mil) mais novos DE TODAS AS EMPRESAS e filtrava na memória:
+    # com mais de mil feedbacks recentes de outros clientes, esta empresa via
+    # quase nada. Sem escopo (COMANDO olhando tudo), lê todos, paginando.
     if empresa_pred_ids is not None:
-        feedbacks = [f for f in feedbacks if f.get("predicao_id") in empresa_pred_ids]
+        feedbacks = _feedbacks_das_predicoes(db, "pagou, predicao_id, created_at", empresa_pred_ids)
+    else:
+        feedbacks = _todas_as_linhas(
+            lambda: db.table("feedbacks").select("pagou, predicao_id").order("created_at", desc=True))
 
     if not feedbacks:
         return {"mensagem": "Nenhum feedback recebido ainda.", "total_feedbacks": 0}
@@ -4150,14 +4173,11 @@ def performance(
     pred_ids = [f["predicao_id"] for f in feedbacks if f.get("predicao_id")]
     scores_map: dict[str, float] = {}
 
-    if pred_ids:
-        pred_res = (
-            db.table("predicoes")
-            .select("id, score_recuperabilidade")
-            .in_("id", pred_ids)
-            .execute()
-        )
-        scores_map = {p["id"]: p["score_recuperabilidade"] for p in pred_res.data}
+    for i in range(0, len(pred_ids), ITENS_POR_IN):
+        for p in _todas_as_linhas(
+                lambda lote=pred_ids[i:i + ITENS_POR_IN]:
+                    db.table("predicoes").select("id, score_recuperabilidade").in_("id", lote)):
+            scores_map[p["id"]] = p["score_recuperabilidade"]
 
     bands: dict[str, dict] = {
         "Alta (≥ 70)": {"total": 0, "pagou": 0, "nao_pagou": 0},
@@ -4247,9 +4267,7 @@ def performance_pagamentos(
     empresa_pred_ids: set | None = None
     if carteira_id:
         try:
-            pr = db.table("predicoes").select("id").eq("carteira_id", carteira_id).execute()
-            ids = {p["id"] for p in (pr.data or [])}
-            empresa_pred_ids = ids if ids else set()
+            empresa_pred_ids = _ids_das_predicoes(db, carteira_id)
         except Exception:
             # Não conseguir montar o escopo da empresa não pode virar consulta
             # global: isso vazaria feedbacks de outras empresas.
@@ -4276,19 +4294,14 @@ def performance_pagamentos(
     _COLS = "cpf, pagou, valor_recuperado, data_pagamento, predicao_id, created_at, registrado_por"
     if empresa_pred_ids is not None:
         # Filtra no banco por predicao_id para não trazer dados de outras empresas
-        feedbacks: list = []
-        ids = list(empresa_pred_ids)
-        for i in range(0, len(ids), 500):
-            r = db.table("feedbacks").select(_COLS).in_("predicao_id", ids[i:i+500]).order("created_at", desc=True).execute()
-            feedbacks.extend(r.data or [])
-        # Apenas pagamentos vinculados a predições reais — sem predicao_id são dados órfãos
-        feedbacks = feedbacks[:5000]
+        # Os 5.000 mais recentes de verdade: ordenados depois de ler tudo.
+        feedbacks = _feedbacks_das_predicoes(db, _COLS, empresa_pred_ids)[:5000]
     else:
-        feedbacks = (
-            db.table("feedbacks").select(_COLS)
-            .not_.is_("predicao_id", "null")
-            .order("created_at", desc=True).limit(5000).execute().data or []
-        )
+        # Apenas pagamentos vinculados a predições reais — sem predicao_id são dados órfãos
+        feedbacks = _todas_as_linhas(
+            lambda: db.table("feedbacks").select(_COLS)
+                      .not_.is_("predicao_id", "null")
+                      .order("created_at", desc=True))[:5000]
 
     if not feedbacks:
         return []
@@ -4372,17 +4385,14 @@ def feedbacks_status(
 
     _COLS2 = "cpf, pagou, valor_recuperado, data_pagamento, predicao_id, empresa, created_at, registrado_por"
     if empresa_pred_ids is not None:
-        feedbacks: list = []
-        ids = list(empresa_pred_ids)
-        for i in range(0, len(ids), 500):
-            r = db.table("feedbacks").select(_COLS2).in_("predicao_id", ids[i:i+500]).order("created_at", desc=True).execute()
-            feedbacks.extend(r.data or [])
+        feedbacks = _feedbacks_das_predicoes(db, _COLS2, empresa_pred_ids)
         if empresa_id and not carteira_id:
             r2 = db.table("feedbacks").select(_COLS2).eq("empresa", empresa_id).is_("predicao_id", "null").order("created_at", desc=True).limit(500).execute()
             feedbacks.extend(r2.data or [])
         feedbacks = feedbacks[:5000]
     else:
-        feedbacks = db.table("feedbacks").select(_COLS2).order("created_at", desc=True).limit(5000).execute().data or []
+        feedbacks = _todas_as_linhas(
+            lambda: db.table("feedbacks").select(_COLS2).order("created_at", desc=True))[:5000]
 
     status_map: dict = {}
     for fb in feedbacks:
@@ -5063,11 +5073,11 @@ def listar_modelos(
     # Busca predicoes para obter score e carteira_id
     pred_ids = [f["predicao_id"] for f in feedbacks if f.get("predicao_id")]
     pred_map: dict[str, dict] = {}
-    for i in range(0, len(pred_ids), 500):
+    for i in range(0, len(pred_ids), ITENS_POR_IN):
         res = (
             db.table("predicoes")
             .select("id, carteira_id, score_recuperabilidade")
-            .in_("id", pred_ids[i: i + 500])
+            .in_("id", pred_ids[i: i + ITENS_POR_IN])
             .execute()
         )
         for p in res.data:

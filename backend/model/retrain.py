@@ -43,6 +43,7 @@ VERSIONS_FILE = MODEL_DIR / "versions.json"
 MODEL_VERSION          = 2
 MIN_FEEDBACKS_DEFAULT  = 30
 _BATCH                 = 1000
+_ITENS_IN              = 100   # tamanho de lista em in_(); ver nota em _buscar_predicoes
 
 _SCORE_PRODUTO = {"consignado": 100, "veiculo": 70, "pessoal": 40, "cartao": 20}
 
@@ -81,11 +82,13 @@ def _buscar_feedbacks(db) -> list[dict]:
 
 def _buscar_predicoes(db, ids: list[str]) -> dict[str, dict]:
     pred_map: dict[str, dict] = {}
-    for i in range(0, len(ids), 500):
+    # 100 ids por consulta: a URL do Supabase recusou 800 UUIDs numa lista
+    # (medido), e 500 nunca foi medido.
+    for i in range(0, len(ids), _ITENS_IN):
         res = (
             db.table("predicoes")
             .select("id, cpf, produto, uf, valor_divida, dias_em_atraso, renda_estimada, status, created_at")
-            .in_("id", ids[i: i + 500])
+            .in_("id", ids[i: i + _ITENS_IN])
             .execute()
         )
         for p in res.data:

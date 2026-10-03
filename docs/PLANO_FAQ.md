@@ -11,6 +11,15 @@ teste quebra.
 
 ---
 
+## Decisões já tomadas
+
+| Tema | Decisão |
+|---|---|
+| Quem vê as dúvidas | **COMANDO vê todas.** O **admin** (o "diretor") vê as da **própria equipe**. O operador vê só as próprias |
+| Aviso de resposta | **Só na tela** (sem e-mail) |
+| Resposta que vira ajuda | **Passa por revisão** antes de entrar no catálogo |
+| IA generativa | **Fora.** O conteúdo é um catálogo estático de perguntas e respostas, com busca local |
+
 ## 1. O que existe hoje (levantado no código, não suposto)
 
 A ajuda precisa cobrir cálculos que estão em **dois lugares**:
@@ -130,7 +139,7 @@ coisa para perguntar.
 1. O operador envia a dúvida. Vão junto a tela onde ele estava e o que ele buscou.
 2. A dúvida aparece no painel COMANDO, em "Dúvidas", com a contagem de abertas.
 3. O COMANDO responde.
-4. O operador vê a resposta em "Minhas dúvidas", com um aviso na tela.
+4. O operador vê a resposta em "Minhas dúvidas", com um aviso na tela (sem e-mail).
 5. O COMANDO pode marcar "sugerir para a Central". A dúvida entra numa fila de
    sugestões, que vira entrada revisada e testada do catálogo (Fase 2).
 
@@ -140,8 +149,9 @@ coisa para perguntar.
   o operador cole.
 - Tamanho máximo de 2.000 caracteres e limite de 10 dúvidas por hora por usuário.
 - O texto é sempre mostrado como texto, nunca como HTML.
-- O operador vê só as próprias dúvidas. O COMANDO vê todas. Há teste de
-  isolamento entre empresas, como nos outros endpoints.
+- O operador vê só as próprias dúvidas. O **admin vê as da sua equipe** (as do
+  mesmo `empresa_id`). O COMANDO vê todas. Há teste de isolamento entre empresas
+  e entre perfis, como nos outros endpoints.
 - Responder fica na auditoria. A tabela entra na política de retenção.
 
 **Banco:** nova tabela `duvidas`. O SQL é validado em Postgres local duas vezes

@@ -45,8 +45,8 @@ checar(c.get("/comando/diagnostico-banco").status_code in (401, 403), "sem token
 r = c.get("/comando/diagnostico-banco", headers=H("c", "comando"))
 j = r.json()
 checar(r.status_code == 200, "comando acessa", r.text[:80])
-checar(j["in_"]["maior_testado_ok"] == 400 and j["in_"]["primeira_falha"]["itens"] == 800,
-       "acha o maior in_ aceito (400) e onde falha (800)", str(j["in_"]))
+checar(j["in_"]["maior_testado_ok"] == 400 and j["in_"]["primeira_falha"]["itens"] == 500,
+       "acha o maior in_ aceito (400) e onde falha (500)", str(j["in_"]))
 checar(j["in_"]["adotado_cabe"] is True, "diz que os 100 adotados cabem")
 checar(j["teto_resposta"]["recebidas"] == 1000 and j["teto_resposta"]["veredito"] == "lote adotado cabe", "mede o teto de resposta", str(j["teto_resposta"]))
 checar(j["ordenacao_rank_id"]["aceita"] is True, "confere a ordenação rank,id")
