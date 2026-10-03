@@ -34,7 +34,7 @@ TODOS = {"operador", "admin", "comando"}
 PAGINAS = {
     "pages/Dashboard.jsx": TODOS, "pages/DebtorDetail.jsx": TODOS, "pages/Upload.jsx": TODOS,
     "pages/Feedback.jsx": TODOS, "pages/AlterarSenha.jsx": TODOS,
-    "pages/Retencao.jsx": {"admin", "comando"}, "pages/Auditoria.jsx": {"admin", "comando"},
+    "pages/Retencao.jsx": {"comando"}, "pages/Auditoria.jsx": {"admin", "comando"},
     "pages/AdminUsuarios.jsx": {"admin", "comando"}, "pages/Backtest.jsx": {"admin", "comando"},
     "pages/Premissas.jsx": {"admin", "comando"}, "pages/Ajuda.jsx": TODOS,
     "pages/DuvidasComando.jsx": {"comando"},

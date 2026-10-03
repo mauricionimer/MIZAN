@@ -252,9 +252,6 @@ export default function Feedback() {
       <div className="w-full max-w-5xl mx-auto space-y-6">
         <div>
           <h1 className="text-xl font-bold text-ink tracking-tight">Pagamentos<DicaAjuda id="registrar-pagamento" /></h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--ink-2)' }}>
-            Acompanhe e registre pagamentos da carteira.
-          </p>
         </div>
 
         {/* Operador: só visualiza, não registra */}
@@ -330,7 +327,7 @@ export default function Feedback() {
                   {form.pagou === 'sim' && (
                     <div>
                       <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>
-                        Valor recuperado <span className="font-normal text-ink-4">(opcional)</span>
+                        Valor recuperado
                       </label>
                       <div className="relative">
                         <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-4 text-sm">R$</span>
@@ -343,7 +340,7 @@ export default function Feedback() {
 
                   <div>
                     <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>
-                      Data do pagamento <span className="font-normal text-ink-4">(opcional)</span>
+                      Data do pagamento
                     </label>
                     <input type="date" value={form.data_pagamento}
                       max={new Date().toISOString().split('T')[0]}
@@ -388,7 +385,6 @@ export default function Feedback() {
                     <div className="flex flex-col items-center justify-center py-16 text-center px-6">
                       <ClipboardList className="h-10 w-10 text-line-2 mb-3" />
                       <p className="text-sm text-ink-2">Nenhum pagamento registrado ainda.</p>
-                      <p className="text-xs text-ink-4 mt-1">Os registros aparecem aqui após o envio.</p>
                     </div>
                   ) : (
                     <div className="divide-y divide-line">
@@ -423,17 +419,6 @@ export default function Feedback() {
           </>
         )}
 
-        <div className="rounded-2xl px-5 py-4 flex gap-3" style={{ background: 'rgb(var(--c-royal) / 0.08)', border: '1px solid rgb(var(--c-royal) / 0.18)' }}>
-          <CheckCircle2 className="h-5 w-5 text-blue-300 shrink-0 mt-0.5" />
-          <div className="text-sm text-blue-200 space-y-0.5">
-            <p className="font-semibold">Como funciona</p>
-            <p className="text-blue-300/90 text-xs leading-relaxed">
-              Cada feedback registrado alimenta o modelo de ML e o bandit LinUCB.
-              O bandit aprende quais canais e ofertas geraram pagamento e passa a priorizá-los nas próximas recomendações.
-              O modelo retreina automaticamente quando acumular 30 feedbacks novos.
-            </p>
-          </div>
-        </div>
       </div>
     </AppShell>
   )

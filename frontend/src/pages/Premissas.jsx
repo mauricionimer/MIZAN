@@ -59,11 +59,7 @@ function Campo({ p, valor, erro, onChange, onAjuda }) {
       </div>
       {erro && <p id={`${id}-erro`} className="mt-1.5 text-xs text-red-400">{erro}</p>}
 
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-ink-3">
-        <span>
-          {p.padrao == null && !p.definida ? `Padrão: não informado. ${p.sem_padrao_diz}` : `Padrão: ${mostraPadrao(p)}`}
-          {' · '}{p.efeito === 'imediato' ? 'vale na hora, nas propostas' : 'vale para as próximas análises'}
-        </span>
+      <div className="mt-3 flex flex-wrap items-center justify-end gap-2 text-[11px] text-ink-3">
         <button type="button" onClick={() => onAjuda(p.ajuda_id)}
           className="inline-flex items-center gap-1 text-blue-400 hover:text-blue-300">
           <HelpCircle className="h-3.5 w-3.5" /> O que é isto?
@@ -128,11 +124,6 @@ export default function Premissas() {
         <div>
           <p className="section-label">Configuração da empresa</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">Premissas<DicaAjuda id="como-configurar-premissas" /></h1>
-          <p className="mt-1 text-sm text-ink-2">
-            São números que pertencem ao banco, não ao Mizan: comissão do escritório, valor de cessão,
-            critério da fila e limites da renegociação. Onde não houver número, o sistema não escolhe um
-            por conta própria: ele avisa que está sem a informação.
-          </p>
         </div>
 
         {isComando && (

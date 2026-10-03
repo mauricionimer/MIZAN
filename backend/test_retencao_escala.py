@@ -128,15 +128,15 @@ class Q:
 
 
 main.get_db = lambda: type("DB", (), {"table": staticmethod(lambda n: Q(n))})()
-main.buscar_usuario_por_id = lambda uid: {"ativo": True, "id": uid, "role": "admin",
-                                          "empresa_id": "alfa"}
+main.buscar_usuario_por_id = lambda uid: {"ativo": True, "id": uid, "role": "comando",
+                                          "empresa_id": ""}
 main._registrar_auditoria = lambda *a, **k: None
 POLITICA = {"alfa": {"retencao": {"ativa": True, "dias": 365}}}
 main._extra_empresa = lambda e: POLITICA.get(e, {})
 
 c = TestClient(main.app, raise_server_exceptions=False)
 H = {"Authorization": "Bearer " + criar_token(
-    {"sub": "u", "email": "a@a.com", "nome": "A", "role": "admin", "empresa_id": "alfa"})}
+    {"sub": "u", "email": "a@a.com", "nome": "A", "role": "comando", "empresa_id": ""})}
 
 
 def anonimizadas(tabela, empresa_col, empresa):
@@ -145,7 +145,7 @@ def anonimizadas(tabela, empresa_col, empresa):
 
 # ── 1. a prévia vê tudo ──────────────────────────────────────────────────
 print("— prévia —")
-r = c.get("/retencao", headers=H)
+r = c.get("/retencao?empresa_id_alvo=alfa", headers=H)
 checar(r.status_code == 200, "responde", str(r.status_code) + " " + r.text[:60])
 p = r.json()["previa"]
 checar(p["predicoes"]["com_identificacao"] == N_PRED,
@@ -162,7 +162,7 @@ checar(r.json()["total_com_identificacao"] == N_PRED + N_FB + 30 + 40,
 
 # ── 2. a execução anonimiza tudo de uma vez ──────────────────────────────
 print("\n— execução —")
-r = c.post("/retencao/executar", headers=H)
+r = c.post("/retencao/executar?empresa_id_alvo=alfa", headers=H)
 checar(r.status_code == 200, "executa", str(r.status_code) + " " + r.text[:80])
 res = r.json().get("anonimizadas", {})
 checar(res.get("predicoes") == N_PRED, f"anonimiza as {N_PRED} predições num clique só",
@@ -181,7 +181,7 @@ checar(all(l["anonimizado_em"] is None for l in beta),
        "a outra empresa não foi tocada", f"{len(beta)} linhas da beta")
 
 # executar de novo não encontra nada
-r = c.post("/retencao/executar", headers=H)
+r = c.post("/retencao/executar?empresa_id_alvo=alfa", headers=H)
 checar(r.json().get("total") == 0, "segunda execução não acha mais nada",
        str(r.json().get("total")))
 
@@ -194,7 +194,7 @@ for t in (PRED, FB, CT, RC):
             l["anonimizado_em"] = None
             if l["id"] in ("p7", "f7", "t7", "r7"):
                 l["cpf"] = "00000000007"
-r = c.post("/retencao/titular", headers=H, json={"cpf": "000.000.000-07"})
+r = c.post("/retencao/titular?empresa_id_alvo=alfa", headers=H, json={"cpf": "000.000.000-07"})
 checar(r.status_code == 200, "atende", str(r.status_code) + " " + r.text[:80])
 checar(r.json().get("total", 0) >= 4,
        "acha o CPF nas quatro tabelas, mesmo com a base maior que o teto",
@@ -204,12 +204,12 @@ checar(r.json().get("total", 0) >= 4,
 # ── 4. leitura que quebra não vira "zero registros" ──────────────────────
 print("\n— o banco falha na leitura —")
 FALHA["tabela"] = "feedbacks"          # as carteiras respondem; só uma tabela do laço falha
-r = c.get("/retencao", headers=H)
+r = c.get("/retencao?empresa_id_alvo=alfa", headers=H)
 checar(r.status_code == 500, "a prévia devolve erro, não zeros", str(r.status_code))
 checar("com_identificacao" not in r.text,
        "e não mostra número nenhum",
        "um '0 registros com CPF' faria o admin concluir que não há o que anonimizar")
-r = c.post("/retencao/executar", headers=H)
+r = c.post("/retencao/executar?empresa_id_alvo=alfa", headers=H)
 checar(r.status_code == 500, "a execução também devolve erro, não 'concluído'", str(r.status_code))
 FALHA["tabela"] = None
 

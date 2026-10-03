@@ -134,7 +134,7 @@ T["carteiras"].append({"id": "ca", "empresa_id": "alfa"})
 T["predicoes"].append({"id": "pa", "carteira_id": "ca", "cpf": "12345678901", "created_at": "2026-01-01"})
 T["feedbacks"] += [{"id": "f-nome", "cpf": "12345678901", "empresa": "Banco Alfa", "predicao_id": "pa", "created_at": "2026-01-01"},
                    {"id": "f-outra", "cpf": "12345678901", "empresa": "beta", "predicao_id": "pb", "created_at": "2026-01-01"}]
-r = c.post("/retencao/titular", headers=ha, json={"cpf": "123.456.789-01"})
+r = c.post("/retencao/titular?empresa_id_alvo=alfa", headers=hc, json={"cpf": "123.456.789-01"})
 fb = {f["id"]: f for f in T["feedbacks"]}
 checar(r.status_code == 200 and fb["f-nome"]["cpf"] is None, "o feedback gravado como 'Banco Alfa' perde o CPF", r.text[:120])
 checar(fb["f-outra"]["cpf"] == "12345678901", "o de outra empresa não é tocado")

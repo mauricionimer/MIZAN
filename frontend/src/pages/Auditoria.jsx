@@ -66,6 +66,21 @@ function exportarCSV(linhas) {
 
 const PAGE_SIZE = 100
 
+// Detalhe da auditoria em texto, não em código: "n_devedores" vira "Devedores".
+const ROTULOS_DETALHE = {
+  n_devedores: 'Devedores', cpf_final: 'CPF (final)', valor_recuperado: 'Valor recuperado', email_alvo: 'Usuário',
+  role: 'Papel', nova_role: 'Novo papel', email_novo: 'E-mail', rotulo: 'Rótulo', dias: 'Prazo (dias)',
+  anonimizadas: 'Registros anonimizados', forcado: 'Forçado', versao: 'Versão', antes: 'Antes', depois: 'Depois',
+}
+const rotuloDetalhe = k => ROTULOS_DETALHE[k] || (k.charAt(0).toUpperCase() + k.slice(1)).replace(/_/g, ' ')
+function textoDetalhe(v) {
+  if (v === null || v === undefined || v === '') return '—'
+  if (typeof v === 'boolean') return v ? 'Sim' : 'Não'
+  if (Array.isArray(v)) return v.length ? v.map(textoDetalhe).join(', ') : '—'
+  if (typeof v === 'object') return Object.entries(v).map(([k, x]) => `${rotuloDetalhe(k)}: ${textoDetalhe(x)}`).join(' · ')
+  return String(v)
+}
+
 export default function Auditoria() {
   const navigate = useNavigate()
   const { token, usuario, logout, isComando } = useAuth()
@@ -107,9 +122,6 @@ export default function Auditoria() {
         <div className="flex items-start justify-between mb-6">
           <div>
             <h1 className="text-xl font-bold text-ink tracking-tight">Trilha de auditoria<DicaAjuda id="auditoria-de-acoes" /></h1>
-            <p className="text-sm mt-1" style={{ color: 'var(--ink-2)' }}>
-              Histórico de ações {isComando ? 'de toda a plataforma' : 'da sua empresa'} — compliance e rastreabilidade
-            </p>
           </div>
           <button
             onClick={() => exportarCSV(linhas)}
@@ -187,9 +199,14 @@ export default function Auditoria() {
                     {l.detalhes && <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${expandido === l.id ? 'rotate-180' : ''}`} style={{ color: 'var(--ink-4)' }} />}
                   </div>
                   {expandido === l.id && l.detalhes && (
-                    <pre className="mt-2.5 text-xs rounded-lg p-3 overflow-x-auto" style={{ background: 'var(--surface-2)', color: 'var(--ink-2)', border: '1px solid var(--line)' }}>
-                      {JSON.stringify(l.detalhes, null, 2)}
-                    </pre>
+                    <dl className="mt-2.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-lg p-3 text-xs" style={{ background: 'var(--surface-2)', border: '1px solid var(--line)' }}>
+                      {Object.entries(l.detalhes).map(([k, v]) => (
+                        <div key={k} className="contents">
+                          <dt style={{ color: 'var(--ink-3)' }}>{rotuloDetalhe(k)}</dt>
+                          <dd className="min-w-0 break-words text-ink-2">{textoDetalhe(v)}</dd>
+                        </div>
+                      ))}
+                    </dl>
                   )}
                 </div>
               ))}

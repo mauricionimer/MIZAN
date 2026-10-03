@@ -132,15 +132,23 @@ main._extra_empresa = lambda eid: POLITICA.get(eid, {})
 c = TestClient(main.app)
 
 
-def token(role="admin", empresa="banco_alfa"):
+def token(role="comando", empresa=""):       # retenção é do COMANDO, escolhendo a empresa
     return {"Authorization": "Bearer " + criar_token(
         {"sub": "u1", "email": "a@a.com", "nome": "A", "role": role, "empresa_id": empresa})}
 
 
+# ── 0. só o COMANDO ─────────────────────────────────────────────────────
+print("— quem acessa —")
+checar(c.get("/retencao", headers=token("admin", "banco_alfa")).status_code == 403,
+       "admin da empresa não acessa mais a retenção")
+checar(c.get("/retencao", headers=token()).status_code == 400, "COMANDO sem escolher a empresa: pede a empresa")
+r_cfg = c.put("/empresa/config", headers=token("admin", "banco_alfa"), json={"extra": {"retencao": {"ativa": True, "dias": 400}}})
+checar(r_cfg.status_code == 403, "e o admin não muda o prazo pela configuração", str(r_cfg.status_code))
+
 # ── 1. sem configuração ──────────────────────────────────────────────────
 print("— sem prazo configurado —")
 
-r = c.get("/retencao", headers=token())
+r = c.get("/retencao?empresa_id_alvo=banco_alfa", headers=token())
 checar(r.status_code == 200, "a prévia responde mesmo sem política", str(r.status_code))
 corpo = r.json()
 checar(corpo["politica"]["ativa"] is False, "a política vem desligada")
@@ -150,23 +158,23 @@ checar(corpo["previa"]["predicoes"]["vencidas"] == 1,
        str(corpo["previa"]))
 checar(gravacoes == [], "a prévia não grava nada")
 
-r = c.post("/retencao/executar", headers=token())
+r = c.post("/retencao/executar?empresa_id_alvo=banco_alfa", headers=token())
 checar(r.status_code == 400, "executar sem prazo é recusado", str(r.status_code))
 checar(gravacoes == [], "e nada foi tocado")
 
 
 # ── 2. o operador não manda nisso ────────────────────────────────────────
 print("\n— permissão —")
-checar(c.get("/retencao", headers=token("operador")).status_code == 403,
+checar(c.get("/retencao?empresa_id_alvo=banco_alfa", headers=token("operador")).status_code == 403,
        "operador não vê a retenção")
-checar(c.post("/retencao/executar", headers=token("operador")).status_code == 403,
+checar(c.post("/retencao/executar?empresa_id_alvo=banco_alfa", headers=token("operador")).status_code == 403,
        "operador não executa")
 
 
 # ── 3. prazo inválido é recusado ─────────────────────────────────────────
 print("\n— prazo fora dos limites —")
 POLITICA["banco_alfa"] = {"retencao": {"ativa": True, "dias": 5}}
-r = c.post("/retencao/executar", headers=token())
+r = c.post("/retencao/executar?empresa_id_alvo=banco_alfa", headers=token())
 checar(r.status_code == 400, "5 dias é recusado na execução", str(r.status_code))
 checar(gravacoes == [], "e nada foi tocado")
 
@@ -174,7 +182,7 @@ checar(gravacoes == [], "e nada foi tocado")
 # ── 4. execução, e o escopo por empresa ──────────────────────────────────
 print("\n— execução —")
 POLITICA["banco_alfa"] = {"retencao": {"ativa": True, "dias": 365}}
-r = c.post("/retencao/executar", headers=token())
+r = c.post("/retencao/executar?empresa_id_alvo=banco_alfa", headers=token())
 checar(r.status_code == 200, "executa com prazo válido", str(r.status_code))
 corpo = r.json()
 checar(corpo["anonimizadas"]["predicoes"] == 1, "uma predição anonimizada")
@@ -200,7 +208,7 @@ checar("valor_divida" not in patch_pred and "score_recuperabilidade" not in patc
 
 # rodar de novo não deve reescrever nada
 antes = len(gravacoes)
-r = c.post("/retencao/executar", headers=token())
+r = c.post("/retencao/executar?empresa_id_alvo=banco_alfa", headers=token())
 checar(r.json()["total"] == 0, "a segunda execução não encontra nada",
        "linha anonimizada não volta à fila")
 
@@ -219,7 +227,7 @@ BASE["predicoes"] += [
      "created_at": quando(3), "anonimizado_em": None},
 ]
 
-r = c.post("/retencao/titular", headers=token(), json={"cpf": "012.345.678-90"})
+r = c.post("/retencao/titular?empresa_id_alvo=banco_alfa", headers=token(), json={"cpf": "012.345.678-90"})
 checar(r.status_code == 200, "aceita o CPF com pontuação", str(r.status_code))
 
 por_pred = {l["id"]: l for l in BASE["predicoes"]}
@@ -234,7 +242,7 @@ checar(por_pred["p-pontuado"]["anonimizado_em"] is not None,
        "o CPF sai mesmo com 3 dias de base",
        "o titular pediu; o prazo não vem ao caso")
 
-r = c.post("/retencao/titular", headers=token(), json={"cpf": "abc"})
+r = c.post("/retencao/titular?empresa_id_alvo=banco_alfa", headers=token(), json={"cpf": "abc"})
 checar(r.status_code == 400, "CPF sem dígito é recusado")
 
 

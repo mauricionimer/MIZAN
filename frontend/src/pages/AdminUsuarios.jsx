@@ -680,7 +680,6 @@ export default function AdminUsuarios() {
                       <>
                         <p className="font-bold text-ink text-base truncate">{empresaConfig?.nome_exibicao || usuario?.empresa_id}</p>
                         <p className="text-xs mt-0.5 flex items-center gap-1.5" style={{ color: 'var(--ink-3)' }}>
-                          ID: {usuario?.empresa_id}
                           <span className="inline-block w-2.5 h-2.5 rounded-full border border-line-2" style={{ background: empresaConfig?.cor_primaria || '#5966d9' }} />
                         </p>
                       </>
@@ -834,9 +833,6 @@ export default function AdminUsuarios() {
                 )}
               </div>
             )}
-            <p className="mt-4 text-xs" style={{ color: 'var(--ink-3)' }}>
-              Total: {usuariosExibidos.length} usuário{usuariosExibidos.length !== 1 ? 's' : ''} · Ativos: {usuariosExibidos.filter(u => u.ativo).length}
-            </p>
 
             {auditoria.length > 0 && (
               <div className="mt-10">
@@ -931,7 +927,6 @@ export default function AdminUsuarios() {
           <>
             <div className="mb-8">
               <h1 className="text-xl font-bold text-ink tracking-tight">Permissões de banco de dados<DicaAjuda id="conexao-com-banco" /></h1>
-              <p className="text-sm mt-1" style={{ color: 'var(--ink-2)' }}>Controle quais operadores podem sincronizar cada conexão cadastrada.</p>
             </div>
 
             {carregando ? (

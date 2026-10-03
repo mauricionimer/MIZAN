@@ -2061,6 +2061,8 @@ def put_empresa_config(body: EmpresaConfigIn, empresa_id_alvo: Optional[str] = N
     if body.extra is not None:
         if "dominios_email" in body.extra:
             raise HTTPException(status_code=400, detail="Domínios de e-mail são definidos pelo COMANDO, em Usuários › empresa.")
+        if "retencao" in body.extra and role != "comando":
+            raise HTTPException(status_code=403, detail="O prazo de retenção é definido pelo COMANDO.")
         atual = _get_empresa_config(empresa_id).get("extra") or {}
         mesclado = {**atual, **body.extra}
         # As premissas (comissão, cessão, critério da fila...) têm limites: esta
@@ -6347,8 +6349,10 @@ def _anonimizar_ids(db, tabela: str, ids: list, patch: dict) -> None:
 
 
 def _empresa_retencao(payload: dict, empresa_id_alvo: "str | None") -> str:
-    """Empresa sobre a qual agir. Comando pode mirar em outra; admin, não."""
-    if payload.get("role") == "comando" and empresa_id_alvo:
+    """Empresa sobre a qual agir: a escolhida pelo COMANDO (a tela é só dele)."""
+    if payload.get("role") == "comando":
+        if not (empresa_id_alvo or "").strip():
+            raise HTTPException(status_code=400, detail="Informe a empresa.")
         return empresa_id_alvo.strip().lower()
     empresa_id = payload.get("empresa_id", "")
     if not empresa_id:
@@ -6365,7 +6369,7 @@ def ver_retencao(empresa_id_alvo: Optional[str] = None,
     é preciso ver antes o que ele levaria.
     """
     from model import retencao as R
-    payload = _exigir_admin_ou_comando(credentials)
+    payload = _exigir_comando(credentials)       # retenção é do COMANDO
     empresa_id = _empresa_retencao(payload, empresa_id_alvo)
 
     politica = R.de_config(_extra_empresa(empresa_id))
@@ -6411,7 +6415,7 @@ def executar_retencao(empresa_id_alvo: Optional[str] = None,
                       credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """Anonimiza o que passou do prazo. Exige política configurada."""
     from model import retencao as R
-    payload = _exigir_admin_ou_comando(credentials)
+    payload = _exigir_comando(credentials)       # retenção é do COMANDO
     empresa_id = _empresa_retencao(payload, empresa_id_alvo)
 
     politica = R.de_config(_extra_empresa(empresa_id))
@@ -6455,7 +6459,7 @@ def eliminar_titular(body: TitularIn, empresa_id_alvo: Optional[str] = None,
     ninguém.
     """
     from model import retencao as R
-    payload = _exigir_admin_ou_comando(credentials)
+    payload = _exigir_comando(credentials)       # retenção é do COMANDO
     empresa_id = _empresa_retencao(payload, empresa_id_alvo)
 
     bruto = (body.cpf or "").strip()

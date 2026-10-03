@@ -24,19 +24,18 @@ import { pagina, SEM_MOVIMENTO, TRANSICAO } from '../lib/motion'
  * tinham menu: só uma seta de voltar), e a animação de página levava o menu
  * junto a cada clique.
  *
- * Cada tela continua escrevendo `<AppShell titulo acoes>…</AppShell>`. Dentro
- * do layout, isso só põe o título e os botões no cabeçalho (por portal) e
- * devolve o conteúdo.
+ * Cada tela escreve `<AppShell acoes>…</AppShell>`. Dentro do layout, isso só
+ * põe os botões no cabeçalho (por portal) e devolve o conteúdo. O `titulo` é
+ * aceito e ignorado: o nome da tela saiu do cabeçalho.
  */
 
 const ShellCtx = createContext(null)
 
-export default function AppShell({ titulo, acoes, children }) {
+export default function AppShell({ acoes, children }) {
   const shell = useContext(ShellCtx)
   if (!shell) return children                        // fora do layout (não deveria acontecer)
   return (
     <>
-      {titulo && shell.slotTitulo && createPortal(titulo, shell.slotTitulo)}
       {acoes && shell.slotAcoes && createPortal(acoes, shell.slotAcoes)}
       {children}
     </>
@@ -63,7 +62,6 @@ function useItens() {
         { id: 'backtest',  label: 'Backtest',  icon: FlaskConical,      rota: '/backtest' },
         { id: 'usuarios',  label: 'Usuários',  icon: Users,             rota: '/admin/usuarios' },
         { id: 'auditoria', label: 'Auditoria', icon: ShieldCheck,       rota: '/auditoria' },
-        { id: 'retencao',  label: 'Retenção',  icon: Lock,              rota: '/retencao' },
       ],
     }] : []),
     ...(isComando ? [{
@@ -74,6 +72,7 @@ function useItens() {
         { id: 'treino',      label: 'Treinar modelo',   icon: GraduationCap,  rota: '/comando/treino' },
         { id: 'bandit',      label: 'Performance IA',   icon: Zap,            rota: '/bandit' },
         { id: 'chaves',      label: 'Chaves de API',    icon: KeySquare,      rota: '/comando/chaves' },
+        { id: 'retencao',    label: 'Retenção',         icon: Lock,           rota: '/retencao' },
         { id: 'duvidas',     label: 'Dúvidas',          icon: MessageCircleQuestion, rota: '/comando/duvidas',
           aviso: avisos.abertas, tituloAviso: 'dúvidas abertas' },
       ],
@@ -172,7 +171,6 @@ export function ShellLayout() {
   const { vista, setVista, result } = useAnalysis()
   const grupos = useItens()
   const [gaveta, setGaveta] = useState(false)
-  const [slotTitulo, setSlotTitulo] = useState(null)
   const [slotAcoes, setSlotAcoes] = useState(null)
 
   const nomeEmpresa = empresaConfig?.nome_exibicao || 'Mizan'
@@ -215,7 +213,7 @@ export function ShellLayout() {
   const variantes = reduzir ? SEM_MOVIMENTO : pagina
 
   return (
-    <ShellCtx.Provider value={{ slotTitulo, slotAcoes }}>
+    <ShellCtx.Provider value={{ slotAcoes }}>
       <div className="flex min-h-screen bg-surface-2 font-sans text-ink">
 
         {/* ───── Menu fixo (telas médias para cima) ───── */}
@@ -252,9 +250,9 @@ export function ShellLayout() {
             <div className="flex min-w-0 items-center gap-2 text-sm">
               <button onClick={() => setGaveta(true)} aria-label="Abrir menu" aria-expanded={gaveta}
                 className="-ml-1 rounded-lg p-2 text-ink-2 hover:bg-raise-2 md:hidden"><Menu className="h-5 w-5" /></button>
-              <span className="hidden truncate font-semibold text-ink sm:inline md:inline">{nomeEmpresa}</span>
-              <span className="hidden text-ink-4 sm:inline">/</span>
-              <span ref={setSlotTitulo} className="min-w-0 truncate font-medium text-ink-2" />
+              {/* Sem o nome da tela aqui: o menu já marca onde a pessoa está, e cada
+                  tela tem o próprio título. */}
+              <span className="truncate font-semibold text-ink">{nomeEmpresa}</span>
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <span ref={setSlotAcoes} className="flex items-center gap-2" />

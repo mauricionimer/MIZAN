@@ -50,11 +50,23 @@ export default function Retencao() {
 
   const [cpf, setCpf]           = useState('')
   const [eliminando, setElim]   = useState(false)
+  // Retenção é do COMANDO, que age escolhendo a empresa.
+  const [empresa, setEmpresa]   = useState('')
+  const [empresas, setEmpresas] = useState([])
+  const alvo = empresa.trim().toLowerCase()
+
+  useEffect(() => {
+    fetch(`${import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'}/comando/visao-geral`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => (res.ok ? res.json() : null))
+      .then(d => setEmpresas((d?.empresas || []).map(e => e.empresa_id).filter(Boolean)))
+      .catch(() => {})
+  }, [token])
 
   const carregar = useCallback(async () => {
     setErro('')
+    if (!alvo) { setDados(null); setCarreg(false); return }
     try {
-      const d = await buscarRetencao(token)
+      const d = await buscarRetencao(token, alvo)
       setDados(d)
       setDias(d.politica?.ativa ? d.politica.dias : (d.prazo_simulado || 365))
     } catch (e) {
@@ -62,14 +74,14 @@ export default function Retencao() {
     } finally {
       setCarreg(false)
     }
-  }, [token])
+  }, [token, alvo])
 
-  useEffect(() => { carregar() }, [carregar])
+  useEffect(() => { const t = setTimeout(carregar, 400); return () => clearTimeout(t) }, [carregar])
 
   async function salvarPrazo(ativa) {
     setSalvando(true); setErro(''); setAviso('')
     try {
-      await putEmpresaConfig(token, { extra: { retencao: { ativa, dias: Number(dias) } } })
+      await putEmpresaConfig(token, { extra: { retencao: { ativa, dias: Number(dias) } } }, alvo)
       setAviso(ativa
         ? `Prazo de ${dias} dias salvo. Nada foi anonimizado ainda — use "Executar agora".`
         : 'Retenção desligada. Nenhum dado será anonimizado automaticamente.')
@@ -86,7 +98,7 @@ export default function Retencao() {
     )) return
     setExec(true); setErro(''); setAviso('')
     try {
-      const r = await executarRetencao(token)
+      const r = await executarRetencao(token, alvo)
       setAviso(`${fmt(r.total)} registro(s) anonimizado(s).`)
       await carregar()
     } catch (e) { setErro(e.message) } finally { setExec(false) }
@@ -101,7 +113,7 @@ export default function Retencao() {
     )) return
     setElim(true); setErro(''); setAviso('')
     try {
-      const r = await eliminarTitular(token, cpf)
+      const r = await eliminarTitular(token, cpf, alvo)
       setAviso(r.total > 0
         ? `${fmt(r.total)} registro(s) deste titular foram anonimizados.`
         : 'Nenhum registro encontrado para este CPF nesta empresa.')
@@ -123,11 +135,12 @@ export default function Retencao() {
         <div className="mb-7">
           <p className="section-label">Privacidade</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">Retenção de dados<DicaAjuda id="retencao-de-dados" /></h1>
-          <p className="mt-1.5 text-sm" style={{ color: 'var(--ink-2)' }}>
-            Por quanto tempo o CPF e o nome dos devedores ficam no sistema. Vencido o
-            prazo, a identificação é removida e o restante do registro permanece — o
-            modelo continua aprendendo sem que a linha aponte para uma pessoa.
-          </p>
+          <div className="mt-4 max-w-xs">
+            <label htmlFor="ret-empresa" className="mb-1 block text-xs font-medium text-ink-2">Empresa</label>
+            <input id="ret-empresa" list="ret-empresas" value={empresa} onChange={e => setEmpresa(e.target.value)}
+              placeholder="ex.: goias_bank" className="w-full rounded-lg border border-line bg-page px-3 py-2 text-sm text-ink" />
+            <datalist id="ret-empresas">{empresas.map(e => <option key={e} value={e} />)}</datalist>
+          </div>
         </div>
 
         {erro && (
@@ -143,11 +156,13 @@ export default function Retencao() {
           </div>
         )}
 
-        {carregando ? (
+        {!alvo ? (
+          <p className="text-sm text-ink-3">Escolha a empresa para ver e configurar a retenção dela.</p>
+        ) : carregando ? (
           <div className="flex items-center justify-center gap-2 py-20" style={{ color: 'var(--ink-3)' }}>
             <Loader2 className="h-5 w-5 animate-spin" /> Carregando...
           </div>
-        ) : (
+        ) : !dados ? null : (
           <div className="space-y-5">
 
             {/* ── Situação ── */}

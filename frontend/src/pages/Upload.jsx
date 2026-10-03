@@ -659,19 +659,12 @@ export default function Upload({ onIrPara, temResultado = false }) {
       {/* O nome da empresa e o do usuário já estão na barra de cima, então
           aqui fica só o que esta vista faz. */}
       <div className="mb-7">
-        <p className="section-label">Carteira</p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">Análise de carteira</h1>
-        <p className="mt-1.5 text-sm" style={{ color: 'var(--ink-2)' }}>
-          Carregue os devedores e a IA ranqueia a fila por valor esperado de recuperação.
-        </p>
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">Análise de carteira</h1>
       </div>
 
       {/* Card principal */}
       <div className="w-full rounded-2xl p-8" style={CARD_STYLE}>
-        <h2 className="text-base font-semibold text-ink mb-1">Carregar carteira<DicaAjuda id="enviar-carteira" /></h2>
-        <p className="text-sm mb-5" style={{ color: 'var(--ink-2)' }}>
-          Importe os dados dos devedores via arquivo ou conexão direta com banco de dados.
-        </p>
+        <h2 className="text-base font-semibold text-ink mb-5">Carregar carteira<DicaAjuda id="enviar-carteira" /></h2>
 
         {/* Seletor empresa COMANDO */}
         {isComando && (
@@ -768,38 +761,9 @@ export default function Upload({ onIrPara, temResultado = false }) {
         {histLoading && <div className="flex items-center justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" style={{ color: 'var(--ink-4)' }} /></div>}
 
         {!histLoading && historico.length === 0 && (
-          <div className="rounded-2xl p-8" style={{ background: 'var(--surface)', border: '1px solid var(--line)', boxShadow: '0 8px 32px rgba(0,0,0,0.40)' }}>
-            <div className="text-center mb-8">
-              <LogoMark className="h-9 w-9 mx-auto mb-4" />
-              <h3 className="text-base font-semibold text-ink mb-1">Bem-vindo ao Mizan</h3>
-              <p className="text-sm" style={{ color: 'var(--ink-2)' }}>Siga os passos abaixo para começar a recuperar valor da sua carteira</p>
-            </div>
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-              {[
-                { num: '1', cor: 'blue',    titulo: 'Importe sua carteira',   desc: 'Faça upload de um CSV/Excel ou conecte diretamente ao seu banco de dados.', icon: '📂' },
-                { num: '2', cor: 'indigo',  titulo: 'IA analisa e ranqueia',  desc: 'O modelo de ML classifica cada devedor por probabilidade de pagamento.',    icon: '🤖' },
-                { num: '3', cor: 'emerald', titulo: 'Defina sua estratégia',  desc: 'Simule preços de compra de carteira e veja o retorno esperado da operação.', icon: '📊' },
-                { num: '4', cor: 'amber',   titulo: 'Registre os resultados', desc: 'A cada contato registrado, a IA aprende e melhora as recomendações.',        icon: '🎯' },
-              ].map(({ num, cor, titulo, desc, icon }) => {
-                const colors = { blue: 'rgb(var(--c-royal) / 0.15)', indigo: 'rgb(var(--c-royal) / 0.15)', emerald: 'rgb(var(--c-success) / 0.12)', amber: 'rgb(var(--c-warning) / 0.12)' }
-                const borders = { blue: 'rgb(var(--c-royal) / 0.25)', indigo: 'rgb(var(--c-royal) / 0.25)', emerald: 'rgb(var(--c-success) / 0.20)', amber: 'rgb(var(--c-warning) / 0.20)' }
-                const badges  = { blue: 'var(--royal)', indigo: 'var(--accent-text)', emerald: 'var(--success)', amber: 'var(--warning)' }
-                return (
-                  <div key={num} className="rounded-xl p-4" style={{ background: colors[cor], border: `1px solid ${borders[cor]}` }}>
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="w-5 h-5 rounded-full text-ink text-xs font-bold flex items-center justify-center shrink-0" style={{ background: badges[cor] }}>{num}</span>
-                      <span className="text-lg">{icon}</span>
-                    </div>
-                    <p className="text-xs font-semibold text-ink mb-1">{titulo}</p>
-                    <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-2)' }}>{desc}</p>
-                  </div>
-                )
-              })}
-            </div>
-            <p className="text-center text-xs mt-6" style={{ color: 'var(--ink-4)' }}>
-              Comece carregando um arquivo acima — CSV ou Excel com CPF, valor da dívida e dias em atraso são suficientes.
-            </p>
-          </div>
+          <p className="text-xs" style={{ color: 'var(--ink-3)' }}>
+            Nenhuma análise ainda. Comece carregando um arquivo acima — CSV ou Excel com CPF, valor da dívida e dias em atraso são suficientes.
+          </p>
         )}
 
         {!histLoading && historico.length > 0 && (

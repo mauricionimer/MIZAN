@@ -7,7 +7,7 @@ import { useAnalysis } from '../context/AnalysisContext'
 import DicaAjuda from '../components/DicaAjuda'
 import { atualizarAvisosDeDuvida } from '../components/useAvisosDeDuvida'
 import {
-  buscarAjuda, naoResolveu, indiceDaAjuda, entradaDaAjuda, estadoDoModelo,
+  buscarAjuda, naoResolveu, indiceDaAjuda, entradaDaAjuda,
   enviarDuvida, minhasDuvidas, marcarDuvidasVistas, duvidasDaEquipe,
 } from '../api'
 
@@ -154,7 +154,6 @@ export default function Ajuda() {
   const [buscando, setBuscando]   = useState(false)
   const [erro, setErro]           = useState('')
   const [indice, setIndice]       = useState([])
-  const [modelo, setModelo]       = useState(null)
   const [abertas, setAbertas]     = useState({})
   const [navegada, setNavegada]   = useState(null)     // entrada aberta pelo índice
   const ultima = useRef(0)
@@ -167,7 +166,6 @@ export default function Ajuda() {
 
   useEffect(() => {
     indiceDaAjuda(token).then(setIndice).catch(() => {})
-    estadoDoModelo(token).then(setModelo).catch(() => {})
     carregarDuvidas()
     // Link de outra tela ("O que é isto?") abre a resposta direto.
     const direto = params.get('id')
@@ -230,14 +228,8 @@ export default function Ajuda() {
         <div>
           <p className="section-label">Central de ajuda</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">Como posso ajudar?</h1>
-          <p className="mt-1 text-sm text-ink-2">
-            Pergunte como falaria com um colega: "por que esse devedor está no topo?", "o que é prioridade alta?".
-            A busca é feita aqui, no servidor do Mizan. Quando ela não encontra resposta, a pergunta é guardada sem o seu nome nem o da sua empresa
-            (só o perfil, e já sem CPF, CNPJ, telefone e e-mail), para o COMANDO saber o que escrever. Nada é guardado quando a busca acha a resposta.
-          </p>
         </div>
 
-        {modelo && modelo.nivel !== 'ok' && <Aviso>{modelo.aviso}</Aviso>}
 
         <form onSubmit={perguntar} className="flex gap-2">
           <div className="relative flex-1">

@@ -137,7 +137,7 @@ function RotasAnimadas() {
           <Route path="/admin/usuarios" element={P(['admin', 'comando'], <AdminUsuarios />)} />
           <Route path="/backtest" element={P(['admin', 'comando'], <Backtest />)} />
           <Route path="/premissas" element={P(['admin', 'comando'], <Premissas />)} />
-          <Route path="/retencao" element={P(['admin', 'comando'], <Retencao />)} />
+          <Route path="/retencao" element={P(['comando'], <Retencao />)} />
           <Route path="/auditoria" element={P(['admin', 'comando'], <Auditoria />)} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

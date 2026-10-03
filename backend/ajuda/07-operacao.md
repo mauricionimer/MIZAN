@@ -103,7 +103,7 @@ constantes:
 
 ## retencao-de-dados
 titulo: Retenção de dados (LGPD)
-perfis: admin, comando
+perfis: comando
 telas: Retenção
 perguntas:
 - por quanto tempo o sistema guarda o cpf
@@ -129,7 +129,7 @@ constantes:
 
 ## pedido-do-titular
 titulo: Pedido de um titular (direito de eliminação)
-perfis: admin, comando
+perfis: comando
 telas: Retenção
 perguntas:
 - um devedor pediu para apagar os dados dele
