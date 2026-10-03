@@ -4598,23 +4598,29 @@ def feedbacks_status(
 
 
 @app.get("/admin/modelo/qualidade")
-def admin_modelo_qualidade(credentials: HTTPAuthorizationCredentials = Security(bearer)):
+def admin_modelo_qualidade(empresa_id: Optional[str] = None,
+                           credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """
-    Diagnóstico de qualidade do modelo de crédito: overfitting (treino vs. validação
-    cruzada vs. holdout), calibração de probabilidade, matriz de confusão e se há
-    dados suficientes para a complexidade atual do modelo.
+    Qualidade do modelo EM USO por uma empresa, medida nos devedores dela com
+    pagamento registrado: separação (KS/Gini/AUC), calibração, matriz de
+    confusão e comparação com o teste feito no treino. Ver model/diagnostico.py.
     """
     _exigir_comando(credentials)
-    from model.diagnostico import avaliar_qualidade
-    try:
-        resultado = avaliar_qualidade()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao avaliar qualidade do modelo: {e}")
+    empresa = (empresa_id or "").strip().lower()
+    if not empresa:
+        resultado = {"ok": False, "motivo": "Escolha uma empresa: o diagnóstico mede o modelo que pontua aquela empresa, nos pagamentos dela."}
+    else:
+        from model.diagnostico import avaliar_modelo_ativo
+        try:
+            resultado = avaliar_modelo_ativo(get_db(), empresa)
+        except Exception as e:
+            codigo = _erros.registrar({"path": "/admin/modelo/qualidade"}, e, 500)
+            raise HTTPException(status_code=500, detail=f"Erro ao avaliar o modelo. Código: {codigo}.")
 
     # Procedência do modelo ativo. A interface precisa disso para dizer em que
     # dado o score se apoia: um banco desconfia mais de quem não mostra a régua
     # do que de quem admite estar em calibração inicial.
-    resultado["procedencia"] = _procedencia_modelo_ativo()
+    resultado["procedencia"] = _procedencia_modelo_ativo(empresa or None)
     return resultado
 
 

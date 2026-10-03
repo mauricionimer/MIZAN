@@ -183,7 +183,7 @@ o defeito que existia.
 | **D3** | **Dois "líquidos"**: o card do Dashboard (`VER × (1 − custo%)`, controle deslizante) e o valor esperado líquido do ciclo (comissão por fase, configurada pela empresa). São conceitos diferentes com o mesmo nome |
 | **D4** | **Duas "derivas"**: o PSI (por carteira, contra o treino, com régua) e `/admin/drift` (média de 30 dias contra o histórico inteiro, limite fixo de 10 pontos, sem separar empresas, e o histórico inclui os próprios 30 dias) |
 | **D5** | **Alcance usa o bruto** enquanto a fila é ordenada pelo **líquido**. Com comissão configurada, o topo da fila não é o topo do bruto |
-| **D6** | O diagnóstico de qualidade (`/admin/modelo/qualidade`) **retreina um modelo novo** sobre os feedbacks para medir. Mede "esse tipo de modelo com esses dados", **não o modelo que está ativo**, e com k de clusters diferente. Também é global |
+| **D6** (resolvido: mede o modelo em uso pela empresa, nos pagamentos dela que ele não viu) | O diagnóstico de qualidade (`/admin/modelo/qualidade`) **retreina um modelo novo** sobre os feedbacks para medir. Mede "esse tipo de modelo com esses dados", **não o modelo que está ativo**, e com k de clusters diferente. Também é global |
 | **D7** | A fronteira entre aging e fase: dia 30 cai na faixa de aging "30–59" mas na fase "administrativa" |
 
 ## Textos (T)

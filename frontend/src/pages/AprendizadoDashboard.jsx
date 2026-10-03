@@ -105,7 +105,8 @@ export default function AprendizadoDashboard() {
 
   const [alphaInput, setAlphaInput]     = useState(1.0)
   const [empresaZerar, setEmpresaZerar] = useState('')
-  const [empresaPreco, setEmpresaPreco] = useState('')
+  const [empresaSel, setEmpresaSel]     = useState('')
+  const [empresas, setEmpresas]         = useState([])
 
   const carregar = useCallback(async () => {
     setLoading(true)
@@ -135,12 +136,12 @@ export default function AprendizadoDashboard() {
 
   useEffect(() => { carregar() }, [carregar])
 
-  async function executar(nome, fn) {
+  async function executar(nome, fn, recarregar = true) {
     setAcao(nome); setMsg(''); setErro('')
     try {
       const r = await fn()
       setMsg(typeof r === 'string' ? r : (r?.mensagem || r?.motivo || 'Concluído.'))
-      await carregar()
+      if (recarregar) await carregar()
     } catch (e) {
       setErro(e.message)
     } finally {
@@ -162,9 +163,21 @@ export default function AprendizadoDashboard() {
     return { mensagem: `Alpha ajustado para ${d.alpha}.` }
   })
 
-  const verPreco = () =>
-    _get(`/admin/price-model?empresa_id=${encodeURIComponent(empresaPreco.trim())}`, token)
-      .then(setPriceModel).catch(e => setErro(e.message))
+  const verEmpresa = () => executar('empresa', async () => {
+    const emp = encodeURIComponent(empresaSel.trim().toLowerCase())
+    const [q, pm] = await Promise.all([
+      _get(`/admin/modelo/qualidade?empresa_id=${emp}`, token),
+      _get(`/admin/price-model?empresa_id=${emp}`, token),
+    ])
+    setQualidade(q); setPriceModel(pm)
+    return { mensagem: `Modelo em uso por ${empresaSel.trim().toLowerCase()} medido.` }
+  }, false)
+
+  useEffect(() => {
+    _get('/comando/visao-geral', token)
+      .then(d => setEmpresas((d?.empresas || []).map(e => e.empresa_id).filter(Boolean)))
+      .catch(() => {})
+  }, [token])
 
   const zerarBandit = () => {
     const emp = empresaZerar.trim()
@@ -283,38 +296,43 @@ export default function AprendizadoDashboard() {
               ) : null
             )}
 
-            {/* Qualidade da IA: overfitting, calibração, matriz de confusão */}
+            {/* Qualidade do modelo EM USO por uma empresa (D6): mede o modelo que
+                pontua a empresa nos pagamentos reais dela, não um modelo retreinado. */}
             <Secao
               icon={Microscope}
-              titulo="Qualidade da IA — overfitting e confiabilidade" ajuda="overfitting"
-              sub="O modelo está generalizando ou decorando os próprios dados de treino?"
+              titulo="Qualidade do modelo em uso" ajuda="overfitting"
+              sub="O modelo que pontua esta empresa separa quem paga de quem não paga?"
+              right={
+                <div className="flex items-center gap-2">
+                  <input list="aprendizado-empresas" value={empresaSel} onChange={e => setEmpresaSel(e.target.value)}
+                    placeholder="empresa_id" aria-label="Empresa" className="input-base w-40 text-xs py-1.5 px-2" />
+                  <datalist id="aprendizado-empresas">{empresas.map(e => <option key={e} value={e} />)}</datalist>
+                  <Botao variante="secundario" onClick={verEmpresa} disabled={!empresaSel.trim() || acao === 'empresa'}>
+                    {acao === 'empresa' ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Medir'}
+                  </Botao>
+                </div>
+              }
             >
               {!qualidade?.ok ? (
                 <p className="text-sm" style={{ color: MUTED }}>{qualidade?.motivo || 'Diagnóstico indisponível.'}</p>
               ) : (
                 <div className="space-y-6">
-                  {/* Veredito */}
-                  {(() => {
-                    const v = qualidade.overfitting.veredito
-                    const cfg = {
-                      saudavel:             { label: 'Saudável — sem sinais de overfitting', bg: 'rgb(var(--c-success) / 0.10)', border: 'rgb(var(--c-success) / 0.25)', cor: 'var(--success)', Icon: CheckCircle2 },
-                      overfitting_moderado: { label: 'Overfitting moderado — monitorar', bg: 'rgb(var(--c-warning) / 0.10)', border: 'rgb(var(--c-warning) / 0.25)', cor: 'var(--warning)', Icon: AlertTriangle },
-                      overfitting_severo:   { label: 'Overfitting severo — modelo não está confiável', bg: 'rgb(var(--c-danger) / 0.10)', border: 'rgb(var(--c-danger) / 0.25)', cor: 'var(--danger)', Icon: XCircle },
-                    }[v]
-                    return (
-                      <div className="flex items-start gap-3 rounded-2xl border px-4 py-3.5 text-sm" style={{ background: cfg.bg, borderColor: cfg.border, color: cfg.cor }}>
-                        <cfg.Icon className="h-4 w-4 mt-0.5 shrink-0" />
-                        <div>
-                          <p className="font-semibold">{cfg.label}</p>
-                          <p className="opacity-90 mt-0.5">
-                            Diferença entre acerto no treino ({fmtPct(qualidade.overfitting.treino_acuracia)}) e na
-                            validação cruzada ({fmtPct(qualidade.overfitting.cv_acuracia_media)}): {fmtPct(qualidade.overfitting.gap_treino_menos_cv)} pontos.
-                            {' '}Gap acima de 10% já é sinal de alerta; acima de 20%, o modelo decorou os dados em vez de aprender o padrão.
-                          </p>
-                        </div>
-                      </div>
-                    )
-                  })()}
+                  <div className="rounded-2xl border px-4 py-3.5 text-sm" style={{ background: 'var(--raise-2)', borderColor: 'var(--line)', color: 'var(--ink-2)' }}>
+                    <p>
+                      Modelo medido: <b className="text-ink">{qualidade.modelo.origem === 'proprio' ? 'próprio da empresa' : 'geral'}</b>
+                      {' '}({qualidade.modelo.versao}{qualidade.modelo.tipo_alvo === 'real' ? ', treinado com resultado real' : ', treinado com dados simulados'}),
+                      {' '}em <b className="text-ink">{qualidade.n_amostras}</b> devedores de {qualidade.empresa_id} com pagamento registrado
+                      {qualidade.base === 'depois_do_treino' ? ' depois do treino dele (os que ele já viu ficam de fora)' : ''}.
+                      {' '}Pagaram {fmtPct(qualidade.medicao.taxa_pagamento)}.
+                    </p>
+                    {qualidade.comparacao_com_o_treino && (
+                      <p className="mt-1.5">
+                        AUC no teste feito no treino: <b className="text-ink">{qualidade.comparacao_com_o_treino.auc_no_treino}</b> ·
+                        {' '}agora: <b className="text-ink">{qualidade.comparacao_com_o_treino.auc_agora}</b>.
+                        {' '}Uma queda grande indica que o modelo decorou o treino ou que a carteira mudou.
+                      </p>
+                    )}
+                  </div>
 
                   {/* KS e Gini — o vocabulário que uma mesa de crédito usa.
                       Vêm antes da acurácia porque é o que se pergunta primeiro. */}
@@ -349,74 +367,51 @@ export default function AprendizadoDashboard() {
                       )}
                       {qualidade.separacao.ok && qualidade.separacao.ks_leitura === 'suspeito' && (
                         <p className="text-xs mt-2" style={{ color: 'var(--warning)' }}>
-                          KS acima de 50 costuma indicar vazamento de dados — alguma variável carregando a
-                          resposta. Em modelo treinado em dados simulados é esperado, porque o gerador cria o
-                          alvo a partir das mesmas variáveis que o modelo lê.
+                          KS acima de 50 costuma indicar vazamento de dados — alguma variável carregando a resposta.
+                          Confira as colunas usadas no treino antes de confiar nesse número.
                         </p>
                       )}
                     </div>
                   )}
 
-                  {/* Treino vs CV vs Holdout */}
-                  <div>
-                    <p className="section-label mb-3">Acurácia — treino × validação cruzada × holdout (nunca visto)</p>
-                    <div className="grid grid-cols-3 gap-4">
-                      {[
-                        { label: 'Treino (100% dos dados)', valor: qualidade.overfitting.treino_acuracia, cor: 'var(--ink-2)' },
-                        { label: 'Validação cruzada', valor: qualidade.overfitting.cv_acuracia_media, cor: 'var(--royal)' },
-                        { label: 'Holdout (20% nunca visto)', valor: qualidade.holdout.acuracia, cor: 'var(--success)' },
-                      ].map(b => (
-                        <div key={b.label}>
-                          <div className="flex items-center justify-between text-xs mb-1" style={{ color: MUTED }}>
-                            <span>{b.label}</span>
-                            <span className="font-bold text-ink">{fmtPct(b.valor)}</span>
-                          </div>
-                          <Barra pct={(b.valor ?? 0) * 100} cor={b.cor} />
-                        </div>
-                      ))}
-                    </div>
-                    <p className="text-xs mt-3" style={{ color: MUTED }}>
-                      Treino muito mais alto que os outros dois = está decorando. Os três próximos = generaliza de verdade.
-                    </p>
-                  </div>
-
                   <div className="grid grid-cols-2 gap-6">
                     {/* Matriz de confusão */}
                     <div>
-                      <p className="section-label mb-3">Matriz de confusão (holdout, {qualidade.holdout.n_amostras} casos)</p>
+                      <p className="section-label mb-3">Matriz de confusão ({qualidade.medicao.n_amostras} casos, corte em 50%)</p>
                       <div className="grid grid-cols-2 gap-2 text-center text-sm">
                         <div className="rounded-xl p-3" style={{ background: 'rgb(var(--c-success) / 0.10)', border: '1px solid rgb(var(--c-success) / 0.22)' }}>
-                          <p className="text-lg font-bold text-emerald-300">{qualidade.holdout.matriz_confusao.verdadeiro_positivo}</p>
+                          <p className="text-lg font-bold text-emerald-300">{qualidade.medicao.matriz_confusao.verdadeiro_positivo}</p>
                           <p className="text-[11px] text-emerald-300/80 mt-0.5">Previu que pagava — pagou</p>
                         </div>
                         <div className="rounded-xl p-3" style={{ background: 'rgb(var(--c-danger) / 0.10)', border: '1px solid rgb(var(--c-danger) / 0.22)' }}>
-                          <p className="text-lg font-bold text-red-300">{qualidade.holdout.matriz_confusao.falso_positivo}</p>
+                          <p className="text-lg font-bold text-red-300">{qualidade.medicao.matriz_confusao.falso_positivo}</p>
                           <p className="text-[11px] text-red-300/80 mt-0.5">Previu que pagava — não pagou</p>
                         </div>
                         <div className="rounded-xl p-3" style={{ background: 'rgb(var(--c-warning) / 0.10)', border: '1px solid rgb(var(--c-warning) / 0.22)' }}>
-                          <p className="text-lg font-bold text-amber-300">{qualidade.holdout.matriz_confusao.falso_negativo}</p>
+                          <p className="text-lg font-bold text-amber-300">{qualidade.medicao.matriz_confusao.falso_negativo}</p>
                           <p className="text-[11px] text-amber-300/80 mt-0.5">Previu que não pagava — pagou</p>
                         </div>
                         <div className="rounded-xl p-3" style={{ background: 'var(--raise-2)', border: '1px solid var(--line)' }}>
-                          <p className="text-lg font-bold text-ink">{qualidade.holdout.matriz_confusao.verdadeiro_negativo}</p>
+                          <p className="text-lg font-bold text-ink">{qualidade.medicao.matriz_confusao.verdadeiro_negativo}</p>
                           <p className="text-[11px] mt-0.5" style={{ color: MUTED }}>Previu que não pagava — não pagou</p>
                         </div>
                       </div>
-                      <div className="grid grid-cols-3 gap-3 mt-3 text-center">
-                        <div><p className="text-xs" style={{ color: MUTED }}>Precisão</p><p className="font-bold text-ink text-sm">{fmtPct(qualidade.holdout.precisao)}</p></div>
-                        <div><p className="text-xs" style={{ color: MUTED }}>Revocação</p><p className="font-bold text-ink text-sm">{fmtPct(qualidade.holdout.revocacao)}</p></div>
-                        <div><p className="text-xs" style={{ color: MUTED }}>F1</p><p className="font-bold text-ink text-sm">{fmtPct(qualidade.holdout.f1)}</p></div>
+                      <div className="grid grid-cols-4 gap-3 mt-3 text-center">
+                        <div><p className="text-xs" style={{ color: MUTED }}>Acurácia</p><p className="font-bold text-ink text-sm">{fmtPct(qualidade.medicao.acuracia)}</p></div>
+                        <div><p className="text-xs" style={{ color: MUTED }}>Precisão</p><p className="font-bold text-ink text-sm">{fmtPct(qualidade.medicao.precisao)}</p></div>
+                        <div><p className="text-xs" style={{ color: MUTED }}>Revocação</p><p className="font-bold text-ink text-sm">{fmtPct(qualidade.medicao.revocacao)}</p></div>
+                        <div><p className="text-xs" style={{ color: MUTED }}>F1</p><p className="font-bold text-ink text-sm">{fmtPct(qualidade.medicao.f1)}</p></div>
                       </div>
                       <p className="text-[11px] mt-2 leading-relaxed" style={{ color: MUTED }}>
-                        "Positivo" aqui = o modelo previu que o devedor paga. Precisão: das vezes que previu pagamento, quantas acertou.
-                        Revocação: dos que realmente pagaram, quantos o modelo identificou.
+                        "Positivo" aqui = o modelo previu que o devedor paga (score 50 ou mais). Precisão: das vezes que previu
+                        pagamento, quantas acertou. Revocação: dos que realmente pagaram, quantos o modelo identificou.
                       </p>
                     </div>
 
                     {/* Calibração */}
                     <div>
                       <p className="section-label mb-3">
-                        Calibração — a probabilidade é confiável?<DicaAjuda id="calibracao" /> <span className="tabular-nums" style={{ color: MUTED }}>(Brier: {qualidade.holdout.brier_score})</span>
+                        Calibração — a probabilidade é confiável?<DicaAjuda id="calibracao" /> <span className="tabular-nums" style={{ color: MUTED }}>(Brier: {qualidade.medicao.brier_score} · AUC: {qualidade.medicao.auc_roc})</span>
                       </p>
                       <div className="space-y-1.5">
                         {qualidade.calibracao_por_faixa.map((f, i) => {
@@ -442,20 +437,22 @@ export default function AprendizadoDashboard() {
                     </div>
                   </div>
 
-                  {/* Complexidade vs volume de dados */}
-                  <div className="flex items-start gap-3 rounded-xl border px-4 py-3 text-xs"
-                    style={qualidade.complexidade_adequada
-                      ? { background: 'var(--raise-2)', borderColor: 'var(--line)', color: MUTED_LIGHT }
-                      : { background: 'rgb(var(--c-warning) / 0.10)', borderColor: 'rgb(var(--c-warning) / 0.25)', color: 'rgb(var(--c-warning))' }}>
-                    <Target className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                    <span>
-                      <DicaAjuda id="dados-suficientes" />{qualidade.n_amostras} amostras para {qualidade.n_features} variáveis do modelo
-                      ({qualidade.amostras_por_feature} amostras/variável).
-                      {qualidade.complexidade_adequada
-                        ? ' Volume de dados adequado para a complexidade atual do modelo.'
-                        : ' Abaixo do recomendado (≥ 20 amostras por variável) — as métricas acima têm alta variância até chegar mais feedback real.'}
-                    </span>
-                  </div>
+                  {/* Volume do treino do modelo em uso vs número de variáveis */}
+                  {qualidade.dados_do_treino?.amostras_por_variavel != null && (
+                    <div className="flex items-start gap-3 rounded-xl border px-4 py-3 text-xs"
+                      style={qualidade.dados_do_treino.adequado
+                        ? { background: 'var(--raise-2)', borderColor: 'var(--line)', color: MUTED_LIGHT }
+                        : { background: 'rgb(var(--c-warning) / 0.10)', borderColor: 'rgb(var(--c-warning) / 0.25)', color: 'rgb(var(--c-warning))' }}>
+                      <Target className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                      <span>
+                        <DicaAjuda id="dados-suficientes" />O modelo em uso foi treinado com {qualidade.dados_do_treino.n_treino} devedores
+                        para {qualidade.dados_do_treino.n_variaveis} variáveis ({qualidade.dados_do_treino.amostras_por_variavel} por variável).
+                        {qualidade.dados_do_treino.adequado
+                          ? ' Volume adequado para a complexidade do modelo.'
+                          : ' Abaixo do recomendado (≥ 20 por variável): desconfie das métricas do treino.'}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
             </Secao>
@@ -551,11 +548,9 @@ export default function AprendizadoDashboard() {
             <div className="grid grid-cols-2 gap-6">
               {/* Price model */}
               <Secao icon={Award} ajuda="taxa-de-recuperacao" titulo="Modelo de precificação" sub="Estima quanto da dívida deve voltar, já contando quem não paga. É por empresa.">
-                <div className="mb-3 flex items-center gap-2">
-                  <input value={empresaPreco} onChange={e => setEmpresaPreco(e.target.value)} placeholder="empresa_id"
-                    aria-label="Empresa do modelo de preço" className="input-base w-40 text-xs py-1.5 px-2" />
-                  <Botao variante="secundario" onClick={verPreco} disabled={!empresaPreco.trim()}>Ver</Botao>
-                </div>
+                <p className="mb-3 text-xs" style={{ color: MUTED }}>
+                  Empresa: {priceModel?.empresa_id || 'escolha em "Qualidade do modelo em uso" e clique em Medir'}
+                </p>
                 {!priceModel?.disponivel ? (
                   <p className="text-sm" style={{ color: MUTED }}>{priceModel?.mensagem || 'Indisponível.'}</p>
                 ) : (

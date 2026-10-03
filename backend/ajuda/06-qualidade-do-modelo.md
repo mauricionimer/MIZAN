@@ -59,32 +59,31 @@ calculo: AUC é a chance de um pagador ter score maior que um não pagador sorte
 fazer: AUC para saber se ordena; Brier para saber se a probabilidade é confiável como número.
 cuidado: Um AUC bom com Brier ruim quer dizer que ordena bem mas as probabilidades estão descalibradas.
 fontes:
-- backend/model/diagnostico.py::avaliar_qualidade
+- backend/model/diagnostico.py::avaliar_modelo_ativo
 - backend/model/treino_empresa.py::_metricas
 
 ## overfitting
-titulo: Overfitting (decorar os dados)
+titulo: Qualidade do modelo em uso (e se ele decorou o treino)
 perfis: comando
 telas: Aprendizado
 perguntas:
 - o que é overfitting
 - o modelo está decorando
-- o que é o gap treino menos validação
-- o que significa overfitting moderado
-- o que significa overfitting severo
+- o que é a qualidade do modelo em uso
+- como saber se o modelo da empresa está funcionando
 - o modelo está decorando os dados de treino
-- o que é overfitting moderado ou severo
-- o que é a diferença entre treino e validação
-curta: Mede se o modelo acerta muito mais nos dados em que treinou do que nos que nunca viu.
-calculo: gap = acurácia no treino − acurácia na validação cruzada. A partir de 0,10 é moderado; a partir de 0,20 é severo.
-fazer: Com gap alto, junte mais dados ou simplifique antes de ativar um modelo.
-cuidado: Os cortes 0,10 e 0,20 são escolha de projeto. O diagnóstico retreina um modelo do mesmo tipo com os feedbacks para medir: ele avalia "esse tipo de modelo com esses dados", não o modelo ativo.
-revisar: achado D6 do mapa do sistema.
+- o que mede o diagnóstico de qualidade
+- o modelo caiu depois do treino
+- o diagnóstico usa os dados de treino
+curta: Pega o modelo que pontua a empresa hoje (o próprio ou o geral), pontua os devedores dela que têm pagamento registrado e compara com o que aconteceu.
+calculo: Escolha a empresa e clique em Medir. Entram os devedores da empresa com pagamento registrado; se o modelo em uso foi treinado com os pagamentos do Mizan, só os registrados depois desse treino, porque os outros ele já viu. Mostra KS e Gini, AUC, Brier, a matriz de confusão (score 50 ou mais = "previu que paga") e a calibração por faixa. Quando o modelo próprio tem o teste feito no treino, mostra o AUC de lá ao lado do de agora: uma queda grande indica que ele decorou o treino ou que a carteira mudou. Precisa de pelo menos 30 devedores, com quem pagou e quem não pagou.
+fazer: Meça cada empresa antes de apresentar os números, e de novo depois de ativar uma versão nova e juntar pagamentos.
+cuidado: Não há corte oficial para "queda grande": compare com o histórico da própria empresa. Com o modelo geral treinado em dados simulados, a medida diz quanto ele acerta nesta carteira, não quanto um modelo treinado nela acertaria.
 fontes:
-- backend/model/diagnostico.py::avaliar_qualidade
+- backend/model/diagnostico.py::avaliar_modelo_ativo
+- backend/model/diagnostico.py::_modelo_em_uso
 constantes:
-- backend/model/diagnostico.py::GAP_MODERADO = 0.10
-- backend/model/diagnostico.py::GAP_SEVERO = 0.20
+- backend/model/diagnostico.py::MIN_AMOSTRAS_DIAGNOSTICO = 30
 
 ## dados-suficientes
 titulo: Dados suficientes para a complexidade do modelo
@@ -101,11 +100,11 @@ perguntas:
 - o que são amostras por variável
 - por que o diagnóstico fala em complexidade adequada
 curta: Regra prática: pelo menos 20 devedores com resultado para cada variável do modelo. Abaixo disso, desconfie de qualquer métrica.
-calculo: amostras por variável = linhas com resultado ÷ número de variáveis codificadas. Adequado a partir de 20. O diagnóstico exige no mínimo 30 resultados.
+calculo: amostras por variável = devedores com resultado no treino do modelo em uso ÷ número de variáveis dele. Adequado a partir de 20. Para medir o modelo, o diagnóstico exige no mínimo 30 devedores com pagamento registrado.
 fazer: Se estiver abaixo, aguarde mais resultados ou use o treino por empresa com a carteira histórica.
 cuidado: É regra prática, não teorema.
 fontes:
-- backend/model/diagnostico.py::avaliar_qualidade
+- backend/model/diagnostico.py::avaliar_modelo_ativo
 constantes:
 - backend/model/diagnostico.py::AMOSTRAS_POR_FEATURE_MINIMO = 20
 - backend/model/diagnostico.py::MIN_AMOSTRAS_DIAGNOSTICO = 30
@@ -125,7 +124,7 @@ perguntas:
 - o que é a calibração por faixa
 - previsto versus observado em cada faixa
 curta: Compara, em cinco faixas de probabilidade, o que o modelo previu com o que de fato aconteceu. Calibrado é quando os dois se parecem.
-calculo: Divide os devedores de teste em 5 grupos de mesmo tamanho por probabilidade e mostra a média prevista e a taxa real de pagamento de cada um.
+calculo: Divide os devedores medidos em 5 grupos de mesmo tamanho por probabilidade e mostra a média prevista e a taxa real de pagamento de cada um.
 fazer: Se a previsão for sistematicamente maior que a real, a probabilidade está otimista.
 cuidado: Com poucos devedores por faixa a taxa real oscila muito.
 fontes:

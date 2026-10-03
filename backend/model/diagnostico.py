@@ -1,28 +1,31 @@
 """
-Diagnóstico de qualidade do modelo de crédito Mizan.
+Diagnóstico de qualidade do modelo de crédito Mizan: mede o modelo EM USO.
 
 Responde às perguntas que importam antes de mostrar o modelo pra um banco:
-  - O modelo está decorando os dados de treino (overfitting) ou generaliza?
+  - O modelo que pontua esta empresa separa quem paga de quem não paga?
   - A probabilidade que ele dá é confiável (calibração), ou só "parece" score?
-  - Tem dado suficiente pra sustentar a complexidade do modelo?
   - Onde ele erra mais: falso positivo (achou que pagava e não pagou) ou o contrário?
+  - O desempenho de agora bate com o medido no treino, ou caiu?
 
-Reaproveita a mesma pipeline de dados do retrain.py (mesmos feedbacks reais),
-mas nunca sobrescreve o modelo em produção — é só leitura/avaliação.
+Antes, o diagnóstico treinava um modelo NOVO com os pagamentos de todas as
+empresas e media esse modelo: dizia "como seria um modelo deste tipo com estes
+dados", não "como está o modelo que decide hoje" (achado D6). Agora ele pontua,
+com o modelo ativo da empresa (o próprio ou o geral), os devedores dela que têm
+pagamento registrado, e compara com o que aconteceu.
+
+Pagamentos que o modelo já viu no treino não servem para medi-lo: quando o
+modelo ativo foi treinado com os pagamentos do Mizan, só entram os registrados
+DEPOIS desse treino.
 """
 
 import sys
 from pathlib import Path
 
 import numpy as np
-from sklearn.cluster import KMeans
-from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.metrics import (
     accuracy_score, brier_score_loss, confusion_matrix,
     precision_recall_fscore_support, roc_auc_score,
 )
-from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test_split
-from sklearn.preprocessing import RobustScaler
 
 _BACKEND_DIR = str(Path(__file__).parent.parent)
 if _BACKEND_DIR not in sys.path:
@@ -33,32 +36,6 @@ MIN_AMOSTRAS_DIAGNOSTICO = 30
 # Regra prática: gradient boosting raso (max_depth=4) pede >= ~20 amostras por
 # feature codificada pra não decorar ruído. Abaixo disso, desconfie de qualquer métrica.
 AMOSTRAS_POR_FEATURE_MINIMO = 20
-
-# Gap (treino - validação cruzada) acima do qual chamamos de overfitting.
-GAP_MODERADO = 0.10
-GAP_SEVERO   = 0.20
-
-
-def _preparar_dataset():
-    """Busca feedbacks reais + features das predições, mesma lógica do retreinamento."""
-    from db import get_db
-    from model.retrain import _buscar_feedbacks, _buscar_predicoes, _montar_dataset, _preprocessar
-
-    db = get_db()
-    feedbacks = _buscar_feedbacks(db)
-    if len(feedbacks) < MIN_AMOSTRAS_DIAGNOSTICO:
-        return None, len(feedbacks)
-
-    pred_ids = [f["predicao_id"] for f in feedbacks]
-    pred_map = _buscar_predicoes(db, pred_ids)
-    df = _montar_dataset(feedbacks, pred_map)
-    df = df.drop(columns=["_created_at", "cpf"], errors="ignore")
-
-    if df["pagou"].nunique() < 2:
-        return None, len(df)
-
-    X, features_numericas, cat_cols, medians, modes = _preprocessar(df)
-    return {"df": df, "X": X, "features_numericas": features_numericas, "cat_cols": cat_cols}, len(df)
 
 
 def _matriz_confusao_dict(y_true, y_pred) -> dict:
@@ -167,103 +144,88 @@ def _calibracao_por_faixa(y_true, y_proba, n_faixas: int = 5) -> list[dict]:
     return resultado
 
 
-def avaliar_qualidade() -> dict:
-    dataset, n_disponivel = _preparar_dataset()
-    if dataset is None:
+def _modelo_em_uso(empresa_id: str) -> dict:
+    """Qual modelo pontua a empresa hoje, e desde quando os pagamentos são inéditos para ele."""
+    from model import modelos_empresa as me
+    from model.retrain import _carregar_versoes
+    ativa = me.versao_ativa(empresa_id) if me.tem_modelo_proprio(empresa_id) else None
+    if ativa:
+        reg = next((v for v in me.carregar_versoes(empresa_id).get("versoes", []) if v.get("versao") == ativa), {})
+        viu_pagamentos = reg.get("origem") == "feedbacks"
+        auc_treino = ((reg.get("metricas") or {}).get("novo") or {}).get("auc")
+        return {"origem": "proprio", "versao": ativa, "tipo_alvo": reg.get("tipo_alvo"),
+                "n_treino": reg.get("n_amostras"), "auc_no_treino": auc_treino,
+                "inedito_desde": reg.get("criado_em") if viu_pagamentos else None}
+    g = _carregar_versoes()
+    ativa = g.get("versao_ativa", "v1_inicial")
+    reg = next((v for v in g.get("versoes", []) if v.get("versao") == ativa), {})
+    # versão geral de alvo real = treinada pelo retreino antigo, com os pagamentos do Mizan
+    real = reg.get("tipo_alvo") == "real"
+    return {"origem": "geral", "versao": ativa, "tipo_alvo": reg.get("tipo_alvo", "simulado"),
+            "n_treino": reg.get("n_amostras"), "auc_no_treino": None,
+            "inedito_desde": reg.get("criado_em") if real else None}
+
+
+def avaliar_modelo_ativo(db, empresa_id: str) -> dict:
+    """Mede o modelo que pontua `empresa_id` nos devedores dela com pagamento registrado."""
+    from model import treino_feedbacks as tf
+    from model.score import _carregar_modelos, score_carteira
+
+    empresa = str(empresa_id or "").strip().lower()
+    modelo = _modelo_em_uso(empresa)
+    df, datas, _ = tf.datasets(db, [empresa]).get(empresa, (None, [], []))
+    if df is not None and modelo["inedito_desde"]:
+        novos = [d > modelo["inedito_desde"] for d in datas]
+        df = df[novos].reset_index(drop=True)
+    n = 0 if df is None else len(df)
+    base = "depois_do_treino" if modelo["inedito_desde"] else "todos"
+    if n < MIN_AMOSTRAS_DIAGNOSTICO or df["pagou"].nunique() < 2:
         return {
-            "ok": False,
+            "ok": False, "empresa_id": empresa, "modelo": modelo, "base": base, "n_amostras": n,
             "motivo": (
-                f"Dados insuficientes para diagnóstico: {n_disponivel} feedbacks reais "
-                f"(mínimo: {MIN_AMOSTRAS_DIAGNOSTICO}), ou alvo sem as duas classes (pagou/não pagou)."
+                f"Dados insuficientes para medir o modelo em uso: {n} devedores com pagamento registrado"
+                + (" depois do treino dele" if base == "depois_do_treino" else "")
+                + f" (mínimo: {MIN_AMOSTRAS_DIAGNOSTICO}, com quem pagou e quem não pagou)."
             ),
-            "n_amostras": n_disponivel,
         }
 
-    df, X = dataset["df"], dataset["X"]
-    y = df["pagou"].values
-    n_amostras = len(y)
+    y = df["pagou"].astype(int).to_numpy()
+    entrada = df.drop(columns=["pagou", "data_referencia"], errors="ignore")
+    p = score_carteira(entrada, empresa or None)["score_recuperabilidade"].astype(float).to_numpy() / 100.0
+    y_pred = (p >= 0.5).astype(int)
+    precisao, revocacao, f1, _ = precision_recall_fscore_support(y, y_pred, average="binary", zero_division=0)
+    auc = round(float(roc_auc_score(y, p)), 4)
 
-    scaler   = RobustScaler()
-    X_scaled = scaler.fit_transform(X)
-
-    k = min(4, max(2, n_amostras // 30))
-    kmeans   = KMeans(n_clusters=k, random_state=42, n_init=10)
-    clusters = kmeans.fit_predict(X_scaled)
-    X_clf    = np.column_stack([X_scaled, clusters])
-    n_features = X_clf.shape[1]
-
-    min_leaf = max(5, min(20, n_amostras // 50))
-    params = dict(
-        max_iter=200, max_depth=4, learning_rate=0.05,
-        min_samples_leaf=min_leaf, l2_regularization=1.0,
-        class_weight="balanced", random_state=42,
-    )
-
-    # ── 1. Treino no dataset inteiro (mede o quanto o modelo "decora" os próprios dados) ──
-    clf_treino = HistGradientBoostingClassifier(**params).fit(X_clf, y)
-    treino_acuracia = round(float(accuracy_score(y, clf_treino.predict(X_clf))), 4)
-    treino_auc = round(float(roc_auc_score(y, clf_treino.predict_proba(X_clf)[:, 1])), 4)
-
-    # ── 2. Validação cruzada (mede generalização) ──
-    n_splits = max(2, min(5, int(y.sum()), int(n_amostras - y.sum())))
-    cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
-    cv_acuracias = cross_val_score(HistGradientBoostingClassifier(**params), X_clf, y, cv=cv, scoring="accuracy")
-    cv_aucs      = cross_val_score(HistGradientBoostingClassifier(**params), X_clf, y, cv=cv, scoring="roc_auc")
-    cv_acuracia_media = round(float(cv_acuracias.mean()), 4)
-    cv_auc_media      = round(float(cv_aucs.mean()), 4)
-
-    # ── 3. Holdout real: 20% nunca visto pelo modelo que gera as métricas de erro ──
-    X_tr, X_ho, y_tr, y_ho = train_test_split(X_clf, y, test_size=0.2, stratify=y, random_state=42)
-    clf_ho = HistGradientBoostingClassifier(**params).fit(X_tr, y_tr)
-    y_pred_ho  = clf_ho.predict(X_ho)
-    y_proba_ho = clf_ho.predict_proba(X_ho)[:, 1]
-
-    holdout_acuracia = round(float(accuracy_score(y_ho, y_pred_ho)), 4)
-    holdout_auc       = round(float(roc_auc_score(y_ho, y_proba_ho)), 4) if len(np.unique(y_ho)) == 2 else None
-    precisao, revocacao, f1, _ = precision_recall_fscore_support(
-        y_ho, y_pred_ho, average="binary", zero_division=0,
-    )
-    brier = round(float(brier_score_loss(y_ho, y_proba_ho)), 4)
-
-    # ── 4. Veredito de overfitting: gap entre acerto no treino e na validação cruzada ──
-    gap = round(treino_acuracia - cv_acuracia_media, 4)
-    if gap >= GAP_SEVERO:
-        veredito = "overfitting_severo"
-    elif gap >= GAP_MODERADO:
-        veredito = "overfitting_moderado"
-    else:
-        veredito = "saudavel"
-
-    # ── 5. Dados suficientes para a complexidade do modelo? ──
-    amostras_por_feature = round(n_amostras / n_features, 1)
-    complexidade_adequada = amostras_por_feature >= AMOSTRAS_POR_FEATURE_MINIMO
+    _, _, meta = _carregar_modelos(empresa or None)
+    n_variaveis = len(meta.get("feature_names") or []) or None
+    n_treino = modelo.get("n_treino")
+    por_variavel = round(n_treino / n_variaveis, 1) if (n_treino and n_variaveis) else None
 
     return {
         "ok": True,
-        "n_amostras": n_amostras,
-        "n_features": n_features,
-        "amostras_por_feature": amostras_por_feature,
-        "complexidade_adequada": complexidade_adequada,
-        "overfitting": {
-            "veredito": veredito,
-            "gap_treino_menos_cv": gap,
-            "treino_acuracia": treino_acuracia,
-            "treino_auc": treino_auc,
-            "cv_acuracia_media": cv_acuracia_media,
-            "cv_acuracia_std": round(float(cv_acuracias.std()), 4),
-            "cv_auc_media": cv_auc_media,
-            "cv_auc_std": round(float(cv_aucs.std()), 4),
-        },
-        "holdout": {
-            "n_amostras": int(len(y_ho)),
-            "acuracia": holdout_acuracia,
-            "auc_roc": holdout_auc,
+        "empresa_id": empresa,
+        "modelo": modelo,
+        "base": base,
+        "n_amostras": n,
+        "medicao": {
+            "n_amostras": n,
+            "acuracia": round(float(accuracy_score(y, y_pred)), 4),
+            "auc_roc": auc,
             "precisao": round(float(precisao), 4),
             "revocacao": round(float(revocacao), 4),
             "f1": round(float(f1), 4),
-            "brier_score": brier,
-            "matriz_confusao": _matriz_confusao_dict(y_ho, y_pred_ho),
+            "brier_score": round(float(brier_score_loss(y, p)), 4),
+            "matriz_confusao": _matriz_confusao_dict(y, y_pred),
+            "taxa_pagamento": round(float(y.mean()), 4),
         },
-        "separacao": _ks_gini(y_ho, y_proba_ho),
-        "calibracao_por_faixa": _calibracao_por_faixa(y_ho, y_proba_ho),
+        # o mesmo modelo, no teste feito quando foi treinado: se caiu muito, o
+        # modelo decorou o treino ou a carteira mudou
+        "comparacao_com_o_treino": ({"auc_no_treino": modelo["auc_no_treino"], "auc_agora": auc,
+                                     "diferenca": round(modelo["auc_no_treino"] - auc, 4)}
+                                    if modelo.get("auc_no_treino") is not None else None),
+        "dados_do_treino": {"n_treino": n_treino, "n_variaveis": n_variaveis,
+                            "amostras_por_variavel": por_variavel,
+                            "adequado": (por_variavel >= AMOSTRAS_POR_FEATURE_MINIMO) if por_variavel else None},
+        "separacao": _ks_gini(y, p),
+        "calibracao_por_faixa": _calibracao_por_faixa(y, p),
     }
