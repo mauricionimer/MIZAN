@@ -272,9 +272,10 @@ constantes:
 ## estatisticas-do-bandit
 titulo: Performance IA (estatísticas do aprendizado de abordagem)
 perfis: comando
-telas: Performance IA
+telas: Performance IA; Aprendizado
 perguntas:
 - o que é a tela performance ia
+- como zerar o aprendizado das ofertas de uma empresa
 - o que é o alpha do bandit
 - o que é incerteza média
 - o bandit convergiu
@@ -285,8 +286,9 @@ perguntas:
 curta: Mostra quantas vezes cada combinação de canal e oferta foi tentada e com que resultado, e quanto o sistema ainda "duvida" de cada uma.
 calculo: Para cada uma das 12 combinações: tentativas, pagamentos, recompensa média e incerteza (média da diagonal da matriz de confiança). Incerteza alta significa que ainda explora. O alpha (padrão 1,0) dá o peso da exploração; o COMANDO pode ajustá-lo, entre 0,1 e 5,0, para uma empresa por vez.
 fazer: Aumente o alpha para explorar mais, reduza para explorar menos, com cuidado: muda as recomendações de todos os operadores daquela empresa.
-cuidado: Combinações com poucas tentativas têm médias instáveis.
+cuidado: Combinações com poucas tentativas têm médias instáveis. Até outubro de 2026, um pagamento sem recomendação prévia ensinava ao bandit a ação que ele "teria" recomendado, que não foi feita; isso parou, mas as contagens antigas continuam lá. Em Aprendizado, o COMANDO pode zerar o aprendizado de uma empresa (sem volta, fica na auditoria).
 fontes:
+- backend/model/bandit.py::zerar
 - backend/model/bandit.py::convergencia_stats
 - backend/main.py::rota /admin/bandit/stats
 

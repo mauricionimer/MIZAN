@@ -104,6 +104,7 @@ export default function AprendizadoDashboard() {
   const [msg, setMsg]         = useState('')
 
   const [alphaInput, setAlphaInput]     = useState(1.0)
+  const [empresaZerar, setEmpresaZerar] = useState('')
 
   const carregar = useCallback(async () => {
     setLoading(true)
@@ -159,6 +160,17 @@ export default function AprendizadoDashboard() {
     if (!res.ok) throw new Error(d.detail || `HTTP ${res.status}`)
     return { mensagem: `Alpha ajustado para ${d.alpha}.` }
   })
+
+  const zerarBandit = () => {
+    const emp = empresaZerar.trim()
+    const conf = window.prompt(`Isto apaga, sem volta, o aprendizado das ofertas da empresa "${emp}". Digite ZERAR para confirmar.`)
+    if ((conf || '').trim().toUpperCase() !== 'ZERAR') return
+    executar('zerar', async () => {
+      const d = await _post('/admin/bandit/zerar', token, { empresa_id: emp, confirmacao: conf })
+      setEmpresaZerar('')
+      return { mensagem: `Aprendizado de ${d.empresa_id} zerado (${d.interacoes_descartadas} interações descartadas).` }
+    })
+  }
 
   const verificarSchedulerAgora = () => executar('scheduler', () =>
     _post('/admin/scheduler/verificar', token))
@@ -568,6 +580,19 @@ export default function AprendizadoDashboard() {
                 <p className="text-xs mt-3" style={{ color: MUTED }}>
                   Valor alto = mais exploração de novas abordagens; valor baixo = prioriza o que já sabe que funciona.
                 </p>
+                <div className="mt-4 border-t pt-3 text-xs" style={{ borderColor: 'var(--line)', color: MUTED }}>
+                  <p className="mb-2">
+                    Até out/2026, pagamentos sem recomendação prévia ensinavam ao bandit uma ação que não foi feita.
+                    Isso parou; o histórico de antes ainda carrega essas contagens. Para recomeçar uma empresa do zero:
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input value={empresaZerar} onChange={e => setEmpresaZerar(e.target.value)} placeholder="empresa_id"
+                      aria-label="Empresa para zerar o aprendizado" className="input-base w-40 text-xs py-1.5 px-2" />
+                    <Botao variante="perigo" onClick={zerarBandit} disabled={!empresaZerar.trim() || acao === 'zerar'}>
+                      {acao === 'zerar' ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Zerar aprendizado das ofertas'}
+                    </Botao>
+                  </div>
+                </div>
               </Secao>
             </div>
 

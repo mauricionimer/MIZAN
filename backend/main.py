@@ -1022,15 +1022,26 @@ def _aging_label(dias: int) -> str:
     return "180+ dias"
 
 
+def _cpf_no_log(cpf) -> str:
+    """Só os dois últimos dígitos: o bastante para cruzar com a tela, sem pôr o CPF no log."""
+    d = "".join(ch for ch in str(cpf or "") if ch.isdigit())
+    return f"***{d[-2:]}" if d else "—"
+
+
 def _fechar_loop_bandit(db, cpf: str, pagou: bool, valor_recuperado: float, pred_data: dict | None,
                         empresa_id: str | None) -> None:
     """
-    Atualiza o bandit com o resultado do feedback.
-    Se não há recomendação prévia registrada, usa offline learning:
-    reconstrói o contexto do devedor e atualiza com a ação que o bandit
-    teria recomendado — captura sinal mesmo sem recomendação explícita.
+    Atualiza o bandit com o resultado do pagamento, na ação recomendada a este
+    devedor (a última recomendação registrada para ele nesta empresa).
+
+    Sem recomendação registrada, NÃO atualiza. Antes havia um "aprendizado
+    offline": o bandit escolhia na hora a ação que teria recomendado e a
+    creditava com o resultado, como se tivesse sido feita. A ação não foi feita,
+    e isso inflava as taxas por oferta que alimentam as propostas (achado D2).
+    O contato registrado com canal e oferta continua ensinando o bandit pela
+    rota de contatos, que sabe o que foi realmente apresentado.
     """
-    from model.bandit import registrar_resultado, recomendar as _bandit_rec
+    from model.bandit import registrar_resultado
 
     valor_divida = float((pred_data or {}).get("valor_divida") or 0)
     if pagou and valor_divida > 0:
@@ -1052,26 +1063,13 @@ def _fechar_loop_bandit(db, cpf: str, pagou: bool, valor_recuperado: float, pred
         if empresa_id:
             rec_q = rec_q.eq("empresa_id", empresa_id)
         rec_res = rec_q.order("created_at", desc=True).limit(1).execute()
-        if rec_res.data:
-            acao_id  = rec_res.data[0]["acao_id"]
-            contexto = rec_res.data[0]["contexto"]
-        elif pred_data:
-            # Offline learning: sem recomendação prévia, infere ação pelo perfil atual
-            valor_d = float(pred_data.get("valor_divida") or 0)
-            renda   = float(pred_data.get("renda_estimada") or 0)
-            comp    = valor_d / renda if renda > 0 else 1.0
-            devedor_ctx = {**pred_data, "comprometimento_renda": comp}
-            rec_virtual = _bandit_rec(devedor_ctx, empresa_id)
-            acao_id     = rec_virtual["acao_id"]
-            contexto    = rec_virtual["contexto"]
-            print(f"[Bandit] Offline learning CPF {cpf}: acao={acao_id} recompensa={recompensa:.2f}")
-        else:
+        if not rec_res.data:
             return
-
-        registrar_resultado(acao_id=acao_id, contexto=contexto, recompensa=recompensa,
-                            empresa_id=empresa_id, pagou=bool(pagou))
+        registrar_resultado(acao_id=rec_res.data[0]["acao_id"], contexto=rec_res.data[0]["contexto"],
+                            recompensa=recompensa, empresa_id=empresa_id, pagou=bool(pagou))
     except Exception as _be:
-        print(f"[Bandit] Erro ao fechar loop (CPF {cpf}): {_be}")
+        # sem o CPF: o log não é lugar de dado pessoal
+        print(f"[Bandit] Erro ao fechar loop: {type(_be).__name__}")
 
 
 # Colunas da api_keys que a aplicação precisa. Nunca inclui api_key: a chave
@@ -1639,7 +1637,7 @@ def registrar_contato(body: ContatoIn, credentials: HTTPAuthorizationCredentials
                 registrar_resultado(acao_id=acao_id, contexto=contexto, recompensa=recomp,
                                     empresa_id=_emp, pagou=(body.resultado == "pagou"))
             else:
-                print(f"[Bandit/Contato] Sem ação ou contexto para CPF {body.cpf}: "
+                print(f"[Bandit/Contato] Sem ação ou contexto: "
                       f"acao_id={acao_id}, contexto={'ok' if contexto else 'ausente'}")
         except Exception as _be:
             print(f"[Bandit/Contato] {_be}")
@@ -3771,7 +3769,7 @@ def _writeback_pagamento(empresa_id: str, cpf: str, pagou: bool) -> str | None:
                     {"val": novo_valor, "cpf": cpf},
                 )
             engine.dispose()
-        print(f"[Writeback] CPF {cpf} → {tabela}.{coluna} = '{novo_valor}'")
+        print(f"[Writeback] CPF {_cpf_no_log(cpf)} → {tabela}.{coluna} = '{novo_valor}'")
         return f"{tabela}.{coluna} = '{novo_valor}'"
     except Exception as e:
         print(f"[Writeback] Erro ao atualizar banco externo: {e}")
@@ -3884,7 +3882,7 @@ def confirmar_pagamento(
         raise HTTPException(status_code=409, detail="Já existe uma confirmação em andamento para este devedor.")
     _confirmacoes_em_andamento.add(lock_key)
 
-    print(f"[Confirmar] Tentativa — CPF: {cpf}, usuário: {usuario_nome}, role: {role}")
+    print(f"[Confirmar] Tentativa — CPF: {_cpf_no_log(cpf)}, role: {role}")
 
     try:
         db = get_db()
@@ -3926,7 +3924,7 @@ def confirmar_pagamento(
             raise
         except Exception as _pe:
             _pred_cart_id = None
-            print(f"[Confirmar] Aviso — não encontrou predicao para CPF {cpf}: {_pe}")
+            print(f"[Confirmar] Aviso — não encontrou predicao para CPF {_cpf_no_log(cpf)}: {type(_pe).__name__}")
 
         if not predicao_id:
             raise HTTPException(
@@ -3946,7 +3944,7 @@ def confirmar_pagamento(
         if predicao_id:
             fb_row["predicao_id"] = predicao_id
 
-        print(f"[Confirmar] Gravando Supabase — CPF: {cpf}, empresa: {empresa_id}, predicao_id: {predicao_id}")
+        print(f"[Confirmar] Gravando Supabase — CPF: {_cpf_no_log(cpf)}, empresa: {empresa_id}, predicao_id: {predicao_id}")
         res = db.table("feedbacks").insert(fb_row).execute()
         if not res.data:
             raise Exception("Supabase insert retornou vazio — verifique permissões RLS ou coluna 'registrado_por' ausente na tabela feedbacks")
@@ -3980,7 +3978,7 @@ def confirmar_pagamento(
             t.join(timeout=8)
             writeback_info = _wb_result[0]
 
-        print(f"[Confirmar] SUCESSO — CPF: {cpf}, id: {feedback_id}, writeback: {writeback_info}")
+        print(f"[Confirmar] SUCESSO — CPF: {_cpf_no_log(cpf)}, id: {feedback_id}, writeback: {writeback_info}")
 
         _cache_del_prefix(f"fb_status:{empresa_id}")
         _cache_del_prefix(f"pagamentos:{empresa_id}")
@@ -4014,7 +4012,7 @@ def confirmar_pagamento(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"[Confirmar] ERRO — CPF: {cpf}, usuário: {usuario_nome}: {e}")
+        print(f"[Confirmar] ERRO — CPF: {_cpf_no_log(cpf)}: {type(e).__name__}")
         raise HTTPException(status_code=500, detail=f"Erro ao confirmar pagamento: {str(e)}")
     finally:
         _confirmacoes_em_andamento.discard(lock_key)
@@ -4088,7 +4086,7 @@ def webhook_pagamento(body: WebhookPagamentoIn, request: Request):
         _cache_del_prefix(f"pagamentos:{_pred_cart_id}")
         _cache_del_prefix(f"perf:{_pred_cart_id}")
 
-    print(f"[Webhook] Pagamento recebido — CPF: {body.cpf}, pagou: {body.pagou}, empresa: {empresa}")
+    print(f"[Webhook] Pagamento recebido — CPF: {_cpf_no_log(body.cpf)}, pagou: {body.pagou}, empresa: {empresa}")
     return {"ok": True, "feedback_id": feedback_id}
 
 
@@ -5504,6 +5502,27 @@ def ajustar_alpha_bandit(
     from model.bandit import ajustar_alpha
     alpha_efetivo = ajustar_alpha(float(novo_alpha), _emp)
     return {"ok": True, "alpha": alpha_efetivo, "empresa_id": _emp}
+
+
+class ZerarBanditIn(BaseModel):
+    empresa_id: str = Field(..., min_length=1, max_length=100)
+    confirmacao: str
+
+
+@app.post("/admin/bandit/zerar")
+def zerar_bandit(body: ZerarBanditIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Apaga o aprendizado das ofertas de UMA empresa (sem volta). Exige digitar ZERAR."""
+    payload = _exigir_comando(credentials)
+    if body.confirmacao.strip().upper() != "ZERAR":
+        raise HTTPException(status_code=422, detail="Digite ZERAR para confirmar.")
+    empresa = body.empresa_id.strip().lower()
+    from model.bandit import carregar_bandit, zerar
+    antes = int(sum(carregar_bandit(empresa).n_tentativas))
+    zerar(empresa)
+    _registrar_auditoria(acao="bandit_zerado", entidade="bandit", entidade_id=empresa,
+                         usuario_email=payload.get("email", ""), empresa_id=empresa,
+                         usuario_id=payload.get("sub", ""), detalhes={"interacoes_descartadas": antes})
+    return {"ok": True, "empresa_id": empresa, "interacoes_descartadas": antes}
 
 
 @app.get("/predicoes/historico/{cpf}")

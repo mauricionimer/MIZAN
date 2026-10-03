@@ -585,3 +585,14 @@ def ajustar_alpha(novo_alpha: float, empresa_id: "str | None") -> float:
         bandit.alpha = alpha_efetivo
         salvar_bandit(empresa_id, bandit)
     return alpha_efetivo
+
+
+def zerar(empresa_id: str) -> None:
+    """Recomeça o aprendizado das ofertas de uma empresa, mantendo o alpha.
+
+    Serve para descartar um histórico contaminado, como o do "aprendizado
+    offline" que creditava ações que nunca foram feitas (achado D2).
+    """
+    with _bandit_lock:
+        alpha = carregar_bandit(empresa_id).alpha
+        salvar_bandit(empresa_id, LinUCB(alpha=alpha))
