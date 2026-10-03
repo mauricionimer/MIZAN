@@ -17,6 +17,13 @@ multiplicar de novo pela probabilidade do classificador contaria duas vezes.
 Em termos de Basileia: `valor_divida` é o EAD, `taxa_prevista` é a taxa de
 recuperação (1 − LGD) e `valor_divida × (1 − taxa_prevista)` é a perda
 esperada sobre essa dívida.
+
+POR EMPRESA. O modelo de preço é treinado com os pagamentos de uma empresa,
+junto com a versão do modelo de score dela (model/treino_feedbacks.py), e só
+vale para ela, depois que o COMANDO ativa a versão. O antigo arquivo único
+(model/price_model.pkl) era treinado com os pagamentos de todas as empresas e
+valia para todas, inclusive as que têm modelo próprio (achado D10); ele não é
+mais lido. Empresa sem modelo de preço usa a premissa declarada.
 """
 
 import os
@@ -82,9 +89,9 @@ def _features(records: list[dict]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def treinar(feedbacks: list[dict], pred_map: dict[str, dict]) -> dict:
+def treinar(feedbacks: list[dict], pred_map: dict[str, dict], destino: "Path | None" = None) -> dict:
     """
-    Treina regressão de taxa de recuperação real.
+    Treina regressão de taxa de recuperação real e grava em `destino`.
 
     feedbacks : [{"predicao_id", "pagou", "valor_recuperado"}]
     pred_map  : {id -> {"score_recuperabilidade", "valor_divida", ...}}
@@ -152,7 +159,7 @@ def treinar(feedbacks: list[dict], pred_map: dict[str, dict]) -> dict:
         "r2_medio":     r2_medio,
         "mae_medio":    mae_medio,
     }
-    joblib.dump(meta, PRICE_MODEL_FILE)
+    joblib.dump(meta, destino or PRICE_MODEL_FILE)
     print(
         f"[PriceModel] Treinado — {n_total} amostras, {n_pagamentos} pagamentos | "
         f"R²={r2_medio:.3f}, MAE={mae_medio:.3f}"
@@ -161,15 +168,26 @@ def treinar(feedbacks: list[dict], pred_map: dict[str, dict]) -> dict:
             "r2_medio": r2_medio, "mae_medio": mae_medio}
 
 
-def prever(records: list[dict]) -> np.ndarray | None:
+def _arquivo_ativo(empresa_id: "str | None") -> "Path | None":
+    """O modelo de preço ATIVO da empresa (o da versão ativa dela), ou None."""
+    if not empresa_id:
+        return None
+    from model import modelos_empresa as me
+    me.carregar_ativo(empresa_id)                 # traz do Storage a versão ativa, se mudou
+    arq = me.pasta(empresa_id) / "price_model.pkl"
+    return arq if arq.exists() else None
+
+
+def prever(records: list[dict], empresa_id: "str | None" = None) -> np.ndarray | None:
     """
-    Retorna array de taxas previstas (0.0–1.0) para cada devedor.
-    Retorna None se o modelo não estiver disponível ou falhar.
+    Retorna array de taxas previstas (0.0–1.0) para cada devedor, com o modelo
+    de preço da empresa. Retorna None se ela não tiver um (vale a premissa).
     """
-    if not PRICE_MODEL_FILE.exists():
+    arq = _arquivo_ativo(empresa_id)
+    if arq is None:
         return None
     try:
-        meta    = joblib.load(PRICE_MODEL_FILE)
+        meta    = joblib.load(arq)
         X       = _features(records)
         for col in meta["feature_cols"]:
             if col not in X.columns:
@@ -178,16 +196,17 @@ def prever(records: list[dict]) -> np.ndarray | None:
         X_scaled = meta["scaler"].transform(X)
         return np.clip(meta["regressor"].predict(X_scaled), 0.0, 1.0)
     except Exception as e:
-        print(f"[PriceModel] Erro ao prever: {e}")
+        print(f"[PriceModel] Erro ao prever: {type(e).__name__}")
         return None
 
 
-def stats() -> dict | None:
-    """Retorna metadados do modelo salvo."""
-    if not PRICE_MODEL_FILE.exists():
+def stats(empresa_id: "str | None" = None) -> dict | None:
+    """Metadados do modelo de preço ativo da empresa."""
+    arq = _arquivo_ativo(empresa_id)
+    if arq is None:
         return None
     try:
-        meta = joblib.load(PRICE_MODEL_FILE)
+        meta = joblib.load(arq)
         return {
             "disponivel":   True,
             "n_amostras":   meta.get("n_amostras"),

@@ -52,10 +52,12 @@ def gerar(empresa, prefixo, n, n_cart, com_fb):
         preds.append({"id": pid, "carteira_id": carts[i % n_cart]["id"], "cpf": f"{prefixo}{i:09d}",
                       "produto": ["cartao", "consignado", "pessoal"][i % 3], "uf": "GO", "status": "ativo",
                       "valor_divida": round(valor, 2), "dias_em_atraso": dias, "renda_estimada": round(renda, 2),
+                      "score_recuperabilidade": 50.0,
                       "created_at": f"2026-{1 + i % 9:02d}-{1 + i % 27:02d}T10:00:00+00:00"})
         if i < com_fb:
             pagou = bool(rng.random() < p)
             fbs.append({"id": f"{prefixo}-f{i:06d}a", "predicao_id": pid, "pagou": pagou,
+                        "valor_recuperado": round(valor * 0.6, 2) if pagou else 0.0,
                         "created_at": "2026-09-01T10:00:00+00:00"})
             if i % 10 == 0:   # um segundo registro: quem não pagou e depois pagou conta como pago
                 fbs.append({"id": f"{prefixo}-f{i:06d}b", "predicao_id": pid, "pagou": True,
@@ -103,7 +105,7 @@ hash_global = hashlib.sha256(GLOBAL.read_bytes()).hexdigest()
 print("— o conjunto de dados de cada empresa —")
 ds = tf.datasets(DB)
 checar(set(ds) == {"alfa", "beta"}, "uma entrada por empresa, com o id normalizado", str(set(ds)))
-df_a, datas_a = ds["alfa"]
+df_a, datas_a, precos_a = ds["alfa"]
 checar(len(df_a) == 1500, "alfa: um registro por predição com pagamento (1.500, não os 1.650 feedbacks)", len(df_a))
 checar(len(ds["beta"][0]) == 20, "beta: só os 20 dela", len(ds["beta"][0]))
 pagos_esperados = sum(1 for i in range(1500) if any(f["pagou"] for f in FA if f["predicao_id"] == f"a-p{i:06d}"))
@@ -155,6 +157,27 @@ TRAVAS.add("treino_modelo_empresa")
 r = c.post("/comando/treino/feedbacks", headers=H("uc"), json={"empresa_id": "alfa"})
 checar(r.status_code == 409, "com outro treino em andamento: 409", r.status_code)
 TRAVAS.clear()
+
+print("\n— o modelo de preço é da empresa (D10) —")
+from model import price_model as pm
+checar((reg.get("modelo_de_preco") or {}).get("ok") is True, "treina o modelo de preço junto com a versão",
+       str(reg.get("modelo_de_preco")))
+checar(not any(c in df_a.columns for c in ("valor_recuperado", "score_recuperabilidade")),
+       "valor recuperado e score antigo NÃO viram variável do modelo de score")
+amostra = PA[:5]
+checar(pm.prever(amostra, "alfa") is None, "versão inativa: o modelo de preço ainda não vale")
+# um arquivo global antigo, treinado com todas as empresas, não pode mais valer para ninguém
+import joblib
+joblib.dump({"lixo": True}, Path(TMP) / "model" / "price_model.pkl")
+me.ativar("alfa", reg["versao"])
+taxas = pm.prever(amostra, "alfa")
+checar(taxas is not None and len(taxas) == 5 and all(0 <= t <= 1 for t in taxas), "ativada: a alfa usa o modelo de preço dela",
+       str(taxas))
+checar(pm.prever(amostra, "beta") is None and pm.prever(amostra, None) is None,
+       "beta e quem não tem empresa caem na premissa (o arquivo global não é lido)")
+checar((pm.stats("alfa") or {}).get("disponivel") is True and pm.stats("beta") is None, "estatísticas por empresa")
+me.desativar("alfa")
+checar(pm.prever(amostra, "alfa") is None, "voltar ao modelo geral tira também o modelo de preço")
 
 print("\n— o agendador —")
 T["feedbacks"].extend({"id": f"novo{i}", "predicao_id": f"a-p{i:06d}", "pagou": True,

@@ -73,7 +73,7 @@ def verificar_e_retreinar(min_feedbacks: int = MIN_NOVOS_PADRAO) -> dict:
 
     try:
         por_empresa: dict = {}
-        for empresa, (df, datas) in sorted(tf.datasets(get_db()).items()):
+        for empresa, (df, datas, precos) in sorted(tf.datasets(get_db()).items()):
             novos = tf.novos_desde(datas, tf.ultimo_treino(empresa))
             if novos < min_feedbacks:
                 por_empresa[empresa] = {"acao": "aguardando", "novos": novos,
@@ -84,7 +84,7 @@ def verificar_e_retreinar(min_feedbacks: int = MIN_NOVOS_PADRAO) -> dict:
                                         "mensagem": "Outro treino em andamento; tenta no próximo ciclo."}
                 continue
             try:
-                reg = tf.treinar(df, empresa, "treino automático")
+                reg = tf.treinar(df, empresa, "treino automático", precos)
                 por_empresa[empresa] = {"acao": "treinou", "novos": novos, "versao": reg["versao"],
                                         "mensagem": f"Versão {reg['versao']} treinada e guardada, inativa."}
                 estado["n_retreinamentos"] += 1
@@ -95,7 +95,7 @@ def verificar_e_retreinar(min_feedbacks: int = MIN_NOVOS_PADRAO) -> dict:
                 print(f"[Scheduler] Erro no treino de {empresa}: {type(e).__name__}")
             finally:
                 liberar(TRAVA_TREINO_EMPRESA)
-            del df
+            del df, precos
 
         treinadas = [e for e, r in por_empresa.items() if r["acao"] == "treinou"]
         print(f"[Scheduler] {agora.strftime('%H:%M:%S')} — {len(por_empresa)} empresa(s) com pagamentos; "

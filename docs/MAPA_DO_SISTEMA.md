@@ -170,7 +170,7 @@ o defeito que existia.
 | **C6** (resolvido) | | filtro "pago / não pago / pendente" da fila | envia a lista de CPFs na consulta; com milhares de feedbacks a URL estoura |
 | **D8** | página do devedor | a "Urgência" (≥70 Alta, ≥40 Média) vem só do score e pode contradizer a Prioridade (posição na fila). É um terceiro critério |
 | **D9** | renda ausente | quando a coluna de renda não existe, vira 0, e a razão dívida ÷ renda vira 0 (o devedor parece sem comprometimento) |
-| **D10** | `price_model.pkl` | é um só para todas as empresas: se for treinado, passa a valer para todas, inclusive as que têm modelo próprio |
+| **D10** (resolvido: modelo de preço por empresa, ativado junto com a versão; o arquivo global não é mais lido) | `price_model.pkl` | é um só para todas as empresas: se for treinado, passa a valer para todas, inclusive as que têm modelo próprio |
 | **D12** | conexão Google Sheets salva | o cadastro da conexão não guarda as credenciais da conta de serviço, então a sincronização (manual e automática) falha para Sheets. Só a análise avulsa, com as credenciais coladas, funciona |
 | **D11** | registrar contato | o operador pode marcar "Pagou" no contato, o que treina o bandit mas não confirma o pagamento (isso é do admin) |
 

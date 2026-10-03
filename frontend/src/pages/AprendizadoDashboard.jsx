@@ -105,6 +105,7 @@ export default function AprendizadoDashboard() {
 
   const [alphaInput, setAlphaInput]     = useState(1.0)
   const [empresaZerar, setEmpresaZerar] = useState('')
+  const [empresaPreco, setEmpresaPreco] = useState('')
 
   const carregar = useCallback(async () => {
     setLoading(true)
@@ -160,6 +161,10 @@ export default function AprendizadoDashboard() {
     if (!res.ok) throw new Error(d.detail || `HTTP ${res.status}`)
     return { mensagem: `Alpha ajustado para ${d.alpha}.` }
   })
+
+  const verPreco = () =>
+    _get(`/admin/price-model?empresa_id=${encodeURIComponent(empresaPreco.trim())}`, token)
+      .then(setPriceModel).catch(e => setErro(e.message))
 
   const zerarBandit = () => {
     const emp = empresaZerar.trim()
@@ -545,7 +550,12 @@ export default function AprendizadoDashboard() {
 
             <div className="grid grid-cols-2 gap-6">
               {/* Price model */}
-              <Secao icon={Award} ajuda="taxa-de-recuperacao" titulo="Modelo de precificação" sub="Estima quanto do valor devido é recuperado quando o devedor paga">
+              <Secao icon={Award} ajuda="taxa-de-recuperacao" titulo="Modelo de precificação" sub="Estima quanto da dívida deve voltar, já contando quem não paga. É por empresa.">
+                <div className="mb-3 flex items-center gap-2">
+                  <input value={empresaPreco} onChange={e => setEmpresaPreco(e.target.value)} placeholder="empresa_id"
+                    aria-label="Empresa do modelo de preço" className="input-base w-40 text-xs py-1.5 px-2" />
+                  <Botao variante="secundario" onClick={verPreco} disabled={!empresaPreco.trim()}>Ver</Botao>
+                </div>
                 {!priceModel?.disponivel ? (
                   <p className="text-sm" style={{ color: MUTED }}>{priceModel?.mensagem || 'Indisponível.'}</p>
                 ) : (

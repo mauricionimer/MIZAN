@@ -34,6 +34,7 @@ MODEL_DIR = Path(_DATA_DIR_STR) / "model" if _DATA_DIR_STR else Path(__file__).p
 EMPRESAS_DIR = MODEL_DIR / "empresas"
 
 ATIVOS = ("mizan_model.pkl", "kmeans.pkl", "scaler.pkl")
+PRECO = "price_model.pkl"        # opcional: só versões treinadas com os pagamentos têm
 TTL_S = 120
 
 _cache: dict = {}          # slug -> (expira, (clf, kmeans, meta) | None)
@@ -109,6 +110,15 @@ def ativar(empresa_id: str, versao: str) -> None:
         tmp = p / (nome + ".tmp")
         tmp.write_bytes(o.read_bytes())
         os.replace(tmp, p / nome)
+    # O modelo de preço vai junto com a versão: só as treinadas com os pagamentos
+    # têm um. Ativar uma que não tem tira o da versão anterior (vale a premissa).
+    preco = p / f"price_model_{versao}.pkl"
+    if preco.exists():
+        tmp = p / "price_model.pkl.tmp"
+        tmp.write_bytes(preco.read_bytes())
+        os.replace(tmp, p / PRECO)
+    else:
+        (p / PRECO).unlink(missing_ok=True)
     agora = datetime.now(timezone.utc).isoformat()
     for v in dados["versoes"]:
         if v.get("versao") == versao:
@@ -121,7 +131,7 @@ def ativar(empresa_id: str, versao: str) -> None:
 def desativar(empresa_id: str) -> None:
     """Volta a empresa ao modelo global. Os arquivos da empresa ficam guardados."""
     p = pasta(empresa_id)
-    for nome in ATIVOS:
+    for nome in ATIVOS + (PRECO,):
         (p / nome).unlink(missing_ok=True)
     dados = carregar_versoes(empresa_id)
     dados["versao_ativa"] = None

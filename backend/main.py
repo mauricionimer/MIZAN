@@ -3158,7 +3158,7 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
     _precificacao_ml = False
     try:
         from model.price_model import prever as _prever_taxa
-        _taxas = _prever_taxa(resultado.to_dict("records"))
+        _taxas = _prever_taxa(resultado.to_dict("records"), _empresa_id)
         if _taxas is not None:
             resultado["taxa_recuperacao_prevista"] = _taxas
             resultado["origem_taxa"] = "modelo"
@@ -5184,21 +5184,26 @@ def comando_limpar_lacunas(body: LimparLacunasIn, credentials: HTTPAuthorization
 
 
 @app.get("/admin/price-model")
-def admin_price_model_stats(credentials: HTTPAuthorizationCredentials = Security(bearer)):
-    """Metadados e métricas do modelo de regressão de preço."""
+def admin_price_model_stats(empresa_id: Optional[str] = None,
+                            credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Metadados e métricas do modelo de preço ATIVO de uma empresa."""
     _exigir_comando(credentials)
     from model.price_model import stats as _price_stats
-    s = _price_stats()
+    empresa = (empresa_id or "").strip().lower()
+    s = _price_stats(empresa) if empresa else None
     if s is None:
         return {
             "disponivel": False,
+            "empresa_id": empresa or None,
             "mensagem": (
-                "Price model ainda não treinado. É necessário ter pelo menos "
-                "15 feedbacks com predicao_id e 5 com pagamento confirmado. "
-                "Treina automaticamente no próximo retreinamento."
+                "O modelo de preço é por empresa: é treinado com os pagamentos dela junto com a versão do "
+                "modelo (Treinar por empresa) e passa a valer quando a versão é ativada. Precisa de pelo menos "
+                "15 pagamentos registrados e 5 com valor recuperado. Sem ele, vale a premissa da empresa."
+                if empresa else
+                "O modelo de preço agora é por empresa. Escolha uma empresa para ver o dela."
             ),
         }
-    return s
+    return {**s, "empresa_id": empresa}
 
 
 @app.get("/admin/drift")

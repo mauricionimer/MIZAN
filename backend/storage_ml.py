@@ -155,9 +155,14 @@ def sincronizar_empresa(slug: str, pasta: Path) -> None:
         return
     pasta.mkdir(parents=True, exist_ok=True)
     if ativa is None:                            # desativada lá: volta ao global aqui também
-        for nome in ("mizan_model.pkl", "kmeans.pkl", "scaler.pkl"):
+        for nome in ("mizan_model.pkl", "kmeans.pkl", "scaler.pkl", "price_model.pkl"):
             (pasta / nome).unlink(missing_ok=True)
     else:
         for nome in ("mizan_model.pkl", "kmeans.pkl", "scaler.pkl"):
             (pasta / nome).write_bytes(b.download(f"empresas/{slug}/{nome}"))
+        # o modelo de preço só existe nas versões treinadas com os pagamentos
+        try:
+            (pasta / "price_model.pkl").write_bytes(b.download(f"empresas/{slug}/price_model_{ativa}.pkl"))
+        except Exception:
+            (pasta / "price_model.pkl").unlink(missing_ok=True)
     arq.write_text(json.dumps(remoto, indent=2, ensure_ascii=False), encoding="utf-8")

@@ -56,10 +56,10 @@ perguntas:
 - o selo ml ativo ou premissa na precificação
 - de onde vem a taxa de recuperação da carteira
 - taxa de recuperação prevista é calculada como
-curta: É a fração da dívida que se espera recuperar. Vem de um modelo de preço, se já houver dados reais para treiná-lo; senão, de uma premissa declarada.
+curta: É a fração da dívida que se espera recuperar. Vem do modelo de preço da sua empresa, se o COMANDO já o treinou com os pagamentos dela e ativou; senão, de uma premissa declarada.
 calculo: Com o modelo de preço treinado: a taxa é a que ele prevê (já inclui a chance de pagar, então não se multiplica de novo). Sem ele: taxa = probabilidade de pagamento × "recuperação se pagar". A origem aparece no selo da Precificação: "ML ativo" ou "Premissa".
 fazer: Enquanto estiver em "Premissa", trate o valor esperado como estimativa de planejamento e registre os pagamentos para o modelo de preço poder ser treinado.
-cuidado: O modelo de preço exige um mínimo de 15 pagamentos com predição ligada e 5 pagamentos reais com valor.
+cuidado: O modelo de preço exige um mínimo de 15 pagamentos com predição ligada e 5 pagamentos reais com valor. Ele é de cada empresa: é treinado junto com a versão do modelo dela e só vale depois que essa versão é ativada. Os pagamentos de uma empresa não entram no modelo de preço de outra.
 fontes:
 - backend/main.py::_analisar_df
 - backend/model/price_model.py::prever

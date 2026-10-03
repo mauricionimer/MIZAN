@@ -11,7 +11,9 @@ todos os clientes, e o ativava sozinho (achado D1 do mapa do sistema). Aqui:
   - o treino é o mesmo do arquivo histórico (treino_empresa.treinar), com as
     mesmas travas: mínimo de linhas e de cada resultado, validação no tempo,
     comparação com o modelo em uso na mesma fatia;
-  - nada é ativado. A versão fica guardada para o COMANDO conferir e ativar.
+  - nada é ativado. A versão fica guardada para o COMANDO conferir e ativar;
+  - junto com a versão, treina o modelo de preço da empresa (quanto da dívida
+    volta), que passa a valer quando a versão for ativada (achado D10).
 
 As variáveis são as que a análise gravou na predição. O histórico de contatos,
 que o retreino antigo usava, fica de fora: um contato com resultado
@@ -42,10 +44,13 @@ def _norm(empresa_id) -> str:
 
 
 def datasets(db, empresas=None) -> dict:
-    """{empresa: (df, datas_dos_feedbacks)} das empresas pedidas (todas, se None).
+    """{empresa: (df, datas_dos_feedbacks, precos)} das empresas pedidas (todas, se None).
 
     `df` vai direto para treino_empresa.treinar; `datas_dos_feedbacks` (uma por
-    linha) servem para contar o que chegou desde o último treino.
+    linha) servem para contar o que chegou desde o último treino; `precos` são
+    os pares (pagamento, predição) do modelo de preço. Ficam separados do `df`
+    porque o valor recuperado é o resultado e o score é a saída do modelo
+    anterior: nenhum dos dois pode virar variável do modelo de score.
     """
     alvo = {_norm(e) for e in empresas} if empresas is not None else None
     carteira_empresa = {}
@@ -75,7 +80,7 @@ def datasets(db, empresas=None) -> dict:
     for i in range(0, len(ids), ITENS_IN):
         res = (db.table("predicoes")
                .select("id, carteira_id, produto, uf, status, valor_divida, dias_em_atraso, "
-                       "renda_estimada, created_at")
+                       "renda_estimada, score_recuperabilidade, created_at")
                .in_("id", ids[i:i + ITENS_IN]).execute())
         for p in res.data or []:
             emp = carteira_empresa.get(p.get("carteira_id"))
@@ -95,8 +100,10 @@ def datasets(db, empresas=None) -> dict:
                     "data_referencia": str(p.get("created_at") or "")[:10] or None,
                 },
                 str(f.get("created_at") or ""),
+                (f, p),
             ))
-    return {emp: (pd.DataFrame([r for r, _ in ls]), [d for _, d in ls]) for emp, ls in linhas.items()}
+    return {emp: (pd.DataFrame([r for r, _, _ in ls]), [d for _, d, _ in ls], [x for _, _, x in ls])
+            for emp, ls in linhas.items()}
 
 
 def ultimo_treino(empresa_id) -> "str | None":
@@ -111,15 +118,38 @@ def novos_desde(datas: list, desde: "str | None") -> int:
     return len(datas) if not desde else sum(1 for d in datas if d > desde)
 
 
-def treinar(df: pd.DataFrame, empresa_id: str, usuario_email: str = "") -> dict:
-    """Treina e guarda, inativo, o modelo da empresa com estes pagamentos."""
-    from model import treino_empresa as te
+def treinar(df: pd.DataFrame, empresa_id: str, usuario_email: str = "", precos: "list | None" = None) -> dict:
+    """Treina e guarda, inativos, o modelo da empresa e o modelo de preço dela."""
+    from model import modelos_empresa as me, price_model as pm, treino_empresa as te
     if df is None or df.empty:
         raise te.DadosInvalidos("Esta empresa ainda não tem pagamentos registrados ligados às suas análises.")
     conteudo = df.to_csv(index=False).encode()        # só para a impressão digital (SHA-256)
-    return te.treinar(conteudo, NOME, _norm(empresa_id), usuario_email, df=df, origem=ORIGEM)
+    empresa = _norm(empresa_id)
+    reg = te.treinar(conteudo, NOME, empresa, usuario_email, df=df, origem=ORIGEM)
+
+    preco = {"ok": False, "motivo": "sem pagamentos para o modelo de preço"}
+    if precos:
+        fbs = [{**f, "predicao_id": p["id"]} for f, p in precos]
+        destino = me.pasta(empresa) / f"price_model_{reg['versao']}.pkl"
+        try:
+            preco = pm.treinar(fbs, {p["id"]: p for _, p in precos}, destino=destino)
+        except Exception as e:
+            preco = {"ok": False, "motivo": f"falhou: {type(e).__name__}"}
+    reg["modelo_de_preco"] = preco
+    dados = me.carregar_versoes(empresa)
+    for v in dados["versoes"]:
+        if v.get("versao") == reg["versao"]:
+            v["modelo_de_preco"] = preco
+    me.salvar_versoes(empresa, dados)
+    if preco.get("ok"):
+        try:
+            from storage_ml import upload_empresa
+            upload_empresa(me.slug(empresa), me.pasta(empresa))
+        except Exception:
+            pass
+    return reg
 
 
 def treinar_empresa(db, empresa_id: str, usuario_email: str = "") -> dict:
-    df, _ = datasets(db, [empresa_id]).get(_norm(empresa_id), (None, []))
-    return treinar(df, empresa_id, usuario_email)
+    df, _, precos = datasets(db, [empresa_id]).get(_norm(empresa_id), (None, [], []))
+    return treinar(df, empresa_id, usuario_email, precos)
