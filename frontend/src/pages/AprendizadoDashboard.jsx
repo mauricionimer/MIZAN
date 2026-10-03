@@ -165,12 +165,13 @@ export default function AprendizadoDashboard() {
 
   const verEmpresa = () => executar('empresa', async () => {
     const emp = encodeURIComponent(empresaSel.trim().toLowerCase())
-    const [q, pm, d] = await Promise.all([
+    const [q, pm, d, fi] = await Promise.all([
       _get(`/admin/modelo/qualidade?empresa_id=${emp}`, token),
       _get(`/admin/price-model?empresa_id=${emp}`, token),
       _get(`/admin/drift?empresa_id=${emp}`, token).catch(() => null),
+      _get(`/admin/feature-importance?empresa_id=${emp}`, token).catch(e => ({ ok: false, mensagem: e.message })),
     ])
-    setQualidade(q); setPriceModel(pm); setDrift(d)
+    setQualidade(q); setPriceModel(pm); setDrift(d); setImportancia(fi)
     return { mensagem: `Modelo em uso por ${empresaSel.trim().toLowerCase()} medido.` }
   }, false)
 
@@ -525,23 +526,31 @@ export default function AprendizadoDashboard() {
               )}
             </Secao>
 
-            {/* Importância das variáveis */}
+            {/* Peso das variáveis no modelo que pontua a empresa escolhida */}
             <Secao
               icon={BarChart3}
-              titulo="O que mais pesa no score" ajuda="variaveis-do-modelo"
-              sub={importancia ? `${importancia.total_features} variáveis no modelo ativo` : 'Importância de cada variável no modelo ativo'}
+              titulo="O que mais pesa no score" ajuda="peso-das-variaveis"
+              sub={importancia?.ok
+                ? `${importancia.empresa_id} · modelo ${importancia.modelo?.origem === 'proprio' ? 'próprio' : 'geral'} · ${importancia.n_devedores} devedores da análise mais recente`
+                : 'Escolha a empresa em "Qualidade do modelo em uso" e clique em Medir'}
             >
-              {!importancia?.features?.length ? (
-                <p className="text-sm" style={{ color: MUTED }}>Importância indisponível para o modelo atual.</p>
+              {!importancia?.ok ? (
+                <p className="text-sm" style={{ color: MUTED }}>{importancia?.mensagem || 'Indisponível.'}</p>
               ) : (
                 <div className="space-y-2.5">
-                  {importancia.features.slice(0, 12).map(f => (
-                    <div key={f.nome} className="flex items-center gap-3">
-                      <span className="text-xs tabular-nums w-40 truncate shrink-0" style={{ color: MUTED }}>{f.nome}</span>
+                  {importancia.features.map(f => (
+                    <div key={f.variavel} className="flex items-center gap-3">
+                      <span className="text-xs w-40 truncate shrink-0" style={{ color: MUTED }}>{f.nome}</span>
                       <div className="flex-1"><Barra pct={f.percentual} /></div>
-                      <span className="text-xs font-semibold w-12 text-right shrink-0" style={{ color: MUTED_LIGHT }}>{f.percentual}%</span>
+                      <span className="text-xs font-semibold w-24 text-right shrink-0 tabular-nums" style={{ color: MUTED_LIGHT }}>
+                        {f.impacto_medio_pontos.toFixed(1)} pts · {f.percentual}%
+                      </span>
                     </div>
                   ))}
+                  <p className="text-xs pt-2" style={{ color: MUTED }}>
+                    Quanto o score de um devedor muda, em média, quando só aquela informação é trocada pelo valor típico do treino.
+                    {importancia.nao_medidas?.length > 0 && ` Não medidas (não ficam gravadas na análise): ${importancia.nao_medidas.join(', ')}.`}
+                  </p>
                 </div>
               )}
             </Secao>

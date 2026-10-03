@@ -130,6 +130,27 @@ cuidado: Com poucos devedores por faixa a taxa real oscila muito.
 fontes:
 - backend/model/diagnostico.py::_calibracao_por_faixa
 
+## peso-das-variaveis
+titulo: O que mais pesa no score de uma empresa
+perfis: comando
+telas: Aprendizado
+perguntas:
+- o que mais pesa no score
+- qual variável mais influencia o modelo
+- importância das variáveis do modelo
+- por que a importância das variáveis aparecia indisponível
+- o que significa pontos na importância da variável
+- quanto a renda pesa no score
+- por que o score de bureau não aparece na importância
+- como é medida a importância das variáveis
+curta: Mostra quanto cada informação (dias em atraso, valor da dívida, renda, produto...) move, em média, o score dos devedores de uma empresa, no modelo que pontua essa empresa.
+calculo: Em Aprendizado, escolha a empresa e clique em Medir. Pega até 500 devedores da análise mais recente da empresa. Para cada informação, troca só ela pelo valor típico do treino (mediana ou valor mais comum), mantém o resto e o grupo de perfil de cada devedor, e mede quanto o score muda. O peso é a média dessa mudança, em pontos; a porcentagem é a parte de cada informação na soma. É o mesmo método da explicação de cada devedor.
+fazer: Use para conferir se o modelo da empresa se apoia no que faz sentido para a carteira dela, e compare antes de ativar uma versão nova.
+cuidado: Mede associação dentro do modelo, não causa. Informações que não ficam gravadas na análise (como score de bureau e tentativas de contato) não podem ser medidas aqui e aparecem listadas à parte. Até outubro de 2026 esta seção ficava sempre "indisponível", porque o modelo calibrado não traz importância pronta.
+fontes:
+- backend/model/score.py::peso_das_variaveis
+- backend/main.py::rota /admin/feature-importance
+
 ## psi
 titulo: PSI (a carteira ainda parece com a do treino?)
 perfis: admin, comando

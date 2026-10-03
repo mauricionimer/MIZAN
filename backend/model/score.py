@@ -409,3 +409,59 @@ def explicar_predicao(registro: dict, empresa_id: "str | None" = None) -> dict:
         "contribuicoes": contribuicoes,
         "reason_codes": _reason_codes(contribuicoes),
     }
+
+
+# Nomes das variáveis para a tela do COMANDO (a explicação ao operador usa as
+# frases de REASON_CODES; aqui é só o nome do fator).
+NOMES_VARIAVEIS = {
+    "valor_divida": "Valor da dívida", "renda_estimada": "Renda", "dias_em_atraso": "Dias em atraso",
+    "produto": "Produto", "status": "Situação cadastral", "uf": "Estado (UF)",
+    "score_bureau": "Score de bureau", "tentativas_contato": "Tentativas de contato",
+    "promessa_quebrada": "Promessa quebrada", "mes_analise": "Mês da análise",
+}
+
+
+def peso_das_variaveis(df: pd.DataFrame, empresa_id: "str | None" = None) -> dict:
+    """Quanto cada variável move, em média, o score dos devedores de `df`.
+
+    Mesmo método de explicar_predicao, aplicado a um grupo: para cada variável,
+    troca-a pela referência do treino (mediana ou moda) em todos os devedores,
+    mantém as outras e o cluster de cada um, e mede a variação do score em
+    pontos. O peso é a média do valor absoluto dessa variação.
+
+    Funciona para qualquer modelo, inclusive o calibrado, que não tem
+    `feature_importances_` — por isso a seção antiga nunca mostrava nada.
+    Variáveis derivadas (dívida ÷ renda, logaritmos) não são trocadas sozinhas:
+    o efeito delas aparece na variável de origem.
+    """
+    clf, kmeans, meta = _carregar_modelos(empresa_id)
+    scaler = meta["scaler"]
+    numericas = [c for c in (meta.get("features_numericas") or _FEATURES_V2) if c not in _FEATURES_DERIVADAS]
+    categoricas = list(meta.get("features_categoricas") or _CATS_V2)
+    medians, modes = meta.get("medians", {}), meta.get("modes", {})
+
+    base = _normalizar_colunas(df.reset_index(drop=True).copy())
+    Xs = scaler.transform(_preprocessar_para_score(base.copy(), meta))
+    clusters = kmeans.predict(Xs)
+    p0 = clf.predict_proba(np.column_stack([Xs, clusters]))[:, 1] * 100
+
+    pesos, nao_medidas = [], []
+    for col, ref in [(c, medians.get(c, 0.0)) for c in numericas] + [(c, modes.get(c, "outro")) for c in categoricas]:
+        if col not in base.columns or base[col].isna().all():
+            nao_medidas.append(col)        # a carteira não traz a variável: o modelo usa a referência para todos
+            continue
+        troca = base.copy()
+        troca[col] = ref
+        Xt = scaler.transform(_preprocessar_para_score(troca, meta))
+        p1 = clf.predict_proba(np.column_stack([Xt, clusters]))[:, 1] * 100
+        delta = p0 - p1
+        pesos.append({"variavel": col, "nome": NOMES_VARIAVEIS.get(col, col.replace("_", " ").capitalize()),
+                      "impacto_medio_pontos": round(float(np.abs(delta).mean()), 2),
+                      "efeito_medio_pontos": round(float(delta.mean()), 2)})
+
+    total = sum(p["impacto_medio_pontos"] for p in pesos)
+    for p in pesos:
+        p["percentual"] = round(p["impacto_medio_pontos"] / total * 100, 1) if total > 0 else 0.0
+    pesos.sort(key=lambda p: -p["impacto_medio_pontos"])
+    return {"n_devedores": int(len(base)), "variaveis": pesos, "nao_medidas": nao_medidas,
+            "score_medio": round(float(p0.mean()), 1)}

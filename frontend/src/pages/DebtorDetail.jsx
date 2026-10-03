@@ -714,7 +714,7 @@ export default function DebtorDetail() {
               <ExplicacaoScore explicacao={explicacao} loading={explicacaoLoading} erro={explicacaoErro} />
             </Section>
 
-            <Section title="Dados Financeiros">
+            <Section title="Dados Financeiros" ajuda="variaveis-do-modelo">
               {d.dados_incompletos && (
                 <div className="mb-3 flex items-start gap-2 rounded-xl p-3 text-xs"
                   style={{ background: 'rgb(var(--c-warning) / 0.08)', border: '1px solid rgb(var(--c-warning) / 0.18)', color: 'var(--ink-2)' }}>

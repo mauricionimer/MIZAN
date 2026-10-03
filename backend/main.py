@@ -5565,30 +5565,54 @@ def bandit_stats(
 
 @app.get("/admin/feature-importance")
 def feature_importance(
+    empresa_id: Optional[str] = None,
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
-    """Retorna a importância de cada feature no modelo ativo — mostra o que drive o score."""
+    """O que mais pesa no score do modelo que pontua UMA empresa, medido nos
+    devedores da análise mais recente dela (até 500, amostra pela ordem do id).
+
+    Antes lia `feature_importances_` do modelo geral, que o modelo calibrado não
+    tem: a rota respondia 400 e a tela mostrava sempre "indisponível". Agora usa
+    o mesmo método da explicação de cada devedor (model/score.peso_das_variaveis).
+    """
     _exigir_comando(credentials)
-    from model.score import _carregar_modelos
+    empresa = (empresa_id or "").strip().lower()
+    if not empresa:
+        return {"ok": False, "features": [],
+                "mensagem": "Escolha uma empresa: o peso é medido no modelo que pontua aquela empresa, nos devedores dela."}
+    from model.diagnostico import _modelo_em_uso
+    from model.score import _carregar_modelos, peso_das_variaveis
+    db = get_db()
+    carts = (db.table("carteiras").select("id, created_at").eq("empresa_id", empresa)
+             .order("created_at", desc=True).limit(1).execute().data or [])
+    if not carts:
+        return {"ok": False, "features": [], "empresa_id": empresa,
+                "mensagem": "Esta empresa ainda não tem análise para medir."}
+    linhas = (db.table("predicoes")
+              .select("id, produto, uf, status, valor_divida, renda_estimada, dias_em_atraso")
+              .eq("carteira_id", carts[0]["id"]).order("id").limit(500).execute().data or [])
+    if len(linhas) < 20:
+        return {"ok": False, "features": [], "empresa_id": empresa,
+                "mensagem": f"A análise mais recente tem {len(linhas)} devedores; poucos para medir."}
     try:
-        clf, _, meta = _carregar_modelos()
-    except FileNotFoundError:
-        raise HTTPException(status_code=503, detail="Modelo não encontrado.")
-
-    feature_names = meta.get("feature_names", [])
-    if not hasattr(clf, "feature_importances_"):
-        raise HTTPException(status_code=400, detail="Modelo não suporta feature importance.")
-
-    importances = clf.feature_importances_
-    pares = sorted(zip(feature_names, importances.tolist()), key=lambda x: -x[1])
-
+        r = peso_das_variaveis(pd.DataFrame(linhas).drop(columns=["id"]), empresa)
+        _, _, meta = _carregar_modelos(empresa)
+    except Exception as e:
+        codigo = _erros.registrar({"path": "/admin/feature-importance"}, e, 500)
+        raise HTTPException(status_code=500, detail=f"Não foi possível medir o peso das variáveis. Código: {codigo}.")
+    from model.score import NOMES_VARIAVEIS
     return {
-        "model_version":  meta.get("model_version", 1),
-        "total_features": len(feature_names),
-        "features": [
-            {"nome": n, "importancia": round(v, 4), "percentual": round(v * 100, 1)}
-            for n, v in pares
-        ],
+        "ok": True,
+        "empresa_id": empresa,
+        "carteira_id": carts[0]["id"],
+        "modelo": _modelo_em_uso(empresa),
+        "n_devedores": r["n_devedores"],
+        "score_medio": r["score_medio"],
+        "total_features": len(meta.get("feature_names") or []),
+        "features": [{"nome": v["nome"], "variavel": v["variavel"], "percentual": v["percentual"],
+                      "impacto_medio_pontos": v["impacto_medio_pontos"],
+                      "efeito_medio_pontos": v["efeito_medio_pontos"]} for v in r["variaveis"]],
+        "nao_medidas": [NOMES_VARIAVEIS.get(c, c) for c in r["nao_medidas"]],
     }
 
 
