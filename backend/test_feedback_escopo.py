@@ -229,6 +229,13 @@ checar(r.status_code == 200 and r.json().get("predicao_id") == "p-alfa-so",
 r = enviar(jwt("u-alfa", "alfa", role="operador"), "11111111111")
 checar(r.status_code == 403, "operador continua sem poder registrar manualmente", str(r.status_code))
 
+# o lote é o mesmo ato (registrar pagamentos) e a tela só o esconde do operador:
+# a barreira tem que estar no servidor, não no botão.
+reset()
+r = lote(jwt("u-alfa", "alfa", role="operador"), ["11111111111"])
+checar(r.status_code == 403, "operador também não pode registrar pagamentos em lote", str(r.status_code))
+checar(FEEDBACKS == [], "e nada foi gravado")
+
 # ── 8. usuário desativado ────────────────────────────────────────────────
 print("\n— usuário desligado com token ainda válido —")
 reset()

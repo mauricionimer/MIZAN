@@ -150,6 +150,19 @@ checar(pops["parcelado_12x"]["pop"] > pops["parcelado_4x"]["pop"],
        "a oferta que foi paga fica com chance maior que a recusada",
        f'12x={pops["parcelado_12x"]["pop"]} vs 4x={pops["parcelado_4x"]["pop"]}')
 
+# ── contato que não pagou não conta como pagamento ────────────────────────
+# "contactado" (recompensa 0,05) e "prometeu pagar" (0,2) têm recompensa
+# positiva sem ninguém ter pago. Contá-los como pagamento inflava a chance de
+# pagamento por oferta, que é o que escolhe a proposta sugerida.
+antes5 = contar("avista_10pct")
+for res in ("contactado", "prometeu_pagar"):
+    c.post("/contatos", headers=h, json={
+        "cpf": "11122233344", "canal": "telefone", "resultado": res, "oferta": "avista_10pct"})
+depois5 = contar("avista_10pct")
+checar(depois5[0] == antes5[0] + 2, "contactado e prometeu pagar entram como tentativa",
+       f"{antes5[0]} -> {depois5[0]}")
+checar(depois5[1] == antes5[1], "mas NÃO como pagamento", f"pagamentos {antes5[1]} -> {depois5[1]}")
+
 # ── oferta fora do catálogo é recusada, não gravada torta ─────────────────
 r = c.post("/contatos", headers=h, json={
     "cpf": "11122233344", "canal": "telefone", "resultado": "pagou",

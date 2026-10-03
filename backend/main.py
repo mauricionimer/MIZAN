@@ -624,16 +624,69 @@ class ConexaoDB(BaseModel):
     empresa_id_alvo: Optional[str] = None  # COMANDO pode especificar a empresa destino
 
 
-def _resolver_credenciais(conn: ConexaoDB) -> None:
-    """Se conexao_id está presente e senha está vazia, busca e decripta do banco."""
-    if not conn.conexao_id or conn.senha:
+def _conexao_usavel(db, conexao_id: str, payload: dict) -> dict:
+    """Linha da conexão salva, se ESTE usuário pode usá-la; senão 404/403.
+
+    comando usa qualquer uma; admin, as da própria empresa (ou que ele criou, ou
+    em que tem permissão); operador, só as que o admin liberou para ele.
+    """
+    res = db.table("conexoes_db").select("*").eq("id", conexao_id).limit(1).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Conexão não encontrada.")
+    r = res.data[0]
+    role, eid, uid = payload.get("role", "operador"), payload.get("empresa_id", ""), payload.get("sub")
+    if role == "comando":
+        return r
+    if role == "admin" and ((eid and r.get("empresa_id") == eid) or r.get("usuario_id") == uid):
+        return r
+    perm = (db.table("conexao_permissoes").select("id")
+            .eq("conexao_id", conexao_id).eq("operador_id", uid).limit(1).execute())
+    if perm.data:
+        return r
+    raise HTTPException(status_code=403, detail="Sem permissão para usar esta conexão.")
+
+
+def _exigir_conexao_da_empresa(db, conexao_id: str, payload: dict) -> dict:
+    """Para gerir (editar, liberar a operadores): a conexão tem de ser da empresa
+    de quem gere. Usar uma conexão por permissão não dá o direito de geri-la."""
+    res = db.table("conexoes_db").select("id, empresa_id, usuario_id").eq("id", conexao_id).limit(1).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Conexão não encontrada.")
+    r = res.data[0]
+    if payload.get("role") == "comando":
+        return r
+    eid, uid = payload.get("empresa_id", ""), payload.get("sub")
+    if (eid and r.get("empresa_id") == eid) or r.get("usuario_id") == uid:
+        return r
+    raise HTTPException(status_code=403, detail="Acesso negado.")
+
+
+def _resolver_credenciais(conn: ConexaoDB, payload: dict) -> None:
+    """Autoriza o uso da conexão e, se for o caso, preenche a senha salva.
+
+    Antes, qualquer usuário autenticado mandava `conexao_id` com a senha vazia e
+    o servidor decifrava a senha SALVA, sem perguntar de quem era a conexão, e a
+    usava contra o host que a requisição indicasse. Bastava apontar o host para
+    um servidor próprio para receber a senha do cliente.
+
+    Agora: a conexão tem de ser usável por quem pede, e o servidor dela (tipo,
+    host, porta, banco, usuário) é o salvo, não o da requisição. Operador só usa
+    conexão salva e liberada: digitar host e senha é de admin e comando.
+    """
+    role = payload.get("role", "operador")
+    if not conn.conexao_id:
+        if role == "operador":
+            raise HTTPException(
+                status_code=403,
+                detail="Operadores usam apenas conexões salvas e liberadas para eles.")
         return
-    try:
-        res = get_db().table("conexoes_db").select("senha").eq("id", conn.conexao_id).execute()
-        if res.data and res.data[0].get("senha"):
-            conn.senha = _decrypt(res.data[0]["senha"])
-    except Exception:
-        pass
+    r = _conexao_usavel(get_db(), conn.conexao_id, payload)
+    senha_da_requisicao = bool(conn.senha)
+    for campo in ("tipo", "host", "porta", "banco", "usuario", "instance_name", "service_name"):
+        if campo in r and r.get(campo) is not None:
+            setattr(conn, campo, r[campo])
+    if not senha_da_requisicao and r.get("senha"):
+        conn.senha = _decrypt(r["senha"])
 
 
 _MIZAN_PROJECT_ID = "qbdxdtdxujluklyrtmjx"
@@ -1016,7 +1069,7 @@ def _fechar_loop_bandit(db, cpf: str, pagou: bool, valor_recuperado: float, pred
             return
 
         registrar_resultado(acao_id=acao_id, contexto=contexto, recompensa=recompensa,
-                            empresa_id=empresa_id)
+                            empresa_id=empresa_id, pagou=bool(pagou))
     except Exception as _be:
         print(f"[Bandit] Erro ao fechar loop (CPF {cpf}): {_be}")
 
@@ -1584,7 +1637,7 @@ def registrar_contato(body: ContatoIn, credentials: HTTPAuthorizationCredentials
                     vd = float(pred_r.data[0].get("valor_divida") or 0) if (pred_r and pred_r.data) else 0
                     recomp = min(1.0, float(body.valor_recuperado or 0) / vd) if vd > 0 and body.valor_recuperado else 0.5
                 registrar_resultado(acao_id=acao_id, contexto=contexto, recompensa=recomp,
-                                    empresa_id=_emp)
+                                    empresa_id=_emp, pagou=(body.resultado == "pagou"))
             else:
                 print(f"[Bandit/Contato] Sem ação ou contexto para CPF {body.cpf}: "
                       f"acao_id={acao_id}, contexto={'ok' if contexto else 'ausente'}")
@@ -1626,19 +1679,14 @@ def deletar_conta(credentials: HTTPAuthorizationCredentials = Security(bearer)):
 @app.patch("/conexoes/{conexao_id}")
 def atualizar_conexao(conexao_id: str, body: ConexaoUpdateIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """Atualiza campos de uma conexão salva (mapeamento, query, etc.)."""
-    payload = _usuario_autenticado(credentials)
+    # Editar conexão (consulta, mapeamento, escrita de volta) é de admin e comando:
+    # a tela não oferece isso ao operador, e a rota aceitava qualquer usuário da empresa.
+    payload = _exigir_admin_ou_comando(credentials)
     db = get_db()
     updates = {k: v for k, v in body.model_dump().items() if v is not None}
     if not updates:
         return {"ok": True}
-    eid = payload.get("empresa_id", "")
-    uid = payload["sub"]
-    chk = db.table("conexoes_db").select("id, empresa_id, usuario_id").eq("id", conexao_id).execute()
-    if not chk.data:
-        return {"ok": True}
-    r = chk.data[0]
-    if not ((eid and r.get("empresa_id") == eid) or r.get("usuario_id") == uid):
-        raise HTTPException(status_code=403, detail="Acesso negado.")
+    _exigir_conexao_da_empresa(db, conexao_id, payload)
     db.table("conexoes_db").update(updates).eq("id", conexao_id).execute()
     return {"ok": True}
 
@@ -1879,8 +1927,9 @@ async def upload_empresa_foto(file: UploadFile = File(...), empresa_id_alvo: Opt
 
 @app.get("/conexoes/{conexao_id}/permissoes")
 def listar_permissoes_conexao(conexao_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
-    _exigir_admin_ou_comando(credentials)
+    payload = _exigir_admin_ou_comando(credentials)
     db = get_db()
+    _exigir_conexao_da_empresa(db, conexao_id, payload)
     perm = db.table("conexao_permissoes").select("operador_id").eq("conexao_id", conexao_id).execute()
     ids = [p["operador_id"] for p in (perm.data or [])]
     if not ids:
@@ -1891,8 +1940,14 @@ def listar_permissoes_conexao(conexao_id: str, credentials: HTTPAuthorizationCre
 
 @app.post("/conexoes/{conexao_id}/permissoes/{operador_id}")
 def conceder_permissao_conexao(conexao_id: str, operador_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
-    _exigir_admin_ou_comando(credentials)
+    payload = _exigir_admin_ou_comando(credentials)
     db = get_db()
+    conexao = _exigir_conexao_da_empresa(db, conexao_id, payload)
+    # Só se libera a quem é da mesma empresa da conexão: sem isso, o admin de uma
+    # empresa dava a um usuário de outra acesso à conexão da sua.
+    alvo = db.table("usuarios").select("empresa_id").eq("id", operador_id).limit(1).execute()
+    if not alvo.data or (alvo.data[0].get("empresa_id") or "") != (conexao.get("empresa_id") or ""):
+        raise HTTPException(status_code=400, detail="O usuário precisa ser da mesma empresa da conexão.")
     existing = db.table("conexao_permissoes").select("id").eq("conexao_id", conexao_id).eq("operador_id", operador_id).execute()
     if not existing.data:
         db.table("conexao_permissoes").insert({"conexao_id": conexao_id, "operador_id": operador_id}).execute()
@@ -1901,8 +1956,9 @@ def conceder_permissao_conexao(conexao_id: str, operador_id: str, credentials: H
 
 @app.delete("/conexoes/{conexao_id}/permissoes/{operador_id}")
 def revogar_permissao_conexao(conexao_id: str, operador_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
-    _exigir_admin_ou_comando(credentials)
+    payload = _exigir_admin_ou_comando(credentials)
     db = get_db()
+    _exigir_conexao_da_empresa(db, conexao_id, payload)
     db.table("conexao_permissoes").delete().eq("conexao_id", conexao_id).eq("operador_id", operador_id).execute()
     return {"ok": True}
 
@@ -3409,8 +3465,7 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
 @app.post("/listar-tabelas")
 def listar_tabelas(conn: ConexaoDB, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """Lista as tabelas disponíveis no banco externo — sem precisar escrever SQL."""
-    _usuario_autenticado(credentials)
-    _resolver_credenciais(conn)
+    _resolver_credenciais(conn, _usuario_autenticado(credentials))
     _bloquear_autoconexao(conn)
     if conn.tipo == "sheets":
         raise HTTPException(status_code=400, detail="Google Sheets não tem tabelas SQL.")
@@ -3448,8 +3503,7 @@ def listar_tabelas(conn: ConexaoDB, credentials: HTTPAuthorizationCredentials = 
 @app.post("/testar-db")
 def testar_db(conn: ConexaoDB, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """Testa conexão, executa query limitada e retorna colunas + preview + mapeamento sugerido."""
-    _usuario_autenticado(credentials)
-    _resolver_credenciais(conn)
+    _resolver_credenciais(conn, _usuario_autenticado(credentials))
     _bloquear_autoconexao(conn)
     try:
         if conn.tipo == "sheets":
@@ -3508,7 +3562,7 @@ def analisar_db(conn: ConexaoDB, incluir_ranking: bool = True,
                 credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """Analisa uma carteira carregada diretamente de um banco de dados externo."""
     _payload = _usuario_autenticado(credentials)  # valida o token ANTES de conectar
-    _resolver_credenciais(conn)
+    _resolver_credenciais(conn, _payload)
     _bloquear_autoconexao(conn)
     try:
         if conn.tipo == "sheets":
@@ -3962,6 +4016,11 @@ async def feedback_lote(
 ):
     """Importa feedbacks em lote a partir de CSV ou Excel."""
     empresa_info = _validar_api_key(credentials)
+    # Mesma regra de /feedback: operador não registra pagamento. A tela só
+    # esconde o botão; sem esta barreira, qualquer operador com o token chamava
+    # a rota direto e gravava pagamentos em lote.
+    if (empresa_info.get("jwt") or {}).get("role") == "operador":
+        raise HTTPException(status_code=403, detail="Operadores não podem registrar pagamentos manualmente. Os pagamentos são atualizados automaticamente via sincronização com o banco de dados.")
     # A coluna feedbacks.empresa guarda o empresa_id em todo o resto do
     # sistema; _validar_api_key devolve em "empresa_nome" o nome do usuário
     # quando a autenticação é por JWT, então gravar esse campo aqui fazia os
@@ -4778,7 +4837,9 @@ def propostas_devedor(
 
     pred = _predicao_do_cpf(
         db, cpf, empresa_id,
-        colunas="cpf, nome, valor_divida, renda_estimada, dias_em_atraso, "
+        # despesas_mensais: sem pedir esta coluna, a margem livre só existia se o
+        # operador digitasse as despesas, mesmo com a carteira trazendo-as.
+        colunas="cpf, nome, valor_divida, renda_estimada, despesas_mensais, dias_em_atraso, "
                 "score_recuperabilidade, probabilidade_pagamento, carteira_id")
     if not pred:
         raise HTTPException(status_code=404, detail=f"Nenhuma predição encontrada para CPF: {cpf}")

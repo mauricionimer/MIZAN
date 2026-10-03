@@ -150,7 +150,7 @@ EMP = "empresa_teste"
 # sequência, só escrita passo a passo com uma pausa no meio, para a colisão
 # ser determinística no teste em vez de rara por operação. Em produção a
 # janela é de microssegundos: a perda é menor, mas existe e é silenciosa.
-def _atualizar_lento(self, acao, contexto, recompensa):
+def _atualizar_lento(self, acao, contexto, recompensa, pagou=None):
     x = contexto.astype(float)
     a_lido, b_lido = self.A[acao], self.b[acao]
     n_lido, r_lido = self.n_tentativas[acao], self.recompensa_acumulada[acao]

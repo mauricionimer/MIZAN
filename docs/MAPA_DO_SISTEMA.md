@@ -152,6 +152,26 @@ o defeito que existia.
 | **C4** | `comando_visao_geral`, detalhe da empresa e `/comando/carteiras` (~732–775, 894) | `carteiras` e `feedbacks` lidos sem paginar | "valor recuperado real", nº de feedbacks e a bandeira de **empresa suspeita** saem de só 1.000 linhas |
 | **C5** | lotes de `in_` com 500 ids (`retrain`, status da carteira, métricas por versão) | o diagnóstico do banco mediu: 400 ids passam, 800 falham. 500 estava no meio, sem medida | risco no retreino e nas telas de feedback. Agora todos usam `ITENS_POR_IN` (100). O diagnóstico passou a testar 500 e 600 também, para dar o limite exato |
 
+### Achados da Fase 2 (escrevendo as respostas): corrigidos
+
+| # | Onde | Problema | Correção |
+|---|---|---|---|
+| **C7** | `/predicoes/{cpf}/propostas` | a rota não pedia ao banco a coluna `despesas_mensais`. O caminho "a carteira traz as despesas" nunca funcionou: a margem livre só existia se o operador digitasse as despesas | a coluna agora é lida; `test_proposta.py` cobre |
+| **C8** | `model/bandit.py` | todo resultado com recompensa positiva contava como **pagamento**. "Contactado" (0,05) e "prometeu pagar" (0,2) inflavam a chance de pagamento por oferta, que escolhe a proposta sugerida | `atualizar(..., pagou=)` conta pagamento só quando pagou; `test_loop_oferta.py` cobre. **O histórico já gravado continua inflado** e não dá para separar depois |
+| **C9** | `POST /feedback/lote` | a tela esconde o lote do operador, mas a rota aceitava operador: qualquer operador com o token registrava pagamentos em lote. `/feedback` já barrava | mesma barreira; `test_feedback_escopo.py` cobre |
+| **C10** | conexões de banco | `_resolver_credenciais` decifrava a senha **salva** de qualquer `conexao_id` da requisição, sem conferir de quem era, e a usava contra o host que a requisição indicasse: bastava apontar o host para um servidor próprio para receber a senha do cliente. Em volta: operador testava conexão com host e senha digitados; qualquer usuário da empresa editava a conexão; as rotas de permissão aceitavam conexão de outra empresa | conexão só é usada por quem pode (comando, admin da empresa, operador liberado) e **contra o servidor salvo**; operador só usa conexão salva; editar é de admin e comando; permissões conferem a empresa. `test_conexoes_escopo.py` reprova 14 verificações no código anterior |
+
+### Ainda abertos (sem correção nesta entrega)
+
+| # | Onde | Problema |
+|---|---|---|
+| **C6** | filtro "pago / não pago / pendente" da fila | envia a lista de CPFs na consulta; com milhares de feedbacks a URL estoura |
+| **E1** | premissas da empresa | recuperação se pagar, comissão, cessão, critério da fila, buffer e teto de parcela **não têm tela**: só a API as grava. O aviso do sistema manda "configurar", mas não há onde |
+| **D8** | página do devedor | a "Urgência" (≥70 Alta, ≥40 Média) vem só do score e pode contradizer a Prioridade (posição na fila). É um terceiro critério |
+| **D9** | renda ausente | quando a coluna de renda não existe, vira 0, e a razão dívida ÷ renda vira 0 (o devedor parece sem comprometimento) |
+| **D10** | `price_model.pkl` | é um só para todas as empresas: se for treinado, passa a valer para todas, inclusive as que têm modelo próprio |
+| **D11** | registrar contato | o operador pode marcar "Pagou" no contato, o que treina o bandit mas não confirma o pagamento (isso é do admin) |
+
 ## Decisões suas (D)
 
 | # | Questão |

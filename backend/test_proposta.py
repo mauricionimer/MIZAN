@@ -314,10 +314,13 @@ import main  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 
+DESPESAS_NA_CARTEIRA = {"v": None}
+
+
 class _Q:
     """Banco falso: "c-alfa" é do banco_alfa; "c-beta" é da credtotal."""
     def __init__(s, tbl): s.tbl, s.f = tbl, {}
-    def select(s, *a, **k): return s
+    def select(s, *a, **k): s.cols = a[0] if a else ""; return s
     def eq(s, c, v): s.f[c] = v; return s
     def in_(s, c, v): s.f[c] = v; return s
     def order(s, *a, **k): return s
@@ -342,12 +345,16 @@ class _Q:
             carteiras_visiveis = s.f.get("carteira_id") or []
             if "c-alfa" not in carteiras_visiveis:
                 return types.SimpleNamespace(data=s._pagina([]))
-            return types.SimpleNamespace(data=[{
+            linha = {
                 "cpf": s.f.get("cpf"), "nome": "Devedor Teste",
                 "valor_divida": 12000.0, "renda_estimada": 4500.0,
                 "dias_em_atraso": 180, "score_recuperabilidade": 65.0,
                 "probabilidade_pagamento": 0.65, "carteira_id": "c-alfa",
-            }])
+            }
+            # Só devolve a coluna se a consulta a pediu, como o banco de verdade.
+            if DESPESAS_NA_CARTEIRA["v"] is not None and "despesas_mensais" in getattr(s, "cols", ""):
+                linha["despesas_mensais"] = DESPESAS_NA_CARTEIRA["v"]
+            return types.SimpleNamespace(data=[linha])
         if s.tbl == "empresa_config":
             return types.SimpleNamespace(data=[{"extra": {}}])
         return types.SimpleNamespace(data=s._pagina([]))
@@ -393,6 +400,17 @@ h_beta = {"Authorization": "Bearer " + criar_token(
 r3 = c.get("/predicoes/11122233344/propostas", headers=h_beta)
 checar(r3.status_code == 404, "devedor de outra empresa não vaza pelo endpoint",
        str(r3.status_code))
+
+# despesas que vieram NA CARTEIRA (coluna despesas_mensais): a margem sai delas,
+# sem o operador digitar nada. A rota não pedia essa coluna ao banco, então o
+# caminho "a carteira pode trazer as despesas" nunca funcionou.
+DESPESAS_NA_CARTEIRA["v"] = 2500.0
+r4 = c.get("/predicoes/11122233344/propostas", headers=h)
+corpo4 = r4.json()
+checar(corpo4.get("margem", {}).get("origem") == "informada" and perto(corpo4["margem"]["valor"], 1400.0),
+       "despesas da carteira alimentam a margem sem o operador digitar",
+       str(corpo4.get("margem")))
+DESPESAS_NA_CARTEIRA["v"] = None
 
 print("\nRESULTADO: " + ("tudo certo" if not falhas else f"{falhas} falha(s)"))
 sys.exit(1 if falhas else 0)

@@ -98,13 +98,21 @@ class LinUCB:
             scores.append(exploit + explore)
         return int(np.argmax(scores)), scores
 
-    def atualizar(self, acao: int, contexto: np.ndarray, recompensa: float) -> None:
+    def atualizar(self, acao: int, contexto: np.ndarray, recompensa: float,
+                  pagou: "bool | None" = None) -> None:
+        """`pagou` diz se houve pagamento. Sem ele, vale "recompensa > 0".
+
+        Esse padrão contava como pagamento qualquer resultado com recompensa
+        positiva, e os contatos "contactado" (0,05) e "prometeu pagar" (0,2) têm
+        recompensa positiva sem ninguém ter pago. A chance de pagamento por oferta
+        (`pop_por_oferta`) sai de n_pagamentos, então saía inflada por contatos.
+        """
         x            = contexto.astype(float)
         self.A[acao] += np.outer(x, x)
         self.b[acao] += recompensa * x
         self.n_tentativas[acao]         += 1
         self.recompensa_acumulada[acao] += recompensa
-        if recompensa > 0:
+        if (recompensa > 0) if pagou is None else pagou:
             self.n_pagamentos[acao]     += 1
 
     def stats(self) -> list[dict]:
@@ -442,7 +450,7 @@ def recomendar(devedor: dict, empresa_id: "str | None") -> dict:
 
 
 def registrar_resultado(acao_id: int, contexto: list[float], recompensa: float,
-                        empresa_id: "str | None") -> None:
+                        empresa_id: "str | None", pagou: "bool | None" = None) -> None:
     if not (0 <= acao_id < N_ACOES):
         print(f"[Bandit] ERRO: acao_id inválido: {acao_id} (válidos: 0–{N_ACOES-1}). Feedback ignorado.")
         return
@@ -472,7 +480,7 @@ def registrar_resultado(acao_id: int, contexto: list[float], recompensa: float,
                 # respondeu). Parte do que houver em memória e deixa
                 # _gravar_se_versao decidir: ele insere quando a linha falta.
                 bandit, versao = carregar_bandit(chave), 0
-            bandit.atualizar(acao_id, ctx, premio)
+            bandit.atualizar(acao_id, ctx, premio, pagou=pagou)
             if _gravar_se_versao(chave, bandit, versao):
                 _bandit_cache[chave]    = bandit
                 _bandit_cache_ts[chave] = time.monotonic()
