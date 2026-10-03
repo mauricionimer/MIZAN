@@ -803,12 +803,15 @@ export default function Dashboard({ onIrPara }) {
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Valor esperado ao alcance</p>
+                    <p className="text-xs" style={{ color: 'var(--ink-3)' }}>
+                      Valor esperado ao alcance{alcance.base === 'liquido' ? ' (líquido)' : ''}
+                    </p>
                     <p className="text-2xl font-semibold tabular-nums" style={{ color: 'var(--success)' }}>
                       {fmtBRL(alcance.valor)}
                     </p>
                     <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
-                      de {fmtBRL(resumo.valor_esperado_recuperacao_total ?? 0)} na carteira
+                      de {fmtBRL(alcance.total ?? resumo.valor_esperado_recuperacao_total ?? 0)} na carteira
+                      {alcance.base === 'liquido' ? ', já descontada a comissão de cobrança' : ''}
                     </p>
                   </div>
                   <div>
@@ -827,7 +830,7 @@ export default function Dashboard({ onIrPara }) {
                     style={{ width: `${Math.min(100, alcance.pct ?? 0)}%`, background: 'var(--chart-1)' }} />
                 </div>
                 <p className="text-xs mt-3 leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-                  A fila está ordenada por valor esperado, então os primeiros são os que mais
+                  A fila está ordenada por valor esperado{alcance.base === 'liquido' ? ' líquido' : ''}, então os primeiros são os que mais
                   devolvem — por isso {(alcance.pct ?? 0).toFixed(0)}% do recuperável cabe em{' '}
                   {alcance.pctBase.toFixed(0)}% dos contatos.
                   As linhas dentro do alcance aparecem marcadas na tabela abaixo.
@@ -850,7 +853,10 @@ export default function Dashboard({ onIrPara }) {
                   <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--ink-2)' }}>Precificação</p>
                   <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--ink)' }}>Carteira de Crédito<DicaAjuda id="precificacao-simulador" /></h3>
                 </div>
-                <p className="text-xs" style={{ color: 'var(--ink-2)' }}>Ajuste custo e retorno para simular cenários</p>
+                <p className="text-xs max-w-sm text-right" style={{ color: 'var(--ink-2)' }}>
+                  Ajuste custo e retorno para simular cenários. O custo aqui é o do controle, só para simular:
+                  não é a comissão por fase configurada, que dá o valor esperado líquido do ciclo.
+                </p>
               </div>
 
               <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-5">
@@ -866,9 +872,9 @@ export default function Dashboard({ onIrPara }) {
                   className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5 lg:col-span-4">
                   <motion.div variants={item}><PricingCard ajuda="valor-esperado" label="Valor Esperado de Recuperação" value={fmtBRL(pricing.ver)}
                     icon={ArrowUpRight} /></motion.div>
-                  <motion.div variants={item}><PricingCard label="Valor Líquido (após custos)" value={fmtBRL(pricing.liquido)} icon={Percent} /></motion.div>
+                  <motion.div variants={item}><PricingCard label="Após o custo simulado" value={fmtBRL(pricing.liquido)} icon={Percent} /></motion.div>
                   <motion.div variants={item}><PricingCard label="Preço Sugerido de Compra" value={fmtBRL(pricing.preco)} highlight icon={Tag} /></motion.div>
-                  <motion.div variants={item}><PricingCard label="Lucro Final (líquido)" value={fmtBRL(pricing.lucro)} accent="emerald" icon={Banknote} /></motion.div>
+                  <motion.div variants={item}><PricingCard label="Lucro Final (simulado)" value={fmtBRL(pricing.lucro)} accent="emerald" icon={Banknote} /></motion.div>
                   <motion.div variants={item}><PricingCard ajuda="taxa-de-recuperacao" label="Taxa de Recuperação Estimada" value={`${pricing.taxaRecuperacao.toFixed(1)}%`} icon={TrendingUp} /></motion.div>
                 </motion.div>
               </div>
@@ -893,11 +899,11 @@ export default function Dashboard({ onIrPara }) {
                   </>
                 )}
                 <span className="text-ink-4">›</span>
-                <span><span className="font-medium text-ink-2">Líquido</span> = VER × (1 − {custoCobranca}%)</span>
+                <span><span className="font-medium text-ink-2">Após custo</span> = VER × (1 − {custoCobranca}%)</span>
                 <span className="text-ink-4">›</span>
-                <span><span className="font-medium text-ink-2">Preço</span> = Líquido ÷ (1 + {retornoAlvo}%)</span>
+                <span><span className="font-medium text-ink-2">Preço</span> = Após custo ÷ (1 + {retornoAlvo}%)</span>
                 <span className="text-ink-4">›</span>
-                <span><span className="font-medium text-emerald-400">Lucro</span> = Líquido − Preço</span>
+                <span><span className="font-medium text-emerald-400">Lucro</span> = Após custo − Preço</span>
                 <span className="text-ink-4">›</span>
                 <span><span className="font-medium text-ink-2">Retorno</span> = Lucro ÷ Preço</span>
               </div>

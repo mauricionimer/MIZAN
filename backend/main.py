@@ -2422,23 +2422,46 @@ def alcance_da_operacao(
     # .limit(n) não basta: acima de mil o servidor corta e o alcance sairia
     # menor do que é — justamente o número que vai para a reunião.
     linhas = _todas_as_linhas(
-        lambda: db.table("predicoes").select("rank, valor_esperado_recuperacao")
+        lambda: db.table("predicoes").select("rank, valor_esperado_recuperacao, valor_esperado_liquido")
                   .eq("carteira_id", carteira_id).order("rank"),
         lote=min(n, LOTE_LEITURA))[:n]
-    soma = sum(float(l.get("valor_esperado_recuperacao") or 0) for l in linhas)
     ate = max((int(l.get("rank") or 0) for l in linhas), default=n)
+    bruto = sum(float(l.get("valor_esperado_recuperacao") or 0) for l in linhas)
 
     total_ver = (db.table("carteiras").select("valor_esperado")
                  .eq("id", carteira_id).limit(1).execute())
     ver = float((total_ver.data or [{}])[0].get("valor_esperado") or 0)
 
+    # A fila é ordenada pelo LÍQUIDO (o que sobra para o banco depois da
+    # comissão da fase), então o alcance soma o líquido, contra o líquido da
+    # carteira inteira (achado D5). Carteiras analisadas antes do líquido não o
+    # têm gravado: aí vale o bruto, e o campo `base` diz qual foi.
+    if any(l.get("valor_esperado_liquido") is not None for l in linhas):
+        soma = sum(float(l.get("valor_esperado_liquido") if l.get("valor_esperado_liquido") is not None
+                         else l.get("valor_esperado_recuperacao") or 0) for l in linhas)
+        chave = f"alcance_liq:{carteira_id}:{ver}"
+        total_valor = _cache_get(chave, 600)
+        if total_valor is None:
+            todas = _todas_as_linhas(lambda: db.table("predicoes")
+                                     .select("id, valor_esperado_liquido, valor_esperado_recuperacao")
+                                     .eq("carteira_id", carteira_id))
+            total_valor = sum(float(l.get("valor_esperado_liquido") if l.get("valor_esperado_liquido") is not None
+                                    else l.get("valor_esperado_recuperacao") or 0) for l in todas)
+            _cache_set(chave, total_valor)
+        base = "liquido"
+    else:
+        soma, total_valor, base = bruto, ver, "bruto"
+
     return {
         "n": n,
         "ate": ate,
         "valor": round(soma, 2),
+        "valor_bruto": round(bruto, 2),
+        "total": round(total_valor, 2),
+        "base": base,
         # Sem o total da carteira não dá para dizer que fração é essa; devolver
         # 0 seria inventar um número, então o campo fica nulo e a tela decide.
-        "pct": round(soma / ver * 100, 2) if ver > 0 else None,
+        "pct": round(soma / total_valor * 100, 2) if total_valor > 0 else None,
         "pctBase": round(n / total * 100, 2) if total else 0.0,
         "restam": total - n,
         "total_devedores": total,

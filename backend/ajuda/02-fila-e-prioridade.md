@@ -129,10 +129,9 @@ perguntas:
 - onde informo a capacidade da equipe
 - o que mostra o alcance da operação
 curta: Mostra até onde a fila chega com o número de contatos que a sua equipe consegue fazer no ciclo, e quanto esse topo vale.
-calculo: Você informa a capacidade N: operadores × contatos por dia × dias úteis. O alcance soma o valor esperado de recuperação dos N primeiros da fila. "Do recuperável" é essa soma ÷ o valor esperado de toda a carteira, e "Vai até a posição" é o rank do N-ésimo. As linhas dentro do alcance aparecem marcadas na tabela.
+calculo: Você informa a capacidade N: operadores × contatos por dia × dias úteis. O alcance soma o valor esperado líquido (depois da comissão da fase especializada, o mesmo que ordena a fila) dos N primeiros. "Do recuperável" é essa soma ÷ o líquido de toda a carteira, e "Vai até a posição" é o rank do N-ésimo. As linhas dentro do alcance aparecem marcadas na tabela.
 fazer: Informe a capacidade real da equipe e leve o número para a reunião de planejamento. O valor fica guardado no seu navegador para a próxima vez.
-cuidado: A soma usa o valor esperado bruto (sem a comissão da fase especializada), enquanto a fila é ordenada pelo líquido; com comissão configurada, as duas medidas podem divergir um pouco.
-revisar: achado D5 do mapa do sistema.
+cuidado: Sem comissão configurada, líquido e bruto são iguais. Carteiras analisadas antes de o líquido ser gravado somam o bruto; a tela só escreve "(líquido)" quando é líquido.
 fontes:
 - frontend/src/utils/alcance.js::calcularAlcance
 - backend/main.py::rota /carteiras/{carteira_id}/alcance

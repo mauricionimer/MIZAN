@@ -99,15 +99,14 @@ perguntas:
 - por que a fila usa o líquido
 - como a comissão afeta a fila
 - diferença entre bruto e líquido
-- o líquido do ciclo e o líquido da precificação são a mesma coisa
+- o líquido do ciclo e o após custo da precificação são a mesma coisa
 - valor esperado depois de descontar a comissão
 - por que a fila usa o valor líquido
 - diferença entre valor esperado bruto e líquido
 curta: É o valor esperado depois de descontar a comissão que o banco paga na fase especializada. É o que ordena a fila.
 calculo: Na fase especializada (31 a 360 dias): líquido = esperado × (1 − comissão%). Nas outras fases, e sem comissão informada, o líquido é igual ao bruto, e o sistema avisa.
 fazer: Informe a comissão do contrato com o escritório de cobrança em Premissas > Comissão do escritório de cobrança, para a fila refletir o que sobra para o banco. Vale para as próximas análises.
-cuidado: Não é o "Valor Líquido" do simulador de precificação, que usa um custo de cobrança escolhido no controle deslizante. São dois conceitos com nomes parecidos.
-revisar: achado D3: dois "líquidos" com nomes parecidos.
+cuidado: Não é o "Após o custo simulado" do simulador de precificação, que usa um custo escolhido no controle deslizante só para simular. "Líquido" no Mizan é sempre este: depois da comissão por fase configurada.
 fontes:
 - backend/model/ciclo.py::liquido
 - backend/model/ciclo.py::custos_de_config
@@ -219,10 +218,9 @@ perguntas:
 - para que servem os controles de custo e retorno
 - como o lucro final é calculado na precificação
 curta: Simula quanto pagar por uma carteira para atingir um retorno desejado, dado o que se espera recuperar e o custo de cobrar.
-calculo: Líquido = valor esperado × (1 − custo%). Preço sugerido = líquido ÷ (1 + retorno%). Lucro = líquido − preço. Retorno = lucro ÷ preço. Taxa de recuperação estimada = valor esperado ÷ valor de face. O custo (5–50%, padrão 25) e o retorno (10–80%, padrão 30) são controles deslizantes.
+calculo: Após custo = valor esperado × (1 − custo%). Preço sugerido = após custo ÷ (1 + retorno%). Lucro = após custo − preço. Retorno = lucro ÷ preço. Taxa de recuperação estimada = valor esperado ÷ valor de face. O custo (5–50%, padrão 25) e o retorno (10–80%, padrão 30) são controles deslizantes.
 fazer: Ajuste os dois controles para os números da sua operação e compare cenários. Os padrões servem só de ponto de partida.
-cuidado: Os padrões 25% e 30% são escolha de projeto: não são do cliente nem do mercado. O cálculo usa o valor esperado bruto e é feito na tela, sem gravar nada.
-revisar: achado D3 (dois "líquidos").
+cuidado: Os padrões 25% e 30% são escolha de projeto: não são do cliente nem do mercado. O cálculo usa o valor esperado bruto e é feito na tela, sem gravar nada. O custo do controle não é a comissão por fase configurada em Premissas; por isso o card se chama "Após o custo simulado", e não "líquido".
 fontes:
 - frontend/src/pages/Dashboard.jsx::texto "Preço Sugerido de Compra"
 - frontend/src/pages/Dashboard.jsx::texto "Retorno Alvo"

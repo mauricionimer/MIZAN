@@ -130,6 +130,20 @@ checar(a["valor"] == 4000 * 500.0, "e soma os 4.000, não os primeiros mil",
 
 a2 = c.get("/carteiras/c1/alcance?capacidade=500", headers=H).json()
 checar(a2["valor"] == 500 * 500.0, "capacidade abaixo do teto continua certa")
+checar(a2["base"] == "bruto", "carteira sem líquido gravado: soma o bruto, como antes", a2["base"])
+
+# D5: a fila é ordenada pelo líquido; o alcance tem de somar o mesmo líquido,
+# contra o líquido da carteira inteira (que também passa do teto de mil).
+for p in PREDICOES:
+    p["valor_esperado_liquido"] = 400.0
+a3 = c.get("/carteiras/c1/alcance?capacidade=4000", headers=H).json()
+checar(a3["base"] == "liquido" and a3["valor"] == 4000 * 400.0, "com líquido, soma o líquido dos 4.000",
+       f"{a3['base']} R$ {a3['valor']:,.0f}")
+checar(a3["total"] == N * 400.0 and a3["pct"] == 80.0,
+       "e a fração é sobre o líquido das 5.000 (não o bruto, nem só mil)", f"{a3['total']} {a3['pct']}%")
+checar(a3["valor_bruto"] == 4000 * 500.0, "o bruto do mesmo trecho continua disponível")
+for p in PREDICOES:
+    p.pop("valor_esperado_liquido", None)
 
 
 # ── 3. a página do ranking não regrediu ──────────────────────────────────

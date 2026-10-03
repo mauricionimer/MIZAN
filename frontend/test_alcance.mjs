@@ -56,5 +56,18 @@ const semTotal = calcularAlcance(fila, 2, 0)
 ok(semTotal.pct === null, 'sem o total, a fração vem nula em vez de inventada')
 ok(semTotal.valor === 1600, 'mas o valor somado continua certo')
 
+// D5: a fila é ordenada pelo líquido; o alcance soma o líquido contra o líquido total
+const liq = [
+  { rank: 1, valor_esperado_recuperacao: 1000, valor_esperado_liquido: 800 },
+  { rank: 2, valor_esperado_recuperacao: 900,  valor_esperado_liquido: 700 },
+  { rank: 3, valor_esperado_recuperacao: 100,  valor_esperado_liquido: 100 },
+]
+const aL = calcularAlcance(liq, 2, 2000)
+ok(aL.valor === 1500 && aL.base === 'liquido', 'com líquido, soma o líquido dos N primeiros', `R$ ${aL.valor}`)
+ok(aL.total === 1600 && Math.abs(aL.pct - 93.75) < 1e-9, 'e a fração é sobre o líquido da carteira, não o bruto', `${aL.pct}%`)
+const mista = [{ rank: 1, valor_esperado_liquido: 300 }, { rank: 2, valor_esperado_recuperacao: 200 }]
+ok(calcularAlcance(mista, 2, 0).valor === 500, 'devedor sem líquido gravado entra pelo bruto')
+ok(calcularAlcance(fila, 2, TOTAL).base === 'bruto', 'análise antiga, sem líquido: base bruta, como antes')
+
 console.log(falhas ? `\n${falhas} falha(s)` : '\nRESULTADO: tudo certo')
 process.exit(falhas ? 1 : 0)
