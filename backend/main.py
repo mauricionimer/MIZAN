@@ -1,6 +1,7 @@
 import asyncio
 import io
 import json
+import math
 import os
 import threading
 import time as _time
@@ -290,7 +291,8 @@ COLUNAS_COM_DEFAULT = {
     "produto":        "pessoal",
     "status":         "inadimplente",
     "uf":             "SP",
-    "renda_estimada": 0,
+    # sem coluna de renda, a renda é desconhecida (vazia), não zero: ver D9 em score._adicionar_derivadas
+    "renda_estimada": None,
 }
 
 CAMPO_ALIASES: dict = {
@@ -3102,6 +3104,17 @@ def _politica_proposta(empresa_id: "str | None"):
         return PoliticaProposta()
 
 
+def _sem_nan(obj):
+    """NaN e infinito viram None (null), em dicts e listas aninhados. O JSON não tem NaN."""
+    if isinstance(obj, dict):
+        return {k: _sem_nan(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sem_nan(v) for v in obj]
+    if isinstance(obj, (float, np.floating)) and not math.isfinite(float(obj)):
+        return None
+    return obj
+
+
 def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _usuario_email: str = None,
                  _empresa_id: str = None, _carteira_id_existente: str = None,
                  _incluir_ranking: bool = True) -> dict:
@@ -3328,7 +3341,10 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
     resultado_sorted["dados_incompletos"] = resultado_sorted.get("dados_incompletos", False).fillna(False).astype(bool)
     resultado_sorted["aviso_dados"]       = resultado_sorted.get("aviso_dados", "").fillna("").astype(str)
 
-    devedores = resultado_sorted.where(resultado_sorted.notna(), other=None).to_dict(orient="records")
+    # _sem_nan e não .where(notna, None): no pandas 3 o where devolve NaN de volta
+    # nas colunas numéricas, e um NaN na resposta derrubava a análise inteira
+    # (Starlette recusa NaN no JSON). Uma célula de renda em branco bastava.
+    devedores = [_sem_nan(d) for d in resultado_sorted.to_dict(orient="records")]
 
     total_em_risco = float(resultado["valor_divida"].sum())
     ver_total      = float(resultado["valor_esperado_recuperacao"].sum())
@@ -3436,7 +3452,8 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
 
         def _py(val):
             if val is None: return None
-            if hasattr(val, "item"): return val.item()
+            if hasattr(val, "item"): val = val.item()
+            if isinstance(val, float) and not math.isfinite(val): return None   # NaN não é JSON
             return val
 
         if _carteira_id_existente:
@@ -3567,9 +3584,9 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
 
     resumo["feedbacks_registrados_automaticamente"] = n_feedbacks_auto
 
-    return {"resumo": resumo, "distribuicao_aging": aging_dist,
-            "distribuicao_cluster": cluster_dist, "top10_prioritarios": devedores[:10],
-            **({"ranking_completo": devedores} if _incluir_ranking else {})}
+    return _sem_nan({"resumo": resumo, "distribuicao_aging": aging_dist,
+                     "distribuicao_cluster": cluster_dist, "top10_prioritarios": devedores[:10],
+                     **({"ranking_completo": devedores} if _incluir_ranking else {})})
 
 
 @app.post("/listar-tabelas")

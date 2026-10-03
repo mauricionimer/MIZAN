@@ -15,7 +15,7 @@ perguntas:
 - por que o comprometimento passa de cem por cento
 - como o comprometimento de renda é calculado
 curta: É a dívida total dividida pela renda mensal estimada, mostrada em porcentagem.
-calculo: comprometimento = valor da dívida ÷ renda estimada, limitado a 10 vezes (1.000%) no modelo. Sem renda, vale 0 no modelo.
+calculo: comprometimento = valor da dívida ÷ renda estimada, limitado a 10 vezes (1.000%) no modelo. Sem renda (ausente, vazia ou zero), fica desconhecido e o modelo usa a mediana do treino.
 fazer: Use para medir o tamanho da dívida frente ao que o devedor ganha. Para saber se uma parcela cabe, veja a margem livre.
 cuidado: É a dívida inteira sobre a renda de um mês, não a parcela. Por isso passa de 100% com facilidade. A renda é uma estimativa, não um dado confirmado.
 fontes:

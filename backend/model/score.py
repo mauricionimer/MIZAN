@@ -35,13 +35,19 @@ def _normalizar_colunas(df: pd.DataFrame) -> pd.DataFrame:
 def _adicionar_derivadas(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     # Converte None (SQL NULL) para NaN antes de qualquer operação numérica
-    for col in ['valor_divida', 'renda_estimada', 'dias_em_atraso']:
+    for col in ['valor_divida', 'dias_em_atraso']:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+    # Renda ausente, em branco ou zero é renda DESCONHECIDA, não "sem renda":
+    # fica vazia e o modelo usa a mediana do treino, como em qualquer outra
+    # variável faltante. Antes virava 0, e a razão dívida ÷ renda virava 0 — o
+    # devedor sem renda informada parecia não ter comprometimento nenhum, o
+    # perfil mais favorável possível (achado D9).
+    if 'renda_estimada' in df.columns:
+        renda = pd.to_numeric(df['renda_estimada'], errors='coerce')
+        df['renda_estimada'] = renda.where(renda > 0)
     if 'valor_divida' in df.columns and 'renda_estimada' in df.columns:
-        df['comprometimento_renda'] = (
-            df['valor_divida'] / df['renda_estimada'].replace(0, np.nan)
-        ).fillna(0).clip(0, 10)
+        df['comprometimento_renda'] = (df['valor_divida'] / df['renda_estimada']).clip(0, 10)
     if 'valor_divida' in df.columns:
         df['log_valor_divida'] = np.log1p(df['valor_divida'].clip(0))
     if 'renda_estimada' in df.columns:

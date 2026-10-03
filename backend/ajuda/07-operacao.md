@@ -18,7 +18,7 @@ perguntas:
 curta: Envie CSV ou Excel com pelo menos CPF, valor da dívida e dias em atraso. O sistema reconhece vários nomes de coluna e preenche o que faltar com valores padrão.
 calculo: Obrigatórias: cpf, valor_divida e dias_em_atraso. Opcionais reconhecidas: nome, produto, status, uf, renda_estimada e despesas_mensais; uma coluna pagou (com valor_recuperado) registra os pagamentos junto. Sem a coluna, o padrão é: nome "Desconhecido", produto "pessoal", status "inadimplente", UF "SP" e renda 0. O limite é de 25 MB por arquivo.
 fazer: Revise o mapeamento e as colunas reconhecidas antes de analisar. Quanto mais completas as colunas, mais fiel o score.
-cuidado: Os padrões não são dados do devedor: UF "SP" e produto "pessoal" entram no modelo como se fossem verdade. Renda ausente vira 0. Informe essas colunas sempre que puder.
+cuidado: Os padrões não são dados do devedor: UF "SP" e produto "pessoal" entram no modelo como se fossem verdade. Renda ausente fica como não informada (o modelo usa a mediana do treino). Informe essas colunas sempre que puder.
 fontes:
 - backend/main.py::COLUNAS_OBRIGATORIAS
 - backend/main.py::COLUNAS_COM_DEFAULT

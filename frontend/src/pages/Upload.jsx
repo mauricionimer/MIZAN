@@ -54,7 +54,7 @@ const CAMPOS_MIZAN = [
   { key: 'produto',        label: 'Produto / Tipo',     obrigatorio: false, hint: 'Padrão: "pessoal"' },
   { key: 'status',         label: 'Status / Situação',  obrigatorio: false, hint: 'Padrão: "inadimplente"' },
   { key: 'uf',             label: 'UF / Estado',        obrigatorio: false, hint: 'Padrão: "SP"' },
-  { key: 'renda_estimada', label: 'Renda Estimada',     obrigatorio: false, hint: 'Padrão: 0' },
+  { key: 'renda_estimada', label: 'Renda Estimada',     obrigatorio: false, hint: 'Sem ela, a renda fica como não informada' },
 ]
 
 const INP_DARK = {

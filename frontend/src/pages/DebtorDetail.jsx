@@ -729,7 +729,7 @@ export default function DebtorDetail() {
               )}
               <DataRow label="Valor da Dívida (face)" value={fmtBRL(d.valor_divida)} />
               <DataRow ajuda="valor-esperado" label="Valor Esperado de Recuperação" value={<span className="text-emerald-400 font-bold">{fmtBRL(d.valor_esperado_recuperacao)}</span>} />
-              <DataRow label="Renda Estimada" value={fmtBRL(d.renda_estimada)} />
+              <DataRow label="Renda Estimada" value={d.renda_estimada > 0 ? fmtBRL(d.renda_estimada) : 'Não informada'} />
               <DataRow label="Dias em Atraso" value={fmtNum(d.dias_em_atraso)} />
               {d.comprometimento_renda != null && <DataRow ajuda="comprometimento-de-renda" label="Comprometimento de Renda" value={fmtPct(d.comprometimento_renda)} />}
             </Section>

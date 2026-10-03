@@ -156,7 +156,7 @@ perguntas:
 curta: Marca o devedor que veio sem valor da dívida, sem dias de atraso ou sem renda (ausente, vazio ou zero).
 calculo: Antes de qualquer preenchimento, o sistema confere valor_divida e dias_em_atraso (críticos) e renda_estimada (importante). O aviso lista quais campos estavam zerados, nulos ou ausentes.
 fazer: Corrija na origem e reenvie a carteira. Sem renda, a verificação de capacidade de pagamento (margem livre) fica indisponível.
-cuidado: Quando a coluna de renda nem existe no arquivo, o sistema grava renda 0; nesse caso a razão dívida ÷ renda também vira 0, porque sem renda não há como medir. O score desse devedor é uma estimativa feita com esse dado faltando.
+cuidado: Renda ausente, vazia ou zero é tratada como desconhecida: fica em branco, e o modelo usa no lugar dela (e da razão dívida ÷ renda) a mediana dos dados de treino. O score desse devedor é uma estimativa feita com esse dado faltando, por isso o aviso.
 fontes:
 - backend/model/score.py::_avaliar_qualidade_dados
 
