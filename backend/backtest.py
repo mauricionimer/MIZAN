@@ -16,6 +16,9 @@ Colunas obrigatórias:
     cpf, valor_divida, dias_em_atraso, pagou
 Colunas que melhoram a análise:
     renda_estimada, produto, uf, valor_recuperado
+    ordem_atual — a ordem em que a operação REALMENTE cobrou (1 = primeiro).
+                  Com ela, a comparação principal passa a ser contra a fila
+                  do próprio banco, e não contra "maior dívida primeiro".
 """
 
 import sys
@@ -44,6 +47,14 @@ COLUNAS_VAZAMENTO = {
 }
 
 OBRIGATORIAS = {"cpf", "valor_divida", "dias_em_atraso", "pagou"}
+
+# A ordem que a operação usou de verdade. Nomes aceitos para a mesma coluna.
+NOMES_ORDEM_ATUAL = ("ordem_atual", "ordem_banco", "fila_atual", "posicao_atual",
+                     "prioridade_atual", "ordem_cobranca")
+
+# Uma ordem "atual" que acerta quem pagou quase sempre não foi decidida antes
+# da cobrança: foi montada sabendo o resultado. Acima disto, o relatório avisa.
+LIMITE_ORDEM_SUSPEITA = 0.90
 
 
 # ---------------------------------------------------------------------------
@@ -87,6 +98,22 @@ def preparar(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
+    # A fila do banco: menor número = cobrado antes. Quem ficou sem posição
+    # vai para o fim, que é onde ele estava na operação real.
+    nome_ordem = next((c for c in NOMES_ORDEM_ATUAL if c in df.columns), None)
+    if nome_ordem:
+        ordem = pd.to_numeric(df[nome_ordem], errors="coerce")
+        df = df.drop(columns=[c for c in NOMES_ORDEM_ATUAL if c in df.columns])
+        if ordem.notna().sum() == 0:
+            avisos.append(f"Coluna '{nome_ordem}' sem números: ignorada. A comparação fica "
+                          "contra 'maior dívida primeiro'.")
+        else:
+            df["ordem_atual"] = ordem
+            sem = int(ordem.isna().sum())
+            if sem:
+                avisos.append(f"{sem} devedor(es) sem posição em '{nome_ordem}': entraram no fim "
+                              "da fila atual.")
+
     if "valor_recuperado" not in df.columns:
         # Sem o valor recuperado, assume-se recuperação integral de quem pagou.
         # É premissa declarada, não medição — e o relatório diz isso.
@@ -109,6 +136,19 @@ def preparar(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
             "centenas de casos."
         )
     return df, avisos
+
+
+def ordem_suspeita(df: pd.DataFrame) -> "float | None":
+    """AUC da ordem atual contra o desfecho, se ela acerta demais (ver LIMITE_ORDEM_SUSPEITA)."""
+    if "ordem_atual" not in df.columns:
+        return None
+    from sklearn.metrics import roc_auc_score
+    o = df["ordem_atual"].fillna(df["ordem_atual"].max() + 1).to_numpy()
+    try:
+        auc = float(roc_auc_score(df["pagou"].to_numpy(), -o))
+    except ValueError:
+        return None
+    return round(auc, 3) if auc >= LIMITE_ORDEM_SUSPEITA else None
 
 
 def detectar_vazamento(df: pd.DataFrame) -> list[str]:
@@ -158,6 +198,9 @@ def comparar_filas(df: pd.DataFrame, score: np.ndarray, semente: int = 42) -> di
         # teto teórico: fila perfeita, só para mostrar quanto do possível foi capturado
         "oraculo":        np.argsort(-df["valor_recuperado"].fillna(0).to_numpy()),
     }
+    if "ordem_atual" in df.columns:
+        o = df["ordem_atual"].to_numpy(dtype=float)
+        filas["fila_atual"] = np.argsort(np.where(np.isnan(o), np.inf, o), kind="stable")
     return {nome: _captura_por_capacidade(df, ordem) for nome, ordem in filas.items()}
 
 
@@ -203,7 +246,16 @@ def rodar(df: pd.DataFrame, empresa_id: "str | None" = None) -> dict:
             f"{vazando}. Mantê-las produziria um KS alto e falso."
         )
 
-    entrada = df.drop(columns=[c for c in ("pagou", "valor_recuperado", *vazando)
+    auc_ordem = ordem_suspeita(df)
+    if auc_ordem is not None:
+        avisos.append(
+            f"A ordem atual acerta quem pagou em {auc_ordem:.0%} dos pares: isso quase nunca "
+            "acontece com uma fila decidida ANTES da cobrança. Confira se ela não foi montada "
+            "sabendo o resultado — se foi, a comparação contra ela não vale."
+        )
+
+    # A ordem do banco é a concorrente, não informação para o modelo.
+    entrada = df.drop(columns=[c for c in ("pagou", "valor_recuperado", "ordem_atual", *vazando)
                                if c in df.columns])
     pontuado = score_carteira(entrada, empresa_id or None)
     score = pontuado["score_recuperabilidade"].astype(float).to_numpy()
@@ -222,6 +274,21 @@ def rodar(df: pd.DataFrame, empresa_id: "str | None" = None) -> dict:
             "diferenca":    round(m - v, 2),
             "vantagem_pct": round(100 * (m - v) / v, 1) if v > 0 else None,
         }
+
+    # Com a ordem do banco, a comparação que decide é contra ELA: é o que a
+    # operação faz de fato, e não uma suposição sobre o que ela faz.
+    ganho_fila_atual = None
+    if "fila_atual" in filas:
+        ganho_fila_atual = {}
+        for cap in CAPACIDADES:
+            m = filas["mizan_ev"][cap]["valor_capturado"]
+            a = filas["fila_atual"][cap]["valor_capturado"]
+            ganho_fila_atual[cap] = {
+                "mizan":        m,
+                "fila_atual":   a,
+                "diferenca":    round(m - a, 2),
+                "vantagem_pct": round(100 * (m - a) / a, 1) if a > 0 else None,
+            }
 
     # As duas políticas de fila, lado a lado: quanto cada uma recupera e o que
     # cada uma faz com a equidade. É a comparação que permite decidir com o
@@ -278,6 +345,7 @@ def rodar(df: pd.DataFrame, empresa_id: "str | None" = None) -> dict:
         "decis":              decis(df, score),
         "filas":              filas,
         "ganho_sobre_pratica_atual": ganho,
+        "ganho_sobre_fila_atual":    ganho_fila_atual,
         "avisos":             avisos,
     }
 
@@ -366,6 +434,15 @@ def relatorio(r: dict) -> str:
     else:
         L.append(f"   O Mizan superou a prática atual em {venceu} de "
                  f"{len(CAPACIDADES)} capacidades.")
+
+    if r.get("ganho_sobre_fila_atual"):
+        L.append("")
+        L.append("-- Ganho sobre a fila que o banco usou (ordem_atual) -------------")
+        for cap in CAPACIDADES:
+            g = r["ganho_sobre_fila_atual"][cap]
+            sinal = "+" if g["diferenca"] >= 0 else ""
+            pct = f"{sinal}{g['vantagem_pct']}%" if g["vantagem_pct"] is not None else "—"
+            L.append(f"   {int(cap*100):>3}% da base: {sinal}{_brl(g['diferenca'])}  ({pct})")
 
     eq = r.get("equidade")
     if eq and eq.get("ok"):

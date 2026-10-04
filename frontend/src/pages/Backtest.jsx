@@ -74,11 +74,15 @@ export default function Backtest() {
     }
   }
 
-  const ganho = r?.ganho_sobre_pratica_atual?.[CAP_PADRAO]
+  // Com a ordem que o banco usou de verdade (coluna ordem_atual), a manchete
+  // compara contra ela; sem, contra "maior dívida primeiro".
+  const temFila = !!r?.ganho_sobre_fila_atual && !!r?.filas?.fila_atual
+  const ganho = temFila ? r.ganho_sobre_fila_atual[CAP_PADRAO] : r?.ganho_sobre_pratica_atual?.[CAP_PADRAO]
   const venceu = ganho ? ganho.diferenca > 0 : null
   const capturaData = r ? CAPS.map(c => ({
     capacidade: `${Math.round(parseFloat(c) * 100)}%`,
     'Mizan': r.filas.mizan_ev[c]?.pct_capturado ?? 0,
+    ...(temFila ? { 'Fila do banco': r.filas.fila_atual[c]?.pct_capturado ?? 0 } : {}),
     'Maior dívida': r.filas.maior_divida[c]?.pct_capturado ?? 0,
     'Acaso': r.filas.aleatorio[c]?.pct_capturado ?? 0,
     'Teto possível': r.filas.oraculo[c]?.pct_capturado ?? 0,
@@ -100,7 +104,9 @@ export default function Backtest() {
             Colunas obrigatórias: <code>cpf</code>, <code>valor_divida</code>,
             {' '}<code>dias_em_atraso</code>, <code>pagou</code>. Melhoram a análise:
             {' '}<code>valor_recuperado</code>, <code>renda_estimada</code>,
-            {' '}<code>produto</code>, <code>uf</code>.
+            {' '}<code>produto</code>, <code>uf</code> e <code>ordem_atual</code> — a ordem em que
+            a equipe cobrou de verdade (1 = primeiro). Com ela, a comparação é contra a fila do
+            próprio banco.
           </p>
           <div className="mt-4 flex items-center gap-3 flex-wrap">
             <input ref={inputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden"
@@ -127,7 +133,9 @@ export default function Backtest() {
             {/* A manchete: ganho sobre a prática atual */}
             <section className="card p-5">
               <p className="section-label mb-2">
-                Trabalhando 20% da carteira, contra começar pela maior dívida
+                {temFila
+                  ? 'Trabalhando 20% da carteira, contra a fila que o banco usou'
+                  : 'Trabalhando 20% da carteira, contra começar pela maior dívida'}
               </p>
               <div className="flex items-baseline gap-3 flex-wrap">
                 {venceu ? <TrendingUp className="h-7 w-7" style={{ color: 'var(--success)' }} />
@@ -144,8 +152,12 @@ export default function Backtest() {
               </div>
               <p className="text-sm mt-2 leading-relaxed" style={{ color: 'var(--ink-2)' }}>
                 {venceu
-                  ? 'O Mizan recuperaria mais nesta carteira, com a mesma capacidade de contato.'
-                  : 'Nesta carteira, ordenar pela maior dívida recupera mais. O Mizan não teria vantagem aqui.'}
+                  ? (temFila
+                      ? 'O Mizan recuperaria mais que a fila do banco, com a mesma capacidade de contato.'
+                      : 'O Mizan recuperaria mais nesta carteira, com a mesma capacidade de contato.')
+                  : (temFila
+                      ? 'Nesta carteira, a fila que o banco usou recupera mais. O Mizan não teria vantagem aqui.'
+                      : 'Nesta carteira, ordenar pela maior dívida recupera mais. O Mizan não teria vantagem aqui.')}
               </p>
             </section>
 
@@ -193,7 +205,8 @@ export default function Backtest() {
                     <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
                       payload={[
                         { value: 'Mizan', type: 'line', color: COR_MIZAN },
-                        { value: 'Maior dívida', type: 'line', color: COR_ATUAL },
+                        ...(temFila ? [{ value: 'Fila do banco', type: 'line', color: COR_ATUAL }] : []),
+                        { value: 'Maior dívida', type: 'line', color: temFila ? COR_REF : COR_ATUAL },
                         { value: 'Acaso', type: 'line', color: COR_REF },
                         { value: 'Teto possível', type: 'line', color: COR_REF },
                       ]} />
@@ -201,8 +214,13 @@ export default function Backtest() {
                       strokeDasharray="4 4" dot={false} />
                     <Line type="monotone" dataKey="Acaso" stroke={COR_REF} strokeWidth={1.5}
                       strokeDasharray="2 3" dot={false} />
-                    <Line type="monotone" dataKey="Maior dívida" stroke={COR_ATUAL} strokeWidth={2}
-                      dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                    {/* Com a fila do banco, "maior dívida" vira referência, como o acaso */}
+                    <Line type="monotone" dataKey="Maior dívida" stroke={temFila ? COR_REF : COR_ATUAL}
+                      strokeWidth={temFila ? 1.5 : 2} dot={temFila ? false : { r: 4 }} activeDot={{ r: 6 }} />
+                    {temFila && (
+                      <Line type="monotone" dataKey="Fila do banco" stroke={COR_ATUAL} strokeWidth={2}
+                        dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                    )}
                     <Line type="monotone" dataKey="Mizan" stroke={COR_MIZAN} strokeWidth={2}
                       dot={{ r: 4 }} activeDot={{ r: 6 }} />
                   </LineChart>
@@ -217,6 +235,7 @@ export default function Backtest() {
                       <th className="text-left font-medium py-1.5">capacidade</th>
                       <th className="text-right font-medium">Mizan</th>
                       <th className="text-right font-medium">só score</th>
+                      {temFila && <th className="text-right font-medium">fila do banco</th>}
                       <th className="text-right font-medium">maior dívida</th>
                       <th className="text-right font-medium">acaso</th>
                       <th className="text-right font-medium">teto</th>
@@ -234,6 +253,11 @@ export default function Backtest() {
                         <td className="text-right tabular-nums" style={{ color: 'var(--ink-3)' }}>
                           {fmtPct1(r.filas.mizan_score[c]?.pct_capturado)}
                         </td>
+                        {temFila && (
+                          <td className="text-right tabular-nums" style={{ color: 'var(--ink-2)' }}>
+                            {fmtPct1(r.filas.fila_atual[c]?.pct_capturado)}
+                          </td>
+                        )}
                         <td className="text-right tabular-nums" style={{ color: 'var(--ink-2)' }}>
                           {fmtPct1(r.filas.maior_divida[c]?.pct_capturado)}
                         </td>

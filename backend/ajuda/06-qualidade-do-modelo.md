@@ -231,13 +231,15 @@ perguntas:
 - como testar a fila com uma carteira antiga
 - o que é capturado em 10 por cento da carteira
 - como comparar a fila com maior dívida primeiro
+- como comparar o Mizan com a fila que o banco usa hoje
+- o que é a coluna ordem_atual
 - por que usar uma carteira histórica
 - como medir a fila com uma carteira cujo resultado já se conhece
 - o que o backtest compara
 - como ler o valor capturado em cada capacidade
 curta: Aplica a fila a uma carteira cujo resultado já se conhece e mede quanto cada critério teria recuperado trabalhando só uma parte dela.
 calculo: Compara três filas (valor esperado, score puro e maior dívida primeiro) em capacidades de 10%, 20%, 30% e 50% da carteira, e mostra o valor capturado por cada uma, mais KS e Gini do score e a análise de equidade.
-fazer: Use uma carteira com a coluna pagou. É a medida mais honesta de quanto a fila vale para a sua base.
+fazer: Use uma carteira com a coluna pagou. Se tiver, inclua a coluna ordem_atual com a ordem em que a equipe realmente cobrou (1 = primeiro): a comparação principal passa a ser contra a fila do próprio banco, em vez de "maior dívida primeiro". É a medida mais honesta de quanto a fila vale para a sua base.
 cuidado: O backtest usa o mesmo modelo da análise: o da empresa, se houver um ativo; senão o geral. Não teste com a mesma carteira usada para treinar: o resultado sairia inflado, porque o modelo já viu aquelas pessoas. Resultados citados em comentários do código vêm de dados sintéticos e não são desempenho real.
 fontes:
 - backend/backtest.py::rodar
