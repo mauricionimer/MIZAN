@@ -17,7 +17,7 @@ perguntas:
 - a lista é ordenada pela nota ou pelo valor
 curta: A fila vai de quem rende mais para quem rende menos: valor esperado de recuperação, não score e não tamanho da dívida.
 calculo: valor esperado = dívida × taxa de recuperação prevista. Na fase especializada (31 a 360 dias) desconta-se a comissão, se a empresa configurou uma. A fila ordena o valor esperado líquido, do maior para o menor, e o rank 1 é o topo.
-fazer: Trabalhe de cima para baixo. O que está no topo é onde um contato rende mais, e a capacidade da equipe diz até onde vale ir (veja "Alcance da operação").
+fazer: Trabalhe de cima para baixo. O que está no topo é onde um contato rende mais, até onde a capacidade da equipe permitir.
 cuidado: Quem deve muito e paga pouco pode render mais que quem paga sempre e deve pouco; é por isso que o topo não coincide com o maior score. Com o modelo em dados simulados, a probabilidade é uma premissa (veja "O modelo está em dados simulados ou reais?").
 fontes:
 - backend/main.py::_analisar_df
@@ -87,7 +87,7 @@ perguntas:
 - o número de prioritários significa o quê
 curta: É quantos devedores cabem na faixa Alta: um quinto da carteira.
 calculo: devedores prioritários = piso de (total de devedores × 20%).
-fazer: Use como tamanho de uma "meta de ciclo" inicial. Para saber até onde a sua equipe chega de verdade, use o Alcance da operação.
+fazer: Use como tamanho de uma "meta de ciclo" inicial. Para medir quanto a fila rende numa capacidade, use o Backtest.
 cuidado: Não é uma medida da carteira: é só o tamanho da faixa Alta, que é sempre 20% do total.
 fontes:
 - frontend/src/pages/Dashboard.jsx::texto "Devedores Prioritários"
@@ -111,28 +111,6 @@ fazer: Para decidir quem contatar primeiro, use a Prioridade e a posição na fi
 cuidado: Um devedor com chance de 35% e dívida grande pode estar no topo da fila: é a fila que pesa chance × valor.
 fontes:
 - frontend/src/pages/DebtorDetail.jsx::texto "Chance de pagar"
-
-## alcance-da-operacao
-titulo: Alcance da operação
-perfis: operador, admin, comando
-telas: Alcance da operação
-perguntas:
-- o que é o alcance da operação
-- até onde a minha equipe chega na fila
-- quanto vale o topo da fila que dá para trabalhar
-- como informar a capacidade
-- o que é capacidade de contatos
-- quanto vou recuperar com a minha equipe
-- quanto vale o topo da fila que a equipe consegue trabalhar
-- onde informo a capacidade da equipe
-- o que mostra o alcance da operação
-curta: Mostra até onde a fila chega com o número de contatos que a sua equipe consegue fazer no ciclo, e quanto esse topo vale.
-calculo: Você informa a capacidade N: operadores × contatos por dia × dias úteis. O alcance soma o valor esperado líquido (depois da comissão da fase especializada, o mesmo que ordena a fila) dos N primeiros. "Do recuperável" é essa soma ÷ o líquido de toda a carteira, e "Vai até a posição" é o rank do N-ésimo. As linhas dentro do alcance aparecem marcadas na tabela.
-fazer: Informe a capacidade real da equipe e leve o número para a reunião de planejamento. O valor fica guardado no seu navegador para a próxima vez.
-cuidado: Sem comissão configurada, líquido e bruto são iguais. Carteiras analisadas antes de o líquido ser gravado somam o bruto; a tela só escreve "(líquido)" quando é líquido.
-fontes:
-- frontend/src/utils/alcance.js::calcularAlcance
-- backend/main.py::rota /carteiras/{carteira_id}/alcance
 
 ## filtros-da-fila
 titulo: Busca e filtros da fila

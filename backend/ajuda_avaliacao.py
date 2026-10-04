@@ -23,7 +23,6 @@ AVALIACAO = {
     "prioridade-alta-media-baixa": ("o que define se é prioridade alta", "como o sistema decide alta média ou baixa", "quantos ficam como prioridade alta"),
     "devedores-prioritarios": ("o número do card devedores prioritários é o quê", "por que sempre dá vinte por cento", "esse card mostra os que mais devem"),
     "urgencia-do-devedor": ("urgência na página do devedor é o quê", "ele está com urgência baixa mas prioridade alta, por quê", "como o sistema chama urgência"),
-    "alcance-da-operacao": ("quanto minha equipe consegue recuperar", "onde digito quantos contatos a gente faz", "o que significa vai até a posição"),
     "filtros-da-fila": ("como acho o fulano na lista", "dá para ver só quem ainda não foi trabalhado", "o filtro de pago e não pago usa o quê"),
     "valor-de-face": ("o valor de face é quanto vou receber", "soma de tudo que eles devem", "o que é valor de face"),
     "valor-esperado": ("quanto o sistema espera recuperar", "como chega no valor esperado", "valor esperado é garantido"),

@@ -129,8 +129,6 @@ for tela, marcador in (("Precificação", "── Precificação ──"), ("Cic
     achado = sob_filtro_de_operador(marcador)
     checar(achado is True and "operador" not in ajuda.TELAS[tela],
            f"'{tela}' está escondida do operador no front e na tabela", f"front={achado}")
-alc = sob_filtro_de_operador("── Alcance da operação ──", janela=8)
-checar(alc is False and "operador" in ajuda.TELAS["Alcance da operação"], "'Alcance da operação' é visível ao operador, no front e na tabela")
 
 # ── achados citados existem no mapa ──────────────────────────────────────
 mapa = (REPO / "docs/MAPA_DO_SISTEMA.md").read_text(encoding="utf-8")

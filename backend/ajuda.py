@@ -47,7 +47,6 @@ PERFIS = ("operador", "admin", "comando")
 TELAS = {
     "Análise":                 ("operador", "admin", "comando"),
     "Visão da carteira":       ("operador", "admin", "comando"),
-    "Alcance da operação":     ("operador", "admin", "comando"),
     "Recuperabilidade":        ("operador", "admin", "comando"),   # a tabela da fila
     "Pagamentos registrados":  ("operador", "admin", "comando"),
     "Devedor":                 ("operador", "admin", "comando"),
@@ -85,6 +84,12 @@ ASSUNTOS = {
 # índice da Central. O teste de cobertura exige que toda resposta tenha um "?"
 # ou esteja aqui, com o motivo.
 SO_NA_CENTRAL = {
+    "perda-esperada":
+        "Os cartões EAD, LGD e EL saíram do Dashboard (pedido do cliente: vocabulário de provisão, "
+        "não de cobrança). A resposta continua para quem buscar esses termos.",
+    "psi":
+        "A linha do PSI saiu do Dashboard; o COMANDO vê a deriva em Aprendizado, onde o '?' "
+        "aponta para 'deriva-do-score'. A resposta continua para quem buscar PSI.",
     "probabilidade-de-pagamento":
         "Não aparece como número em nenhuma tela: entra nas propostas como a chance de cada oferta "
         "(ligada a 'chance-de-pagamento-por-oferta'). Quem pergunta o que é encontra pela busca.",

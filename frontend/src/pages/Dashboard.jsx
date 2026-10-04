@@ -8,7 +8,7 @@ import {
 } from 'recharts'
 import {
   buscarPagamentos, buscarStatusFeedbacks, confirmarPagamento,
-  buscarPaginaRanking, buscarAlcance, buscarRankingCompleto,
+  buscarPaginaRanking, buscarRankingCompleto,
   estadoDoModelo,
 } from '../api'
 import { useDebounce } from '../hooks/useDebounce'
@@ -20,7 +20,6 @@ import {
 } from 'lucide-react'
 import PriorityBadge from '../components/PriorityBadge'
 import { prioridadePorRank, CORTE_ALTA } from '../utils/prioridade'
-import { calcularAlcance } from '../utils/alcance'
 import { useAnalysis } from '../context/AnalysisContext'
 import { useAuth } from '../context/AuthContext'
 import AppShell from '../components/AppShell'
@@ -238,11 +237,6 @@ export default function Dashboard({ onIrPara }) {
   const [custoCobranca, setCustoCobranca] = useState(25)
   const [retornoAlvo, setRetornoAlvo]     = useState(30)
   const [filtroPrio, setFiltroPrio]       = useState('todos')
-  // Conveniência por navegador: o gerente digita a capacidade dele uma vez.
-  // Pode falhar em aba anônima ou com armazenamento bloqueado, daí o try.
-  const [capacidade, setCapacidade] = useState(() => {
-    try { return localStorage.getItem('mizan:capacidade') ?? '' } catch { return '' }
-  })
   const [filtroProduto, setFiltroProduto] = useState('todos')
   const [filtroUF, setFiltroUF]           = useState('todas')
   const [page, setPage]                   = useState(1)
@@ -341,7 +335,6 @@ export default function Dashboard({ onIrPara }) {
   // A página da tabela: buscada no servidor quando a carteira está gravada,
   // recortada em memória quando não está (backtest, ou análise que ainda não
   // virou carteira).
-  const [alcanceServidor, setAlcance] = useState(null)
   const [pagina, setPagina]         = useState({ itens: [], filtrado: 0 })
   const [carregandoPag, setCarrPag] = useState(false)
   const [erroPagina, setErroPagina] = useState('')
@@ -382,19 +375,6 @@ export default function Dashboard({ onIrPara }) {
       .finally(() => { if (!cancelado) setCarrPag(false) })
     return () => { cancelado = true }
   }, [carteiraId, page, buscaAdiada, filtroProduto, filtroUF, filtroPrio, filtroStatus, tentativa])
-
-  // Alcance: a soma acumulada do topo da fila até a capacidade informada.
-  const capacidadeAdiada = useDebounce(capacidade, 400)
-  useEffect(() => {
-    if (!carteiraId) { setAlcance(null); return }
-    const n = parseInt(capacidadeAdiada, 10) || 0
-    if (!n) { setAlcance(null); return }
-    let cancelado = false
-    buscarAlcance(carteiraId, n)
-      .then(a => { if (!cancelado) setAlcance(a && a.n ? a : null) })
-      .catch(() => { if (!cancelado) setAlcance(null) })
-    return () => { cancelado = true }
-  }, [carteiraId, capacidadeAdiada])
 
   // Sem carteira gravada não há o que paginar no servidor: filtra o que está
   // em memória, como antes.
@@ -479,18 +459,6 @@ export default function Dashboard({ onIrPara }) {
   // Mesma aritmética inteira que o backend usa para recortar a faixa, para as
   // duas contas não discordarem na fronteira.
   const prioritarios = Math.floor((totalFila * Math.round(CORTE_ALTA * 100)) / 100)
-
-  // O alcance vem do servidor quando a carteira está gravada: é soma acumulada
-  // do topo da fila, e somar no navegador exigiria a fila inteira aqui.
-  const alcance = carteiraId
-    ? alcanceServidor
-    : calcularAlcance(ranking_completo, capacidade, resumo.valor_esperado_recuperacao_total)
-  const capNum = alcance?.n ?? 0
-
-  function mudarCapacidade(v) {
-    setCapacidade(v)
-    try { localStorage.setItem('mizan:capacidade', v) } catch { /* sem armazenamento, segue sem lembrar */ }
-  }
 
   const totalFiltrado = filtradoLocal ? filtradoLocal.length : pagina.filtrado
   const totalPages    = Math.max(1, Math.ceil(totalFiltrado / PAGE_SIZE))
@@ -763,81 +731,6 @@ export default function Dashboard({ onIrPara }) {
             </div>
           )}
 
-          {/* ── Alcance da operação ──
-              A fila responde "quem primeiro". Esta seção responde a pergunta
-              que o gerente de cobrança realmente tem: com a equipe que eu
-              tenho, até onde eu chego e quanto isso traz. */}
-          <section className="mt-6 rounded-xl border border-line bg-surface p-6">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <p className="section-label">Alcance da operação<DicaAjuda id="alcance-da-operacao" /></p>
-                <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--ink)' }}>
-                  Até onde a equipe chega neste ciclo
-                </h3>
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="text-xs" style={{ color: 'var(--ink-2)' }} htmlFor="cap">
-                  Devedores que a equipe consegue trabalhar
-                </label>
-                <input
-                  id="cap" type="number" min="0" step="50" value={capacidade}
-                  onChange={e => mudarCapacidade(e.target.value)}
-                  placeholder="ex.: 4000"
-                  className="w-32 rounded-lg px-3 py-2 text-sm tabular-nums"
-                  style={{ background: 'var(--raise-3)', border: '1px solid var(--line)', color: 'var(--ink)' }}
-                />
-              </div>
-            </div>
-
-            {alcance ? (
-              <>
-                <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Vai até a posição</p>
-                    <p className="text-2xl font-semibold tabular-nums" style={{ color: 'var(--ink)' }}>
-                      #{fmtNum(alcance.ate)}
-                    </p>
-                    <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
-                      {fmtNum(alcance.restam)} ficam para o próximo ciclo
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs" style={{ color: 'var(--ink-3)' }}>
-                      Valor esperado ao alcance{alcance.base === 'liquido' ? ' (líquido)' : ''}
-                    </p>
-                    <p className="text-2xl font-semibold tabular-nums" style={{ color: 'var(--success)' }}>
-                      {fmtBRL(alcance.valor)}
-                    </p>
-                    <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
-                      de {fmtBRL(alcance.total ?? resumo.valor_esperado_recuperacao_total ?? 0)} na carteira
-                      {alcance.base === 'liquido' ? ', já descontada a comissão de cobrança' : ''}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Do recuperável</p>
-                    <p className="text-2xl font-semibold tabular-nums" style={{ color: 'var(--ink)' }}>
-                      {alcance.pct == null ? '—' : `${alcance.pct.toFixed(1).replace('.', ',')}%`}
-                    </p>
-                    <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
-                      trabalhando {alcance.pctBase.toFixed(0)}% da base
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-4 h-2 w-full overflow-hidden rounded-full" style={{ background: 'var(--raise-3)' }}>
-                  <div className="h-full rounded-full" role="presentation"
-                    style={{ width: `${Math.min(100, alcance.pct ?? 0)}%`, background: 'var(--chart-1)' }} />
-                </div>
-                <p className="text-xs mt-3 leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-                  A fila está ordenada por valor esperado{alcance.base === 'liquido' ? ' líquido' : ''}, então os primeiros são os que mais
-                  devolvem — por isso {(alcance.pct ?? 0).toFixed(0)}% do recuperável cabe em{' '}
-                  {alcance.pctBase.toFixed(0)}% dos contatos.
-                  As linhas dentro do alcance aparecem marcadas na tabela abaixo.
-                </p>
-              </>
-            ) : null}
-          </section>
-
           {/* ── Precificação ── */}
           {!isOperador && (
             <section className="mt-6 rounded-xl border border-line bg-surface p-6">
@@ -867,83 +760,6 @@ export default function Dashboard({ onIrPara }) {
                   <motion.div variants={item}><PricingCard ajuda="taxa-de-recuperacao" label="Taxa de Recuperação Estimada" value={`${pricing.taxaRecuperacao.toFixed(1)}%`} icon={TrendingUp} /></motion.div>
                 </motion.div>
               </div>
-
-              <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-line pt-4 text-xs text-ink-2">
-                {resumo?.precificacao_ml ? (
-                  <>
-                    <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-300">
-                      ✦ ML ativo<DicaAjuda id="taxa-de-recuperacao" />
-                    </span>
-                    <span><span className="font-medium text-ink-2">VER</span> = Σ (valor_dívida × <span className="font-medium text-emerald-400">taxa_ML</span>)</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="inline-flex items-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-300">
-                      ⚠ Premissa<DicaAjuda id="taxa-de-recuperacao" />
-                    </span>
-                    <span>
-                      <span className="font-medium text-ink-2">VER</span> = Σ (valor_dívida ×{' '}
-                      <span className="font-medium text-amber-400">P(paga)</span> × recuperação_se_pagar)
-                    </span>
-                  </>
-                )}
-                <span className="text-ink-4">›</span>
-                <span><span className="font-medium text-ink-2">Após custo</span> = VER × (1 − {custoCobranca}%)</span>
-                <span className="text-ink-4">›</span>
-                <span><span className="font-medium text-ink-2">Preço</span> = Após custo ÷ (1 + {retornoAlvo}%)</span>
-                <span className="text-ink-4">›</span>
-                <span><span className="font-medium text-emerald-400">Lucro</span> = Após custo − Preço</span>
-                <span className="text-ink-4">›</span>
-                <span><span className="font-medium text-ink-2">Retorno</span> = Lucro ÷ Preço</span>
-              </div>
-
-              {/* Perda esperada — EAD, LGD e EL, o vocabulário de provisão.
-                  Numa carteira já inadimplente não há PD a prever: o default
-                  aconteceu, e o que interessa é quanto do exposto não volta. */}
-              {resumo?.perda_esperada_total != null && (
-                <div className="mt-5 border-t border-line pt-4">
-                  <p className="section-label mb-3">Perda esperada da carteira<DicaAjuda id="perda-esperada" /></p>
-                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                    {[
-                      { sigla: 'EAD', rotulo: 'Exposição', valor: fmtBRL(resumo.ead_total),
-                        nota: 'saldo devedor — dado, não estimativa' },
-                      { sigla: 'LGD', rotulo: 'Perda dado o default',
-                        valor: `${((resumo.lgd_medio_ponderado ?? 0) * 100).toFixed(1)}%`,
-                        nota: 'média ponderada pela exposição' },
-                      { sigla: 'EL', rotulo: 'Perda esperada', valor: fmtBRL(resumo.perda_esperada_total),
-                        nota: 'EAD × LGD', destaque: true },
-                      { sigla: 'VER', rotulo: 'Recuperação esperada',
-                        valor: fmtBRL(resumo.valor_esperado_recuperacao_total),
-                        nota: 'EAD − EL' },
-                    ].map(m => (
-                      <div key={m.sigla} className="card px-4 py-3">
-                        <div className="flex items-baseline gap-2">
-                          <span className="section-label">{m.sigla}</span>
-                          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{m.rotulo}</span>
-                        </div>
-                        <p className="tnum text-lg font-semibold mt-1"
-                          style={{ color: m.destaque ? 'var(--danger)' : 'var(--text)' }}>
-                          {m.valor}
-                        </p>
-                        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{m.nota}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* PSI — esta carteira ainda parece com a do treino? Só aparece quando foi medido. */}
-              {resumo?.psi?.ok && (
-                <div className="mt-4">
-                    <p className="text-xs" style={{
-                      color: resumo.psi.nivel === 'critico' ? 'var(--danger)'
-                        : resumo.psi.nivel === 'atencao' ? 'var(--warning)' : 'var(--text-muted)',
-                    }}>
-                      <span className="font-semibold">PSI {resumo.psi.psi}</span><DicaAjuda id="psi" /> — {resumo.psi.leitura}
-                      {' '}(atenção acima de {resumo.psi.corte_atencao}, crítico acima de {resumo.psi.corte_critico})
-                    </p>
-                </div>
-              )}
 
             </section>
           )}
@@ -1272,18 +1088,9 @@ export default function Dashboard({ onIrPara }) {
                       key={d.rank}
                       onClick={() => navigate(`/devedor/${d.rank}`)}
                       className="group cursor-pointer border-b border-line transition-colors last:border-0 hover:bg-blue-500/[0.06]"
-                      /* Dentro do alcance da equipe neste ciclo: uma faixa à
-                         esquerda, para o operador ver onde a fila dele acaba
-                         sem precisar contar linhas. */
-                      style={capNum && d.rank <= capNum
-                        ? { boxShadow: 'inset 3px 0 0 var(--chart-1)' } : undefined}
                     >
                       <td className="w-10 px-4 py-3 tabular-nums text-xs text-ink-2">
                         {d.rank}
-                        {capNum > 0 && d.rank === capNum && (
-                          <span className="block text-[9px] font-semibold uppercase tracking-wide mt-0.5"
-                            style={{ color: 'var(--chart-1)' }}>limite</span>
-                        )}
                       </td>
                       <td className="px-4 py-3 font-medium text-ink transition-colors group-hover:text-blue-300">
                         {d.nome}
