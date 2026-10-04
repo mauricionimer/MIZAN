@@ -204,7 +204,7 @@ function Slider({ label, hint, value, min, max, step, onChange, color = 'blue' }
   )
 }
 
-function PricingCard({ label, value, sub, highlight = false, accent = null, icon: Icon, ajuda }) {
+function PricingCard({ label, value, sub, highlight = false, accent = null, icon: Icon, ajuda, grande = false }) {
   const lucroCard = accent === 'emerald'
   const box = highlight
     ? 'border-blue-500/40 bg-blue-600/15 shadow-[0_0_0_1px_rgb(var(--c-royal) / 0.25),0_8px_28px_-8px_rgb(var(--c-royal) / 0.4)]'
@@ -215,14 +215,14 @@ function PricingCard({ label, value, sub, highlight = false, accent = null, icon
   const val   = highlight ? 'text-ink'        : lucroCard ? 'text-emerald-200'    : 'text-ink'
   const subCl = highlight ? 'text-blue-200/80'  : lucroCard ? 'text-emerald-300/70' : 'text-ink-2'
   return (
-    <div className={`flex flex-col gap-1 rounded-xl border p-4 ${box}`}>
-      <div className="flex items-center justify-between">
+    <div className={`flex h-full flex-col justify-between gap-3 rounded-xl border p-5 ${box}`}>
+      <div className="flex items-start justify-between gap-2">
         <p className={`text-xs font-semibold uppercase tracking-wide ${head}`}>
           {label}{ajuda && <DicaAjuda id={ajuda} />}
         </p>
-        {Icon && <Icon className={`h-4 w-4 ${head}`} />}
+        {Icon && <Icon className={`h-4 w-4 shrink-0 ${head}`} />}
       </div>
-      <p className={`mt-1 text-xl font-bold leading-none ${val}`}>{value}</p>
+      <p className={`font-bold leading-none tabular-nums tracking-tight ${grande ? 'text-3xl sm:text-4xl' : 'text-2xl sm:text-3xl'} ${val}`}>{value}</p>
       {sub && <p className={`mt-0.5 text-xs ${subCl}`}>{sub}</p>}
     </div>
   )
@@ -637,46 +637,48 @@ export default function Dashboard({ onIrPara }) {
                 Em que regime cada parte da carteira está
               </h3>
 
-              <div className="space-y-3">
+              {/* Uma fase por cartão, lado a lado: o valor esperado em destaque e,
+                  embaixo, quanto da carteira (valor de face) está naquela fase. */}
+              <div className={`grid grid-cols-1 gap-4 ${resumo.ciclo_cobranca.length >= 3 ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
                 {resumo.ciclo_cobranca.map((f, i, todas) => {
-                  const maxValor = Math.max(...todas.map(x => x.valor_face || 0), 1)
+                  const totalFace = todas.reduce((a, x) => a + (x.valor_face || 0), 0) || 1
+                  const fatia = ((f.valor_face || 0) / totalFace) * 100
                   // Escala sequencial: a fase mais adiantada do ciclo vem mais
                   // forte. Não é juízo de valor, é posição no tempo.
-                  const intensidade = 0.28 + (0.62 * i) / Math.max(1, todas.length - 1)
+                  const intensidade = 0.35 + (0.6 * i) / Math.max(1, todas.length - 1)
                   return (
-                    <div key={f.fase}>
-                      <div className="flex items-baseline justify-between gap-3 flex-wrap">
-                        <div className="flex items-center gap-2">
+                    <div key={f.fase} className="flex flex-col gap-3 rounded-xl border border-line bg-raise-1 p-5">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
                           <span className="h-2.5 w-2.5 rounded-sm shrink-0"
                             style={{ background: `rgb(var(--c-royal) / ${intensidade})` }} />
-                          <span className="text-sm font-medium" style={{ color: 'var(--ink)' }}>
-                            {f.rotulo}
-                          </span>
-                          {f.tem_comissao && (
-                            <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded"
-                              style={{ background: 'rgb(var(--c-warning) / 0.14)', color: 'var(--warning)' }}>
-                              paga comissão
-                            </span>
-                          )}
+                          <span className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>{f.rotulo}</span>
                         </div>
-                        <div className="text-right tabular-nums">
-                          <span className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>
-                            {fmtBRL(f.valor_esperado_liquido)}
+                        {f.tem_comissao && (
+                          <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded shrink-0"
+                            style={{ background: 'rgb(var(--c-warning) / 0.14)', color: 'var(--warning)' }}>
+                            paga comissão
                           </span>
-                          <span className="text-xs ml-2" style={{ color: 'var(--ink-3)' }}>
-                            <DicaAjuda id="valor-esperado-liquido" />esperado · {fmtNum(f.devedores)} devedores
-                          </span>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold tabular-nums tracking-tight" style={{ color: 'var(--ink)' }}>
+                          {fmtBRL(f.valor_esperado_liquido)}
+                        </p>
+                        <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
+                          valor esperado<DicaAjuda id="valor-esperado-liquido" /> · {fmtNum(f.devedores)} devedores
+                        </p>
+                      </div>
+                      <div>
+                        <div className="h-1.5 w-full overflow-hidden rounded-full" style={{ background: 'var(--raise-3)' }}>
+                          <div className="h-full rounded-full"
+                            style={{ width: `${fatia}%`, background: `rgb(var(--c-royal) / ${intensidade})` }} />
                         </div>
+                        <p className="text-xs mt-1.5 tabular-nums" style={{ color: 'var(--ink-2)' }}>
+                          {fatia.toFixed(0)}% da carteira · {fmtBRL(f.valor_face)} de face
+                        </p>
                       </div>
-                      <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full"
-                        style={{ background: 'var(--raise-3)' }}>
-                        <div className="h-full rounded-full"
-                          style={{ width: `${(f.valor_face / maxValor) * 100}%`,
-                                   background: `rgb(var(--c-royal) / ${intensidade})` }} />
-                      </div>
-                      <p className="text-[11px] mt-1" style={{ color: 'var(--ink-3)' }}>
-                        {f.descricao} · {fmtBRL(f.valor_face)} de face
-                      </p>
+                      <p className="text-[11px] leading-snug mt-auto" style={{ color: 'var(--ink-3)' }}>{f.descricao}</p>
                     </div>
                   )
                 })}
@@ -708,13 +710,21 @@ export default function Dashboard({ onIrPara }) {
                 </div>
               )}
 
+              {/* O único aviso do ciclo hoje é a comissão não informada: curto, com
+                  o caminho para resolver, em vez do parágrafo técnico do servidor. */}
               {resumo.aviso_ciclo && (
-                <div className="mt-4 flex items-start gap-2.5 rounded-xl p-3"
+                <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl px-4 py-3"
                   style={{ background: 'rgb(var(--c-warning) / 0.08)', border: '1px solid rgb(var(--c-warning) / 0.18)' }}>
-                  <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" style={{ color: 'var(--warning)' }} />
-                  <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-                    {resumo.aviso_ciclo}<DicaAjuda id="comissao-de-cobranca" />
+                  <AlertTriangle className="h-4 w-4 shrink-0" style={{ color: 'var(--warning)' }} />
+                  <p className="text-xs flex-1 min-w-[12rem]" style={{ color: 'var(--ink-2)' }}>
+                    Comissão do escritório não informada: o valor da fase especializada está sem o desconto dela.
+                    <DicaAjuda id="comissao-de-cobranca" />
                   </p>
+                  <button onClick={() => navigate('/premissas')}
+                    className="text-xs font-semibold shrink-0 rounded-md px-2.5 py-1 hover:bg-raise-2"
+                    style={{ color: 'var(--accent-text)' }}>
+                    Informar em Premissas →
+                  </button>
                 </div>
               )}
             </section>
@@ -741,7 +751,7 @@ export default function Dashboard({ onIrPara }) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-5">
+              <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-5">
                 <div className="space-y-5 rounded-xl border border-line bg-raise-1 p-4 lg:col-span-1">
                   <p className="text-xs font-semibold uppercase tracking-wide text-ink-2">Parâmetros</p>
                   <Slider label="Custo de Cobrança" hint="Despesas operacionais e comissões"
@@ -750,14 +760,16 @@ export default function Dashboard({ onIrPara }) {
                     value={retornoAlvo} min={10} max={80} step={1} onChange={setRetornoAlvo} color="emerald" />
                 </div>
 
+                {/* Duas linhas que ocupam a altura dos parâmetros: em cima os números
+                    de base, embaixo (maiores) os dois que decidem a compra. */}
                 <motion.div variants={lista} initial="inicial" animate="entra"
-                  className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5 lg:col-span-4">
-                  <motion.div variants={item}><PricingCard ajuda="valor-esperado" label="Valor Esperado de Recuperação" value={fmtBRL(pricing.ver)}
+                  className="grid grid-cols-1 gap-4 sm:grid-cols-6 sm:auto-rows-fr lg:col-span-4">
+                  <motion.div variants={item} className="sm:col-span-2"><PricingCard ajuda="valor-esperado" label="Valor Esperado de Recuperação" value={fmtBRL(pricing.ver)}
                     icon={ArrowUpRight} /></motion.div>
-                  <motion.div variants={item}><PricingCard label="Após o custo simulado" value={fmtBRL(pricing.liquido)} icon={Percent} /></motion.div>
-                  <motion.div variants={item}><PricingCard label="Preço Sugerido de Compra" value={fmtBRL(pricing.preco)} highlight icon={Tag} /></motion.div>
-                  <motion.div variants={item}><PricingCard label="Lucro Final (simulado)" value={fmtBRL(pricing.lucro)} accent="emerald" icon={Banknote} /></motion.div>
-                  <motion.div variants={item}><PricingCard ajuda="taxa-de-recuperacao" label="Taxa de Recuperação Estimada" value={`${pricing.taxaRecuperacao.toFixed(1)}%`} icon={TrendingUp} /></motion.div>
+                  <motion.div variants={item} className="sm:col-span-2"><PricingCard label="Após o custo simulado" value={fmtBRL(pricing.liquido)} icon={Percent} /></motion.div>
+                  <motion.div variants={item} className="sm:col-span-2"><PricingCard ajuda="taxa-de-recuperacao" label="Taxa de Recuperação Estimada" value={`${pricing.taxaRecuperacao.toFixed(1)}%`} icon={TrendingUp} /></motion.div>
+                  <motion.div variants={item} className="sm:col-span-3"><PricingCard label="Preço Sugerido de Compra" value={fmtBRL(pricing.preco)} highlight grande icon={Tag} /></motion.div>
+                  <motion.div variants={item} className="sm:col-span-3"><PricingCard label="Lucro Final (simulado)" value={fmtBRL(pricing.lucro)} accent="emerald" grande icon={Banknote} /></motion.div>
                 </motion.div>
               </div>
 
