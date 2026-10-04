@@ -1,7 +1,7 @@
 """
 Premissas da empresa: os números que são do banco, não do Mizan.
 
-Seis valores mudam o que o sistema calcula e antes só podiam ser gravados pela
+Os valores aqui mudam o que o sistema calcula e antes só podiam ser gravados pela
 API, sem tela, sem validação e sem registro do que valia antes. Cada um tem
 padrão declarado (ou "não informado", que o sistema trata como tal em vez de
 inventar um número) e limites. Nada aqui é recomendação: a faixa de mercado que
@@ -24,7 +24,7 @@ RECUPERACAO_SE_PAGAR_PADRAO = 1.0       # espelha main.PREMISSA_RECUPERACAO_SE_P
 class Premissa:
     chave: str
     rotulo: str
-    tipo: str                     # "percentual" | "fracao" | "escolha"
+    tipo: str                     # "percentual" | "fracao" | "escolha" | "inteiro"
     padrao: Optional[object]      # None = "não informado"
     descricao: str
     efeito: str                   # quando vale: "proximas_analises" | "imediato"
@@ -36,6 +36,7 @@ class Premissa:
     opcoes: tuple = ()
     escala_ui: float = 1.0        # a tela mostra valor × escala (fração → %)
     sem_padrao_diz: str = ""      # o que acontece enquanto não for informada
+    unidade: str = "%"            # o que a tela escreve ao lado do número
 
 
 PREMISSAS = {p.chave: p for p in (
@@ -68,6 +69,11 @@ PREMISSAS = {p.chave: p for p in (
         COMPROMETIMENTO_MAX_PCT_PADRAO,
         "Quanto da margem livre uma parcela pode ocupar. 100% é a margem inteira.",
         "imediato", "parcela-maxima", 0.0, 100.0, minimo_exclusivo=True),
+    Premissa(
+        "meta_contatos_dia", "Meta de contatos por operador por dia", "inteiro", None,
+        "Quantos contatos cada operador deve registrar por dia. Aparece como barra no painel do operador.",
+        "imediato", "meta-de-contatos", 1.0, 1000.0, unidade="contatos",
+        sem_padrao_diz="Não informada: o painel do operador mostra os números, sem a barra da meta."),
 )}
 
 
@@ -97,6 +103,10 @@ def validar_um(chave: str, bruto) -> object:
         raise ValueError("informe um número")
     if v != v or v in (float("inf"), float("-inf")):
         raise ValueError("informe um número")
+    if p.tipo == "inteiro":
+        if v != int(v):
+            raise ValueError("informe um número inteiro")
+        v = int(v)
     esc = p.escala_ui
     lo, hi = p.minimo, p.maximo
     if lo is not None and (v < lo or (p.minimo_exclusivo and v == lo)):
@@ -152,5 +162,6 @@ def descrever(extra: dict) -> list:
             "definida": definida, "minimo": p.minimo, "maximo": p.maximo,
             "minimo_exclusivo": p.minimo_exclusivo, "maximo_exclusivo": p.maximo_exclusivo,
             "opcoes": list(p.opcoes), "escala_ui": p.escala_ui, "sem_padrao_diz": p.sem_padrao_diz,
+            "unidade": p.unidade,
         })
     return saida

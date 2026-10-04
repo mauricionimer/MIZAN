@@ -5,7 +5,7 @@ import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'framer-m
 import {
   LayoutDashboard, UploadCloud, ClipboardList, Users, KeyRound, LogOut, Loader2, Menu, X,
   ShieldCheck, Zap, Brain, Command, FlaskConical, Lock, HelpCircle, SlidersHorizontal,
-  MessageCircleQuestion, GraduationCap, KeySquare, CalendarClock,
+  MessageCircleQuestion, GraduationCap, KeySquare, CalendarClock, Gauge,
 } from 'lucide-react'
 import ThemeToggle from './ThemeToggle'
 import useAvisosDeDuvida from './useAvisosDeDuvida'
@@ -54,6 +54,7 @@ function useItens() {
       itens: [
         ...(result ? [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, vista: 'dashboard' }] : []),
         { id: 'analise', label: 'Análise de carteira', icon: UploadCloud, vista: 'analise' },
+        { id: 'painel', label: isAdmin || isComando ? 'Painel da equipe' : 'Meu painel', icon: Gauge, rota: '/painel' },
         { id: 'pagamentos', label: 'Pagamentos', icon: ClipboardList, rota: '/feedback' },
         // Retornos e promessas: o número é o que vence hoje/amanhã ou já venceu.
         ...[{ id: 'agenda', label: 'Agenda', icon: CalendarClock, rota: '/agenda',

@@ -86,7 +86,14 @@ checar(c.get("/empresa/premissas", headers=H("op")).status_code == 403, "operado
 checar(c.put("/empresa/premissas", headers=H("op"), json={"valores": {"cessao_pct": 3}}).status_code == 403, "nem grava")
 r = c.get("/empresa/premissas", headers=H("ad")); j = r.json()
 lista = {p["chave"]: p for p in j["premissas"]}
-checar(r.status_code == 200 and len(lista) == 6 and not any(p["definida"] for p in lista.values()), "admin lê: seis premissas, nenhuma informada ainda")
+checar(r.status_code == 200 and len(lista) == 7 and not any(p["definida"] for p in lista.values()), "admin lê: sete premissas, nenhuma informada ainda")
+checar(lista["meta_contatos_dia"]["valor"] is None and lista["meta_contatos_dia"]["unidade"] == "contatos",
+       "meta de contatos: sem padrão, em contatos")
+from model.premissas import validar
+checar(validar({"meta_contatos_dia": "40"}) == ({"meta_contatos_dia": 40}, {}), "meta aceita inteiro (texto vira número)")
+checar("meta_contatos_dia" in validar({"meta_contatos_dia": 12.5})[1], "meta recusa número quebrado")
+checar("meta_contatos_dia" in validar({"meta_contatos_dia": 0})[1], "meta recusa zero")
+checar("meta_contatos_dia" in validar({"meta_contatos_dia": float("inf")})[1], "meta recusa infinito sem quebrar")
 checar(lista["buffer_margem_pct"]["valor"] == 30.0 and lista["comissao_especializada_pct"]["valor"] is None, "valores efetivos: padrão onde não há, e 'não informado' sem padrão")
 checar(c.get("/empresa/premissas", headers=H("co")).status_code == 400, "comando sem escolher empresa: 400")
 checar(c.get("/empresa/premissas", headers=H("co"), params={"empresa_id_alvo": "alfa"}).status_code == 200, "comando escolhe a empresa")

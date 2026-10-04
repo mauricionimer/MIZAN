@@ -26,7 +26,7 @@ const doServidor = (p, txt) => {
   return Number.isFinite(n) ? n / p.escala_ui : t        // texto inválido segue; o servidor recusa e diz por quê
 }
 const mostraPadrao = (p) => (p.padrao == null ? 'não informado' : p.tipo === 'escolha'
-  ? ROTULO_ESCOLHA[p.padrao] || p.padrao : `${paraTela(p, p.padrao)}%`)
+  ? ROTULO_ESCOLHA[p.padrao] || p.padrao : `${paraTela(p, p.padrao)}${p.unidade === '%' || !p.unidade ? '%' : ` ${p.unidade}`}`)
 
 function Campo({ p, valor, erro, onChange, onAjuda }) {
   const id = `prem-${p.chave}`
@@ -49,11 +49,11 @@ function Campo({ p, valor, erro, onChange, onAjuda }) {
           </select>
         ) : (
           <>
-            <input id={id} inputMode="decimal" value={valor} onChange={e => onChange(e.target.value)}
+            <input id={id} inputMode={p.tipo === 'inteiro' ? 'numeric' : 'decimal'} value={valor} onChange={e => onChange(e.target.value)}
               placeholder={p.padrao == null ? 'não informado' : paraTela(p, p.padrao)}
               aria-invalid={!!erro} aria-describedby={erro ? `${id}-erro` : undefined}
               className={`h-10 w-32 rounded-lg border bg-page px-3 text-right text-sm text-ink ${erro ? 'border-red-500/60' : 'border-line'}`} />
-            <span className="text-sm text-ink-2">%</span>
+            <span className="text-sm text-ink-2">{p.unidade || '%'}</span>
           </>
         )}
       </div>

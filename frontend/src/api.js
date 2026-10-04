@@ -630,6 +630,17 @@ export async function mudarAgenda(id, acao, extra = {}) {
   return _jsonOuErroFila(res)
 }
 
+// ── F3: painel do operador ───────────────────────────────────────────────────
+export async function buscarPainelOperador(periodo) {
+  const res = await fetch(`${BASE}/painel/operador?${_qs({ periodo })}`, { headers: { Authorization: `Bearer ${_getToken()}` } })
+  return _jsonOuErroFila(res)
+}
+
+export async function buscarPainelEquipe(periodo, empresaId) {
+  const res = await fetch(`${BASE}/painel/equipe?${_qs({ periodo, empresa_id: empresaId })}`, { headers: { Authorization: `Bearer ${_getToken()}` } })
+  return _jsonOuErroFila(res)
+}
+
 export async function buscarAlcance(carteiraId, capacidade) {
   const token = _getToken()
   const res = await fetch(

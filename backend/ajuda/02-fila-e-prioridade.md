@@ -175,3 +175,41 @@ fontes:
 - backend/agenda.py::nivel
 - backend/main.py::_cumprir_promessas
 - backend/main.py::listar_agenda
+
+## painel-do-operador
+titulo: Meu painel e painel da equipe
+perfis: operador, admin, comando
+telas: Painel do operador
+perguntas:
+- quantos contatos eu fiz hoje
+- quanto entrou da minha fila
+- como vejo os acordos que fechei
+- o que é contato efetivo
+- por que o recebido não bate com as promessas
+- como vejo o desempenho de cada operador
+- de onde vem a meta do dia
+curta: Mostra, por período (hoje, 7 dias, 30 dias), os contatos feitos, os acordos fechados e quanto entrou. O operador vê os próprios números; o admin vê a equipe, um operador por linha.
+calculo: Contatos são os contatos registrados pelo operador no período; contato efetivo é todo resultado diferente de "sem resposta". Acordos são as promessas de pagamento que ele registrou, com o valor prometido. Recebido soma os pagamentos confirmados (marcados como pagos em Pagamentos, na fila, em lote ou pela integração) de devedores sob a responsabilidade dele na divisão da fila. A meta compara os contatos de hoje com a meta de Premissas. O dia é o de Brasília.
+fazer: Use "Hoje" para acompanhar a meta e "30 dias" para comparar operadores. Para a barra da meta aparecer, o admin informa "Meta de contatos por operador por dia" em Premissas.
+cuidado: Promessa não é dinheiro: só pagamento confirmado entra em "Recebido". Pagamento de devedor sem responsável aparece à parte no painel da equipe. Sem a divisão da fila, o recebido não é atribuído a ninguém.
+fontes:
+- backend/painel.py::resumir
+- backend/main.py::painel_operador
+- backend/main.py::painel_equipe
+
+## meta-de-contatos
+titulo: Meta de contatos por operador por dia
+perfis: admin, comando
+telas: Premissas
+perguntas:
+- como defino a meta diária dos operadores
+- qual meta de contatos colocar
+- a meta muda a fila
+- onde aparece a meta de contatos
+- posso tirar a meta
+curta: Quantos contatos cada operador deve registrar por dia. Aparece como barra em "Meu painel" e na tabela da equipe.
+calculo: Número inteiro de 1 a 1000, igual para todos os operadores da empresa. A barra compara os contatos registrados hoje (dia de Brasília) com esse número. Não tem padrão: sem ela, o painel mostra os números sem a barra.
+fazer: Defina com base no que a equipe faz hoje: abra o painel da equipe em "30 dias", veja os contatos por operador e divida por dias úteis.
+cuidado: A meta não muda a ordem da fila nem nenhum cálculo do modelo; é só acompanhamento.
+fontes:
+- backend/model/premissas.py::PREMISSAS

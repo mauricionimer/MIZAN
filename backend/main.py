@@ -2057,6 +2057,122 @@ def mudar_agenda(item_id: str, body: AgendaPatch, credentials: HTTPAuthorization
     return {"ok": True, "item": _com_nivel(novo, hoje())}
 
 
+# ── F3: painel do operador ───────────────────────────────────────────────────
+
+def _meta_contatos(emp: str) -> "int | None":
+    from model.premissas import validar_um
+    bruto = _extra_empresa(emp).get("meta_contatos_dia")
+    if bruto is None:
+        return None
+    try:
+        return validar_um("meta_contatos_dia", bruto)
+    except ValueError:
+        return None
+
+
+def _dados_painel(db, emp: str, desde_iso: str, operador_id: "str | None" = None) -> dict:
+    """Contatos, promessas e pagamentos confirmados da empresa desde `desde_iso`.
+
+    Cada pagamento leva o responsável do devedor (pela predição a que está
+    ligado). Sem as tabelas/colunas novas, a parte que falta volta vazia e
+    marcada — o resto do painel continua valendo.
+    """
+    def contatos_q():
+        q = (db.table("contatos").select("usuario_id, resultado, created_at")
+             .eq("empresa_id", emp).gte("created_at", desde_iso))
+        return q.eq("usuario_id", operador_id) if operador_id else q
+    contatos = _todas_as_linhas(contatos_q)
+
+    agenda_ativa = True
+    try:
+        def promessas_q():
+            q = (db.table("agenda").select("operador_id, situacao, valor, created_at")
+                 .eq("empresa_id", emp).eq("tipo", "promessa").gte("created_at", desde_iso))
+            return q.eq("operador_id", operador_id) if operador_id else q
+        promessas = _todas_as_linhas(promessas_q)
+    except Exception as e:
+        if not _falta_tabela(e, "agenda"):
+            raise
+        promessas, agenda_ativa = [], False
+
+    pagamentos = _todas_as_linhas(lambda: db.table("feedbacks")
+                                  .select("id, predicao_id, valor_recuperado, created_at")
+                                  .eq("empresa", emp).eq("pagou", True).gte("created_at", desde_iso))
+    divisao_ativa = True
+    ids = list({p["predicao_id"] for p in pagamentos if p.get("predicao_id")})
+    dono: dict = {}
+    try:
+        for i in range(0, len(ids), ITENS_POR_IN):
+            for l in (db.table("predicoes").select("id, responsavel_id")
+                      .in_("id", ids[i:i + ITENS_POR_IN]).execute().data or []):
+                dono[l["id"]] = l.get("responsavel_id")
+    except Exception as e:
+        if "responsavel" not in str(e):
+            raise
+        divisao_ativa = False
+    for p in pagamentos:
+        p["responsavel_id"] = dono.get(p.get("predicao_id"))
+    return {"contatos": contatos, "promessas": promessas, "pagamentos": pagamentos,
+            "agenda_ativa": agenda_ativa, "divisao_ativa": divisao_ativa}
+
+
+def _periodo_do_painel(periodo: str):
+    from agenda import hoje
+    from painel import inicio_do_periodo, meia_noite_utc
+    ref = hoje()
+    try:
+        inicio = inicio_do_periodo(periodo, ref)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    return ref, inicio, meia_noite_utc(inicio)
+
+
+@app.get("/painel/operador")
+def painel_operador(periodo: str = "hoje", credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Os números de quem chama: contatos, acordos e quanto entrou."""
+    from painel import resumir
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") == "comando" or not payload.get("empresa_id"):
+        raise HTTPException(status_code=403, detail="O painel é de quem trabalha a fila de uma empresa.")
+    emp, eu = payload["empresa_id"], payload["sub"]
+    ref, inicio, desde = _periodo_do_painel(periodo)
+    d = _dados_painel(get_db(), emp, desde, operador_id=eu)
+    meus_pagamentos = [p for p in d["pagamentos"] if p.get("responsavel_id") == eu]
+    return {"periodo": periodo, "desde": inicio.isoformat(), "hoje": ref.isoformat(),
+            "agenda_ativa": d["agenda_ativa"], "divisao_ativa": d["divisao_ativa"],
+            **resumir(d["contatos"], d["promessas"], meus_pagamentos, ref, _meta_contatos(emp))}
+
+
+@app.get("/painel/equipe")
+def painel_equipe(periodo: str = "hoje", empresa_id: Optional[str] = None,
+                  credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Uma linha por operador ativo, ordenada pelo que entrou."""
+    from painel import resumir
+    payload = _exigir_admin_ou_comando(credentials)
+    emp = _empresa_da_agenda(payload, empresa_id)
+    db = get_db()
+    ref, inicio, desde = _periodo_do_painel(periodo)
+    d = _dados_painel(db, emp, desde)
+    meta = _meta_contatos(emp)
+    ops = [u for u in (db.table("usuarios").select("id, nome, email, role, ativo, empresa_id")
+                       .eq("empresa_id", emp).execute().data or [])
+           if u.get("role") == "operador" and u.get("ativo")]
+    linhas = []
+    for u in ops:
+        uid = u["id"]
+        linhas.append({"operador_id": uid, "nome": u.get("nome") or u.get("email") or "",
+                       **resumir([c for c in d["contatos"] if c.get("usuario_id") == uid],
+                                 [p for p in d["promessas"] if p.get("operador_id") == uid],
+                                 [p for p in d["pagamentos"] if p.get("responsavel_id") == uid], ref, meta)})
+    linhas.sort(key=lambda l: (-l["recebido"], -l["contatos"], l["nome"].lower()))
+    ids_ops = {u["id"] for u in ops}
+    sem_dono = [p for p in d["pagamentos"] if p.get("responsavel_id") not in ids_ops]
+    return {"periodo": periodo, "desde": inicio.isoformat(), "hoje": ref.isoformat(), "meta_dia": meta,
+            "agenda_ativa": d["agenda_ativa"], "divisao_ativa": d["divisao_ativa"], "operadores": linhas,
+            "total": resumir(d["contatos"], d["promessas"], d["pagamentos"], ref, None),
+            "recebido_sem_responsavel": round(sum(float(p.get("valor_recuperado") or 0) for p in sem_dono), 2)}
+
+
 @app.get("/contatos/{cpf}")
 def listar_contatos_cpf(cpf: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     payload = _usuario_autenticado(credentials)
