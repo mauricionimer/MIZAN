@@ -9,6 +9,7 @@ import {
 } from 'recharts'
 import { rodarBacktest, traduzirErroRede } from '../api'
 import DicaAjuda from '../components/DicaAjuda'
+import IACalculando, { ETAPAS_BACKTEST } from '../components/IACalculando'
 import AppShell from '../components/AppShell'
 
 const fmtBRL = (v) => v != null
@@ -126,6 +127,7 @@ export default function Backtest() {
               <p className="text-sm" style={{ color: 'var(--ink-2)' }}>{erro}</p>
             </div>
           )}
+          {rodando && <IACalculando etapas={ETAPAS_BACKTEST} titulo="A IA está testando a carteira histórica" compacto />}
         </section>
 
         {r && (

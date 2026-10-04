@@ -4,6 +4,7 @@ import { useAnalysis } from '../context/AnalysisContext'
 import { useAuth } from '../context/AuthContext'
 import { analisarCarteira, analisarDB, testarDB, listarTabelas, listarCarteiras, carregarCarteira, listarConexoes, salvarConexao, deletarConexao, sincronizarConexao, atualizarConexao, listarEmpresas } from '../api'
 import { LogoMark } from '../components/Logo'
+import IACalculando, { ETAPAS_ANALISE } from '../components/IACalculando'
 import AppShell from '../components/AppShell'
 import DicaAjuda from '../components/DicaAjuda'
 
@@ -586,10 +587,8 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '', exigirEmpresa 
 
   // ── Analisando ──
   return (
-    <div className="flex flex-col items-center justify-center py-10 gap-3" style={{ color: 'var(--ink-2)' }}>
-      <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
-      <p className="text-sm font-medium text-ink">Carregando e analisando dados...</p>
-      <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Isso pode levar alguns segundos dependendo do volume.</p>
+    <div className="flex flex-col items-center" style={{ color: 'var(--ink-2)' }}>
+      <IACalculando etapas={['Conectando ao banco de dados', ...ETAPAS_ANALISE.slice(1)]} />
       {!conexaoSalvaId && form.nome_fonte.trim() && <p className="text-xs text-blue-400">Salvando conexão "{form.nome_fonte}" automaticamente...</p>}
     </div>
   )
@@ -747,6 +746,7 @@ export default function Upload({ onIrPara, temResultado = false }) {
               style={(!file || loading) ? { background: 'var(--raise-3)' } : { background: 'var(--royal)' }}>
               {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> Analisando carteira...</> : 'Analisar carteira'}
             </button>
+            {loading && <IACalculando compacto />}
           </>
         )}
 
