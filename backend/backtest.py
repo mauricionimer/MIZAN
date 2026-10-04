@@ -185,8 +185,13 @@ def decis(df: pd.DataFrame, score: np.ndarray) -> list[dict]:
 # Execução
 # ---------------------------------------------------------------------------
 
-def rodar(df: pd.DataFrame) -> dict:
-    """Pontua a carteira e compara as filas. Não escreve nada no banco."""
+def rodar(df: pd.DataFrame, empresa_id: "str | None" = None) -> dict:
+    """Pontua a carteira e compara as filas. Não escreve nada no banco.
+
+    Pontua com o modelo que a empresa usa na análise (o dela, se houver um
+    ativo; senão o base). Antes sempre usava o base, e o backtest de quem já
+    treinou com os próprios dados media um modelo que não está em uso.
+    """
     from model.diagnostico import _ks_gini
     from model.score import score_carteira
 
@@ -200,7 +205,7 @@ def rodar(df: pd.DataFrame) -> dict:
 
     entrada = df.drop(columns=[c for c in ("pagou", "valor_recuperado", *vazando)
                                if c in df.columns])
-    pontuado = score_carteira(entrada)
+    pontuado = score_carteira(entrada, empresa_id or None)
     score = pontuado["score_recuperabilidade"].astype(float).to_numpy()
 
     separacao = _ks_gini(df["pagou"].to_numpy(), score / 100.0)

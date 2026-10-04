@@ -2949,6 +2949,7 @@ async def upload_csv(file: UploadFile = File(...),
 @app.post("/backtest")
 async def rodar_backtest(
     file: UploadFile = File(...),
+    empresa_id: Optional[str] = Form(None),
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     """Backtest de carteira histórica: o Mizan teria recuperado mais?
@@ -2970,6 +2971,10 @@ async def rodar_backtest(
                    "histórica de um cliente, fora do fluxo de cobrança.",
         )
 
+    # O modelo do backtest é o da empresa (o mesmo da análise). COMANDO pode
+    # apontar a cliente; sem isso, vale o modelo base.
+    empresa_alvo = ((empresa_id or "").strip().lower() if payload.get("role") == "comando"
+                    else (payload.get("empresa_id") or ""))
     nome = (file.filename or "").lower()
     if not (nome.endswith(".csv") or nome.endswith(".xlsx") or nome.endswith(".xls")):
         raise HTTPException(status_code=400, detail="Arquivo deve ser CSV ou Excel (.csv / .xlsx / .xls).")
@@ -2989,7 +2994,7 @@ async def rodar_backtest(
 
         from backtest import rodar
         try:
-            resultado = rodar(df)
+            resultado = rodar(df, empresa_alvo)
         except ValueError as e:
             # Coluna faltando ou carteira sem os dois desfechos: é erro de
             # entrada do usuário, e a mensagem já diz o que falta.

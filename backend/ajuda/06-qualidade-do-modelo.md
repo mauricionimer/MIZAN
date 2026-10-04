@@ -238,7 +238,7 @@ perguntas:
 curta: Aplica a fila a uma carteira cujo resultado já se conhece e mede quanto cada critério teria recuperado trabalhando só uma parte dela.
 calculo: Compara três filas (valor esperado, score puro e maior dívida primeiro) em capacidades de 10%, 20%, 30% e 50% da carteira, e mostra o valor capturado por cada uma, mais KS e Gini do score e a análise de equidade.
 fazer: Use uma carteira com a coluna pagou. É a medida mais honesta de quanto a fila vale para a sua base.
-cuidado: O backtest usa sempre o modelo geral, não o modelo próprio da empresa. Resultados citados em comentários do código vêm de dados sintéticos e não são desempenho real.
+cuidado: O backtest usa o mesmo modelo da análise: o da empresa, se houver um ativo; senão o geral. Não teste com a mesma carteira usada para treinar: o resultado sairia inflado, porque o modelo já viu aquelas pessoas. Resultados citados em comentários do código vêm de dados sintéticos e não são desempenho real.
 fontes:
 - backend/backtest.py::rodar
 constantes:
