@@ -409,14 +409,14 @@
     display: flex; align-items: center; gap: clamp(10px, 1.2vw, 14px); min-width: 0;
     padding-left: 2px;
   }
-  /* O "&" tem o mesmo desenho da palavra "Mizan": mesma fonte, peso e cor,
-     para ler como uma assinatura só. Cor direta, sem opacity: opacity junto
-     com o filtro da animação virava um retângulo escuro atrás do glifo. */
+  /* O "&" em serifa simples (reta, peso normal), na cor da palavra "Mizan":
+     um conector discreto entre as duas marcas. Cor direta, sem opacity:
+     opacity junto com o filtro da animação virava um retângulo escuro. */
   .login-cobrand-e {
-    font-family: var(--font-display);
-    font-weight: 700;
+    font-family: Georgia, 'Times New Roman', Times, serif;
+    font-style: normal;
+    font-weight: 400;
     font-size: clamp(30px, 3.9vw, 46px);
-    letter-spacing: -0.03em;
     line-height: 1;
     color: var(--panel-ink);
     user-select: none;
