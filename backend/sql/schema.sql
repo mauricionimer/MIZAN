@@ -88,6 +88,7 @@ ALTER TABLE feedbacks ADD COLUMN IF NOT EXISTS parcelas          INTEGER;
 ALTER TABLE feedbacks ADD COLUMN IF NOT EXISTS com_juros         BOOLEAN;
 ALTER TABLE feedbacks ADD COLUMN IF NOT EXISTS taxa_juros_mensal NUMERIC(6,3);
 ALTER TABLE feedbacks ADD COLUMN IF NOT EXISTS desconto_pct      NUMERIC(6,2);
+ALTER TABLE feedbacks ADD COLUMN IF NOT EXISTS canal_cobranca    TEXT;
 
 -- ── Usuários ─────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS usuarios (

@@ -99,6 +99,12 @@ checar(not any(k in FEEDBACKS[-1] for k in main._COLUNAS_ACORDO), "não pagou: n
 checar(c.post("/feedback", headers=G, json={"cpf": "2", "pagou": True, "forma_pagamento": "cheque"}).status_code == 422, "forma de pagamento desconhecida: 422")
 checar(c.post("/feedback", headers=G, json={"cpf": "2", "pagou": True, "parcelas": 0}).status_code == 422, "parcelas fora de 1–120: 422")
 
+r = c.post("/feedback", headers=G, json={"cpf": "22222222222", "pagou": False, "canal_cobranca": "whatsapp"})
+checar(FEEDBACKS[-1].get("canal_cobranca") == "whatsapp", "canal de cobrança é gravado mesmo quando não pagou")
+r = c.post("/feedback", headers=G, json={"cpf": "22222222222", "pagou": True, "canal_cobranca": "Telefone"})
+checar(FEEDBACKS[-1].get("canal_cobranca") == "telefone", "canal normalizado para minúsculas")
+checar(c.post("/feedback", headers=G, json={"cpf": "2", "pagou": True, "canal_cobranca": "pombo"}).status_code == 422, "canal desconhecido: 422")
+
 print("\n— banco sem as colunas novas —")
 MODO["sem_colunas"] = True; n = len(FEEDBACKS)
 r = c.post("/feedback", headers=G, json={"cpf": "22222222222", "pagou": True, **acordo})

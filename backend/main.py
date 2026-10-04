@@ -597,6 +597,11 @@ def _registrar_auditoria(
     threading.Thread(target=_bg, daemon=False).start()
 
 
+# Por onde a cobrança chegou ao devedor. whatsapp, telefone e carta são os
+# mesmos nomes do registro de contato (e das ações do bandit).
+CANAIS_DE_COBRANCA = ("whatsapp", "telefone", "sms", "email", "carta", "presencial",
+                      "escritorio", "portal", "espontaneo", "outro")
+
 FORMAS_DE_PAGAMENTO = ("pix", "boleto", "cartao_credito", "cartao_debito", "transferencia",
                        "debito_automatico", "dinheiro", "outro")
 
@@ -618,6 +623,18 @@ class FeedbackIn(BaseModel):
     com_juros: Optional[bool] = None
     taxa_juros_mensal: Optional[float] = Field(None, ge=0, le=20)
     desconto_pct: Optional[float] = Field(None, ge=0, le=100)
+    # Por onde a cobrança chegou: vale para quem pagou e para quem não pagou.
+    canal_cobranca: Optional[str] = None
+
+    @field_validator("canal_cobranca")
+    @classmethod
+    def _canal_valido(cls, v):
+        if v is None or v == "":
+            return None
+        v = str(v).strip().lower()
+        if v not in CANAIS_DE_COBRANCA:
+            raise ValueError(f"Canal de cobrança inválido. Use: {', '.join(CANAIS_DE_COBRANCA)}.")
+        return v
 
     @field_validator("forma_pagamento")
     @classmethod
@@ -632,7 +649,8 @@ class FeedbackIn(BaseModel):
 
 # Colunas das condições do acordo (sql/migracao_feedbacks_acordo.sql). Se o SQL
 # ainda não rodou, o pagamento é gravado sem elas, em vez de se perder.
-_COLUNAS_ACORDO = ("forma_pagamento", "parcelas", "com_juros", "taxa_juros_mensal", "desconto_pct")
+_COLUNAS_ACORDO = ("forma_pagamento", "parcelas", "com_juros", "taxa_juros_mensal", "desconto_pct",
+                   "canal_cobranca")
 
 
 class ConfirmarPagamentoIn(BaseModel):
@@ -4246,6 +4264,8 @@ def receber_feedback(
             "desconto_pct": payload.desconto_pct,
         }
         fb_row.update({k: v for k, v in acordo.items() if v is not None})
+    if payload.canal_cobranca:
+        fb_row["canal_cobranca"] = payload.canal_cobranca
 
     try:
         res = db.table("feedbacks").insert(fb_row).execute()

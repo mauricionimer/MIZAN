@@ -17,7 +17,7 @@ const fmtBRL = (v) =>
 
 const EMPTY = {
   cpf: '', pagou: 'sim', valor_recuperado: '', data_pagamento: '',
-  forma_pagamento: '', modalidade: 'a_vista', parcelas: '2', com_juros: false, taxa_juros_mensal: '', desconto_pct: '',
+  canal_cobranca: '', forma_pagamento: '', modalidade: 'a_vista', parcelas: '2', com_juros: false, taxa_juros_mensal: '', desconto_pct: '',
 }
 
 const FORMAS = [
@@ -25,6 +25,14 @@ const FORMAS = [
   ['transferencia', 'Transferência'], ['debito_automatico', 'Débito automático'], ['dinheiro', 'Dinheiro'], ['outro', 'Outro'],
 ]
 const NOME_FORMA = Object.fromEntries(FORMAS)
+
+// Por onde a cobrança chegou ao devedor (vale para pagou e para não pagou).
+const CANAIS = [
+  ['whatsapp', 'WhatsApp'], ['telefone', 'Ligação'], ['sms', 'SMS'], ['email', 'E-mail'], ['carta', 'Carta'],
+  ['presencial', 'Presencial (agência)'], ['escritorio', 'Escritório de cobrança'], ['portal', 'App / site do banco'],
+  ['espontaneo', 'Devedor procurou sozinho'], ['outro', 'Outro'],
+]
+const NOME_CANAL = Object.fromEntries(CANAIS)
 
 const fmtCPF = (c) => {
   const d = String(c || '').replace(/\D/g, '')
@@ -324,6 +332,7 @@ export default function Feedback() {
       if (form.data_pagamento) body.data_pagamento = form.data_pagamento
       body.predicao_id = devedor.id
       if (isComando && empresaAlvo) body.empresa = empresaAlvo
+      if (form.canal_cobranca) body.canal_cobranca = form.canal_cobranca
       if (form.pagou === 'sim') {
         if (form.forma_pagamento) body.forma_pagamento = form.forma_pagamento
         body.parcelas = nParcelas
@@ -343,6 +352,7 @@ export default function Feedback() {
       setHistorico(prev => [{
         cpf: fmtCPF(cpf), nome: devedor.nome, pagou: form.pagou === 'sim',
         forma: body.forma_pagamento ? NOME_FORMA[body.forma_pagamento] : null,
+        canal: body.canal_cobranca ? NOME_CANAL[body.canal_cobranca] : null,
         parcelas: body.parcelas, com_juros: body.com_juros, desconto: body.desconto_pct,
         valor_recuperado: body.valor_recuperado,
         data_pagamento: form.data_pagamento,
@@ -451,6 +461,14 @@ export default function Feedback() {
                         </button>
                       ))}
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>Canal de cobrança</label>
+                    <select value={form.canal_cobranca} onChange={e => set('canal_cobranca', e.target.value)} className="input-base">
+                      <option value="">Não informado</option>
+                      {CANAIS.map(([v, r]) => <option key={v} value={v}>{r}</option>)}
+                    </select>
                   </div>
 
                   {form.pagou === 'sim' && (
@@ -591,6 +609,9 @@ export default function Feedback() {
                                 <span className="text-xs text-ink-2">{fmtBRL(item.valor_recuperado)}</span>
                               )}
                             </div>
+                            {item.canal && (
+                              <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>via {item.canal}</p>
+                            )}
                             {item.pagou && (item.forma || item.parcelas) && (
                               <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
                                 {[item.forma,
