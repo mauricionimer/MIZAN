@@ -72,7 +72,9 @@ main.buscar_usuario_por_id = lambda uid: U[uid]
 H = lambda u: {"Authorization": "Bearer " + criar_token({"sub": u, "email": "x@x", "nome": "N",
                                                           "role": U[u]["role"], "empresa_id": U[u]["empresa_id"]})}
 c = TestClient(main.app, raise_server_exceptions=False)
-checar(c.get("/admin/feature-importance", headers=H("ua")).status_code == 403, "admin de empresa não vê")
+_r = c.get("/admin/feature-importance?empresa_id=beta", headers=H("ua"))
+checar(_r.status_code == 200 and "beta" not in _r.text,
+       "admin vê só a própria empresa (o empresa_id de outra é ignorado)", f"{_r.status_code}")
 j = c.get("/admin/feature-importance", headers=H("uc")).json()
 checar(j["ok"] is False and "empresa" in j["mensagem"], "sem empresa: pede para escolher")
 j = c.get("/admin/feature-importance", headers=H("uc"), params={"empresa_id": "alfa"}).json()

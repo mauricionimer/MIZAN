@@ -63,7 +63,11 @@ def esperar(jid, ate=180):
 # ── acesso ──────────────────────────────────────────────────────────────
 checar(enviar(HA).status_code == 403, "admin não treina")
 checar(enviar({}).status_code in (401, 403), "sem token não treina")
-checar(c.get("/comando/modelos", headers=HA, params={"empresa_id": "x"}).status_code == 403, "admin não lista versões")
+_r = c.get("/comando/modelos", headers=HA, params={"empresa_id": "x"})
+checar(_r.status_code == 200 and _r.json().get("empresa_id") == "goias",
+       "admin lista só as versões da própria empresa (o empresa_id pedido é ignorado)", f"{_r.status_code} {_r.text[:80]}")
+checar(c.post("/comando/modelos/ativar", headers=HA, json={"empresa_id": "goias", "versao": "x"}).status_code == 403,
+       "admin não ativa versão")
 checar(enviar(HC, nome="g.txt").status_code == 400, "extensão errada: 400")
 checar(enviar(HC, conteudo=b"a" * (26 * 1024 * 1024)).status_code == 413, "arquivo de 26 MB: 413")
 

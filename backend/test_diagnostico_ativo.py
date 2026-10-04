@@ -150,7 +150,9 @@ U = {"uc": {"ativo": True, "id": "uc", "role": "comando", "empresa_id": "", "ema
 main.buscar_usuario_por_id = lambda uid: U[uid]
 H = lambda u: {"Authorization": "Bearer " + criar_token({"sub": u, "email": U[u]["email"], "nome": "N",
                                                           "role": U[u]["role"], "empresa_id": U[u]["empresa_id"]})}
-checar(c.get("/admin/modelo/qualidade", headers=H("ua")).status_code == 403, "admin de empresa não vê")
+_r = c.get("/admin/modelo/qualidade?empresa_id=beta", headers=H("ua"))
+checar(_r.status_code == 200 and "beta" not in _r.text,
+       "admin vê só a própria empresa (o empresa_id de outra é ignorado)", f"{_r.status_code}")
 j = c.get("/admin/modelo/qualidade", headers=H("uc")).json()
 checar(j.get("ok") is False and "empresa" in j.get("motivo", ""), "sem empresa: pede para escolher", j.get("motivo"))
 j = c.get("/admin/modelo/qualidade", headers=H("uc"), params={"empresa_id": "alfa"}).json()
