@@ -6,44 +6,14 @@ import {
   listarUsuarios, registrarUsuario, toggleUsuarioAtivo, alterarRoleUsuario,
   listarConexoes, listarPermissoesConexao, concederPermissaoConexao, revogarPermissaoConexao,
   listarEmpresas, adicionarUsuarioEmpresa, removerUsuarioEmpresa, deletarEmpresa,
-  buscarAuditoria, putEmpresaConfig, uploadEmpresaFoto, getEmpresaConfigPublica,
+  putEmpresaConfig, uploadEmpresaFoto, getEmpresaConfigPublica,
   verDominios, gravarDominios,
 } from '../api'
 import {
-  Users, UserPlus, ShieldCheck, ShieldOff, ToggleLeft, ToggleRight, Database, Lock, Unlock, Building2, Plus, X, UserMinus, Mail, Trash2, Clock, Camera, Pencil, Check, AtSign,
+  Users, UserPlus, ShieldCheck, ShieldOff, ToggleLeft, ToggleRight, Database, Lock, Unlock, Building2, Plus, X, UserMinus, Mail, Trash2, Camera, Pencil, Check, AtSign,
 } from 'lucide-react'
 import { LogoMark } from '../components/Logo'
 import DicaAjuda from '../components/DicaAjuda'
-
-const ACAO_LABEL = {
-  carteira_criada:      'Carteira criada',
-  carteira_sincronizada:'Carteira atualizada',
-  banco_sincronizado:   'Banco sincronizado',
-  feedback_importado:   'Feedbacks importados',
-  usuario_criado:       'Usuário criado',
-  usuario_ativado:      'Usuário ativado',
-  usuario_desativado:   'Usuário desativado',
-  role_alterado:        'Permissão alterada',
-  senha_alterada:       'Senha alterada',
-  conexao_criada:       'Conexão criada',
-}
-
-const ACAO_COR = {
-  carteira_criada:      'bg-blue-400',
-  carteira_sincronizada:'bg-blue-400',
-  banco_sincronizado:   'bg-emerald-400',
-  feedback_importado:   'bg-violet-400',
-  usuario_criado:       'bg-indigo-400',
-  usuario_ativado:      'bg-emerald-400',
-  usuario_desativado:   'bg-red-400',
-  role_alterado:        'bg-amber-400',
-  senha_alterada:       'bg-slate-400',
-}
-
-function fmtAuditDate(iso) {
-  if (!iso) return '—'
-  return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(iso))
-}
 
 function Logo() {
   return <LogoMark className="h-5 w-5 shrink-0" />
@@ -476,7 +446,6 @@ export default function AdminUsuarios() {
 
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ email: '', nome: '', senha: '', role: 'operador', empresa_id: '' })
-  const [auditoria, setAuditoria] = useState([])
   const [formErro, setFormErro] = useState('')
   const [salvando, setSalvando] = useState(false)
 
@@ -496,16 +465,14 @@ export default function AdminUsuarios() {
   async function carregar() {
     setCarregando(true); setErro('')
     try {
-      const [lista, conxs, emps, audit] = await Promise.all([
+      const [lista, conxs, emps] = await Promise.all([
         listarUsuarios(token),
         isAdmin || isComando ? listarConexoes() : Promise.resolve([]),
         isComando ? listarEmpresas(token) : Promise.resolve({ empresas: [], sem_empresa: [] }),
-        buscarAuditoria({ limit: 10 }),
       ])
       setUsuarios(lista)
       setConexoes(conxs)
       setEmpresas(emps)
-      setAuditoria(audit)
     } catch (e) {
       setErro(e.message)
     } finally {
@@ -834,35 +801,6 @@ export default function AdminUsuarios() {
               </div>
             )}
 
-            {auditoria.length > 0 && (
-              <div className="mt-10">
-                <p className="text-xs font-semibold uppercase tracking-wide mb-3 flex items-center gap-1.5" style={{ color: 'var(--ink-3)' }}>
-                  <Clock className="h-3 w-3" /> Atividade Recente
-                </p>
-                <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--line)', boxShadow: '0 2px 12px rgba(0,0,0,0.40)' }}>
-                  {auditoria.map((a, i) => (
-                    <div key={i} className="flex items-start gap-3 px-5 py-3.5 border-b" style={{ borderColor: 'var(--line)' }}>
-                      <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${ACAO_COR[a.acao] ?? 'bg-slate-500'}`} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-ink font-medium leading-snug">
-                          {ACAO_LABEL[a.acao] || a.acao}
-                          {a.detalhes?.email_novo && <span className="font-normal" style={{ color: 'var(--ink-2)' }}> — {a.detalhes.email_novo}</span>}
-                          {a.detalhes?.email_alvo && <span className="font-normal" style={{ color: 'var(--ink-2)' }}> — {a.detalhes.email_alvo}</span>}
-                          {a.detalhes?.nome_arquivo && <span className="font-normal" style={{ color: 'var(--ink-2)' }}> — {a.detalhes.nome_arquivo}</span>}
-                          {a.detalhes?.n_devedores != null && <span className="font-normal" style={{ color: 'var(--ink-2)' }}> · {a.detalhes.n_devedores} devedores</span>}
-                          {a.detalhes?.importados != null && <span className="font-normal" style={{ color: 'var(--ink-2)' }}> · {a.detalhes.importados} importados</span>}
-                        </p>
-                        <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
-                          por <span className="font-medium">{a.usuario_email || '—'}</span>
-                          {a.empresa_id && <span style={{ color: 'var(--ink-4)' }}> · {a.empresa_id}</span>}
-                          <span className="ml-1">· {fmtAuditDate(a.created_at)}</span>
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </>
         )}
 
