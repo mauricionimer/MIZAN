@@ -25,6 +25,7 @@ import { useAuth } from '../context/AuthContext'
 import AppShell from '../components/AppShell'
 import DicaAjuda from '../components/DicaAjuda'
 import DistribuirFila from '../components/DistribuirFila'
+import { NIVEL_CFG, seloFila } from '../utils/agenda'
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
 
@@ -1214,6 +1215,16 @@ export default function Dashboard({ onIrPara }) {
                       </td>
                       <td className="px-4 py-3 font-medium text-ink transition-colors group-hover:text-blue-300">
                         {d.nome}
+                        {d.agenda && (() => {
+                          const cfg = NIVEL_CFG[d.agenda.nivel] ?? NIVEL_CFG.safe
+                          return (
+                            <span className="ml-2 inline-flex items-center whitespace-nowrap rounded-full px-1.5 py-px align-middle text-[10px] font-semibold"
+                              title={d.agenda.operador_nome ? `Agendado por ${d.agenda.operador_nome}` : undefined}
+                              style={{ background: cfg.fundo, color: cfg.cor, border: `1px solid ${cfg.borda}` }}>
+                              {seloFila(d.agenda)}
+                            </span>
+                          )
+                        })()}
                         {d.dados_incompletos && (
                           <AlertTriangle className="ml-1.5 inline h-3.5 w-3.5 align-text-bottom" style={{ color: 'var(--warning)' }}
                             aria-label={`Dados incompletos: ${d.aviso_dados || ''}`} title={`Dados incompletos: ${d.aviso_dados || ''}`} />

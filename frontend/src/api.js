@@ -570,7 +570,10 @@ async function _jsonOuErroFila(res) {
   _handle401(res)
   if (!res.ok) {
     const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
-    throw Object.assign(new Error(typeof detail === 'string' ? detail : 'Dados inválidos.'), { status: res.status })
+    const msg = typeof detail === 'string' ? detail
+      : Array.isArray(detail) ? detail.map(d => String(d.msg || '').replace(/^Value error, /, '')).filter(Boolean).join(' ') || 'Dados inválidos.'
+      : 'Dados inválidos.'
+    throw Object.assign(new Error(msg), { status: res.status })
   }
   return res.json()
 }
@@ -594,6 +597,35 @@ export async function atribuirResponsavel(carteiraId, cpfs, operadorId) {
   const res = await fetch(`${BASE}/carteiras/${encodeURIComponent(carteiraId)}/responsavel`, {
     method: 'POST', headers: _authHeader(_getToken()),
     body: JSON.stringify({ cpfs, operador_id: operadorId || null }),
+  })
+  return _jsonOuErroFila(res)
+}
+
+// ── F2: agenda de retornos e promessas ───────────────────────────────────────
+function _qs(params = {}) {
+  const qs = new URLSearchParams()
+  for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== null && v !== '') qs.set(k, v)
+  return qs.toString()
+}
+
+export async function listarAgenda(params = {}) {
+  const res = await fetch(`${BASE}/agenda?${_qs(params)}`, { headers: { Authorization: `Bearer ${_getToken()}` } })
+  return _jsonOuErroFila(res)
+}
+
+export async function resumoAgenda(params = {}) {
+  const res = await fetch(`${BASE}/agenda/resumo?${_qs(params)}`, { headers: { Authorization: `Bearer ${_getToken()}` } })
+  return _jsonOuErroFila(res)
+}
+
+export async function criarAgenda(dados) {
+  const res = await fetch(`${BASE}/agenda`, { method: 'POST', headers: _authHeader(_getToken()), body: JSON.stringify(dados) })
+  return _jsonOuErroFila(res)
+}
+
+export async function mudarAgenda(id, acao, extra = {}) {
+  const res = await fetch(`${BASE}/agenda/${encodeURIComponent(id)}`, {
+    method: 'PATCH', headers: _authHeader(_getToken()), body: JSON.stringify({ acao, ...extra }),
   })
   return _jsonOuErroFila(res)
 }

@@ -5,10 +5,11 @@ import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'framer-m
 import {
   LayoutDashboard, UploadCloud, ClipboardList, Users, KeyRound, LogOut, Loader2, Menu, X,
   ShieldCheck, Zap, Brain, Command, FlaskConical, Lock, HelpCircle, SlidersHorizontal,
-  MessageCircleQuestion, GraduationCap, KeySquare,
+  MessageCircleQuestion, GraduationCap, KeySquare, CalendarClock,
 } from 'lucide-react'
 import ThemeToggle from './ThemeToggle'
 import useAvisosDeDuvida from './useAvisosDeDuvida'
+import useAvisoAgenda from './useAvisoAgenda'
 import { LogoMark } from './Logo'
 import { useAuth } from '../context/AuthContext'
 import { useAnalysis } from '../context/AnalysisContext'
@@ -46,6 +47,7 @@ function useItens() {
   const { isAdmin, isComando } = useAuth()
   const { result } = useAnalysis()
   const avisos = useAvisosDeDuvida()
+  const agenda = useAvisoAgenda()
   const grupos = [
     {
       nome: 'Trabalho',
@@ -53,6 +55,10 @@ function useItens() {
         ...(result ? [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, vista: 'dashboard' }] : []),
         { id: 'analise', label: 'Análise de carteira', icon: UploadCloud, vista: 'analise' },
         { id: 'pagamentos', label: 'Pagamentos', icon: ClipboardList, rota: '/feedback' },
+        // Retornos e promessas: o número é o que vence hoje/amanhã ou já venceu.
+        ...[{ id: 'agenda', label: 'Agenda', icon: CalendarClock, rota: '/agenda',
+          aviso: isComando ? 0 : agenda.alto + agenda.medio, corAviso: agenda.alto > 0 ? 'bg-red-600' : 'bg-amber-500',
+          tituloAviso: agenda.alto > 0 ? `compromissos (${agenda.alto} ${agenda.alto === 1 ? "vencido" : "vencidos"})` : 'compromissos para hoje ou amanhã' }],
         // O operador não tem o grupo Gestão: a aba dele fica aqui.
         ...(!isAdmin && !isComando ? [{ id: 'ia', label: 'Performance da IA', icon: Brain, rota: '/ia' }] : []),
       ],
@@ -117,7 +123,7 @@ function Navegacao({ grupos, ativo, acionar, sair, idDestaque }) {
                     <Icon className={`relative h-[18px] w-[18px] shrink-0 ${on ? 'text-blue-400' : ''}`} />
                     <span className="relative truncate">{it.label}</span>
                     {it.aviso > 0 && (
-                      <span className="relative ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-blue-600 px-1.5 text-[11px] font-semibold leading-5 text-white"
+                      <span className={`relative ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-full ${it.corAviso || 'bg-blue-600'} px-1.5 text-[11px] font-semibold leading-5 text-white`}
                         aria-label={`${it.aviso} ${it.tituloAviso}`}>{it.aviso > 99 ? '99+' : it.aviso}</span>
                     )}
                   </button>

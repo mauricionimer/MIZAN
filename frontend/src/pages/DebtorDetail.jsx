@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Phone, Tag, Zap, MessageSquare, Brain, Plus, ClipboardList, CheckCircle2, XCircle, Clock, Wallet, AlertTriangle } from 'lucide-react'
 import { useAnalysis } from '../context/AnalysisContext'
-import { buscarPaginaRanking, buscarDistribuicao, atribuirResponsavel } from '../api'
+import { buscarPaginaRanking, buscarDistribuicao, atribuirResponsavel, listarAgenda, mudarAgenda } from '../api'
+import { NIVEL_CFG, TIPO_LABEL, quando, hojeISO, somarDias, avisarAgendaMudou } from '../utils/agenda'
 import { useAuth } from '../context/AuthContext'
 import PriorityBadge from '../components/PriorityBadge'
 import { buscarRecomendacao, registrarContato, listarContatos, buscarStatusFeedbacks, buscarExplicacaoScore, buscarPropostas, traduzirErroRede } from '../api'
@@ -314,8 +315,60 @@ const RESULTADO_CFG = {
   nao_quis:       { label: 'Não quis negociar', color: 'text-red-400',     bg: 'rgb(var(--c-danger) / 0.10)',   border: 'rgb(var(--c-danger) / 0.18)'   },
 }
 
+// F2 — compromissos pendentes deste devedor (retornos e promessas).
+function CompromissosDevedor({ cpf, versao }) {
+  const [itens, setItens] = useState(null)
+  const [erro, setErro] = useState('')
+  useEffect(() => {
+    listarAgenda({ cpf, escopo: 'equipe', situacao: 'pendente' })
+      .then(r => setItens(r.ativo ? r.itens : null))
+      .catch(() => setItens(null))
+  }, [cpf, versao])
+  if (!itens || itens.length === 0) return null
+
+  async function agir(item, acao) {
+    setErro('')
+    try {
+      await mudarAgenda(item.id, acao)
+      setItens(l => l.filter(i => i.id !== item.id))
+      avisarAgendaMudou()
+    } catch (e) { setErro(e.message) }
+  }
+
+  return (
+    <div className="px-5 py-3 border-b space-y-2" style={DIVIDER}>
+      <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--ink-3)' }}>
+        Compromissos pendentes<DicaAjuda id="agenda-de-retorno" />
+      </p>
+      {itens.map(i => {
+        const cfg = NIVEL_CFG[i.nivel] ?? NIVEL_CFG.safe
+        return (
+          <div key={i.id} className="flex flex-wrap items-center gap-2 rounded-lg px-3 py-2"
+            style={{ background: cfg.fundo, border: `1px solid ${cfg.borda}` }}>
+            <span className="text-xs font-semibold" style={{ color: cfg.cor }}>{TIPO_LABEL[i.tipo]}</span>
+            <span className="text-xs text-ink">{quando(i.data, i.hora)}</span>
+            {i.valor > 0 && <span className="text-xs font-semibold tabular-nums text-ink">{fmtBRL(i.valor)}</span>}
+            {i.operador_nome && <span className="text-[11px]" style={{ color: 'var(--ink-3)' }}>· {i.operador_nome}</span>}
+            <span className="ml-auto flex gap-1">
+              <button onClick={() => agir(i, 'cumprir')} className="rounded px-2 py-0.5 text-[11px] font-semibold text-emerald-400 hover:bg-emerald-500/10">
+                {i.tipo === 'promessa' ? 'Pagou' : 'Feito'}
+              </button>
+              {i.tipo === 'promessa' && (
+                <button onClick={() => agir(i, 'quebrar')} className="rounded px-2 py-0.5 text-[11px] font-semibold text-red-400 hover:bg-red-500/10">Não pagou</button>
+              )}
+            </span>
+          </div>
+        )
+      })}
+      {erro && <p className="text-xs" style={{ color: 'var(--danger)' }}>{erro}</p>}
+    </div>
+  )
+}
+
 function HistoricoContatos({ cpf, rec, propostas }) {
   const [contatos, setContatos]     = useState([])
+  const [versaoAgenda, setVersaoAgenda] = useState(0)
+  const [avisoAgenda, setAvisoAgenda]   = useState('')
   const [loading, setLoading]       = useState(true)
   const [formAberto, setFormAberto] = useState(false)
   const [salvando, setSalvando]     = useState(false)
@@ -324,6 +377,8 @@ function HistoricoContatos({ cpf, rec, propostas }) {
     canal: 'whatsapp', resultado: 'contactado', oferta: '',
     data_contato: new Date().toISOString().slice(0, 10), observacao: '',
     valor_recuperado: '', desconto_oferecido_pct: '',
+    data_prometida: '', valor_prometido: '', agendar_retorno: false,
+    data_retorno: somarDias(hojeISO(), 1), hora_retorno: '',
   })
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
@@ -341,6 +396,16 @@ function HistoricoContatos({ cpf, rec, propostas }) {
     if (rec?.acao_id != null) payload.acao_bandit_id = rec.acao_id
     if (form.valor_recuperado) payload.valor_recuperado = parseFloat(form.valor_recuperado)
     if (form.desconto_oferecido_pct) payload.desconto_oferecido_pct = parseFloat(form.desconto_oferecido_pct)
+    // F2: a promessa (ou o retorno) vai junto e cai na Agenda.
+    if (form.resultado === 'prometeu_pagar') {
+      if (!form.data_prometida) { setErro('Informe a data prometida: é ela que entra na Agenda.'); setSalvando(false); return }
+      payload.agenda = { tipo: 'promessa', data: form.data_prometida }
+      if (form.valor_prometido) payload.agenda.valor = parseFloat(form.valor_prometido)
+    } else if (form.agendar_retorno && form.resultado !== 'pagou') {
+      if (!form.data_retorno) { setErro('Informe a data do retorno.'); setSalvando(false); return }
+      payload.agenda = { tipo: 'retorno', data: form.data_retorno }
+      if (form.hora_retorno) payload.agenda.hora = form.hora_retorno
+    }
 
     const _aguardar = async (segundos) => {
       for (let s = segundos; s > 0; s--) {
@@ -355,7 +420,14 @@ function HistoricoContatos({ cpf, rec, propostas }) {
         const res = await registrarContato(payload)
         setContatos(prev => [res.contato, ...prev])
         setFormAberto(false)
-        setForm({ canal: 'whatsapp', resultado: 'contactado', oferta: '', data_contato: new Date().toISOString().slice(0, 10), observacao: '', valor_recuperado: '', desconto_oferecido_pct: '' })
+        setForm({ canal: 'whatsapp', resultado: 'contactado', oferta: '', data_contato: new Date().toISOString().slice(0, 10), observacao: '', valor_recuperado: '', desconto_oferecido_pct: '',
+                  data_prometida: '', valor_prometido: '', agendar_retorno: false, data_retorno: somarDias(hojeISO(), 1), hora_retorno: '' })
+        if (res.agenda) {
+          setAvisoAgenda(`${res.agenda.tipo === 'promessa' ? 'Promessa' : 'Retorno'} na Agenda: ${quando(res.agenda.data, res.agenda.hora).toLowerCase()}.`)
+          setVersaoAgenda(v => v + 1); avisarAgendaMudou()
+        } else if (res.agenda_erro) {
+          setAvisoAgenda(`Contato salvo, mas não entrou na Agenda: ${res.agenda_erro}`)
+        } else setAvisoAgenda('')
       } catch (e) {
         const isRede = e?.message === 'Failed to fetch' || e?.message?.includes('Failed to fetch')
         const esperas = [35, 20]
@@ -440,7 +512,42 @@ function HistoricoContatos({ cpf, rec, propostas }) {
               (administrador) ou da integração com o banco, e é ela que ensina o sistema, creditada à oferta registrada aqui.
             </p>
           )}
-          {(form.resultado === 'pagou' || form.resultado === 'prometeu_pagar') && (
+          {form.resultado === 'prometeu_pagar' && (
+            <div className="grid grid-cols-2 gap-3 rounded-xl p-3" style={{ background: 'rgb(var(--c-warning) / 0.06)', border: '1px solid rgb(var(--c-warning) / 0.20)' }}>
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>Data prometida *</label>
+                <input type="date" required min={hojeISO()} value={form.data_prometida} onChange={e => set('data_prometida', e.target.value)} style={inputStyle} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>Valor prometido (R$)</label>
+                <input type="number" min="0" step="0.01" value={form.valor_prometido} onChange={e => set('valor_prometido', e.target.value)} placeholder="0,00" style={inputStyle} />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>
+                  Desconto oferecido (%){rec?.oferta_label && <span className="text-blue-400 ml-1 font-normal">· IA: {rec.oferta_label}</span>}
+                </label>
+                <input type="number" min="0" max="100" step="1" value={form.desconto_oferecido_pct} onChange={e => set('desconto_oferecido_pct', e.target.value)} placeholder="Ex: 30" style={inputStyle} />
+              </div>
+              <p className="col-span-2 text-[11px]" style={{ color: 'var(--ink-3)' }}>
+                A promessa entra na Agenda e vira “paga” sozinha quando o pagamento for confirmado.
+              </p>
+            </div>
+          )}
+          {form.resultado !== 'prometeu_pagar' && form.resultado !== 'pagou' && (
+            <div className="rounded-xl p-3" style={{ background: 'var(--surface-2)', border: '1px solid var(--line)' }}>
+              <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer" style={{ color: 'var(--ink-2)' }}>
+                <input type="checkbox" checked={form.agendar_retorno} onChange={e => set('agendar_retorno', e.target.checked)} className="h-3.5 w-3.5 accent-blue-500" />
+                Agendar retorno
+              </label>
+              {form.agendar_retorno && (
+                <div className="mt-2.5 grid grid-cols-2 gap-3">
+                  <input type="date" aria-label="Data do retorno" min={hojeISO()} value={form.data_retorno} onChange={e => set('data_retorno', e.target.value)} style={inputStyle} />
+                  <input type="time" aria-label="Hora do retorno" value={form.hora_retorno} onChange={e => set('hora_retorno', e.target.value)} style={inputStyle} />
+                </div>
+              )}
+            </div>
+          )}
+          {form.resultado === 'pagou' && (
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>Valor Recuperado (R$)</label>
@@ -473,6 +580,13 @@ function HistoricoContatos({ cpf, rec, propostas }) {
           </div>
         </div>
       )}
+
+      {avisoAgenda && (
+        <p className="px-5 py-2.5 text-xs border-b" style={{ ...DIVIDER, color: avisoAgenda.startsWith('Contato salvo') ? 'var(--warning)' : 'var(--success)' }}>
+          {avisoAgenda}
+        </p>
+      )}
+      <CompromissosDevedor cpf={cpf} versao={versaoAgenda} />
 
       <div>
         {loading && (

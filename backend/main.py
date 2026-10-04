@@ -1657,6 +1657,34 @@ def salvar_conexao(body: ConexaoSalvarIn, credentials: HTTPAuthorizationCredenti
         raise HTTPException(status_code=500, detail="Falha ao inserir conexão — verifique o schema da tabela conexoes_db no Supabase.")
     return {"ok": True, "conexao": _sem_segredos(res.data[0])}   # nem senha nem credencial voltam
 
+class AgendaBase(BaseModel):
+    """Um retorno ("me liga sexta") ou uma promessa de pagamento (F2)."""
+    tipo: str
+    data: date
+    hora: Optional[str] = Field(None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    valor: Optional[float] = Field(None, gt=0, le=100_000_000)
+    observacao: Optional[str] = Field(None, max_length=300)
+
+    @field_validator('tipo')
+    @classmethod
+    def _val_tipo(cls, v):
+        from agenda import TIPOS
+        if v not in TIPOS:
+            raise ValueError('Tipo inválido. Use: promessa ou retorno.')
+        return v
+
+    @field_validator('data')
+    @classmethod
+    def _val_data_agenda(cls, v):
+        from agenda import validar_data_nova
+        validar_data_nova(v)
+        return v
+
+
+class AgendaIn(AgendaBase):
+    cpf: str = Field(..., min_length=3, max_length=20)
+
+
 class ContatoIn(BaseModel):
     cpf: str
     canal: str
@@ -1670,6 +1698,8 @@ class ContatoIn(BaseModel):
     # operador ao aprendizado: sem ela, o bandit só aprende sobre a oferta que
     # ele mesmo recomendou, não sobre a que foi de fato negociada.
     oferta: Optional[str] = None
+    # F2: o retorno ou a promessa combinados neste contato, gravados junto.
+    agenda: Optional[AgendaBase] = None
 
     @field_validator('oferta')
     @classmethod
@@ -1745,7 +1775,7 @@ def registrar_contato(body: ContatoIn, credentials: HTTPAuthorizationCredentials
             )
 
     # Filtra None para não enviar colunas inexistentes ao Supabase
-    row = {k: v for k, v in body.model_dump().items() if v is not None}
+    row = {k: v for k, v in body.model_dump(exclude={"agenda"}).items() if v is not None}
     row["usuario_id"]   = payload["sub"]
     row["usuario_nome"] = payload.get("nome", "")
     row["empresa_id"]   = payload.get("empresa_id", "")
@@ -1821,7 +1851,210 @@ def registrar_contato(body: ContatoIn, credentials: HTTPAuthorizationCredentials
         except Exception as _be:
             print(f"[Bandit/Contato] {_be}")
 
-    return {"ok": True, "contato": res.data[0]}
+    resposta = {"ok": True, "contato": res.data[0]}
+    if body.agenda is not None:
+        # O contato já foi gravado: uma falha na agenda não pode apagá-lo, só
+        # avisar (a tela mostra o motivo e o operador agenda pela Agenda).
+        try:
+            resposta["agenda"] = _criar_item_agenda(db, payload, body.cpf, body.agenda,
+                                                    contato_id=res.data[0].get("id"))
+        except HTTPException as e:
+            resposta["agenda_erro"] = e.detail
+    return resposta
+
+
+# ── F2: agenda de retornos e promessas ───────────────────────────────────────
+
+_MSG_SEM_MIGRACAO_AGENDA = ("A agenda ainda não está ativa: rode "
+                            "sql/migracao_operador.sql no Supabase.")
+
+
+def _falta_tabela(e: Exception, tabela: str) -> bool:
+    m = str(e)
+    return tabela in m and any(k in m.lower() for k in
+                               ("does not exist", "could not find", "schema cache", "42p01", "pgrst205"))
+
+
+def _empresa_da_agenda(payload: dict, empresa_id: "str | None" = None) -> str:
+    """A agenda é da operação de uma empresa. COMANDO lê escolhendo uma."""
+    if payload.get("role") == "comando":
+        emp = (empresa_id or "").strip()
+        if not emp:
+            raise HTTPException(status_code=400, detail="Escolha a empresa.")
+        return emp
+    emp = payload.get("empresa_id", "")
+    if not emp:
+        raise HTTPException(status_code=403, detail="Acesso negado: usuário sem empresa definida.")
+    return emp
+
+
+def _com_nivel(item: dict, ref) -> dict:
+    from agenda import nivel
+    if item.get("situacao") == "pendente" and item.get("data"):
+        item["nivel"] = nivel(date.fromisoformat(str(item["data"])[:10]), ref)
+    else:
+        item["nivel"] = None
+    return item
+
+
+def _criar_item_agenda(db, payload: dict, cpf: str, dados: "AgendaBase", contato_id=None) -> dict:
+    if payload.get("role") == "comando" or not payload.get("empresa_id"):
+        raise HTTPException(status_code=403, detail="A agenda é de quem trabalha a fila de uma empresa.")
+    emp = payload["empresa_id"]
+    cpf = str(cpf).strip()
+    pred = _predicao_do_cpf(db, cpf, emp, colunas="id, nome")
+    if not pred:
+        raise HTTPException(status_code=404, detail="Devedor não encontrado nas carteiras da empresa.")
+    linha = {
+        "empresa_id": emp, "cpf": cpf, "nome": pred.get("nome"),
+        "carteira_id": pred.get("carteira_id"), "predicao_id": pred.get("id"),
+        "operador_id": payload["sub"], "operador_nome": payload.get("nome", "") or payload.get("email", ""),
+        "tipo": dados.tipo, "data": dados.data.isoformat(), "hora": dados.hora,
+        "valor": dados.valor, "observacao": (dados.observacao or "").strip() or None,
+        "situacao": "pendente",
+    }
+    if contato_id:
+        linha["contato_id"] = contato_id
+    try:
+        res = db.table("agenda").insert({k: v for k, v in linha.items() if v is not None}).execute()
+    except Exception as e:
+        if _falta_tabela(e, "agenda"):
+            raise HTTPException(status_code=409, detail=_MSG_SEM_MIGRACAO_AGENDA)
+        print(f"[Agenda] Erro ao inserir: {type(e).__name__}")
+        raise HTTPException(status_code=500, detail="Erro ao gravar na agenda. Tente novamente.")
+    from agenda import hoje
+    return _com_nivel(dict(res.data[0]), hoje())
+
+
+def _cumprir_promessas(db, empresa_id: "str | None", cpf: str, quem: str = "pagamento confirmado") -> None:
+    """Pagamento confirmado cumpre as promessas pendentes do devedor sozinho.
+
+    Nunca derruba a baixa do pagamento: sem a tabela, ou com erro, só avisa no log.
+    """
+    if not empresa_id or not cpf:
+        return
+    try:
+        (db.table("agenda").update({"situacao": "cumprida", "resolvido_em": datetime.utcnow().isoformat(),
+                                    "resolvido_por": quem})
+         .eq("empresa_id", empresa_id).eq("cpf", str(cpf)).eq("tipo", "promessa")
+         .eq("situacao", "pendente").execute())
+    except Exception as e:
+        print(f"[Agenda] promessas de {str(cpf)[:3]}*** não marcadas: {type(e).__name__}")
+
+
+@app.post("/agenda")
+def criar_agenda(body: AgendaIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    payload = _usuario_autenticado(credentials)
+    return {"ok": True, "item": _criar_item_agenda(get_db(), payload, body.cpf, body)}
+
+
+def _consulta_agenda(db, payload: dict, emp: str, escopo: str):
+    q = db.table("agenda").select("*").eq("empresa_id", emp)
+    # Operador vê só os seus, peça o que pedir.
+    if escopo != "equipe" or payload.get("role") == "operador":
+        q = q.eq("operador_id", payload["sub"])
+    return q
+
+
+@app.get("/agenda")
+def listar_agenda(escopo: str = "minha", situacao: str = "pendente", cpf: Optional[str] = None,
+                  empresa_id: Optional[str] = None,
+                  credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Compromissos da agenda. Pendentes vêm com o nível (alto, médio, safe)."""
+    from agenda import hoje, SITUACOES
+    payload = _usuario_autenticado(credentials)
+    emp = _empresa_da_agenda(payload, empresa_id)
+    db = get_db()
+    if payload.get("role") == "comando":
+        escopo = "equipe"
+    try:
+        def consulta():
+            q = _consulta_agenda(db, payload, emp, escopo)
+            return q.eq("cpf", cpf.strip()) if cpf else q
+        if situacao in SITUACOES:
+            linhas = _todas_as_linhas(lambda: consulta().eq("situacao", situacao))
+        else:
+            # "todas": as 300 mais recentes — histórico, não lista de trabalho.
+            linhas = consulta().order("data", desc=True).limit(300).execute().data or []
+    except Exception as e:
+        if _falta_tabela(e, "agenda"):
+            return {"ativo": False, "mensagem": _MSG_SEM_MIGRACAO_AGENDA, "itens": []}
+        raise
+    ref = hoje()
+    itens = [_com_nivel(dict(l), ref) for l in linhas]
+    itens.sort(key=lambda i: (str(i.get("data") or ""), i.get("hora") or "99:99"))
+    return {"ativo": True, "hoje": ref.isoformat(), "itens": itens}
+
+
+@app.get("/agenda/resumo")
+def resumo_agenda(escopo: str = "minha", empresa_id: Optional[str] = None,
+                  credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Quantos compromissos pendentes em cada nível — alimenta o aviso do menu."""
+    from agenda import hoje, contar_niveis
+    payload = _usuario_autenticado(credentials)
+    emp = _empresa_da_agenda(payload, empresa_id)
+    db = get_db()
+    if payload.get("role") == "comando":
+        escopo = "equipe"
+    try:
+        linhas = _todas_as_linhas(lambda: _consulta_agenda(db, payload, emp, escopo).eq("situacao", "pendente"))
+    except Exception as e:
+        if _falta_tabela(e, "agenda"):
+            return {"ativo": False, "alto": 0, "medio": 0, "safe": 0}
+        raise
+    datas = [date.fromisoformat(str(l["data"])[:10]) for l in linhas if l.get("data")]
+    return {"ativo": True, **contar_niveis(datas, hoje())}
+
+
+class AgendaPatch(BaseModel):
+    acao: str                                  # cumprir | quebrar | cancelar | remarcar
+    data: Optional[date] = None
+    hora: Optional[str] = Field(None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+
+    @field_validator('acao')
+    @classmethod
+    def _val_acao(cls, v):
+        if v not in ("cumprir", "quebrar", "cancelar", "remarcar"):
+            raise ValueError('Ação inválida. Use: cumprir, quebrar, cancelar ou remarcar.')
+        return v
+
+
+@app.patch("/agenda/{item_id}")
+def mudar_agenda(item_id: str, body: AgendaPatch, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    from agenda import hoje, validar_data_nova
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") == "comando" or not payload.get("empresa_id"):
+        raise HTTPException(status_code=403, detail="A agenda é de quem trabalha a fila de uma empresa.")
+    emp = payload["empresa_id"]
+    db = get_db()
+    try:
+        r = db.table("agenda").select("*").eq("id", item_id).eq("empresa_id", emp).limit(1).execute()
+    except Exception as e:
+        if _falta_tabela(e, "agenda"):
+            raise HTTPException(status_code=409, detail=_MSG_SEM_MIGRACAO_AGENDA)
+        raise
+    item = (r.data or [None])[0]
+    if not item:
+        raise HTTPException(status_code=404, detail="Compromisso não encontrado.")
+    if payload.get("role") == "operador" and item.get("operador_id") != payload["sub"]:
+        raise HTTPException(status_code=403, detail="Este compromisso é de outro operador.")
+    if item.get("situacao") != "pendente":
+        raise HTTPException(status_code=409, detail="Este compromisso já foi resolvido.")
+    quem = payload.get("nome", "") or payload.get("email", "")
+    if body.acao == "remarcar":
+        if body.data is None:
+            raise HTTPException(status_code=422, detail="Informe a nova data.")
+        try:
+            validar_data_nova(body.data)
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        patch = {"data": body.data.isoformat(), "hora": body.hora}
+    else:
+        patch = {"situacao": {"cumprir": "cumprida", "quebrar": "quebrada", "cancelar": "cancelada"}[body.acao],
+                 "resolvido_em": datetime.utcnow().isoformat(), "resolvido_por": quem}
+    res = db.table("agenda").update(patch).eq("id", item_id).eq("empresa_id", emp).execute()
+    novo = dict((res.data or [{**item, **patch}])[0])
+    return {"ok": True, "item": _com_nivel(novo, hoje())}
 
 
 @app.get("/contatos/{cpf}")
@@ -2805,7 +3038,8 @@ def pagina_do_ranking(
             linhas += db.table("predicoes").select("*").in_("id", pagina[i:i + ITENS_POR_IN]).execute().data or []
         linhas.sort(key=lambda r: (r.get("rank") is None, r.get("rank") or 0, r["id"]))
         return _sem_nan({
-            "itens": _reconstruir_ranking(linhas, payload.get("empresa_id", "")),
+            "itens": _anexar_agenda(db, _reconstruir_ranking(linhas, payload.get("empresa_id", "")),
+                                    payload, carteira_id),
             "total": total, "filtrado": len(certos), "offset": offset, "limit": limit,
         })
 
@@ -2817,7 +3051,8 @@ def pagina_do_ranking(
             raise HTTPException(status_code=409, detail="A divisão da fila ainda não está ativa: "
                                                         "rode sql/migracao_operador.sql no Supabase.")
         raise
-    itens = _reconstruir_ranking(res.data or [], payload.get("empresa_id", ""))
+    itens = _anexar_agenda(db, _reconstruir_ranking(res.data or [], payload.get("empresa_id", "")),
+                           payload, carteira_id)
 
     # Um NaN gravado numa coluna numérica derrubava a resposta inteira (500) e
     # a tabela aparecia vazia.
@@ -2828,6 +3063,44 @@ def pagina_do_ranking(
         "offset": offset,
         "limit": limit,
     })
+
+
+def _anexar_agenda(db, itens: list, payload: dict, carteira_id: str) -> list:
+    """F2: cada linha da fila ganha o próximo compromisso pendente do devedor.
+
+    `agenda`: {tipo, data, hora, nivel, operador_nome} ou ausente. Sem a tabela
+    (SQL não rodou) a fila sai como antes.
+    """
+    if not itens:
+        return itens
+    from agenda import hoje, nivel
+    emp = payload.get("empresa_id") or (_empresa_da_carteira(db, carteira_id) if payload.get("role") == "comando" else "")
+    if not emp:
+        return itens
+    cpfs = list({str(i.get("cpf")) for i in itens if i.get("cpf")})
+    proximos: dict = {}
+    try:
+        for k in range(0, len(cpfs), ITENS_POR_IN):
+            linhas = (db.table("agenda").select("cpf, tipo, data, hora, operador_nome")
+                      .eq("empresa_id", emp).eq("situacao", "pendente")
+                      .in_("cpf", cpfs[k:k + ITENS_POR_IN]).execute().data or [])
+            for l in linhas:
+                chave = (str(l.get("data") or ""), l.get("hora") or "99:99")
+                atual = proximos.get(l["cpf"])
+                if atual is None or chave < (atual["data"], atual.get("hora") or "99:99"):
+                    proximos[l["cpf"]] = {**l, "data": str(l.get("data") or "")[:10]}
+    except Exception as e:
+        if not _falta_tabela(e, "agenda"):
+            print(f"[Agenda] fila sem compromissos: {type(e).__name__}")
+        return itens
+    ref = hoje()
+    for i in itens:
+        p = proximos.get(str(i.get("cpf")))
+        if p and p["data"]:
+            i["agenda"] = {"tipo": p["tipo"], "data": p["data"], "hora": p.get("hora"),
+                           "operador_nome": p.get("operador_nome"),
+                           "nivel": nivel(date.fromisoformat(p["data"]), ref)}
+    return itens
 
 
 # ── F1: divisão da fila entre operadores ──────────────────────────────────────
@@ -4481,6 +4754,8 @@ def receber_feedback(
         pred_dict,
         empresa_nome,
     )
+    if payload.pagou:
+        _cumprir_promessas(db, empresa_nome, payload.cpf)
 
     # Write-back: só para admin/comando — operador não pode alterar banco externo diretamente
     empresa_id_jwt = jwt_payload.get("empresa_id", "")
@@ -4607,6 +4882,7 @@ def confirmar_pagamento(
             )
         except Exception as _be:
             print(f"[Confirmar] Aviso — _fechar_loop_bandit falhou (não crítico): {_be}")
+        _cumprir_promessas(db, empresa_id, cpf)
 
         # Write-back para banco externo da empresa (non-blocking, 8s timeout)
         writeback_info = None
@@ -4725,6 +5001,8 @@ def webhook_pagamento(body: WebhookPagamentoIn, request: Request):
         pred_dict,
         empresa,
     )
+    if body.pagou:
+        _cumprir_promessas(db, empresa, body.cpf)
 
     _cache_del_prefix(f"fb_status:{empresa}")
     _cache_del_prefix(f"pagamentos:{empresa}")
@@ -4867,6 +5145,8 @@ async def feedback_lote(
                     pred_dict,
                     empresa,
                 )
+                if pagou:
+                    _cumprir_promessas(db, empresa, cpf)
 
                 detalhes.append({"linha": linha, "cpf": cpf, "ok": True, "feedback_id": feedback_id})
                 n_ok += 1

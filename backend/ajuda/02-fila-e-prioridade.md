@@ -154,3 +154,24 @@ fontes:
 - backend/fila_operadores.py::serpentina
 - backend/main.py::distribuir_fila
 - backend/main.py::atribuir_responsavel
+
+## agenda-de-retorno
+titulo: Agenda de retornos e promessas
+perfis: operador, admin, comando
+telas: Agenda; Devedor
+perguntas:
+- onde vejo quem prometeu pagar
+- como agendo um retorno para o devedor
+- o que é o alerta vermelho da agenda
+- o que significa alto médio e safe
+- a promessa some sozinha quando o devedor paga
+- como remarco um retorno
+- o que faço quando o devedor não pagou o que prometeu
+curta: A Agenda guarda os retornos ("me liga sexta") e as promessas de pagamento combinados nos contatos, separados por urgência: Alto, Médio e Safe.
+calculo: Alto (vermelho) é o compromisso cuja data já passou e segue pendente. Médio (âmbar) vence hoje ou amanhã. Safe (verde) é daqui a 2 dias ou mais. O dia de referência é o de Brasília. O número no menu soma Alto e Médio e fica vermelho quando há algum Alto.
+fazer: Ao registrar um contato com "Prometeu pagar", informe a data prometida e o valor: a promessa entra na Agenda. Para qualquer outro resultado, marque "Agendar retorno". Na Agenda, use Pagou, Não pagou, Feito ou Remarcar.
+cuidado: Quando um pagamento confirmado do devedor entra (baixa em Pagamentos, confirmação na fila, lote ou integração), as promessas pendentes dele viram "pagas" sozinhas. Marcar "Pagou" na Agenda não registra o pagamento nos resultados: isso continua sendo feito em Pagamentos. O operador vê só os próprios compromissos; o admin vê os da equipe; o COMANDO consulta a agenda de uma empresa, sem alterar.
+fontes:
+- backend/agenda.py::nivel
+- backend/main.py::_cumprir_promessas
+- backend/main.py::listar_agenda
