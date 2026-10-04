@@ -360,3 +360,26 @@ fontes:
 constantes:
 - backend/main.py::ITENS_POR_IN = 100
 - backend/main.py::LOTE_LEITURA = 1000
+
+## performance-da-ia
+titulo: Performance da IA da empresa
+perfis: admin, comando
+telas: Performance da IA
+perguntas:
+- como sei se a ia está funcionando
+- onde vejo a performance da ia da minha empresa
+- o que é o modelo em uso
+- o modelo é próprio ou geral
+- qual abordagem funciona melhor
+- o que mais pesa no score da minha carteira
+- a ia está acertando
+curta: Mostra, só para a sua empresa, qual modelo pontua a carteira, quanto ele acerta nos pagamentos registrados, o que mais pesa no score, se a carteira mudou em relação ao treino e quais abordagens fazem mais gente pagar.
+calculo: Modelo em uso: o próprio (com o KS e o AUC medidos no teste do treino) ou o geral. Acerto: KS e AUC do modelo em uso nos devedores da empresa com pagamento registrado depois do treino. Peso das variáveis: quanto cada variável move o score nos devedores da análise mais recente. Estabilidade: o PSI das análises recentes contra o treino. Abordagens: tentativas, pagamentos e taxa de pagamento de cada combinação de canal e oferta registrada nos contatos.
+fazer: Registre pagamentos (inclusive de quem não pagou) e contatos com a abordagem usada: são eles que fazem estas medidas aparecerem e ficarem confiáveis.
+cuidado: É só leitura: treinar e ativar modelos continua com a equipe do Mizan. Com poucos pagamentos ou poucas tentativas por abordagem, os números variam muito e não devem ser tratados como definitivos. KS: abaixo de 20 é fraco, de 20 a 30 regular, de 30 a 40 bom, acima de 40 muito bom.
+fontes:
+- backend/main.py::rota /admin/modelo/qualidade
+- backend/main.py::rota /admin/feature-importance
+- backend/main.py::rota /admin/drift
+- backend/main.py::rota /admin/bandit/stats
+- backend/main.py::rota /comando/modelos

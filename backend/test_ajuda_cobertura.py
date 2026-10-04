@@ -40,7 +40,7 @@ PAGINAS = {
     "pages/DuvidasComando.jsx": {"comando"},
     "pages/AprendizadoDashboard.jsx": {"comando"}, "pages/BanditDashboard.jsx": {"comando"},
     "pages/ComandoDashboard.jsx": {"comando"}, "pages/TreinoModelo.jsx": {"comando"},
-    "pages/ChavesApi.jsx": {"comando"},
+    "pages/ChavesApi.jsx": {"comando"}, "pages/PerformanceIA.jsx": {"admin", "comando"},
 }
 
 # ids citados em cada arquivo (qualquer texto entre aspas, na linha de um "?")

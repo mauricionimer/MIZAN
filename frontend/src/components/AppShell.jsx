@@ -62,6 +62,8 @@ function useItens() {
         { id: 'backtest',  label: 'Backtest',  icon: FlaskConical,      rota: '/backtest' },
         { id: 'usuarios',  label: 'Usuários',  icon: Users,             rota: '/admin/usuarios' },
         { id: 'auditoria', label: 'Auditoria', icon: ShieldCheck,       rota: '/auditoria' },
+        // O COMANDO vê a IA de cada empresa em Aprendizado e Performance IA.
+        ...(!isComando ? [{ id: 'ia', label: 'Performance da IA', icon: Brain, rota: '/ia' }] : []),
       ],
     }] : []),
     ...(isComando ? [{

@@ -851,6 +851,20 @@ def _empresa_destino_da_analise(payload: dict, alvo: "str | None") -> str:
     return eid
 
 
+def _empresa_para_leitura_ia(credentials: HTTPAuthorizationCredentials,
+                             empresa_id: "str | None") -> "tuple[dict, str]":
+    """Empresa cujas medidas da IA a rota de LEITURA vai mostrar.
+
+    COMANDO escolhe por ?empresa_id=. Admin vê só a própria empresa: o
+    parâmetro é ignorado, então não há como ler a IA de outro cliente
+    trocando a URL. Operador não lê (403).
+    """
+    payload = _exigir_admin_ou_comando(credentials)
+    if payload.get("role") == "comando":
+        return payload, (empresa_id or "").strip().lower()
+    return payload, (payload.get("empresa_id") or "").strip().lower()
+
+
 def _exigir_comando(credentials: HTTPAuthorizationCredentials) -> dict:
     # Via _usuario_autenticado, não validar_token: o painel COMANDO cria
     # empresas e usuários, muda papéis e promove modelo. Conferir só a
@@ -5010,8 +5024,7 @@ def admin_modelo_qualidade(empresa_id: Optional[str] = None,
     pagamento registrado: separação (KS/Gini/AUC), calibração, matriz de
     confusão e comparação com o teste feito no treino. Ver model/diagnostico.py.
     """
-    _exigir_comando(credentials)
-    empresa = (empresa_id or "").strip().lower()
+    _, empresa = _empresa_para_leitura_ia(credentials, empresa_id)
     if not empresa:
         resultado = {"ok": False, "motivo": "Escolha uma empresa: o diagnóstico mede o modelo que pontua aquela empresa, nos pagamentos dela."}
     else:
@@ -5204,10 +5217,13 @@ def comando_estado_treino(job_id: str, credentials: HTTPAuthorizationCredentials
 
 
 @app.get("/comando/modelos")
-def comando_listar_modelos(empresa_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
-    _exigir_comando(credentials)
+def comando_listar_modelos(empresa_id: Optional[str] = None,
+                           credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    # Leitura: admin vê as versões da própria empresa; ativar segue só do COMANDO.
+    _, empresa = _empresa_para_leitura_ia(credentials, empresa_id)
+    if not empresa:
+        raise HTTPException(status_code=400, detail="Informe a empresa.")
     from model import modelos_empresa as _me
-    empresa = (empresa_id or "").strip().lower()
     try:
         v = _me.carregar_versoes(empresa)
     except ValueError:
@@ -5695,9 +5711,8 @@ def comando_limpar_lacunas(body: LimparLacunasIn, credentials: HTTPAuthorization
 def admin_price_model_stats(empresa_id: Optional[str] = None,
                             credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """Metadados e métricas do modelo de preço ATIVO de uma empresa."""
-    _exigir_comando(credentials)
+    _, empresa = _empresa_para_leitura_ia(credentials, empresa_id)
     from model.price_model import stats as _price_stats
-    empresa = (empresa_id or "").strip().lower()
     s = _price_stats(empresa) if empresa else None
     if s is None:
         return {
@@ -5726,8 +5741,7 @@ def detectar_drift(empresa_id: Optional[str] = None, dias: int = 30,
     pontos, e um e-mail a cada vez que a tela abria (achado D4). Agora é o mesmo
     PSI, com a mesma régua (model/psi.py), por empresa e sem efeito colateral.
     """
-    _exigir_comando(credentials)
-    empresa = (empresa_id or "").strip().lower()
+    _, empresa = _empresa_para_leitura_ia(credentials, empresa_id)
     if not empresa:
         return {"status": "escolha_empresa", "drift_detectado": False,
                 "mensagem": "Escolha uma empresa para medir a deriva da população dela."}
@@ -5935,8 +5949,8 @@ def bandit_stats(
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     """Estatísticas do bandit por ação: tentativas, recompensa média, convergência."""
-    payload = _exigir_comando(credentials)
-    _emp = _empresa_do_bandit(payload, empresa_id)
+    payload, _alvo = _empresa_para_leitura_ia(credentials, empresa_id)
+    _emp = _empresa_do_bandit(payload, _alvo)
     from model.bandit import carregar_bandit
     bandit = carregar_bandit(_emp)
     total = sum(bandit.n_tentativas)
@@ -5961,8 +5975,7 @@ def feature_importance(
     tem: a rota respondia 400 e a tela mostrava sempre "indisponível". Agora usa
     o mesmo método da explicação de cada devedor (model/score.peso_das_variaveis).
     """
-    _exigir_comando(credentials)
-    empresa = (empresa_id or "").strip().lower()
+    _, empresa = _empresa_para_leitura_ia(credentials, empresa_id)
     if not empresa:
         return {"ok": False, "features": [],
                 "mensagem": "Escolha uma empresa: o peso é medido no modelo que pontua aquela empresa, nos devedores dela."}
@@ -6008,9 +6021,9 @@ def bandit_convergencia(
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     """Incerteza e convergência por ação do bandit. Incerteza < 0.01 com ≥10 tentativas = convergido."""
-    payload = _exigir_comando(credentials)
+    payload, _alvo = _empresa_para_leitura_ia(credentials, empresa_id)
     from model.bandit import convergencia_stats, carregar_bandit
-    _emp   = _empresa_do_bandit(payload, empresa_id)
+    _emp   = _empresa_do_bandit(payload, _alvo)
     bandit = carregar_bandit(_emp)
     total  = sum(bandit.n_tentativas)
     acoes  = convergencia_stats(_emp)

@@ -60,6 +60,7 @@ TELAS = {
     "Premissas":               ("admin", "comando"),
     "Backtest":                ("admin", "comando"),
     "Auditoria":               ("admin", "comando"),
+    "Performance da IA":       ("admin", "comando"),
     "Ajuda":                   ("operador", "admin", "comando"),
     "Dúvidas":                 ("comando",),
     "Painel COMANDO":          ("comando",),

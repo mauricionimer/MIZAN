@@ -81,6 +81,7 @@ const RedefinirSenha = lazy(() => import('./pages/RedefinirSenha'))
 const Login = lazy(() => import('./pages/Login'))
 const Privacidade = lazy(() => import('./pages/Privacidade'))
 const Backtest = lazy(() => import('./pages/Backtest'))
+const PerformanceIA = lazy(() => import('./pages/PerformanceIA'))
 const Retencao = lazy(() => import('./pages/Retencao'))
 const TreinoModelo = lazy(() => import('./pages/TreinoModelo'))
 const ChavesApi = lazy(() => import('./pages/ChavesApi'))
@@ -139,6 +140,7 @@ function RotasAnimadas() {
           <Route path="/premissas" element={P(['admin', 'comando'], <Premissas />)} />
           <Route path="/retencao" element={P(['comando'], <Retencao />)} />
           <Route path="/auditoria" element={P(['admin', 'comando'], <Auditoria />)} />
+          <Route path="/ia" element={P(['admin', 'comando'], <PerformanceIA />)} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

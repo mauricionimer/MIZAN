@@ -624,7 +624,8 @@ export async function estadoTreino(token, id) {
 }
 
 export async function listarModelosEmpresa(token, empresaId) {
-  return _jsonOuErro(await fetch(`${BASE}/comando/modelos?empresa_id=${encodeURIComponent(empresaId)}`, { headers: _authHeader(token) }))
+  const qs = empresaId ? `?empresa_id=${encodeURIComponent(empresaId)}` : ''
+  return _jsonOuErro(await fetch(`${BASE}/comando/modelos${qs}`, { headers: _authHeader(token) }))
 }
 
 export async function ativarModeloEmpresa(token, empresaId, versao, forcar = false) {
