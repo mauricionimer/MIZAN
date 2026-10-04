@@ -776,3 +776,17 @@ export async function gravarDominios(token, empresaId, dominios) {
     method: 'PUT', headers: _authHeader(token), body: JSON.stringify({ dominios }),
   }))
 }
+
+// Devedores da empresa por nome ou CPF (para ligar um pagamento à carteira certa).
+export async function buscarDevedores(q, empresaAlvo) {
+  const token = _getToken()
+  const qs = new URLSearchParams({ q })
+  if (empresaAlvo) qs.set('empresa_id_alvo', empresaAlvo)
+  const res = await fetch(`${BASE}/devedores/buscar?${qs}`, { headers: { Authorization: `Bearer ${token}` } })
+  _handle401(res)
+  if (!res.ok) {
+    const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
+    throw new Error(detail)
+  }
+  return res.json()
+}

@@ -82,6 +82,12 @@ CREATE TABLE IF NOT EXISTS feedbacks (
 );
 
 ALTER TABLE feedbacks ADD COLUMN IF NOT EXISTS registrado_por TEXT;
+-- Condições do acordo (ver migracao_feedbacks_acordo.sql)
+ALTER TABLE feedbacks ADD COLUMN IF NOT EXISTS forma_pagamento   TEXT;
+ALTER TABLE feedbacks ADD COLUMN IF NOT EXISTS parcelas          INTEGER;
+ALTER TABLE feedbacks ADD COLUMN IF NOT EXISTS com_juros         BOOLEAN;
+ALTER TABLE feedbacks ADD COLUMN IF NOT EXISTS taxa_juros_mensal NUMERIC(6,3);
+ALTER TABLE feedbacks ADD COLUMN IF NOT EXISTS desconto_pct      NUMERIC(6,2);
 
 -- ── Usuários ─────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS usuarios (

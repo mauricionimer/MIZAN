@@ -15,12 +15,15 @@ perguntas:
 - como registro que o devedor pagou
 - quem tem permissão para confirmar pagamentos
 - como importo vários pagamentos por arquivo
+- como registro a forma de pagamento e as parcelas
+- como acho o devedor pelo nome para registrar o pagamento
 curta: Só o administrador (e o COMANDO) registra pagamentos. O operador acompanha, e registra contatos na página do devedor.
-calculo: O administrador registra de quatro jeitos: o botão "Confirmar pagamento" na linha da fila, o formulário da página Pagamentos, o arquivo em lote (colunas cpf e pagou, e opcionalmente valor_recuperado e data_pagamento) ou uma coluna pagou na própria carteira ou consulta de banco. Todo pagamento é ligado à predição do devedor na carteira da empresa.
+calculo: O administrador registra de quatro jeitos: o botão "Confirmar pagamento" na linha da fila, o formulário da página Pagamentos, o arquivo em lote (colunas cpf e pagou, e opcionalmente valor_recuperado e data_pagamento) ou uma coluna pagou na própria carteira ou consulta de banco. Todo pagamento é ligado à predição do devedor na carteira da empresa. No formulário, o devedor é escolhido pelo nome ou CPF numa lista das carteiras da empresa, e o pagamento fica ligado à carteira escolhida. Quando pagou, dá para registrar as condições do acordo: forma de pagamento (Pix, boleto, cartão…), à vista ou parcelado, número de parcelas, com ou sem juros (e a taxa ao mês) e o desconto concedido.
 fazer: Se você é operador e o devedor pagou, avise o administrador. Registre o contato na página do devedor para o histórico.
-cuidado: Registrar contato como "Disse que pagou" não confirma o pagamento da carteira: só o administrador (ou a integração) confirma. Sem pagamentos registrados, o sistema não consegue aprender nem medir o próprio acerto.
+cuidado: Registrar contato como "Disse que pagou" não confirma o pagamento da carteira: só o administrador (ou a integração) confirma. Sem pagamentos registrados, o sistema não consegue aprender nem medir o próprio acerto. As condições do acordo ficam guardadas com o pagamento para medir que condição funciona; elas não entram no score, porque são decididas depois da cobrança e usá-las ali seria vazamento.
 fontes:
 - backend/main.py::rota /feedback
+- backend/main.py::rota /devedores/buscar
 - backend/main.py::rota /feedback/lote
 - backend/main.py::rota /devedores/{cpf}/confirmar-pagamento
 

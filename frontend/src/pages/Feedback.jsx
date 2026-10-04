@@ -1,9 +1,9 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  CheckCircle2, XCircle, Loader2, ClipboardList, Plus, Trash2, UploadCloud, FileText, Download,
+  CheckCircle2, XCircle, Loader2, ClipboardList, Plus, Trash2, UploadCloud, FileText, Download, Search, X,
 } from 'lucide-react'
-import { feedbackLote } from '../api'
+import { feedbackLote, buscarDevedores, listarEmpresas } from '../api'
 import AppShell from '../components/AppShell'
 import { useAuth } from '../context/AuthContext'
 import { useAnalysis } from '../context/AnalysisContext'
@@ -15,7 +15,114 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001'
 const fmtBRL = (v) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
 
-const EMPTY = { cpf: '', pagou: 'sim', valor_recuperado: '', data_pagamento: '' }
+const EMPTY = {
+  cpf: '', pagou: 'sim', valor_recuperado: '', data_pagamento: '',
+  forma_pagamento: '', modalidade: 'a_vista', parcelas: '2', com_juros: false, taxa_juros_mensal: '', desconto_pct: '',
+}
+
+const FORMAS = [
+  ['pix', 'Pix'], ['boleto', 'Boleto'], ['cartao_credito', 'Cartão de crédito'], ['cartao_debito', 'Cartão de débito'],
+  ['transferencia', 'Transferência'], ['debito_automatico', 'Débito automático'], ['dinheiro', 'Dinheiro'], ['outro', 'Outro'],
+]
+const NOME_FORMA = Object.fromEntries(FORMAS)
+
+const fmtCPF = (c) => {
+  const d = String(c || '').replace(/\D/g, '')
+  return d.length === 11 ? d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : c
+}
+const fmtData = (iso) => { try { return new Date(iso).toLocaleDateString('pt-BR') } catch { return '' } }
+
+/**
+ * Busca o devedor por nome ou CPF nas carteiras da empresa e devolve o escolhido
+ * (com a carteira). Assim o pagamento fica ligado à carteira certa, e não só ao CPF.
+ */
+function BuscaDevedor({ escolhido, onEscolher, empresaAlvo, exigeEmpresa }) {
+  const [texto, setTexto] = useState('')
+  const [itens, setItens] = useState([])
+  const [aberto, setAberto] = useState(false)
+  const [buscando, setBuscando] = useState(false)
+  const [erro, setErro] = useState('')
+  const caixa = useRef(null)
+
+  useEffect(() => {
+    const fechar = (e) => { if (caixa.current && !caixa.current.contains(e.target)) setAberto(false) }
+    document.addEventListener('mousedown', fechar)
+    return () => document.removeEventListener('mousedown', fechar)
+  }, [])
+
+  useEffect(() => {
+    const q = texto.trim()
+    if (q.length < 2 || (exigeEmpresa && !empresaAlvo)) { setItens([]); setErro(''); return }
+    let cancelado = false
+    const t = setTimeout(() => {
+      setBuscando(true); setErro('')
+      buscarDevedores(q, empresaAlvo)
+        .then(d => { if (!cancelado) { setItens(d.itens || []); setAberto(true) } })
+        .catch(e => { if (!cancelado) { setItens([]); setErro(e.message) } })
+        .finally(() => { if (!cancelado) setBuscando(false) })
+    }, 300)
+    return () => { cancelado = true; clearTimeout(t) }
+  }, [texto, empresaAlvo, exigeEmpresa])
+
+  if (escolhido) {
+    return (
+      <div className="flex items-start justify-between gap-3 rounded-xl px-4 py-3"
+        style={{ background: 'rgb(var(--c-royal) / 0.08)', border: '1px solid rgb(var(--c-royal) / 0.25)' }}>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-ink truncate">{escolhido.nome || 'Sem nome'}</p>
+          <p className="text-xs tabular-nums mt-0.5" style={{ color: 'var(--ink-2)' }}>
+            {fmtCPF(escolhido.cpf)} · {escolhido.produto || '—'}
+            {escolhido.valor_divida != null && <> · {fmtBRL(escolhido.valor_divida)}</>}
+          </p>
+          <p className="text-[11px] mt-0.5" style={{ color: 'var(--ink-3)' }}>
+            Carteira: {escolhido.carteira_nome || '—'}{escolhido.carteira_data && <> · {fmtData(escolhido.carteira_data)}</>}
+          </p>
+        </div>
+        <button type="button" onClick={() => onEscolher(null)} aria-label="Trocar devedor"
+          className="shrink-0 rounded-md p-1 text-ink-3 hover:bg-raise-2 hover:text-ink">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div ref={caixa} className="relative">
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-4" />
+        <input type="text" value={texto} onChange={e => setTexto(e.target.value)} onFocus={() => itens.length && setAberto(true)}
+          placeholder={exigeEmpresa && !empresaAlvo ? 'Escolha a empresa primeiro' : 'Nome ou CPF do devedor'}
+          disabled={exigeEmpresa && !empresaAlvo}
+          className="input-base pl-10" autoComplete="off" />
+        {buscando && <Loader2 className="absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-ink-4" />}
+      </div>
+      {erro && <p className="mt-1.5 text-xs text-red-400">{erro}</p>}
+      {aberto && texto.trim().length >= 2 && !buscando && (
+        <div className="absolute z-30 mt-1.5 w-full max-h-80 overflow-y-auto rounded-xl shadow-xl"
+          style={{ background: 'var(--surface-2)', border: '1px solid var(--line-2)' }}>
+          {itens.length === 0 ? (
+            <p className="px-4 py-3 text-xs" style={{ color: 'var(--ink-3)' }}>
+              Nenhum devedor com esse nome ou CPF nas carteiras da empresa.
+            </p>
+          ) : itens.map(d => (
+            <button key={`${d.id}`} type="button"
+              onClick={() => { onEscolher(d); setTexto(''); setItens([]); setAberto(false) }}
+              className="block w-full px-4 py-2.5 text-left hover:bg-raise-2 border-b border-line last:border-0">
+              <p className="text-sm font-medium text-ink truncate">{d.nome || 'Sem nome'}</p>
+              <p className="text-xs tabular-nums" style={{ color: 'var(--ink-2)' }}>
+                {fmtCPF(d.cpf)} · {d.produto || '—'}{d.valor_divida != null && <> · {fmtBRL(d.valor_divida)}</>}
+                {d.dias_em_atraso != null && <> · {d.dias_em_atraso} dias</>}
+              </p>
+              <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>
+                Carteira: {d.carteira_nome || '—'}{d.carteira_data && <> · {fmtData(d.carteira_data)}</>}
+              </p>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function Logo() {
   return <LogoMark className="h-5 w-5 shrink-0" />
@@ -184,25 +291,28 @@ export default function Feedback() {
   const [historico, setHistorico] = useState([])
   const [erro, setErro]           = useState('')
   const [sucesso, setSucesso]     = useState('')
+  const [devedor, setDevedor]     = useState(null)
+  // COMANDO não pertence a uma empresa: escolhe em qual registrar.
+  const [empresas, setEmpresas]   = useState([])
+  const [empresaAlvo, setEmpresaAlvo] = useState('')
+  useEffect(() => {
+    if (!isComando) return
+    listarEmpresas(token).then(d => setEmpresas(d.empresas || [])).catch(() => {})
+  }, [isComando, token])
 
   function set(field, value) {
     setForm(prev => ({ ...prev, [field]: value }))
     setErro('')
   }
 
-  function formatarCPF(raw) {
-    const nums = raw.replace(/\D/g, '').slice(0, 11)
-    return nums
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
-  }
-
   async function enviar(e) {
     e.preventDefault()
     if (!podeRegistrar) return
-    const cpf = form.cpf.replace(/\D/g, '')
-    if (cpf.length !== 11) { setErro('CPF inválido — informe 11 dígitos.'); return }
+    if (!devedor) { setErro('Escolha o devedor pelo nome ou CPF.'); return }
+    const cpf = String(devedor.cpf)
+    const parcelado = form.pagou === 'sim' && form.modalidade === 'parcelado'
+    const nParcelas = parcelado ? parseInt(form.parcelas, 10) : 1
+    if (parcelado && !(nParcelas >= 2 && nParcelas <= 120)) { setErro('Parcelas: de 2 a 120.'); return }
 
     setLoading(true); setErro('')
     try {
@@ -212,6 +322,15 @@ export default function Feedback() {
         valor_recuperado: form.valor_recuperado ? parseFloat(form.valor_recuperado.replace(',', '.')) : 0,
       }
       if (form.data_pagamento) body.data_pagamento = form.data_pagamento
+      body.predicao_id = devedor.id
+      if (isComando && empresaAlvo) body.empresa = empresaAlvo
+      if (form.pagou === 'sim') {
+        if (form.forma_pagamento) body.forma_pagamento = form.forma_pagamento
+        body.parcelas = nParcelas
+        body.com_juros = parcelado ? !!form.com_juros : false
+        if (body.com_juros && form.taxa_juros_mensal !== '') body.taxa_juros_mensal = parseFloat(String(form.taxa_juros_mensal).replace(',', '.'))
+        if (form.desconto_pct !== '') body.desconto_pct = parseFloat(String(form.desconto_pct).replace(',', '.'))
+      }
 
       const res = await fetch(`${API_URL}/feedback`, {
         method: 'POST',
@@ -222,7 +341,9 @@ export default function Feedback() {
 
       const wb = data.writeback ? ` · banco externo atualizado (${data.writeback})` : ''
       setHistorico(prev => [{
-        cpf: form.cpf, pagou: form.pagou === 'sim',
+        cpf: fmtCPF(cpf), nome: devedor.nome, pagou: form.pagou === 'sim',
+        forma: body.forma_pagamento ? NOME_FORMA[body.forma_pagamento] : null,
+        parcelas: body.parcelas, com_juros: body.com_juros, desconto: body.desconto_pct,
         valor_recuperado: body.valor_recuperado,
         data_pagamento: form.data_pagamento,
         ok: res.ok,
@@ -233,7 +354,7 @@ export default function Feedback() {
       }, ...prev])
 
       if (res.ok) {
-        setForm(EMPTY)
+        setForm(EMPTY); setDevedor(null)
         setSucesso(`Pagamento registrado com sucesso.${wb}`)
         setTimeout(() => setSucesso(''), 6000)
       } else {
@@ -300,11 +421,19 @@ export default function Feedback() {
             {aba === 'manual' && (
               <div className="grid grid-cols-1 gap-6 items-start lg:grid-cols-5">
                 <form onSubmit={enviar} className="lg:col-span-2 rounded-2xl p-6 space-y-5" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
+                  {isComando && (
+                    <div>
+                      <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>Empresa</label>
+                      <select value={empresaAlvo} onChange={e => { setEmpresaAlvo(e.target.value); setDevedor(null) }} className="input-base">
+                        <option value="">Escolha a empresa…</option>
+                        {empresas.map(e => <option key={e.empresa_id} value={e.empresa_id}>{e.nome_exibicao || e.empresa_id}</option>)}
+                      </select>
+                    </div>
+                  )}
                   <div>
-                    <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>CPF do devedor</label>
-                    <input type="text" inputMode="numeric" placeholder="000.000.000-00"
-                      value={form.cpf} onChange={e => set('cpf', formatarCPF(e.target.value))}
-                      required className="input-base tabular-nums" />
+                    <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>Devedor</label>
+                    <BuscaDevedor escolhido={devedor} onEscolher={d => { setDevedor(d); setErro('') }}
+                      empresaAlvo={isComando ? empresaAlvo : ''} exigeEmpresa={isComando} />
                   </div>
 
                   <div>
@@ -334,6 +463,66 @@ export default function Feedback() {
                         <input type="number" min="0" step="0.01" placeholder="0,00"
                           value={form.valor_recuperado} onChange={e => set('valor_recuperado', e.target.value)}
                           className="input-base pl-9" />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Condições do acordo: o que foi negociado. Ficam guardadas por
+                      pagamento para medir que condição funciona. */}
+                  {form.pagou === 'sim' && (
+                    <div className="space-y-4 rounded-xl p-4" style={{ background: 'var(--raise-1)', border: '1px solid var(--line)' }}>
+                      <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--ink-2)' }}>Condições do acordo</p>
+                      <div>
+                        <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>Forma de pagamento</label>
+                        <select value={form.forma_pagamento} onChange={e => set('forma_pagamento', e.target.value)} className="input-base">
+                          <option value="">Não informada</option>
+                          {FORMAS.map(([v, r]) => <option key={v} value={v}>{r}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>Modelo</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {[['a_vista', 'À vista'], ['parcelado', 'Parcelado']].map(([v, r]) => (
+                            <button key={v} type="button" onClick={() => set('modalidade', v)}
+                              className={`py-2 rounded-lg border text-sm font-medium transition-all ${
+                                form.modalidade === v ? 'bg-blue-600/15 border-blue-500/60 text-ink font-semibold' : 'bg-raise-2 border-line text-ink-2 hover:text-ink'}`}>
+                              {r}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      {form.modalidade === 'parcelado' && (
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>Parcelas</label>
+                            <input type="number" min="2" max="120" value={form.parcelas}
+                              onChange={e => set('parcelas', e.target.value)} className="input-base tabular-nums" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>Juros</label>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              {[[false, 'Sem'], [true, 'Com']].map(([v, r]) => (
+                                <button key={r} type="button" onClick={() => set('com_juros', v)}
+                                  className={`py-2 rounded-lg border text-sm font-medium transition-all ${
+                                    form.com_juros === v ? 'bg-blue-600/15 border-blue-500/60 text-ink font-semibold' : 'bg-raise-2 border-line text-ink-2 hover:text-ink'}`}>
+                                  {r}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          {form.com_juros && (
+                            <div className="col-span-2">
+                              <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>Taxa de juros (% ao mês)</label>
+                              <input type="number" min="0" max="20" step="0.01" placeholder="ex.: 1,99"
+                                value={form.taxa_juros_mensal} onChange={e => set('taxa_juros_mensal', e.target.value)} className="input-base tabular-nums" />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <div>
+                        <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>Desconto concedido (%)</label>
+                        <input type="number" min="0" max="100" step="0.1" placeholder="0"
+                          value={form.desconto_pct} onChange={e => set('desconto_pct', e.target.value)} className="input-base tabular-nums" />
                       </div>
                     </div>
                   )}
@@ -393,7 +582,8 @@ export default function Feedback() {
                           <StatusBadge ok={item.ok} />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-3 flex-wrap">
-                              <span className="tabular-nums text-sm font-semibold text-ink">{item.cpf}</span>
+                              {item.nome && <span className="text-sm font-semibold text-ink">{item.nome}</span>}
+                              <span className="tabular-nums text-xs text-ink-2">{item.cpf}</span>
                               <span className={`text-xs font-semibold ${item.pagou ? 'text-emerald-400' : 'text-red-400'}`}>
                                 {item.pagou ? '✓ Pagou' : '✗ Não pagou'}
                               </span>
@@ -401,6 +591,13 @@ export default function Feedback() {
                                 <span className="text-xs text-ink-2">{fmtBRL(item.valor_recuperado)}</span>
                               )}
                             </div>
+                            {item.pagou && (item.forma || item.parcelas) && (
+                              <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
+                                {[item.forma,
+                                  item.parcelas > 1 ? `${item.parcelas}x ${item.com_juros ? 'com' : 'sem'} juros` : 'à vista',
+                                  item.desconto ? `${item.desconto}% de desconto` : null].filter(Boolean).join(' · ')}
+                              </p>
+                            )}
                             {item.writeback && (
                               <p className="text-xs text-blue-300 mt-0.5">↳ banco externo atualizado: {item.writeback}</p>
                             )}

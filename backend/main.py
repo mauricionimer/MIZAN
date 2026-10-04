@@ -597,12 +597,42 @@ def _registrar_auditoria(
     threading.Thread(target=_bg, daemon=False).start()
 
 
+FORMAS_DE_PAGAMENTO = ("pix", "boleto", "cartao_credito", "cartao_debito", "transferencia",
+                       "debito_automatico", "dinheiro", "outro")
+
+
 class FeedbackIn(BaseModel):
     cpf: str
     pagou: bool
     valor_recuperado: Optional[float] = 0.0
     data_pagamento: Optional[date] = None
     empresa: Optional[str] = None
+    # A carteira em que o devedor foi escolhido na busca. Conferida: tem de ser
+    # da empresa de quem registra; sem ela, vale a predição mais recente do CPF.
+    predicao_id: Optional[str] = None
+    # Condições do acordo. São o RESULTADO da negociação, registradas depois do
+    # fato: servem para medir que condição funciona, nunca como variável do
+    # score — o score é calculado antes, e usá-las ali seria vazamento.
+    forma_pagamento: Optional[str] = None
+    parcelas: Optional[int] = Field(None, ge=1, le=120)
+    com_juros: Optional[bool] = None
+    taxa_juros_mensal: Optional[float] = Field(None, ge=0, le=20)
+    desconto_pct: Optional[float] = Field(None, ge=0, le=100)
+
+    @field_validator("forma_pagamento")
+    @classmethod
+    def _forma_valida(cls, v):
+        if v is None or v == "":
+            return None
+        v = str(v).strip().lower()
+        if v not in FORMAS_DE_PAGAMENTO:
+            raise ValueError(f"Forma de pagamento inválida. Use: {', '.join(FORMAS_DE_PAGAMENTO)}.")
+        return v
+
+
+# Colunas das condições do acordo (sql/migracao_feedbacks_acordo.sql). Se o SQL
+# ainda não rodou, o pagamento é gravado sem elas, em vez de se perder.
+_COLUNAS_ACORDO = ("forma_pagamento", "parcelas", "com_juros", "taxa_juros_mensal", "desconto_pct")
 
 
 class ConfirmarPagamentoIn(BaseModel):
@@ -4077,6 +4107,67 @@ def _writeback_pagamento(empresa_id: str, cpf: str, pagou: bool) -> str | None:
         return None
 
 
+@app.get("/devedores/buscar")
+def buscar_devedores(q: str = "", empresa_id_alvo: Optional[str] = None,
+                     credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Devedores da empresa por nome ou CPF, para ligar um pagamento à carteira certa.
+
+    Admin e comando (são eles que registram pagamentos). Admin busca só nas
+    carteiras da própria empresa; COMANDO informa a empresa. Devolve no máximo
+    10, um por CPF e carteira, das carteiras mais recentes primeiro.
+    """
+    payload = _exigir_admin_ou_comando(credentials)
+    if payload.get("role") == "comando":
+        empresa = (empresa_id_alvo or "").strip().lower()
+        if not empresa:
+            raise HTTPException(status_code=400, detail="Informe a empresa.")
+    else:
+        empresa = payload.get("empresa_id") or ""
+        if not empresa:
+            raise HTTPException(status_code=403, detail="Usuário sem empresa definida.")
+
+    # Sem caracteres que mudam a sintaxe do filtro do PostgREST.
+    texto = (q or "").strip()
+    for ch in "*,()":
+        texto = texto.replace(ch, "")
+    digitos = "".join(ch for ch in texto if ch.isdigit())
+    so_numeros = bool(digitos) and all(ch.isdigit() or ch in ".- " for ch in texto)
+    alvo = digitos if so_numeros else texto
+    if len(alvo) < (3 if so_numeros else 2):
+        return {"itens": []}
+
+    db = get_db()
+    carteiras = _todas_as_linhas(
+        lambda: db.table("carteiras").select("id, nome_arquivo, created_at")
+                  .eq("empresa_id", empresa).order("created_at", desc=True))
+    # Mais recente primeiro também aqui: a paginação acrescenta "id" à ordem.
+    carteiras.sort(key=lambda c: c.get("created_at") or "", reverse=True)
+    info = {c["id"]: c for c in carteiras}
+    filtro = f"cpf.ilike.*{alvo}*" if so_numeros else f"nome.ilike.*{alvo}*,cpf.ilike.*{alvo}*"
+    achados = []
+    ids = [c["id"] for c in carteiras]
+    for i in range(0, len(ids), ITENS_POR_IN):
+        res = (db.table("predicoes")
+               .select("id, cpf, nome, produto, valor_divida, dias_em_atraso, carteira_id, created_at")
+               .in_("carteira_id", ids[i:i + ITENS_POR_IN]).or_(filtro).limit(20).execute())
+        achados += res.data or []
+        if len(achados) >= 40:
+            break
+    ordem = {cid: n for n, cid in enumerate(ids)}
+    achados.sort(key=lambda r: (ordem.get(r.get("carteira_id"), 10**9), str(r.get("nome") or "")))
+    vistos, itens = set(), []
+    for r in achados:
+        chave = (r.get("cpf"), r.get("carteira_id"))
+        if chave in vistos:
+            continue
+        vistos.add(chave)
+        c = info.get(r.get("carteira_id"), {})
+        itens.append({**r, "carteira_nome": c.get("nome_arquivo"), "carteira_data": c.get("created_at")})
+        if len(itens) == 10:
+            break
+    return _sem_nan({"itens": itens})
+
+
 @app.post("/feedback")
 def receber_feedback(
     payload: FeedbackIn,
@@ -4105,7 +4196,26 @@ def receber_feedback(
     # feedback, o bandit desta empresa aprendia com o contexto de uma predição
     # alheia, e o painel do outro cliente passava a exibir um pagamento que ele
     # não registrou.
-    pred_dict = _predicao_do_cpf(db, payload.cpf, _escopo)
+    pred_dict = None
+    if payload.predicao_id:
+        # A carteira escolhida na busca: só vale se o CPF bate e a carteira é
+        # de quem registra. Senão, cai na regra de sempre (a mais recente).
+        try:
+            r = (db.table("predicoes").select(_COLUNAS_PREDICAO_CPF + ", cpf")
+                 .eq("id", payload.predicao_id).limit(1).execute())
+            cand = (r.data or [None])[0]
+        except Exception:
+            cand = None
+        if cand and str(cand.get("cpf")) == str(payload.cpf):
+            if _e_comando and not _escopo:
+                pred_dict = cand
+            else:
+                dono = (db.table("carteiras").select("empresa_id").eq("id", cand.get("carteira_id"))
+                        .limit(1).execute().data or [{}])[0].get("empresa_id")
+                if dono and dono == _escopo:
+                    pred_dict = cand
+    if pred_dict is None:
+        pred_dict = _predicao_do_cpf(db, payload.cpf, _escopo)
     predicao_id = pred_dict["id"] if pred_dict else None
 
     usuario_role = jwt_payload.get("role", "operador")
@@ -4127,8 +4237,25 @@ def receber_feedback(
         fb_row["data_pagamento"] = payload.data_pagamento.isoformat()
     if predicao_id:
         fb_row["predicao_id"] = predicao_id
+    if payload.pagou:
+        acordo = {
+            "forma_pagamento": payload.forma_pagamento,
+            "parcelas": payload.parcelas,
+            "com_juros": payload.com_juros,
+            "taxa_juros_mensal": payload.taxa_juros_mensal if payload.com_juros else None,
+            "desconto_pct": payload.desconto_pct,
+        }
+        fb_row.update({k: v for k, v in acordo.items() if v is not None})
 
-    res = db.table("feedbacks").insert(fb_row).execute()
+    try:
+        res = db.table("feedbacks").insert(fb_row).execute()
+    except Exception as e:
+        if not any(c in str(e) for c in _COLUNAS_ACORDO):
+            raise
+        print("[Feedback] Colunas do acordo ausentes em feedbacks: rode sql/migracao_feedbacks_acordo.sql. "
+              "Gravando o pagamento sem as condições.")
+        res = db.table("feedbacks").insert(
+            {k: v for k, v in fb_row.items() if k not in _COLUNAS_ACORDO}).execute()
     feedback_id = res.data[0]["id"]
 
     _fechar_loop_bandit(
