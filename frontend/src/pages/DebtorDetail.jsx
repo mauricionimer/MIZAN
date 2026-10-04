@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Phone, Tag, Zap, MessageSquare, Brain, Plus, ClipboardList, CheckCircle2, XCircle, Clock, Wallet, AlertTriangle } from 'lucide-react'
 import { useAnalysis } from '../context/AnalysisContext'
-import { buscarPaginaRanking, buscarDistribuicao, atribuirResponsavel, listarAgenda, mudarAgenda } from '../api'
+import { buscarPaginaRanking, buscarDistribuicao, atribuirResponsavel, listarAgenda, mudarAgenda, listarRoteiros } from '../api'
+import { CANAIS, OFERTA_LABEL, CANAL_DA_RECOMENDACAO, dadosParaRoteiro, preencher, linkWhatsApp } from '../utils/roteiros'
 import { NIVEL_CFG, TIPO_LABEL, quando, hojeISO, somarDias, avisarAgendaMudou } from '../utils/agenda'
 import { useAuth } from '../context/AuthContext'
 import PriorityBadge from '../components/PriorityBadge'
@@ -313,6 +314,117 @@ const RESULTADO_CFG = {
   prometeu_pagar: { label: 'Prometeu pagar',    color: 'text-amber-400',   bg: 'rgb(var(--c-warning) / 0.10)',  border: 'rgb(var(--c-warning) / 0.20)'  },
   pagou:          { label: 'Disse que pagou',             color: 'text-emerald-400', bg: 'rgb(var(--c-success) / 0.10)',  border: 'rgb(var(--c-success) / 0.20)'  },
   nao_quis:       { label: 'Não quis negociar', color: 'text-red-400',     bg: 'rgb(var(--c-danger) / 0.10)',   border: 'rgb(var(--c-danger) / 0.18)'   },
+}
+
+// F4 — mensagem pronta: o roteiro do canal e da oferta recomendados,
+// preenchido com os dados deste devedor e da proposta correspondente.
+function MensagemSugerida({ devedor, rec, propostas }) {
+  const { usuario, empresaConfig, isComando } = useAuth()
+  const canalRec = CANAL_DA_RECOMENDACAO[rec?.canal] || 'whatsapp'
+  const ofertaRec = propostas?.recomendada?.oferta || rec?.oferta || ''
+  const [canal, setCanal] = useState(canalRec)
+  const [lista, setLista] = useState(null)
+  const [escolhido, setEscolhido] = useState('')
+  const [copiado, setCopiado] = useState(false)
+  const [erro, setErro] = useState('')
+
+  useEffect(() => { setCanal(canalRec) }, [canalRec])
+  useEffect(() => {
+    if (isComando) return
+    setLista(null); setErro('')
+    listarRoteiros({ canal })
+      .then(r => setLista([...r.roteiros, ...r.padroes]))
+      .catch(e => { setErro(e.message); setLista([]) })
+  }, [canal, isComando])
+
+  // Escolha automática: da oferta recomendada, preferindo os da empresa e os
+  // pessoais aos modelos do Mizan; senão um "qualquer oferta"; senão o primeiro.
+  useEffect(() => {
+    if (!lista?.length) { setEscolhido(''); return }
+    const ordem = (r) => (r.padrao ? 2 : r.dono_id ? 1 : 0)
+    const porOrdem = [...lista].sort((a, b) => ordem(a) - ordem(b))
+    const r = porOrdem.find(x => x.oferta === ofertaRec) || porOrdem.find(x => !x.oferta) || porOrdem[0]
+    setEscolhido(r.id)
+  }, [lista, ofertaRec])
+
+  if (isComando) return null
+  const roteiro = lista?.find(r => r.id === escolhido)
+  const todas = propostas?.propostas ?? []
+  const proposta = (roteiro?.oferta && todas.find(p => p.oferta === roteiro.oferta)) || propostas?.recomendada || todas[0] || null
+  const { texto, faltando } = roteiro
+    ? preencher(roteiro.texto, dadosParaRoteiro({ devedor, proposta, empresa: empresaConfig?.nome_exibicao, operador: usuario?.nome }))
+    : { texto: '', faltando: [] }
+
+  async function copiar() {
+    try { await navigator.clipboard.writeText(texto); setCopiado(true); setTimeout(() => setCopiado(false), 1800) }
+    catch { setErro('Não foi possível copiar: selecione o texto e copie.') }
+  }
+
+  const sel = { background: 'var(--surface-2)', border: '1px solid var(--line)', color: 'var(--ink)', borderRadius: '0.6rem', padding: '0.35rem 0.6rem', fontSize: '0.8rem' }
+
+  return (
+    <div className="rounded-2xl overflow-hidden" style={CARD}>
+      <div className="px-5 py-4 border-b flex flex-wrap items-center justify-between gap-2" style={DIVIDER}>
+        <p className="section-label">Mensagem sugerida<DicaAjuda id="roteiros-de-abordagem" /></p>
+        <div className="flex flex-wrap gap-2">
+          <select aria-label="Canal da mensagem" value={canal} onChange={e => setCanal(e.target.value)} style={sel}>
+            {CANAIS.map(c => <option key={c.k} value={c.k}>{c.label}{c.k === canalRec ? ' (recomendado)' : ''}</option>)}
+          </select>
+          {lista?.length > 0 && (
+            <select aria-label="Roteiro" value={escolhido} onChange={e => setEscolhido(e.target.value)} style={{ ...sel, maxWidth: '16rem' }}>
+              {lista.map(r => (
+                <option key={r.id} value={r.id}>
+                  {r.titulo}{r.oferta ? ` · ${OFERTA_LABEL[r.oferta]}` : ''}{r.padrao ? ' (Mizan)' : r.dono_id ? ' (meu)' : ''}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      </div>
+      <div className="px-5 py-4 space-y-3">
+        {lista === null && <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Carregando roteiros…</p>}
+        {roteiro && (
+          <>
+            <div className="whitespace-pre-wrap rounded-xl px-4 py-3 text-sm leading-relaxed"
+              style={{ background: 'var(--surface-2)', border: '1px solid var(--line)', color: 'var(--ink)' }}>
+              {texto}
+            </div>
+            {proposta && roteiro.oferta && proposta.oferta !== roteiro.oferta && (
+              <p className="text-[11px]" style={{ color: 'var(--warning)' }}>Os valores vêm da proposta recomendada: esta oferta não está entre as propostas deste devedor.</p>
+            )}
+            {faltando.length > 0 && (
+              <p className="text-[11px]" style={{ color: 'var(--warning)' }}>Complete antes de enviar: {faltando.join(', ').replace(/_/g, ' ')}.</p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <button onClick={copiar}
+                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-blue-400"
+                style={{ background: 'rgb(var(--c-royal) / 0.10)', border: '1px solid rgb(var(--c-royal) / 0.20)' }}>
+                {copiado ? <CheckCircle2 className="h-3.5 w-3.5" /> : <ClipboardList className="h-3.5 w-3.5" />} {copiado ? 'Copiado' : 'Copiar'}
+              </button>
+              {(canal === 'whatsapp' || canal === 'sms') && (
+                <a href={linkWhatsApp(texto)} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-emerald-400"
+                  style={{ background: 'rgb(var(--c-success) / 0.10)', border: '1px solid rgb(var(--c-success) / 0.20)' }}>
+                  <MessageSquare className="h-3.5 w-3.5" /> Abrir no WhatsApp
+                </a>
+              )}
+              {canal === 'email' && (
+                <a href={`mailto:?body=${encodeURIComponent(texto)}`}
+                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-ink-2"
+                  style={{ background: 'var(--surface-2)', border: '1px solid var(--line)' }}>
+                  Abrir no e-mail
+                </a>
+              )}
+            </div>
+            {(canal === 'whatsapp' || canal === 'sms') && (
+              <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>A base não tem o telefone do devedor: o WhatsApp abre com o texto pronto e você escolhe o contato.</p>
+            )}
+          </>
+        )}
+        {erro && <p className="text-xs" style={{ color: 'var(--danger)' }}>{erro}</p>}
+      </div>
+    </div>
+  )
 }
 
 // F2 — compromissos pendentes deste devedor (retornos e promessas).
@@ -941,6 +1053,7 @@ export default function DebtorDetail() {
             )}
 
             <ApproachRecommendation devedor={d} rec={rec} loading={recLoading} erro={recErro} />
+            <MensagemSugerida devedor={d} rec={rec} propostas={propostas} />
             <HistoricoContatos cpf={d.cpf} rec={rec} propostas={propostas} />
           </div>
         </div>

@@ -63,6 +63,7 @@ TELAS = {
     "Performance da IA":       ("operador", "admin", "comando"),
     "Agenda":                  ("operador", "admin", "comando"),
     "Painel do operador":      ("operador", "admin", "comando"),
+    "Roteiros":                ("operador", "admin", "comando"),
     "Ajuda":                   ("operador", "admin", "comando"),
     "Dúvidas":                 ("comando",),
     "Painel COMANDO":          ("comando",),

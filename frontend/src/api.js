@@ -641,6 +641,26 @@ export async function buscarPainelEquipe(periodo, empresaId) {
   return _jsonOuErroFila(res)
 }
 
+// ── F4: roteiros de abordagem ────────────────────────────────────────────────
+export async function listarRoteiros(params = {}) {
+  const res = await fetch(`${BASE}/roteiros?${_qs(params)}`, { headers: { Authorization: `Bearer ${_getToken()}` } })
+  return _jsonOuErroFila(res)
+}
+
+export async function salvarRoteiro(dados, id = null) {
+  const res = await fetch(`${BASE}/roteiros${id ? `/${encodeURIComponent(id)}` : ''}`, {
+    method: id ? 'PUT' : 'POST', headers: _authHeader(_getToken()), body: JSON.stringify(dados),
+  })
+  return _jsonOuErroFila(res)
+}
+
+export async function apagarRoteiro(id) {
+  const res = await fetch(`${BASE}/roteiros/${encodeURIComponent(id)}`, {
+    method: 'DELETE', headers: { Authorization: `Bearer ${_getToken()}` },
+  })
+  return _jsonOuErroFila(res)
+}
+
 export async function buscarAlcance(carteiraId, capacidade) {
   const token = _getToken()
   const res = await fetch(

@@ -5,7 +5,7 @@ import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'framer-m
 import {
   LayoutDashboard, UploadCloud, ClipboardList, Users, KeyRound, LogOut, Loader2, Menu, X,
   ShieldCheck, Zap, Brain, Command, FlaskConical, Lock, HelpCircle, SlidersHorizontal,
-  MessageCircleQuestion, GraduationCap, KeySquare, CalendarClock, Gauge,
+  MessageCircleQuestion, GraduationCap, KeySquare, CalendarClock, Gauge, MessageSquareText,
 } from 'lucide-react'
 import ThemeToggle from './ThemeToggle'
 import useAvisosDeDuvida from './useAvisosDeDuvida'
@@ -60,6 +60,7 @@ function useItens() {
         ...[{ id: 'agenda', label: 'Agenda', icon: CalendarClock, rota: '/agenda',
           aviso: isComando ? 0 : agenda.alto + agenda.medio, corAviso: agenda.alto > 0 ? 'bg-red-600' : 'bg-amber-500',
           tituloAviso: agenda.alto > 0 ? `compromissos (${agenda.alto} ${agenda.alto === 1 ? "vencido" : "vencidos"})` : 'compromissos para hoje ou amanhã' }],
+        { id: 'roteiros', label: 'Roteiros', icon: MessageSquareText, rota: '/roteiros' },
         // O operador não tem o grupo Gestão: a aba dele fica aqui.
         ...(!isAdmin && !isComando ? [{ id: 'ia', label: 'Performance da IA', icon: Brain, rota: '/ia' }] : []),
       ],

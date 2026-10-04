@@ -108,7 +108,7 @@ esperado = {
     "/admin/usuarios": "Usuários", "/retencao": "Retenção", "/premissas": "Premissas", "/comando/duvidas": "Dúvidas", "/backtest": "Backtest",
     "/auditoria": "Auditoria", "/comando": "Painel COMANDO", "/aprendizado": "Aprendizado",
     "/bandit": "Performance IA", "/comando/treino": "Treinar modelo",
-    "/comando/chaves": "Chaves de API", "/ia": "Performance da IA", "/agenda": "Agenda", "/painel": "Painel do operador",
+    "/comando/chaves": "Chaves de API", "/ia": "Performance da IA", "/agenda": "Agenda", "/painel": "Painel do operador", "/roteiros": "Roteiros",
 }
 divergentes = []
 for rota, tela in esperado.items():

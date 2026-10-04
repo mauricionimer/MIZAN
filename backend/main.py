@@ -2173,6 +2173,123 @@ def painel_equipe(periodo: str = "hoje", empresa_id: Optional[str] = None,
             "recebido_sem_responsavel": round(sum(float(p.get("valor_recuperado") or 0) for p in sem_dono), 2)}
 
 
+# ── F4: roteiros de abordagem ────────────────────────────────────────────────
+
+_MSG_SEM_MIGRACAO_ROTEIROS = ("Os roteiros ainda não estão ativos: rode "
+                              "sql/migracao_operador.sql no Supabase.")
+
+
+class RoteiroIn(BaseModel):
+    titulo: str = Field(..., max_length=200)
+    canal: str
+    oferta: Optional[str] = None
+    texto: str = Field(..., max_length=4000)
+    escopo: str = "pessoal"            # pessoal | empresa (só admin)
+
+
+def _roteiro_validado(body: "RoteiroIn") -> dict:
+    from roteiros import validar
+    try:
+        return validar(body.titulo, body.canal, body.oferta, body.texto)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+
+def _quem_escreve_roteiro(payload: dict) -> str:
+    if payload.get("role") == "comando" or not payload.get("empresa_id"):
+        raise HTTPException(status_code=403, detail="Roteiros são escritos por quem é da empresa.")
+    return payload["empresa_id"]
+
+
+@app.get("/roteiros")
+def listar_roteiros(canal: Optional[str] = None, empresa_id: Optional[str] = None,
+                    credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Roteiros da empresa + os pessoais de quem chama + os modelos do Mizan."""
+    from roteiros import CANAIS, VARIAVEIS, padroes
+    payload = _usuario_autenticado(credentials)
+    emp = _empresa_da_agenda(payload, empresa_id)
+    if canal is not None and canal not in CANAIS:
+        raise HTTPException(status_code=422, detail="Canal inválido.")
+    db = get_db()
+
+    def base():
+        q = db.table("roteiros").select("*").eq("empresa_id", emp)
+        return q.eq("canal", canal) if canal else q
+    try:
+        linhas = base().is_("dono_id", "null").execute().data or []
+        if payload.get("role") != "comando":
+            linhas += base().eq("dono_id", payload["sub"]).execute().data or []
+        ativo = True
+    except Exception as e:
+        if not _falta_tabela(e, "roteiros"):
+            raise
+        linhas, ativo = [], False
+    linhas.sort(key=lambda r: (r.get("dono_id") is not None, (r.get("titulo") or "").lower()))
+    return {"ativo": ativo, "mensagem": None if ativo else _MSG_SEM_MIGRACAO_ROTEIROS,
+            "roteiros": linhas, "padroes": padroes(canal), "variaveis": VARIAVEIS}
+
+
+@app.post("/roteiros")
+def criar_roteiro(body: RoteiroIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    payload = _usuario_autenticado(credentials)
+    emp = _quem_escreve_roteiro(payload)
+    if body.escopo not in ("pessoal", "empresa"):
+        raise HTTPException(status_code=422, detail="Escopo inválido. Use: pessoal ou empresa.")
+    if body.escopo == "empresa" and payload.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Só o administrador cria roteiros da empresa.")
+    linha = {**_roteiro_validado(body), "empresa_id": emp}
+    if body.escopo == "pessoal":
+        linha["dono_id"] = payload["sub"]
+        linha["dono_nome"] = payload.get("nome", "") or payload.get("email", "")
+    try:
+        res = get_db().table("roteiros").insert({k: v for k, v in linha.items() if v is not None}).execute()
+    except Exception as e:
+        if _falta_tabela(e, "roteiros"):
+            raise HTTPException(status_code=409, detail=_MSG_SEM_MIGRACAO_ROTEIROS)
+        raise
+    return {"ok": True, "roteiro": res.data[0]}
+
+
+def _roteiro_editavel(db, payload: dict, emp: str, roteiro_id: str) -> dict:
+    try:
+        r = db.table("roteiros").select("*").eq("id", roteiro_id).eq("empresa_id", emp).limit(1).execute()
+    except Exception as e:
+        if _falta_tabela(e, "roteiros"):
+            raise HTTPException(status_code=409, detail=_MSG_SEM_MIGRACAO_ROTEIROS)
+        raise
+    atual = (r.data or [None])[0]
+    if not atual:
+        raise HTTPException(status_code=404, detail="Roteiro não encontrado.")
+    if atual.get("dono_id"):
+        if atual["dono_id"] != payload["sub"]:
+            # O pessoal de um colega nem aparece para quem chama.
+            raise HTTPException(status_code=404, detail="Roteiro não encontrado.")
+    elif payload.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Só o administrador altera roteiros da empresa.")
+    return atual
+
+
+@app.put("/roteiros/{roteiro_id}")
+def editar_roteiro(roteiro_id: str, body: RoteiroIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    payload = _usuario_autenticado(credentials)
+    emp = _quem_escreve_roteiro(payload)
+    db = get_db()
+    _roteiro_editavel(db, payload, emp, roteiro_id)
+    patch = {**_roteiro_validado(body), "atualizado_em": datetime.utcnow().isoformat()}
+    res = db.table("roteiros").update(patch).eq("id", roteiro_id).eq("empresa_id", emp).execute()
+    return {"ok": True, "roteiro": (res.data or [patch])[0]}
+
+
+@app.delete("/roteiros/{roteiro_id}")
+def apagar_roteiro(roteiro_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    payload = _usuario_autenticado(credentials)
+    emp = _quem_escreve_roteiro(payload)
+    db = get_db()
+    _roteiro_editavel(db, payload, emp, roteiro_id)
+    db.table("roteiros").delete().eq("id", roteiro_id).eq("empresa_id", emp).execute()
+    return {"ok": True}
+
+
 @app.get("/contatos/{cpf}")
 def listar_contatos_cpf(cpf: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     payload = _usuario_autenticado(credentials)
