@@ -133,3 +133,24 @@ cuidado: A prioridade é calculada sobre a carteira inteira, não sobre o que so
 revisar: achado C6, resolvido: o filtro de status agora é aplicado no servidor, sem lista de CPFs na consulta.
 fontes:
 - backend/main.py::pagina_do_ranking
+
+## divisao-da-fila
+titulo: Divisão da fila entre operadores
+perfis: operador, admin, comando
+telas: Recuperabilidade; Devedor
+perguntas:
+- como divido a fila entre os operadores
+- como vejo só os meus devedores
+- por que o colega não recebeu só os piores
+- dois operadores podem ligar para o mesmo devedor
+- como troco o responsável de um devedor
+- o que acontece com a divisão quando a carteira é analisada de novo
+- quem está sem responsável
+curta: O admin reparte a fila entre os operadores escolhidos; cada devedor fica com no máximo um responsável e o operador abre direto em "Minha fila".
+calculo: A fila já está na ordem do valor esperado. A divisão segue essa ordem em rodízio de ida e volta (1, 2, 3, 3, 2, 1, 1, 2, 3…), então cada operador recebe uma fatia com o mesmo perfil de valor e o mesmo número de devedores, com diferença de no máximo um. O valor por operador mostrado antes de confirmar é a média (total ÷ operadores), aproximado.
+fazer: Em Recuperabilidade, use "Distribuir fila", marque os operadores e confirme. Para quem entrou depois, marque "Só quem está sem responsável": quem já tinha dono continua com ele. Na ficha do devedor o admin troca o responsável na hora.
+cuidado: Só operadores ativos da empresa da carteira podem receber fila. Reanalisar ou sincronizar a carteira mantém o responsável de quem continua nela, pelo CPF; devedores novos entram sem responsável. Até rodar sql/migracao_operador.sql no Supabase a divisão aparece como "falta rodar o SQL".
+fontes:
+- backend/fila_operadores.py::serpentina
+- backend/main.py::distribuir_fila
+- backend/main.py::atribuir_responsavel

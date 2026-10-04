@@ -565,6 +565,39 @@ export async function buscarPaginaRanking(carteiraId, params = {}) {
   return res.json()
 }
 
+// ── F1: divisão da fila ──────────────────────────────────────────────────────
+async function _jsonOuErroFila(res) {
+  _handle401(res)
+  if (!res.ok) {
+    const { detail } = await res.json().catch(() => ({ detail: `Erro HTTP ${res.status}` }))
+    throw Object.assign(new Error(typeof detail === 'string' ? detail : 'Dados inválidos.'), { status: res.status })
+  }
+  return res.json()
+}
+
+export async function buscarDistribuicao(carteiraId) {
+  const res = await fetch(`${BASE}/carteiras/${encodeURIComponent(carteiraId)}/distribuicao`, {
+    headers: { Authorization: `Bearer ${_getToken()}` },
+  })
+  return _jsonOuErroFila(res)
+}
+
+export async function distribuirFila(carteiraId, operadores, somenteSemResponsavel) {
+  const res = await fetch(`${BASE}/carteiras/${encodeURIComponent(carteiraId)}/distribuir`, {
+    method: 'POST', headers: _authHeader(_getToken()),
+    body: JSON.stringify({ operadores, somente_sem_responsavel: !!somenteSemResponsavel }),
+  })
+  return _jsonOuErroFila(res)
+}
+
+export async function atribuirResponsavel(carteiraId, cpfs, operadorId) {
+  const res = await fetch(`${BASE}/carteiras/${encodeURIComponent(carteiraId)}/responsavel`, {
+    method: 'POST', headers: _authHeader(_getToken()),
+    body: JSON.stringify({ cpfs, operador_id: operadorId || null }),
+  })
+  return _jsonOuErroFila(res)
+}
+
 export async function buscarAlcance(carteiraId, capacidade) {
   const token = _getToken()
   const res = await fetch(

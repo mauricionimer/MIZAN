@@ -2,12 +2,66 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Phone, Tag, Zap, MessageSquare, Brain, Plus, ClipboardList, CheckCircle2, XCircle, Clock, Wallet, AlertTriangle } from 'lucide-react'
 import { useAnalysis } from '../context/AnalysisContext'
-import { buscarPaginaRanking } from '../api'
+import { buscarPaginaRanking, buscarDistribuicao, atribuirResponsavel } from '../api'
+import { useAuth } from '../context/AuthContext'
 import PriorityBadge from '../components/PriorityBadge'
 import { buscarRecomendacao, registrarContato, listarContatos, buscarStatusFeedbacks, buscarExplicacaoScore, buscarPropostas, traduzirErroRede } from '../api'
 import { LogoMark } from '../components/Logo'
 import DicaAjuda from '../components/DicaAjuda'
 import AppShell from '../components/AppShell'
+
+// F1 — quem cuida deste devedor. Admin troca na hora; os demais só veem.
+function Responsavel({ carteiraId, devedor, podeTrocar }) {
+  const [resumo, setResumo] = useState(null)
+  const [atual, setAtual]   = useState(devedor.responsavel_id || '')
+  const [nome, setNome]     = useState(devedor.responsavel_nome || '')
+  const [salvando, setSalvando] = useState(false)
+  const [msg, setMsg]       = useState('')
+
+  useEffect(() => {
+    setAtual(devedor.responsavel_id || ''); setNome(devedor.responsavel_nome || ''); setMsg('')
+  }, [devedor.cpf, devedor.responsavel_id, devedor.responsavel_nome])
+  useEffect(() => {
+    if (!carteiraId) return
+    buscarDistribuicao(carteiraId).then(setResumo).catch(() => setResumo(null))
+  }, [carteiraId])
+
+  if (!carteiraId || !resumo?.ativo) return null
+  if (!podeTrocar) {
+    return nome ? (
+      <p className="mt-2 text-xs" style={{ color: 'var(--ink-2)' }}>
+        Responsável: <span className="font-medium text-ink">{nome}</span><DicaAjuda id="divisao-da-fila" />
+      </p>
+    ) : null
+  }
+
+  async function trocar(id) {
+    const anterior = atual
+    setAtual(id); setSalvando(true); setMsg('')
+    try {
+      const r = await atribuirResponsavel(carteiraId, [devedor.cpf], id || null)
+      setNome(r.responsavel_nome || '')
+      setMsg('Salvo')
+    } catch (e) {
+      setAtual(anterior); setMsg(e.message)
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs" style={{ color: 'var(--ink-2)' }}>
+      <label htmlFor="resp-devedor">Responsável<DicaAjuda id="divisao-da-fila" /></label>
+      <select id="resp-devedor" value={atual} disabled={salvando} onChange={e => trocar(e.target.value)}
+        className="rounded-lg border border-line bg-surface-2 px-2 py-1 text-xs text-ink focus:border-blue-500/50 focus:outline-none [color-scheme:dark]">
+        <option value="">Sem responsável</option>
+        {(resumo.operadores ?? []).map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
+        {atual && !(resumo.operadores ?? []).some(o => o.id === atual) && <option value={atual}>{nome || 'Operador inativo'}</option>}
+      </select>
+      {msg && <span style={{ color: msg === 'Salvo' ? 'var(--success)' : 'var(--danger)' }}>{msg}</span>}
+    </div>
+  )
+}
 
 const fmtBRL = (v) => v != null ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v) : '—'
 const fmtNum = (v) => v != null ? new Intl.NumberFormat('pt-BR').format(v) : '—'
@@ -529,6 +583,7 @@ export default function DebtorDetail() {
   const { rank } = useParams()
   const navigate = useNavigate()
   const { result, setVista } = useAnalysis()
+  const { isAdmin, isComando } = useAuth()
   // A tela inicial é uma só: dizer "Dashboard" é escolher a vista dela.
   const voltarAoDashboard = () => { setVista('dashboard'); navigate('/') }
 
@@ -671,6 +726,7 @@ export default function DebtorDetail() {
                 </span>
               )}
             </div>
+            <Responsavel carteiraId={carteiraId} devedor={d} podeTrocar={isAdmin || isComando} />
           </div>
           <PriorityBadge rank={d.rank} total={result?.resumo?.total_devedores ?? result?.ranking_completo?.length ?? 0} large />
         </div>

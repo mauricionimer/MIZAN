@@ -9,14 +9,14 @@ import {
 import {
   buscarPagamentos, buscarStatusFeedbacks, confirmarPagamento,
   buscarPaginaRanking, buscarRankingCompleto,
-  estadoDoModelo,
+  estadoDoModelo, buscarDistribuicao,
 } from '../api'
 import { useDebounce } from '../hooks/useDebounce'
 import {
   Users, TrendingDown, BarChart2, Star,
   Download, Search, Loader2,
   Tag, Percent, ArrowUpRight, Banknote, FileSpreadsheet,
-  CheckCircle2, XCircle, TrendingUp, X, AlertTriangle,
+  CheckCircle2, XCircle, TrendingUp, X, AlertTriangle, Shuffle,
 } from 'lucide-react'
 import PriorityBadge from '../components/PriorityBadge'
 import { prioridadePorRank, CORTE_ALTA } from '../utils/prioridade'
@@ -24,6 +24,7 @@ import { useAnalysis } from '../context/AnalysisContext'
 import { useAuth } from '../context/AuthContext'
 import AppShell from '../components/AppShell'
 import DicaAjuda from '../components/DicaAjuda'
+import DistribuirFila from '../components/DistribuirFila'
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
 
@@ -343,10 +344,44 @@ export default function Dashboard({ onIrPara }) {
 
   const buscaAdiada = useDebounce(search, 350)
 
-  useEffect(() => { setPage(1) }, [buscaAdiada, filtroPrio, filtroProduto, filtroUF, filtroStatus])
+  // F1 — divisão da fila. `distrib` é o resumo de quem tem quantos devedores;
+  // `filtroResp`: 'todos' | 'me' | 'sem' | id de um operador.
+  const [distrib, setDistrib]               = useState(null)
+  const [filtroResp, setFiltroResp]         = useState('todos')
+  const [abrirDistribuir, setAbrirDistribuir] = useState(false)
+  const [avisoFila, setAvisoFila]           = useState('')
+  const [versaoDistrib, setVersaoDistrib]   = useState(0)
+  // O operador espera o resumo antes de buscar a página: senão via a carteira
+  // inteira por um instante e só depois a fila dele.
+  const [distribPronto, setDistribPronto]   = useState(false)
+  const podeDistribuir = isAdmin || isComando
+
+  useEffect(() => {
+    setDistrib(null); setFiltroResp('todos'); setDistribPronto(false)
+    if (!carteiraId) return
+    let cancelado = false
+    buscarDistribuicao(carteiraId)
+      .then(d => {
+        if (cancelado) return
+        setDistrib(d)
+        // O operador abre na fila dele quando a fila já foi dividida.
+        if (isOperador && d.ativo && d.meus > 0) setFiltroResp('me')
+      })
+      .catch(() => { if (!cancelado) setDistrib(null) })
+      .finally(() => { if (!cancelado) setDistribPronto(true) })
+    return () => { cancelado = true }
+  }, [carteiraId, isOperador])
+
+  function recarregarDistribuicao() {
+    if (!carteiraId) return
+    buscarDistribuicao(carteiraId).then(setDistrib).catch(() => {})
+  }
+
+  useEffect(() => { setPage(1) }, [buscaAdiada, filtroPrio, filtroProduto, filtroUF, filtroStatus, filtroResp])
 
   useEffect(() => {
     if (!carteiraId) return
+    if (isOperador && !distribPronto) return
     let cancelado = false
     setCarrPag(true); setErroPagina('')
     buscarPaginaRanking(carteiraId, {
@@ -357,6 +392,7 @@ export default function Dashboard({ onIrPara }) {
       uf: filtroUF !== 'todas' ? filtroUF : undefined,
       prioridade: filtroPrio !== 'todos' ? filtroPrio : undefined,
       status: filtroStatus !== 'todos' ? filtroStatus : undefined,
+      responsavel: filtroResp !== 'todos' ? filtroResp : undefined,
     })
       .then(d => { if (!cancelado) setPagina({ itens: d.itens, filtrado: d.filtrado }) })
       .catch(e => {
@@ -374,7 +410,7 @@ export default function Dashboard({ onIrPara }) {
       })
       .finally(() => { if (!cancelado) setCarrPag(false) })
     return () => { cancelado = true }
-  }, [carteiraId, page, buscaAdiada, filtroProduto, filtroUF, filtroPrio, filtroStatus, tentativa])
+  }, [carteiraId, page, buscaAdiada, filtroProduto, filtroUF, filtroPrio, filtroStatus, filtroResp, tentativa, versaoDistrib, distribPronto])
 
   // Sem carteira gravada não há o que paginar no servidor: filtra o que está
   // em memória, como antes.
@@ -529,6 +565,19 @@ export default function Dashboard({ onIrPara }) {
       titulo="Visão da carteira" acoes={acoesTopo}>
 
       {/* ───── Modal de confirmação de pagamento ───── */}
+      {abrirDistribuir && (
+        <DistribuirFila
+          carteiraId={carteiraId}
+          resumo={distrib}
+          onFechar={() => setAbrirDistribuir(false)}
+          onFeito={r => {
+            setAbrirDistribuir(false)
+            setAvisoFila(`Fila distribuída: ${r.por_operador.map(o => `${(o.nome || 'Operador').split(' ')[0]} recebeu ${fmtNum(o.devedores)}`).join(' · ')}.`)
+            recarregarDistribuicao()
+            setVersaoDistrib(v => v + 1)
+          }}
+        />
+      )}
       {confirmarModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md space-y-5 rounded-2xl border border-line bg-surface p-6 shadow-2xl">
@@ -997,6 +1046,13 @@ export default function Dashboard({ onIrPara }) {
                     </p>
                   )}
                 </div>
+                <div className="flex flex-wrap items-center gap-2">
+                {podeDistribuir && carteiraId && distrib?.ativo && (
+                  <button onClick={() => setAbrirDistribuir(true)}
+                    className="inline-flex h-9 items-center gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 text-xs font-semibold text-blue-300 transition-colors hover:bg-blue-500/20">
+                    <Shuffle className="h-3.5 w-3.5" /> Distribuir fila
+                  </button>
+                )}
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-2" />
                   <input
@@ -1007,7 +1063,58 @@ export default function Dashboard({ onIrPara }) {
                     className="h-9 w-56 rounded-lg border border-line bg-surface-2 pl-9 pr-3 text-sm text-ink placeholder-ink-4 transition-colors focus:border-blue-500/50 focus:outline-none"
                   />
                 </div>
+                </div>
               </div>
+              {carteiraId && distrib?.ativo && (podeDistribuir || distrib.meus > 0 || (distrib.por_operador?.length ?? 0) > 0) && (
+                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface-2 px-3 py-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-2">
+                    Responsável<DicaAjuda id="divisao-da-fila" />
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      ...(isOperador ? [{ k: 'me', label: `Minha fila${distrib.meus ? ` · ${fmtNum(distrib.meus)}` : ''}` }] : []),
+                      { k: 'todos', label: 'Toda a carteira' },
+                      { k: 'sem', label: `Sem responsável · ${fmtNum(distrib.sem_responsavel?.devedores ?? 0)}` },
+                    ].map(({ k, label }) => (
+                      <button key={k} onClick={() => setFiltroResp(k)}
+                        className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+                          filtroResp === k ? 'border-blue-500/30 bg-blue-500/15 text-blue-300' : 'border-line bg-raise-1 text-ink-2 hover:text-ink'
+                        }`}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  {podeDistribuir && (distrib.por_operador?.length ?? 0) > 0 && (
+                    <select value={['todos', 'me', 'sem'].includes(filtroResp) ? '' : filtroResp}
+                      onChange={e => setFiltroResp(e.target.value || 'todos')}
+                      aria-label="Ver a fila de um operador"
+                      className="rounded-lg border border-line bg-surface px-2 py-1 text-xs text-ink-2 focus:border-blue-500/50 focus:outline-none [color-scheme:dark]">
+                      <option value="">Fila de um operador…</option>
+                      {distrib.por_operador.map(g => (
+                        <option key={g.operador_id} value={g.operador_id}>{g.nome || 'Operador'} · {fmtNum(g.devedores)}</option>
+                      ))}
+                    </select>
+                  )}
+                  {podeDistribuir && (
+                    <span className="ml-auto text-xs text-ink-2">
+                      {(distrib.por_operador ?? []).length === 0
+                        ? 'A fila ainda não foi dividida.'
+                        : (distrib.por_operador ?? []).map(g => `${(g.nome || 'Operador').split(' ')[0]} ${fmtNum(g.devedores)}`).join(' · ')
+                          + ` · sem responsável ${fmtNum(distrib.sem_responsavel?.devedores ?? 0)}`}
+                    </span>
+                  )}
+                </div>
+              )}
+              {carteiraId && podeDistribuir && distrib && distrib.ativo === false && (
+                <p className="text-xs text-ink-2">
+                  Divisão da fila entre operadores: falta rodar <code>sql/migracao_operador.sql</code> no Supabase.
+                </p>
+              )}
+              {avisoFila && (
+                <p className="flex items-center gap-1.5 text-xs text-emerald-400">
+                  <CheckCircle2 className="h-3.5 w-3.5" /> {avisoFila}
+                </p>
+              )}
               <div className="flex flex-wrap items-center gap-2">
                 <div className="flex gap-1.5">
                   {[
@@ -1069,6 +1176,7 @@ export default function Dashboard({ onIrPara }) {
                     {[
                       { label: '#',              align: 'left'   },
                       { label: 'Nome',           align: 'left'   },
+                      ...(carteiraId && distrib?.ativo ? [{ label: 'Responsável', align: 'left' }] : []),
                       { label: 'CPF',            align: 'left'   },
                       { label: 'Produto',        align: 'left'   },
                       { label: 'Valor Face',     align: 'right'  },
@@ -1111,6 +1219,13 @@ export default function Dashboard({ onIrPara }) {
                             aria-label={`Dados incompletos: ${d.aviso_dados || ''}`} title={`Dados incompletos: ${d.aviso_dados || ''}`} />
                         )}
                       </td>
+                      {carteiraId && distrib?.ativo && (
+                        <td className="whitespace-nowrap px-4 py-3 text-xs">
+                          {d.responsavel_nome
+                            ? <span className="text-ink-2">{d.responsavel_nome}</span>
+                            : <span className="text-ink-2 opacity-50">—</span>}
+                        </td>
+                      )}
                       <td className="whitespace-nowrap px-4 py-3 tabular-nums text-xs text-ink-2">{d.cpf}</td>
                       <td className="px-4 py-3 capitalize text-ink-2">{d.produto}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-xs text-ink-2">{fmtBRL(d.valor_divida)}</td>

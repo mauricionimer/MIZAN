@@ -2726,9 +2726,13 @@ def pagina_do_ranking(
     uf: Optional[str] = None,
     prioridade: Optional[str] = None,
     status: Optional[str] = None,
+    responsavel: Optional[str] = None,
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     """Uma página da fila, já filtrada, sem trazer a carteira inteira.
+
+    `responsavel`: "me" (a fila de quem chama), "sem" (sem dono) ou o id de um
+    operador (F1 — divisão da fila).
 
     A resposta de /carteiras/{id} carrega o ranking completo: 581 bytes por
     devedor em JSON, ou seja 29 MB para 50 mil e 116 MB para 200 mil. A tabela
@@ -2773,6 +2777,12 @@ def pagina_do_ranking(
                 q = q.or_(f"nome.ilike.*{alvo}*,cpf.ilike.*{alvo}*")
         if faixa:
             q = q.gte("rank", faixa[0]).lte("rank", faixa[1])
+        if responsavel == "me":
+            q = q.eq("responsavel_id", payload["sub"])
+        elif responsavel == "sem":
+            q = q.is_("responsavel_id", "null")
+        elif responsavel:
+            q = q.eq("responsavel_id", responsavel)
         return q
 
     if status in ("pago", "nao_pago", "pendente"):
@@ -2800,7 +2810,13 @@ def pagina_do_ranking(
         })
 
     q = filtrar(base())
-    res = q.order("rank").range(offset, offset + limit - 1).execute()
+    try:
+        res = q.order("rank").range(offset, offset + limit - 1).execute()
+    except Exception as e:
+        if responsavel and "responsavel" in str(e):
+            raise HTTPException(status_code=409, detail="A divisão da fila ainda não está ativa: "
+                                                        "rode sql/migracao_operador.sql no Supabase.")
+        raise
     itens = _reconstruir_ranking(res.data or [], payload.get("empresa_id", ""))
 
     # Um NaN gravado numa coluna numérica derrubava a resposta inteira (500) e
@@ -2812,6 +2828,153 @@ def pagina_do_ranking(
         "offset": offset,
         "limit": limit,
     })
+
+
+# ── F1: divisão da fila entre operadores ──────────────────────────────────────
+
+_MSG_SEM_MIGRACAO_FILA = ("A divisão da fila ainda não está ativa: rode "
+                          "sql/migracao_operador.sql no Supabase.")
+
+
+def _empresa_da_carteira(db, carteira_id: str) -> str:
+    r = db.table("carteiras").select("empresa_id").eq("id", carteira_id).limit(1).execute()
+    return ((r.data or [{}])[0].get("empresa_id") or "").strip()
+
+
+def _operadores_validos(db, empresa_id: str, ids: list) -> dict:
+    """{id: nome} dos operadores ATIVOS da empresa entre `ids`. Recusa o resto."""
+    if not empresa_id:
+        raise HTTPException(status_code=400, detail="Carteira sem empresa: não há operadores para dividir.")
+    linhas = (db.table("usuarios").select("id, nome, email, role, ativo, empresa_id")
+              .eq("empresa_id", empresa_id).execute().data or [])
+    validos = {u["id"]: (u.get("nome") or u.get("email") or "") for u in linhas
+               if u.get("role") == "operador" and u.get("ativo")}
+    fora = [i for i in ids if i not in validos]
+    if fora:
+        raise HTTPException(status_code=422, detail="Escolha só operadores ativos da empresa.")
+    return {i: validos[i] for i in ids}
+
+
+def _gravar_responsavel(db, carteira_id: str, ids: list, operador_id, operador_nome) -> None:
+    """Grava o dono em lotes (o PostgREST limita o tamanho do `in`)."""
+    from concurrent.futures import ThreadPoolExecutor
+    lotes = [ids[i:i + ITENS_POR_IN] for i in range(0, len(ids), ITENS_POR_IN)]
+    patch = {"responsavel_id": operador_id, "responsavel_nome": operador_nome}
+    def um(lote):
+        db.table("predicoes").update(patch).eq("carteira_id", carteira_id).in_("id", lote).execute()
+    with ThreadPoolExecutor(max_workers=min(4, max(1, len(lotes)))) as ex:
+        list(ex.map(um, lotes))
+
+
+class DistribuirIn(BaseModel):
+    operadores: list = Field(..., min_length=1, max_length=50)
+    somente_sem_responsavel: bool = False
+
+
+@app.post("/carteiras/{carteira_id}/distribuir")
+def distribuir_fila(carteira_id: str, body: DistribuirIn,
+                    credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Reparte a fila entre operadores em serpente pela ordem do valor esperado."""
+    from fila_operadores import serpentina
+    payload = _exigir_admin_ou_comando(credentials)
+    db = get_db()
+    _exige_carteira_da_empresa(db, carteira_id, payload)
+    ops = list(dict.fromkeys(str(o) for o in body.operadores))
+    nomes = _operadores_validos(db, _empresa_da_carteira(db, carteira_id), ops)
+    try:
+        linhas = _todas_as_linhas(lambda: db.table("predicoes").select("id, rank, responsavel_id")
+                                  .eq("carteira_id", carteira_id).order("rank"))
+    except Exception as e:
+        if "responsavel" in str(e):
+            raise HTTPException(status_code=409, detail=_MSG_SEM_MIGRACAO_FILA)
+        raise
+    linhas.sort(key=lambda l: (l.get("rank") is None, l.get("rank") or 0, l["id"]))
+    if body.somente_sem_responsavel:
+        linhas = [l for l in linhas if not l.get("responsavel_id")]
+    partes = serpentina([l["id"] for l in linhas], ops)
+    for op, ids in partes.items():
+        if ids:
+            _gravar_responsavel(db, carteira_id, ids, op, nomes[op])
+    _registrar_auditoria(acao="fila_distribuida", entidade="carteira", entidade_id=carteira_id,
+                         usuario_email=payload.get("email", ""), empresa_id=_empresa_da_carteira(db, carteira_id),
+                         usuario_id=payload.get("sub", ""),
+                         detalhes={"operadores": len(ops), "devedores": len(linhas),
+                                   "somente_sem_responsavel": body.somente_sem_responsavel})
+    return {"distribuidos": len(linhas),
+            "por_operador": [{"operador_id": op, "nome": nomes[op], "devedores": len(ids)}
+                             for op, ids in partes.items()]}
+
+
+class ResponsavelIn(BaseModel):
+    cpfs: list = Field(..., min_length=1, max_length=500)
+    operador_id: Optional[str] = None      # None = deixa sem responsável
+
+
+@app.post("/carteiras/{carteira_id}/responsavel")
+def atribuir_responsavel(carteira_id: str, body: ResponsavelIn,
+                         credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Troca (ou tira) o responsável de devedores escolhidos."""
+    payload = _exigir_admin_ou_comando(credentials)
+    db = get_db()
+    _exige_carteira_da_empresa(db, carteira_id, payload)
+    nome = None
+    if body.operador_id:
+        nome = _operadores_validos(db, _empresa_da_carteira(db, carteira_id), [body.operador_id])[body.operador_id]
+    cpfs = [str(c) for c in body.cpfs]
+    try:
+        for i in range(0, len(cpfs), ITENS_POR_IN):
+            (db.table("predicoes").update({"responsavel_id": body.operador_id, "responsavel_nome": nome})
+             .eq("carteira_id", carteira_id).in_("cpf", cpfs[i:i + ITENS_POR_IN]).execute())
+    except Exception as e:
+        if "responsavel" in str(e):
+            raise HTTPException(status_code=409, detail=_MSG_SEM_MIGRACAO_FILA)
+        raise
+    _registrar_auditoria(acao="responsavel_alterado", entidade="carteira", entidade_id=carteira_id,
+                         usuario_email=payload.get("email", ""), empresa_id=_empresa_da_carteira(db, carteira_id),
+                         usuario_id=payload.get("sub", ""),
+                         detalhes={"devedores": len(cpfs), "para": nome or "sem responsável"})
+    return {"ok": True, "devedores": len(cpfs), "responsavel_nome": nome}
+
+
+@app.get("/carteiras/{carteira_id}/distribuicao")
+def resumo_distribuicao(carteira_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Quantos devedores e quanto valor esperado cada operador tem nesta carteira."""
+    payload = _usuario_autenticado(credentials)
+    db = get_db()
+    _exige_carteira_da_empresa(db, carteira_id, payload)
+    try:
+        linhas = _todas_as_linhas(lambda: db.table("predicoes")
+                                  .select("id, responsavel_id, responsavel_nome, valor_esperado_liquido, valor_esperado_recuperacao")
+                                  .eq("carteira_id", carteira_id))
+    except Exception as e:
+        if "responsavel" in str(e):
+            return {"ativo": False, "mensagem": _MSG_SEM_MIGRACAO_FILA, "por_operador": [], "sem_responsavel": None}
+        raise
+    grupos: dict = {}
+    for l in linhas:
+        chave = l.get("responsavel_id") or ""
+        g = grupos.setdefault(chave, {"operador_id": chave or None, "nome": l.get("responsavel_nome") or None,
+                                      "devedores": 0, "valor_esperado": 0.0})
+        g["devedores"] += 1
+        v = l.get("valor_esperado_liquido")
+        g["valor_esperado"] += float(v if v is not None else (l.get("valor_esperado_recuperacao") or 0))
+    sem = grupos.pop("", {"devedores": 0, "valor_esperado": 0.0})
+    por = sorted(grupos.values(), key=lambda g: -g["devedores"])
+    for g in por + [sem]:
+        g["valor_esperado"] = round(g["valor_esperado"], 2)
+    meus = next((g["devedores"] for g in por if g["operador_id"] == payload.get("sub")), 0)
+    resposta = {"ativo": True, "total": len(linhas), "por_operador": por, "meus": meus,
+                "sem_responsavel": {"devedores": sem["devedores"], "valor_esperado": sem["valor_esperado"]}}
+    if payload.get("role") in ("admin", "comando"):
+        # Quem pode receber fila: os operadores ativos da empresa DA CARTEIRA
+        # (para o COMANDO, que não tem empresa própria, é a única fonte certa).
+        empresa = _empresa_da_carteira(db, carteira_id)
+        us = (db.table("usuarios").select("id, nome, email, role, ativo, empresa_id")
+              .eq("empresa_id", empresa).execute().data or []) if empresa else []
+        resposta["operadores"] = sorted(
+            ({"id": u["id"], "nome": u.get("nome") or u.get("email") or ""} for u in us
+             if u.get("role") == "operador" and u.get("ativo")), key=lambda u: u["nome"].lower())
+    return resposta
 
 
 def _cpfs_por_status(db, carteira_id: str) -> "tuple[set, set]":
@@ -3310,7 +3473,8 @@ def _psi_da_carteira(scores: list, empresa_id: "str | None" = None) -> dict:
 # avisa no log, em vez de derrubar a análise.
 _COLUNAS_PREDICAO_OPCIONAIS = ("probabilidade_pagamento", "origem_taxa", "perda_esperada",
                                "lgd", "despesas_mensais", "fase_cobranca",
-                               "valor_esperado_liquido", "rank")
+                               "valor_esperado_liquido", "rank",
+                               "responsavel_id", "responsavel_nome")
 
 
 def _inserir_predicoes(db, linhas: list[dict]):
@@ -3781,6 +3945,17 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
             # continuariam apontando para linhas apagadas.
             pred_ids = [p["id"] for p in _todas_as_linhas(
                 lambda: db.table("predicoes").select("id").eq("carteira_id", carteira_id))]
+            # Quem já tinha dono continua com ele depois da sincronização (F1):
+            # sem isto, cada atualização da carteira desfazia a divisão da fila.
+            try:
+                responsaveis_antes = {
+                    str(p["cpf"]): (p.get("responsavel_id"), p.get("responsavel_nome"))
+                    for p in _todas_as_linhas(lambda: db.table("predicoes")
+                                              .select("id, cpf, responsavel_id, responsavel_nome")
+                                              .eq("carteira_id", carteira_id))
+                    if p.get("responsavel_id")}
+            except Exception:
+                responsaveis_antes = {}       # banco sem a coluna: nada a preservar
             for i in range(0, len(pred_ids), 100):
                 lote = pred_ids[i:i+100]
                 if lote:
@@ -3839,6 +4014,11 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
              "rank": _py(d.get("rank"))}
             for d in devedores
         ]
+        if _carteira_id_existente and responsaveis_antes:
+            for linha in predicoes_rows:
+                dono = responsaveis_antes.get(linha["cpf"])
+                if dono:
+                    linha["responsavel_id"], linha["responsavel_nome"] = dono
         pred_id_map = _inserir_predicoes_em_lotes(db, predicoes_rows)
     except Exception as _e:
         print(f"[Supabase] Erro ao salvar: {_e}")
