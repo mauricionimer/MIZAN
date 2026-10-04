@@ -6,11 +6,12 @@ import DicaAjuda from '../components/DicaAjuda'
 import { atualizarAvisosDeDuvida } from '../components/useAvisosDeDuvida'
 import { useAuth } from '../context/AuthContext'
 import { useAnalysis } from '../context/AnalysisContext'
-import { listarDuvidasComando, responderDuvida, sugerirDuvida, revisarSugestao, listarLacunas, tratarLacuna, limparLacunas } from '../api'
+import { listarDuvidasComando, responderDuvida, sugerirDuvida, revisarSugestao, listarLacunas, tratarLacuna, limparLacunas, publicarNoFaq } from '../api'
 
 const ABAS = [
   { id: 'aberta',     rotulo: 'Abertas' },
   { id: 'respondida', rotulo: 'Respondidas' },
+  { id: 'faq',        rotulo: 'No FAQ' },
   { id: 'sugestao',   rotulo: 'Sugestões para a Central' },
   { id: 'lacunas',    rotulo: 'Buscas sem resposta' },
 ]
@@ -18,7 +19,7 @@ const fmtData = (iso) => (iso ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit
 
 function Cartao({ d, token, aba, onMudou }) {
   const [resposta, setResposta] = useState(d.resposta || '')
-  const [titulo, setTitulo]     = useState(d.sugestao_titulo || '')
+  const [titulo, setTitulo]     = useState(d.sugestao_titulo || d.pergunta || '')
   const [editando, setEditando] = useState(d.estado === 'aberta')
   const [ocupado, setOcupado]   = useState(false)
   const [erro, setErro]         = useState('')
@@ -66,28 +67,38 @@ function Cartao({ d, token, aba, onMudou }) {
       {d.estado === 'respondida' && !editando && (
         <div className="mt-3 border-t border-line pt-3">
           {d.sugestao_estado == null && (
-            <div className="flex flex-wrap items-center gap-2">
-              <input value={titulo} onChange={e => setTitulo(e.target.value)} maxLength={200} aria-label="Título sugerido"
-                placeholder="Título da resposta na Central (opcional)"
-                className="h-9 min-w-0 flex-1 rounded-lg border border-line bg-page px-3 text-xs text-ink placeholder-ink-4" />
-              <button disabled={ocupado} onClick={() => agir(() => sugerirDuvida(token, d.id, true, titulo))}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-raise-2 px-3 py-2 text-xs font-medium text-ink hover:opacity-80 disabled:opacity-50">
-                <Lightbulb className="h-3.5 w-3.5" /> Sugerir para a Central
-              </button>
+            <div className="space-y-2">
+              <p className="text-[11px] text-ink-3">Dúvida recorrente? Publique no FAQ: todos os usuários veem a pergunta (este título) e a resposta, sem nome nem empresa.</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <input value={titulo} onChange={e => setTitulo(e.target.value)} maxLength={200} aria-label="Pergunta no FAQ"
+                  placeholder="Como a pergunta aparece no FAQ"
+                  className="h-9 min-w-0 flex-1 rounded-lg border border-line bg-page px-3 text-xs text-ink placeholder-ink-4" />
+                <button disabled={ocupado || titulo.trim().length < 3} onClick={() => agir(() => publicarNoFaq(token, d.id, true, titulo.trim()))}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-50">
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Publicar no FAQ
+                </button>
+                <button disabled={ocupado} onClick={() => agir(() => sugerirDuvida(token, d.id, true, titulo))}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-raise-2 px-3 py-2 text-xs font-medium text-ink hover:opacity-80 disabled:opacity-50">
+                  <Lightbulb className="h-3.5 w-3.5" /> Revisar depois
+                </button>
+              </div>
             </div>
           )}
           {d.sugestao_estado === 'pendente' && (
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <span className="text-ink-2">Sugerida para a Central{d.sugestao_titulo ? `: "${d.sugestao_titulo}"` : ''}. Revisão pendente.</span>
-              <button disabled={ocupado} onClick={() => agir(() => revisarSugestao(token, d.id, 'aprovada'))}
-                className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 font-medium text-white hover:bg-emerald-500 disabled:opacity-50"><CheckCircle2 className="h-3.5 w-3.5" /> Aprovar</button>
+              <button disabled={ocupado} onClick={() => agir(() => publicarNoFaq(token, d.id, true, d.sugestao_titulo || titulo))}
+                className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 font-medium text-white hover:bg-emerald-500 disabled:opacity-50"><CheckCircle2 className="h-3.5 w-3.5" /> Publicar no FAQ</button>
               <button disabled={ocupado} onClick={() => agir(() => revisarSugestao(token, d.id, 'descartada'))}
                 className="inline-flex items-center gap-1 rounded-lg bg-raise-2 px-3 py-1.5 font-medium text-ink hover:opacity-80 disabled:opacity-50"><X className="h-3.5 w-3.5" /> Descartar</button>
               <button disabled={ocupado} onClick={() => agir(() => sugerirDuvida(token, d.id, false))} className="text-ink-3 hover:text-ink">Retirar</button>
             </div>
           )}
           {d.sugestao_estado === 'aprovada' && (
-            <p className="text-xs text-emerald-500">Sugestão aprovada por {d.sugestao_revisada_por}: falta escrever a entrada no catálogo (backend/ajuda) e rodar os testes.</p>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-emerald-500">No FAQ{d.sugestao_titulo ? `: "${d.sugestao_titulo}"` : ''} · por {d.sugestao_revisada_por}</span>
+              <button disabled={ocupado} onClick={() => agir(() => publicarNoFaq(token, d.id, false))} className="text-ink-3 hover:text-ink">Tirar do FAQ</button>
+            </div>
           )}
           {d.sugestao_estado === 'descartada' && <p className="text-xs text-ink-3">Sugestão descartada por {d.sugestao_revisada_por}.</p>}
         </div>

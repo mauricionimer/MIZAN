@@ -5550,9 +5550,9 @@ class RevisaoIn(BaseModel):
 def comando_listar_duvidas(estado: str = "aberta", empresa_id: Optional[str] = None,
                            limite: int = 50, offset: int = 0,
                            credentials: HTTPAuthorizationCredentials = Security(bearer)):
-    """`estado`: aberta | respondida | sugestao (respostas marcadas para virar ajuda) | todas."""
+    """`estado`: aberta | respondida | sugestao (marcadas para revisão) | faq (publicadas) | todas."""
     _exigir_comando(credentials)
-    if estado not in ("aberta", "respondida", "sugestao", "todas"):
+    if estado not in ("aberta", "respondida", "sugestao", "faq", "todas"):
         raise HTTPException(status_code=422, detail="estado inválido.")
     db = get_db()
     limite, offset = min(max(limite, 1), 100), max(offset, 0)
@@ -5561,6 +5561,8 @@ def comando_listar_duvidas(estado: str = "aberta", empresa_id: Optional[str] = N
         q = q.eq("estado", estado)
     elif estado == "sugestao":
         q = q.eq("sugestao_estado", "pendente")
+    elif estado == "faq":
+        q = q.eq("sugestao_estado", "aprovada")
     if empresa_id:
         q = q.eq("empresa_id", empresa_id.strip().lower())
     res = q.order("created_at", desc=(estado != "aberta")).range(offset, offset + limite - 1).execute()
@@ -5616,6 +5618,51 @@ def comando_sugerir_para_ajuda(duvida_id: str, body: SugerirIn,
                          entidade="duvida", entidade_id=d["id"], usuario_email=payload.get("email", ""),
                          empresa_id=d.get("empresa_id", ""), usuario_id=payload.get("sub", ""), detalhes={})
     return {"ok": True}
+
+
+class FaqIn(BaseModel):
+    publicar: bool = True
+    titulo: Optional[str] = Field(None, max_length=200)
+
+
+@app.post("/comando/duvidas/{duvida_id}/faq")
+def comando_publicar_no_faq(duvida_id: str, body: FaqIn,
+                            credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Publica a dúvida respondida no FAQ da Ajuda (todos os usuários veem) ou a retira.
+
+    No FAQ aparecem só o título (ou a pergunta, já mascarada) e a resposta do
+    COMANDO: nunca quem perguntou nem de qual empresa. Usa o mesmo estado da
+    revisão de sugestão ("aprovada"), sem coluna nova.
+    """
+    payload = _exigir_comando(credentials)
+    db = get_db()
+    d = _duvida_do_comando(db, duvida_id)
+    if body.publicar and d["estado"] != "respondida":
+        raise HTTPException(status_code=409, detail="Responda a dúvida antes de publicar no FAQ.")
+    agora = datetime.utcnow().isoformat()
+    if body.publicar:
+        patch = {"sugestao_estado": "aprovada",
+                 "sugestao_titulo": (body.titulo or "").strip() or d.get("sugestao_titulo") or None,
+                 "sugestao_revisada_por": payload.get("email", ""), "sugestao_revisada_em": agora}
+    else:
+        patch = {"sugestao_estado": None, "sugestao_revisada_por": None, "sugestao_revisada_em": None}
+    db.table("duvidas").update(patch).eq("id", d["id"]).execute()
+    _registrar_auditoria(acao="duvida_publicada_faq" if body.publicar else "duvida_retirada_faq",
+                         entidade="duvida", entidade_id=d["id"], usuario_email=payload.get("email", ""),
+                         empresa_id=d.get("empresa_id", ""), usuario_id=payload.get("sub", ""), detalhes={})
+    return {"ok": True}
+
+
+@app.get("/ajuda/faq")
+def ajuda_faq(credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Perguntas frequentes publicadas pelo COMANDO. Sem autor nem empresa."""
+    _usuario_autenticado(credentials)
+    res = (get_db().table("duvidas")
+           .select("id, pergunta, sugestao_titulo, resposta, sugestao_revisada_em")
+           .eq("sugestao_estado", "aprovada").eq("estado", "respondida")
+           .order("sugestao_revisada_em", desc=True).limit(100).execute())
+    return [{"id": r["id"], "pergunta": r.get("sugestao_titulo") or r.get("pergunta"),
+             "resposta": r.get("resposta")} for r in (res.data or [])]
 
 
 @app.post("/comando/duvidas/{duvida_id}/sugestao")

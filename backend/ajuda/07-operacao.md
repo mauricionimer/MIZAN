@@ -220,6 +220,8 @@ titulo: Enviar uma dúvida ao COMANDO
 perfis: operador, admin, comando
 telas: Ajuda
 perguntas:
+- onde ficam as perguntas frequentes
+- o que é o faq
 - como mando uma pergunta para o comando
 - não achei a resposta na ajuda, e agora
 - como falo com o suporte do sistema
@@ -228,7 +230,7 @@ perguntas:
 - posso colocar o cpf do devedor na dúvida
 - quanto tempo demora a resposta do comando
 - o administrador vê as dúvidas da equipe
-curta: Na página Ajuda, se a busca não resolver, use "Pergunte ao COMANDO". A resposta aparece em "Minhas dúvidas", e o menu Ajuda mostra um número quando chegar.
+curta: Na página Ajuda, se a busca não resolver, use "Pergunte ao COMANDO". A resposta aparece em "Minhas dúvidas", e o menu Ajuda mostra um número quando chegar. Dúvidas que se repetem podem ser publicadas pelo COMANDO em "Perguntas frequentes", no topo da Ajuda, sem o nome de quem perguntou nem a empresa.
 calculo: A dúvida aceita até 2.000 caracteres e cada pessoa pode enviar até 10 por hora. O servidor retira CPF, CNPJ, telefone, e-mail e números longos antes de gravar. O COMANDO vê todas as dúvidas; o administrador vê, só para leitura, as da sua equipe; cada pessoa vê as suas. O número no menu some quando você abre a página Ajuda.
 fazer: Diga o que você não entendeu e em que tela estava. A dúvida leva junto a tela de onde você veio.
 cuidado: Nomes de pessoas não podem ser reconhecidos por regra e passam: não escreva nome de devedor. A busca só é guardada quando não achou resposta (sem seu nome nem empresa; veja "Buscas sem resposta"), e o que você ENVIA como dúvida é guardado com o seu nome e lido por pessoas. Não há prazo garantido para a resposta.

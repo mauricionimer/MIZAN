@@ -163,5 +163,21 @@ checar(c.post(f"/comando/duvidas/{id_ana}/sugestao", headers=H("co"), json={"est
 c.post(f"/comando/duvidas/{id_ana}/sugerir", headers=H("co"), json={"sugerir": False})
 checar(next(x for x in TAB["duvidas"] if x["id"] == id_ana)["sugestao_estado"] is None, "dá para retirar a sugestão")
 
+# ── FAQ ──────────────────────────────────────────────────────────────────
+print("\n— publicar no FAQ —")
+checar(c.post(f"/comando/duvidas/{id_beto}/faq", headers=H("co"), json={}).status_code == 409, "só se publica o que já foi respondido")
+checar(c.post(f"/comando/duvidas/{id_ana}/faq", headers=H("ad"), json={}).status_code == 403, "administrador não publica")
+checar(c.get("/ajuda/faq", headers=H("opb")).json() == [], "FAQ vazio antes de publicar")
+r = c.post(f"/comando/duvidas/{id_ana}/faq", headers=H("co"), json={"titulo": "Por que a nota cai com dados faltando?"})
+checar(r.status_code == 200, "COMANDO publica no FAQ")
+faq = c.get("/ajuda/faq", headers=H("opb")).json()
+checar(len(faq) == 1 and faq[0]["pergunta"] == "Por que a nota cai com dados faltando?" and "linha da fila" in faq[0]["resposta"],
+       "o FAQ aparece para usuário de OUTRA empresa, com o título e a resposta", str(faq)[:120])
+checar(set(faq[0]) == {"id", "pergunta", "resposta"}, "sem autor, e-mail ou empresa de quem perguntou", str(set(faq[0])))
+checar(c.get("/comando/duvidas", headers=H("co"), params={"estado": "faq"}).json()["total"] == 1, "COMANDO lista o que está no FAQ")
+checar(c.get("/ajuda/faq").status_code in (401, 403), "sem login não lê o FAQ")
+c.post(f"/comando/duvidas/{id_ana}/faq", headers=H("co"), json={"publicar": False})
+checar(c.get("/ajuda/faq", headers=H("opb")).json() == [], "tirar do FAQ some para todos")
+
 print("\nRESULTADO:", "tudo certo" if falhas == 0 else f"{falhas} falha(s)")
 sys.exit(1 if falhas else 0)

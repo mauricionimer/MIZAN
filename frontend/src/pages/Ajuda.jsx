@@ -8,7 +8,7 @@ import DicaAjuda from '../components/DicaAjuda'
 import { atualizarAvisosDeDuvida } from '../components/useAvisosDeDuvida'
 import {
   buscarAjuda, naoResolveu, indiceDaAjuda, entradaDaAjuda,
-  enviarDuvida, minhasDuvidas, marcarDuvidasVistas, duvidasDaEquipe,
+  enviarDuvida, minhasDuvidas, marcarDuvidasVistas, duvidasDaEquipe, buscarFaq,
 } from '../api'
 
 function Aviso({ tom = 'warning', icone: Icone = AlertTriangle, children }) {
@@ -158,6 +158,9 @@ export default function Ajuda() {
   const [navegada, setNavegada]   = useState(null)     // entrada aberta pelo índice
   const ultima = useRef(0)
   const [minhas, setMinhas]       = useState([])
+  // Perguntas frequentes publicadas pelo COMANDO (sem autor nem empresa).
+  const [faq, setFaq]             = useState([])
+  useEffect(() => { buscarFaq(token).then(d => setFaq(Array.isArray(d) ? d : [])).catch(() => {}) }, [token])
   const [novas, setNovas]         = useState(new Set())
   const [equipe, setEquipe]       = useState([])
   const [pedindo, setPedindo]     = useState(false)
@@ -278,6 +281,24 @@ export default function Ajuda() {
         <PedirAoComando token={token} inicial={busca?.pergunta || pergunta} tela={location.state?.de} buscou={busca?.pergunta}
           aberto={pedindo || (!!busca && !busca.certeza)} onAbrir={() => setPedindo(true)} onEnviada={carregarDuvidas} />
 
+
+        {faq.length > 0 && (
+          <section aria-label="Perguntas frequentes">
+            <h2 className="mb-3 text-sm font-semibold text-ink">Perguntas frequentes</h2>
+            <ul className="space-y-2">
+              {faq.map(f => (
+                <li key={f.id}>
+                  <details className="group rounded-xl border border-line bg-surface px-4 py-3">
+                    <summary className="cursor-pointer list-none text-sm font-medium text-ink marker:hidden">
+                      <span className="mr-2 inline-block text-ink-3 transition-transform group-open:rotate-90">›</span>{f.pergunta}
+                    </summary>
+                    <p className="mt-2 whitespace-pre-line pl-5 text-sm leading-relaxed text-ink-2">{f.resposta}</p>
+                  </details>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {minhas.length > 0 && (
           <section aria-label="Minhas dúvidas">

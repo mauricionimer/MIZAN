@@ -791,3 +791,13 @@ export async function buscarDevedores(q, empresaAlvo) {
   }
   return res.json()
 }
+
+// ── FAQ (perguntas frequentes publicadas pelo COMANDO) ───────────────────────
+export async function buscarFaq(token) {
+  return _jsonOuErro(await fetch(`${BASE}/ajuda/faq`, { headers: _authHeader(token) }))
+}
+export async function publicarNoFaq(token, id, publicar, titulo) {
+  return _jsonOuErro(await fetch(`${BASE}/comando/duvidas/${encodeURIComponent(id)}/faq`, {
+    method: 'POST', headers: _authHeader(token), body: JSON.stringify({ publicar, titulo }),
+  }))
+}
