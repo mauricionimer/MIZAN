@@ -363,7 +363,7 @@ constantes:
 
 ## performance-da-ia
 titulo: Performance da IA da empresa
-perfis: admin, comando
+perfis: operador, admin, comando
 telas: Performance da IA
 perguntas:
 - como sei se a ia está funcionando

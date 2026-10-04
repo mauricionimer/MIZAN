@@ -140,7 +140,7 @@ function RotasAnimadas() {
           <Route path="/premissas" element={P(['admin', 'comando'], <Premissas />)} />
           <Route path="/retencao" element={P(['comando'], <Retencao />)} />
           <Route path="/auditoria" element={P(['admin', 'comando'], <Auditoria />)} />
-          <Route path="/ia" element={P(['admin', 'comando'], <PerformanceIA />)} />
+          <Route path="/ia" element={P(['operador', 'admin', 'comando'], <PerformanceIA />)} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

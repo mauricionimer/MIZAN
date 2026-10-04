@@ -855,14 +855,17 @@ def _empresa_para_leitura_ia(credentials: HTTPAuthorizationCredentials,
                              empresa_id: "str | None") -> "tuple[dict, str]":
     """Empresa cujas medidas da IA a rota de LEITURA vai mostrar.
 
-    COMANDO escolhe por ?empresa_id=. Admin vê só a própria empresa: o
-    parâmetro é ignorado, então não há como ler a IA de outro cliente
-    trocando a URL. Operador não lê (403).
+    COMANDO escolhe por ?empresa_id=. Admin e operador veem só a própria
+    empresa: o parâmetro é ignorado, então não há como ler a IA de outro
+    cliente trocando a URL. Quem não tem empresa (e não é COMANDO) não lê.
     """
-    payload = _exigir_admin_ou_comando(credentials)
+    payload = _usuario_autenticado(credentials)
     if payload.get("role") == "comando":
         return payload, (empresa_id or "").strip().lower()
-    return payload, (payload.get("empresa_id") or "").strip().lower()
+    empresa = (payload.get("empresa_id") or "").strip().lower()
+    if payload.get("role") not in ("admin", "operador") or not empresa:
+        raise HTTPException(status_code=403, detail="Acesso negado: usuário sem empresa definida.")
+    return payload, empresa
 
 
 def _exigir_comando(credentials: HTTPAuthorizationCredentials) -> dict:

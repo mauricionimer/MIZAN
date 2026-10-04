@@ -1,4 +1,4 @@
-"""Performance da IA: admin lê só a própria empresa; COMANDO escolhe; operador não lê.
+"""Performance da IA: admin e operador leem só a própria empresa; COMANDO escolhe.
 
     python test_ia_leitura.py
 """
@@ -18,11 +18,7 @@ def checar(c, t, d=""):
     falhas += 0 if c else 1
 
 PAPEL = {}
-def exigir(cred):
-    if PAPEL.get("role") not in ("admin", "comando"):
-        raise HTTPException(status_code=403, detail="negado")
-    return dict(PAPEL)
-main._exigir_admin_ou_comando = exigir
+main._usuario_autenticado = lambda cred: dict(PAPEL)
 
 pedidas = []
 import model.diagnostico as diag, model.bandit as bandit_mod, model.modelos_empresa as me
@@ -55,7 +51,10 @@ checar(ultima("qualidade") == "beta", "comando escolhe a empresa")
 checar(hc.get("/comando/modelos", headers=H).status_code == 400, "comando sem empresa em /comando/modelos: 400")
 
 PAPEL.clear(); PAPEL.update(role="operador", empresa_id="goiasbank")
-checar(hc.get("/admin/modelo/qualidade", headers=H).status_code == 403, "operador não lê a IA")
+r = hc.get("/admin/modelo/qualidade?empresa_id=outra", headers=H)
+checar(r.status_code == 200 and ultima("qualidade") == "goiasbank", "operador lê a IA só da própria empresa", f"{r.status_code}")
+PAPEL.clear(); PAPEL.update(role="operador", empresa_id="")
+checar(hc.get("/admin/modelo/qualidade", headers=H).status_code == 403, "usuário sem empresa não lê")
 
 # Ativar e desativar continuam só do COMANDO.
 PAPEL.clear(); PAPEL.update(role="admin", empresa_id="goiasbank")

@@ -53,6 +53,8 @@ function useItens() {
         ...(result ? [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, vista: 'dashboard' }] : []),
         { id: 'analise', label: 'Análise de carteira', icon: UploadCloud, vista: 'analise' },
         { id: 'pagamentos', label: 'Pagamentos', icon: ClipboardList, rota: '/feedback' },
+        // O operador não tem o grupo Gestão: a aba dele fica aqui.
+        ...(!isAdmin && !isComando ? [{ id: 'ia', label: 'Performance da IA', icon: Brain, rota: '/ia' }] : []),
       ],
     },
     ...((isAdmin || isComando) ? [{
