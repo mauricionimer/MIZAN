@@ -6274,23 +6274,28 @@ def listar_auditoria(
     acao: Optional[str] = None,
     data_inicio: Optional[str] = None,
     data_fim: Optional[str] = None,
+    empresa_id: Optional[str] = None,
     limit: int = 20,
     offset: int = 0,
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     """
     Histórico de ações auditadas — filtrado pela empresa do token (ou tudo para COMANDO).
+    COMANDO pode filtrar por ?empresa_id=; "_plataforma" traz as ações sem empresa
+    (modelo geral, chaves de API...). Para os demais o parâmetro é ignorado.
     Suporta filtro por período/usuário/ação e paginação, para telas de auditoria/compliance.
     """
     # A tela de auditoria é de admin e comando; a rota aceitava qualquer usuário
     # autenticado, então um operador lia o histórico da empresa chamando a API.
     payload = _exigir_admin_ou_comando(credentials)
-    empresa_id = payload.get("empresa_id", "")
     role       = payload.get("role", "operador")
     db = get_db()
     q  = db.table("auditoria").select("*")
     if role != "comando":
-        q = q.eq("empresa_id", empresa_id)
+        q = q.eq("empresa_id", payload.get("empresa_id", ""))
+    elif empresa_id:
+        alvo = empresa_id.strip().lower()
+        q = q.or_("empresa_id.is.null,empresa_id.eq.") if alvo == "_plataforma" else q.eq("empresa_id", alvo)
     if entidade:
         q = q.eq("entidade", entidade)
     if entidade_id:

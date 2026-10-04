@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import { useAuth } from '../context/AuthContext'
-import { buscarAuditoria } from '../api'
+import { buscarAuditoria, listarEmpresas } from '../api'
 import {
   Download, Loader2, Filter, RefreshCw, ChevronDown,
 } from 'lucide-react'
@@ -91,7 +91,19 @@ export default function Auditoria() {
   const [erro, setErro]       = useState('')
   const [expandido, setExpandido] = useState(null)
 
-  const [filtros, setFiltros] = useState({ acao: '', usuario_email: '', data_inicio: '', data_fim: '' })
+  const [filtros, setFiltros] = useState({ acao: '', usuario_email: '', data_inicio: '', data_fim: '', empresa_id: '' })
+
+  // COMANDO vê a auditoria de todas as empresas: o seletor separa por empresa.
+  // Admin não precisa: o servidor já filtra pela empresa dele.
+  const [empresas, setEmpresas] = useState([])
+  useEffect(() => {
+    if (!isComando) return
+    listarEmpresas(token).then(d => setEmpresas(d.empresas || [])).catch(() => {})
+  }, [isComando, token])
+  const nomeEmpresa = (id) => {
+    const e = empresas.find(x => x.empresa_id === id)
+    return e?.nome_exibicao || e?.nome || id
+  }
 
   const carregar = useCallback(async (offset = 0, acumular = false) => {
     setLoading(true); setErro('')
@@ -100,6 +112,7 @@ export default function Auditoria() {
         limit: PAGE_SIZE, offset,
         acao: filtros.acao || undefined,
         usuario_email: filtros.usuario_email || undefined,
+        empresa_id: isComando ? (filtros.empresa_id || undefined) : undefined,
         data_inicio: filtros.data_inicio ? `${filtros.data_inicio}T00:00:00` : undefined,
         data_fim: filtros.data_fim ? `${filtros.data_fim}T23:59:59` : undefined,
       }
@@ -111,7 +124,7 @@ export default function Auditoria() {
     } finally {
       setLoading(false)
     }
-  }, [filtros])
+  }, [filtros, isComando])
 
   useEffect(() => { carregar(0, false) }, [carregar])
 
@@ -146,6 +159,17 @@ export default function Auditoria() {
               {Object.entries(ACAO_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
           </div>
+          {isComando && (
+            <div>
+              <label className="block text-[11px] mb-1" style={{ color: 'var(--ink-3)' }}>Empresa</label>
+              <select value={filtros.empresa_id} onChange={e => setFiltros(f => ({ ...f, empresa_id: e.target.value }))}
+                className="input-base text-xs py-1.5 w-48">
+                <option value="">Todas as empresas</option>
+                {empresas.map(e => <option key={e.empresa_id} value={e.empresa_id}>{nomeEmpresa(e.empresa_id)}</option>)}
+                <option value="_plataforma">Plataforma (sem empresa)</option>
+              </select>
+            </div>
+          )}
           {isComando && (
             <div>
               <label className="block text-[11px] mb-1" style={{ color: 'var(--ink-3)' }}>E-mail do usuário</label>
@@ -191,6 +215,12 @@ export default function Auditoria() {
                     <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ring-1 shrink-0 ${ACAO_COR[l.acao] || 'bg-slate-500/10 text-ink-2 ring-slate-500/20'}`}>
                       {ACAO_LABEL[l.acao] || l.acao}
                     </span>
+                    {isComando && (
+                      <span className="text-[11px] px-2 py-0.5 rounded-full shrink-0"
+                        style={{ background: 'var(--raise-2)', color: 'var(--ink-2)' }}>
+                        {l.empresa_id ? nomeEmpresa(l.empresa_id) : 'Plataforma'}
+                      </span>
+                    )}
                     <span className="text-sm text-ink truncate flex-1 min-w-0">
                       {l.usuario_email || 'sistema'}
                       {l.entidade && <span style={{ color: 'var(--ink-3)' }}> · {l.entidade}{l.entidade_id ? ` (${l.entidade_id.slice(0, 12)})` : ''}</span>}

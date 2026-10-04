@@ -416,7 +416,7 @@ export async function refreshToken(token) {
 }
 
 export async function buscarAuditoria({
-  entidade, entidade_id, usuario_email, acao, data_inicio, data_fim, limit = 20, offset = 0,
+  entidade, entidade_id, usuario_email, acao, data_inicio, data_fim, empresa_id, limit = 20, offset = 0,
 } = {}) {
   const token = _getToken()
   const params = new URLSearchParams({ limit, offset })
@@ -426,6 +426,7 @@ export async function buscarAuditoria({
   if (acao) params.set('acao', acao)
   if (data_inicio) params.set('data_inicio', data_inicio)
   if (data_fim) params.set('data_fim', data_fim)
+  if (empresa_id) params.set('empresa_id', empresa_id)
   const res = await fetch(`${BASE}/auditoria?${params}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
