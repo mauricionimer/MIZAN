@@ -22,15 +22,27 @@ class _PatchedRe:
 
 _sc.re = _PatchedRe()
 
-_client: Client | None = None
+import threading
+
+# Um cliente POR THREAD, não um para o processo inteiro.
+#
+# O cliente do PostgREST fala HTTP/2 (http2=True dentro da biblioteca), e uma
+# conexão HTTP/2 do httpx não é segura para várias threads ao mesmo tempo. As
+# rotas síncronas do FastAPI rodam num pool de threads, e o Dashboard dispara
+# umas seis buscas juntas: com um cliente só, elas disputavam a mesma conexão e
+# falhavam de forma intermitente — 503 "Não foi possível validar o acesso à
+# carteira" e 500 em pagamentos, alcance e status, voltando a cada troca de aba.
+# O pool tem poucas dezenas de threads, então são poucas dezenas de clientes.
+_local = threading.local()
 
 
 def get_db() -> Client:
-    global _client
-    if _client is None:
+    cliente = getattr(_local, "cliente", None)
+    if cliente is None:
         url = os.getenv("SUPABASE_URL")
         key = os.getenv("SUPABASE_KEY")
         if not url or not key:
             raise RuntimeError("SUPABASE_URL e SUPABASE_KEY ausentes no .env")
-        _client = create_client(url, key)
-    return _client
+        cliente = create_client(url, key)
+        _local.cliente = cliente
+    return cliente

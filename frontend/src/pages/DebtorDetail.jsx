@@ -171,7 +171,7 @@ function ExplicacaoScore({ explicacao, loading, erro }) {
   }
   if (!explicacao) return null
 
-  const relevantes = explicacao.contribuicoes.filter(c => Math.abs(c.impacto_pontos) >= 0.1).slice(0, 6)
+  const relevantes = (explicacao.contribuicoes ?? []).filter(c => Math.abs(c.impacto_pontos) >= 0.1).slice(0, 6)
   const maiorImpacto = Math.max(1, ...relevantes.map(c => Math.abs(c.impacto_pontos)))
 
   const rc = explicacao.reason_codes
@@ -274,7 +274,7 @@ function HistoricoContatos({ cpf, rec, propostas }) {
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
   useEffect(() => {
-    listarContatos(cpf).then(setContatos).catch(() => {}).finally(() => setLoading(false))
+    listarContatos(cpf).then(c => setContatos(Array.isArray(c) ? c : [])).catch(() => {}).finally(() => setLoading(false))
   }, [cpf])
 
   async function salvar() {
@@ -538,7 +538,15 @@ export default function DebtorDetail() {
   const carteiraId = result?.resumo?.carteira_id ?? result?.carteira_id ?? null
   const emMemoria = result?.ranking_completo?.find(x => x.rank === Number(rank)) ?? null
   const [buscado, setBuscado]   = useState(null)
-  const [procurando, setProcurando] = useState(false)
+  // Começa "procurando" quando vai buscar no servidor. Começar em false fazia
+  // o efeito de "não achei, volta ao início" rodar antes da busca existir: todo
+  // clique num devedor que não estava em memória voltava para a tela inicial.
+  const [procurando, setProcurando] = useState(() => !emMemoria && !!carteiraId)
+  const [buscou, setBuscou] = useState(false)
+  // Falha de rede/servidor ao buscar o devedor. Antes a tela voltava sozinha
+  // para o início, sem dizer nada — parecia que o detalhe tinha sumido.
+  const [erroBusca, setErroBusca] = useState('')
+  const [tentativa, setTentativa] = useState(0)
   const d = emMemoria ?? buscado
 
   useEffect(() => {
@@ -546,13 +554,13 @@ export default function DebtorDetail() {
     const posicao = Number(rank)
     if (!posicao || posicao < 1) return
     let cancelado = false
-    setProcurando(true)
+    setProcurando(true); setErroBusca('')
     buscarPaginaRanking(carteiraId, { offset: posicao - 1, limit: 1 })
       .then(p => { if (!cancelado) setBuscado(p.itens?.[0] ?? null) })
-      .catch(() => { if (!cancelado) setBuscado(null) })
-      .finally(() => { if (!cancelado) setProcurando(false) })
+      .catch(e => { if (!cancelado) { setBuscado(null); setErroBusca(e.message || 'Erro ao buscar o devedor.') } })
+      .finally(() => { if (!cancelado) { setProcurando(false); setBuscou(true) } })
     return () => { cancelado = true }
-  }, [carteiraId, rank, emMemoria])
+  }, [carteiraId, rank, emMemoria, tentativa])
 
   const [rec, setRec]               = useState(null)
   const [recLoading, setRecLoading] = useState(true)
@@ -571,11 +579,11 @@ export default function DebtorDetail() {
     // Só desiste depois da busca: sair antes mandaria o usuário para a tela
     // inicial no meio de um clique que ia funcionar.
     if (!d && !procurando && !carteiraId) navigate('/')
-    else if (!d && !procurando && buscado === null && carteiraId && !emMemoria) {
+    else if (!d && buscou && !procurando && !erroBusca && buscado === null && carteiraId && !emMemoria) {
       // buscou e não achou: a posição não existe nesta carteira
       navigate('/')
     }
-  }, [result, d, navigate])
+  }, [result, d, navigate, erroBusca, buscou, procurando])
 
   useEffect(() => {
     if (!d?.cpf) return
@@ -599,6 +607,26 @@ export default function DebtorDetail() {
       .then(setPropostas)
       .catch(e => setPropostasErro(e.message))
       .finally(() => setPropostasLoading(false))
+  }
+
+  if (result && !d && erroBusca && !procurando) {
+    return (
+      <AppShell>
+        <div className="w-full max-w-5xl mx-auto">
+          <button onClick={voltarAoDashboard}
+            className="mb-4 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 -ml-2 text-sm text-ink-2 transition-colors hover:bg-raise-1 hover:text-ink">
+            <ArrowLeft className="h-4 w-4" /> Voltar à fila
+          </button>
+          <div className="card p-6 text-sm">
+            <span style={{ color: 'var(--danger)' }}>Não foi possível carregar este devedor: {erroBusca}</span>
+            <button onClick={() => setTentativa(t => t + 1)}
+              className="ml-3 rounded-md border border-line bg-raise-1 px-2.5 py-1 text-xs text-ink-2 hover:text-ink">
+              Tentar de novo
+            </button>
+          </div>
+        </div>
+      </AppShell>
+    )
   }
 
   if (!result || !d) return null
