@@ -79,7 +79,7 @@ function Barras({ grupos, taxa }) {
             </div>
             <span className="text-right text-xs tabular-nums text-ink sm:w-24">
               {taxa ? fmtPct(g.taxa_pagamento) : fmtBRL(g.recuperado)}
-              {pequeno && <span className="block text-[11px] text-ink-2">amostra pequena</span>}
+              {pequeno && <span className="block text-xs text-ink-2">amostra pequena</span>}
             </span>
           </li>
         )
@@ -102,7 +102,7 @@ function Tabela({ grupos, taxa }) {
         <tbody>
           {grupos.map(g => (
             <tr key={g.chave} className="border-b border-line last:border-0">
-              <td className="whitespace-nowrap px-3 py-2 text-ink">{nome(g.chave)}{g.amostra_pequena && <span className="ml-1.5 rounded bg-raise-2 px-1 py-px text-[11px] text-ink-2">amostra pequena</span>}</td>
+              <td className="whitespace-nowrap px-3 py-2 text-ink">{nome(g.chave)}{g.amostra_pequena && <span className="ml-1.5 rounded bg-raise-2 px-1 py-px text-xs text-ink-2">amostra pequena</span>}</td>
               {taxa && <td className="px-3 py-2 text-right tabular-nums text-ink-2">{fmtNum(g.registros)}</td>}
               <td className="px-3 py-2 text-right tabular-nums text-ink-2">{fmtNum(g.pagos)}</td>
               {taxa && <td className="px-3 py-2 text-right font-semibold tabular-nums text-ink">{fmtPct(g.taxa_pagamento)}</td>}
@@ -131,7 +131,7 @@ function Contatos({ grupos }) {
         <tbody>
           {grupos.map(g => (
             <tr key={g.chave} className="border-b border-line last:border-0">
-              <td className="px-3 py-2 text-ink">{g.chave === 'carta' ? 'Carta / e-mail' : nome(g.chave)}{g.amostra_pequena && <span className="ml-1.5 rounded bg-raise-2 px-1 py-px text-[11px] text-ink-2">amostra pequena</span>}</td>
+              <td className="px-3 py-2 text-ink">{g.chave === 'carta' ? 'Carta / e-mail' : nome(g.chave)}{g.amostra_pequena && <span className="ml-1.5 rounded bg-raise-2 px-1 py-px text-xs text-ink-2">amostra pequena</span>}</td>
               <td className="px-3 py-2 text-right tabular-nums text-ink-2">{fmtNum(g.contatos)}</td>
               <td className="px-3 py-2 text-right tabular-nums text-ink">{fmtPct(g.taxa_efetivo)}</td>
               <td className="px-3 py-2 text-right font-semibold tabular-nums text-ink">{fmtPct(g.taxa_promessa)}</td>

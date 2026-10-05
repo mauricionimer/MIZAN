@@ -82,7 +82,7 @@ function BuscaDevedor({ escolhido, onEscolher, empresaAlvo, exigeEmpresa }) {
             {fmtCPF(escolhido.cpf)} · {escolhido.produto || '—'}
             {escolhido.valor_divida != null && <> · {fmtBRL(escolhido.valor_divida)}</>}
           </p>
-          <p className="text-[11px] mt-0.5" style={{ color: 'var(--ink-3)' }}>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
             Carteira: {escolhido.carteira_nome || '—'}{escolhido.carteira_data && <> · {fmtData(escolhido.carteira_data)}</>}
           </p>
         </div>
@@ -121,7 +121,7 @@ function BuscaDevedor({ escolhido, onEscolher, empresaAlvo, exigeEmpresa }) {
                 {fmtCPF(d.cpf)} · {d.produto || '—'}{d.valor_divida != null && <> · {fmtBRL(d.valor_divida)}</>}
                 {d.dias_em_atraso != null && <> · {d.dias_em_atraso} dias</>}
               </p>
-              <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>
+              <p className="text-xs" style={{ color: 'var(--ink-3)' }}>
                 Carteira: {d.carteira_nome || '—'}{d.carteira_data && <> · {fmtData(d.carteira_data)}</>}
               </p>
             </button>
@@ -540,7 +540,7 @@ export default function Feedback() {
                                 value={form.taxa_juros_mensal} onChange={e => set('taxa_juros_mensal', e.target.value)} className="input-base tabular-nums" />
                             </div>
                           )}
-                          <p className="col-span-2 text-[11px]" style={{ color: 'var(--ink-3)' }}>
+                          <p className="col-span-2 text-xs" style={{ color: 'var(--ink-3)' }}>
                             Abre um acordo em Acordos: esta é a 1ª parcela (paga) e as outras vencem todo mês, no mesmo dia e valor.
                           </p>
                         </div>

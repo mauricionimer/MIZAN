@@ -69,6 +69,7 @@ class Q:
             s.erro = "column predicoes.responsavel_id does not exist"
         s.linhas = [l for l in s.linhas if l.get(c) is None]; return s
     def in_(s, c, vs): vs = set(vs); s.linhas = [l for l in s.linhas if l.get(c) in vs]; return s
+    def gt(s, c, v): s.linhas = [l for l in s.linhas if (l.get(c) or 0) > v]; return s
     def gte(s, c, v): s.linhas = [l for l in s.linhas if (l.get(c) or 0) >= v]; return s
     def lte(s, c, v): s.linhas = [l for l in s.linhas if (l.get(c) or 0) <= v]; return s
     def order(s, col, desc=False):
@@ -161,6 +162,25 @@ st, ids = fila(ADM, "op-beto")
 checar(ids == ids2, "admin vê a fila de um operador")
 r = c.get("/carteiras/c-g/ranking?responsavel=me", headers=ANA).json()["itens"]
 checar(all(x.get("responsavel_nome") == "Ana" for x in r), "cada linha traz o nome do responsável")
+
+print("— próximo devedor da fila (apos_rank) —")
+def proximo(h, resp, apos, extra=""):
+    q = f"/carteiras/c-g/ranking?limit=1&apos_rank={apos}" + (f"&responsavel={resp}" if resp else "") + extra
+    r = c.get(q, headers=h)
+    return r.status_code, [x["rank"] for x in r.json().get("itens", [])] if r.status_code == 200 else r.text
+meus = sorted(p["rank"] for p in PREDICOES if p["carteira_id"] == "c-g" and p["responsavel_id"] == "op-ana")
+st, rk = proximo(ANA, "me", meus[0])
+checar(st == 200 and rk == [meus[1]], "o próximo da fila de quem chama é o seguinte dela, pulando os dos colegas", str((meus, rk)))
+st, rk = proximo(ANA, "me", meus[-1])
+checar(st == 200 and rk == [], "no fim da fila não há próximo (lista vazia, sem erro)")
+st, rk = proximo(ADM, "", 3)
+checar(rk == [4], "sem filtro de responsável, o próximo é o rank seguinte da carteira")
+st, rk = proximo(ANA, "me", 0)
+checar(rk == [meus[0]], "apos_rank=0 devolve o primeiro da fila")
+st, rk = proximo(ANA, "me", meus[0], "&status=pendente")
+checar(st == 200 and rk == [meus[1]], "junto com o filtro de status continua funcionando (sem feedback, todos pendentes)")
+st, rk = proximo(ANA, "me", "abc")
+checar(st == 422, "valor que não é número é recusado (422)")
 
 print("— resumo —")
 r = c.get("/carteiras/c-g/distribuicao", headers=ADM).json()

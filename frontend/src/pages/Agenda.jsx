@@ -33,7 +33,7 @@ function Remarcar({ item, onSalvar, onCancelar }) {
   )
 }
 
-function Item({ item, mostrarOperador, onAcao, onAbrir, carteiraAberta, soLeitura }) {
+function Item({ item, mostrarOperador, onAcao, onAbrir, carteiraAberta, soLeitura, meuId }) {
   const [abrindo, setAbrindo] = useState(false)
   const outraCarteira = !!item.carteira_id && item.carteira_id !== carteiraAberta
   async function abrir() {
@@ -45,6 +45,8 @@ function Item({ item, mostrarOperador, onAcao, onAbrir, carteiraAberta, soLeitur
   const [ocupado, setOcupado] = useState(false)
   const cfg = NIVEL_CFG[item.nivel] ?? NIVEL_CFG.safe
   const promessa = item.tipo === 'promessa'
+  // O que é meu convida a atender; o da equipe (visão do admin) só abre o devedor.
+  const ligar = !!meuId && item.operador_id === meuId
 
   async function agir(acao, extra) {
     setOcupado(true)
@@ -96,8 +98,11 @@ function Item({ item, mostrarOperador, onAcao, onAbrir, carteiraAberta, soLeitur
             {item.carteira_id ? (
               // De outra carteira: abre a carteira dele e entra na ficha (sem hover para explicar).
               <button onClick={abrir} disabled={abrindo}
-                className="min-h-[40px] md:min-h-[32px] ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-blue-400 hover:text-blue-300 disabled:opacity-60">
+                className={ligar
+                  ? 'btn-primary btn-sm ml-auto disabled:opacity-60'
+                  : 'min-h-[40px] md:min-h-[32px] ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-blue-400 hover:text-blue-300 disabled:opacity-60'}>
                 {abrindo ? <><Loader2 className="h-3 w-3 animate-spin" /> {outraCarteira ? 'Abrindo carteira…' : 'Abrindo…'}</>
+                  : ligar ? <><PhoneCall className="h-3.5 w-3.5" /> Ligar agora</>
                   : <>Abrir devedor <ExternalLink className="h-3 w-3" /></>}
               </button>
             ) : (
@@ -110,7 +115,7 @@ function Item({ item, mostrarOperador, onAcao, onAbrir, carteiraAberta, soLeitur
 }
 
 export default function Agenda() {
-  const { token, isAdmin, isComando } = useAuth()
+  const { token, usuario, isAdmin, isComando } = useAuth()
   // COMANDO consulta a agenda de uma empresa, sem alterar (quem resolve é a operação).
   const [empresas, setEmpresas] = useState([])
   const [alvo, setAlvo] = useState('')
@@ -196,7 +201,8 @@ export default function Agenda() {
       }
       const p = await buscarPaginaRanking(item.carteira_id, { busca: item.cpf, limit: 1 })
       const rank = p.itens?.[0]?.rank
-      if (rank) navigate(`/devedor/${rank}`)
+      // O compromisso vai junto: a ficha mostra o que foi combinado e a oferta.
+      if (rank) navigate(`/devedor/${rank}`, { state: { deAgenda: item } })
       else setErroAcao('Este devedor não está mais nessa carteira (ela pode ter sido analisada de novo).')
     } catch (e) { setErroAcao(e) }
   }
@@ -294,7 +300,7 @@ export default function Agenda() {
                     <AnimatePresence initial={false}>
                       {grupos[n].map(i => (
                         <Item key={i.id} item={i} mostrarOperador={escopo === 'equipe'}
-                          onAcao={acao} onAbrir={abrir} carteiraAberta={carteiraAberta} soLeitura={isComando} />
+                          onAcao={acao} onAbrir={abrir} carteiraAberta={carteiraAberta} soLeitura={isComando} meuId={usuario?.id} />
                       ))}
                     </AnimatePresence>
                     {grupos[n].length === 0 && (

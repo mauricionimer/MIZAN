@@ -3555,12 +3555,16 @@ def pagina_do_ranking(
     prioridade: Optional[str] = None,
     status: Optional[str] = None,
     responsavel: Optional[str] = None,
+    apos_rank: Optional[int] = None,
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     """Uma página da fila, já filtrada, sem trazer a carteira inteira.
 
     `responsavel`: "me" (a fila de quem chama), "sem" (sem dono) ou o id de um
     operador (F1 — divisão da fila).
+
+    `apos_rank`: só quem está depois dessa posição da fila — é o que acha "o
+    próximo devedor" de quem acabou de atender o anterior, sem varrer a fila.
 
     A resposta de /carteiras/{id} carrega o ranking completo: 581 bytes por
     devedor em JSON, ou seja 29 MB para 50 mil e 116 MB para 200 mil. A tabela
@@ -3605,6 +3609,8 @@ def pagina_do_ranking(
                 q = q.or_(f"nome.ilike.*{alvo}*,cpf.ilike.*{alvo}*")
         if faixa:
             q = q.gte("rank", faixa[0]).lte("rank", faixa[1])
+        if apos_rank is not None:
+            q = q.gt("rank", apos_rank)
         if responsavel == "me":
             q = q.eq("responsavel_id", payload["sub"])
         elif responsavel == "sem":

@@ -1,19 +1,22 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Phone, Tag, Zap, MessageSquare, Brain, Plus, ClipboardList, CheckCircle2, XCircle, Clock, Wallet, AlertTriangle, ChevronDown } from 'lucide-react'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft, Phone, Tag, Zap, MessageSquare, Brain, Plus, ClipboardList, CheckCircle2, XCircle, Clock, Wallet, AlertTriangle, ChevronDown, CalendarClock } from 'lucide-react'
 import { useAnalysis } from '../context/AnalysisContext'
 import { buscarPaginaRanking, buscarDistribuicao, atribuirResponsavel, listarAgenda, mudarAgenda, listarRoteiros } from '../api'
 import { CANAIS, OFERTA_LABEL, CANAL_DA_RECOMENDACAO, dadosParaRoteiro, preencher, linkWhatsApp } from '../utils/roteiros'
 import { NIVEL_CFG, TIPO_LABEL, quando, hojeISO, somarDias, avisarAgendaMudou } from '../utils/agenda'
 import { useAuth } from '../context/AuthContext'
 import PriorityBadge from '../components/PriorityBadge'
-import { buscarRecomendacao, registrarContato, listarContatos, buscarStatusFeedbacks, buscarExplicacaoScore, buscarPropostas, traduzirErroRede } from '../api'
+import { buscarRecomendacao, registrarContato, listarContatos, listarOfertasFeitas, buscarStatusFeedbacks, buscarExplicacaoScore, buscarPropostas, traduzirErroRede } from '../api'
 import { LogoMark } from '../components/Logo'
 import DicaAjuda from '../components/DicaAjuda'
 import AppShell from '../components/AppShell'
 import FazerOferta from '../components/FazerOferta'
 import ErroCarga from '../components/ErroCarga'
 import AvisoDesfazer from '../components/AvisoDesfazer'
+import RegistroRapido from '../components/RegistroRapido'
+import ProximoDevedor from '../components/ProximoDevedor'
+import { resumoConta } from '../utils/ofertas'
 
 // F1 — quem cuida deste devedor. Admin troca na hora; os demais só veem.
 function Responsavel({ carteiraId, devedor, podeTrocar }) {
@@ -213,7 +216,7 @@ function Propostas({ dados, loading, erro, despesas, setDespesas, onRecalcular, 
                       </p>
                       {/* 65% do modelo e 65% de vinte renegociações reais não
                           valem o mesmo — a origem precisa estar à vista. */}
-                      <p className="text-[11px]" style={{ color: 'var(--ink-3)', opacity: 0.8 }}>
+                      <p className="text-xs" style={{ color: 'var(--ink-3)', opacity: 0.8 }}>
                         {p.origem_pop === 'bandit'
                           ? (p.pop_observacoes === 1 ? '1 caso real' : `${p.pop_observacoes} casos reais`)
                           : 'estimativa do modelo'}
@@ -535,7 +538,7 @@ function CompromissosDevedor({ cpf, versao }) {
   )
 }
 
-function HistoricoContatos({ cpf, rec, propostas }) {
+function HistoricoContatos({ cpf, rec, propostas, versao = 0, onRegistrado }) {
   const [contatos, setContatos]     = useState([])
   const [versaoAgenda, setVersaoAgenda] = useState(0)
   const [avisoAgenda, setAvisoAgenda]   = useState('')
@@ -554,7 +557,7 @@ function HistoricoContatos({ cpf, rec, propostas }) {
 
   useEffect(() => {
     listarContatos(cpf).then(c => setContatos(Array.isArray(c) ? c : [])).catch(() => {}).finally(() => setLoading(false))
-  }, [cpf])
+  }, [cpf, versao])
 
   async function salvar() {
     setSalvando(true); setErro(null)
@@ -598,6 +601,7 @@ function HistoricoContatos({ cpf, rec, propostas }) {
         } else if (res.agenda_erro) {
           setAvisoAgenda(`Contato salvo, mas não entrou na Agenda: ${res.agenda_erro}`)
         } else setAvisoAgenda('')
+        onRegistrado?.()
       } catch (e) {
         const isRede = e?.message === 'Failed to fetch' || e?.message?.includes('Failed to fetch')
         const esperas = [35, 20]
@@ -760,7 +764,7 @@ function HistoricoContatos({ cpf, rec, propostas }) {
           {avisoAgenda}
         </p>
       )}
-      <CompromissosDevedor cpf={cpf} versao={versaoAgenda} />
+      <CompromissosDevedor cpf={cpf} versao={versaoAgenda + versao} />
 
       <div>
         {loading && (
@@ -867,9 +871,45 @@ function ApproachRecommendation({ devedor, rec, loading, erro, onTentar }) {
   )
 }
 
+// Veio da Agenda ("Ligar agora"): mostra o compromisso e, quando existe, a
+// oferta combinada (já carregada em "Fazer oferta").
+function ContextoAgenda({ item, oferta }) {
+  const cfg = NIVEL_CFG[item.nivel] ?? NIVEL_CFG.safe
+  const promessa = item.tipo === 'promessa'
+  return (
+    <section aria-label="Compromisso da Agenda" className="mb-5 rounded-xl p-4"
+      style={{ background: cfg.fundo, border: `1px solid ${cfg.borda}` }}>
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold" style={{ color: cfg.cor }}>
+        <CalendarClock className="h-4 w-4 shrink-0" aria-hidden="true" />
+        <span>Da Agenda · {TIPO_LABEL[item.tipo]} {quando(item.data, item.hora).toLowerCase()}</span>
+        {promessa && item.valor > 0 && <span className="tabular-nums" style={{ color: 'var(--ink)' }}>{fmtBRL(item.valor)}</span>}
+      </p>
+      {item.observacao && <p className="mt-1.5 text-sm" style={{ color: 'var(--ink-2)' }}>{item.observacao}</p>}
+      {oferta && (
+        <p className="mt-1.5 text-sm" style={{ color: 'var(--ink-2)' }}>
+          Oferta combinada: <strong className="font-semibold" style={{ color: 'var(--ink)' }}>{resumoConta(oferta, oferta.n_parcelas, oferta.desconto_pct)}</strong>.{' '}
+          Já está em “Fazer oferta”.{' '}
+          <button type="button" className="font-semibold underline underline-offset-2" style={{ color: 'var(--ink)' }}
+            onClick={() => document.getElementById('fazer-oferta')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+            Ir para a oferta
+          </button>
+        </p>
+      )}
+    </section>
+  )
+}
+
+// A ficha é de um devedor só: trocar o número da posição recomeça a tela
+// (despesas, simulador e formulários não passam de um devedor para o outro).
 export default function DebtorDetail() {
   const { rank } = useParams()
+  return <FichaDoDevedor key={rank} />
+}
+
+function FichaDoDevedor() {
+  const { rank } = useParams()
   const navigate = useNavigate()
+  const deAgenda = useLocation().state?.deAgenda ?? null
   const { result, setVista } = useAnalysis()
   const { isAdmin, isComando } = useAuth()
   // O3: oferta registrada cria um contato; a lista de contatos recarrega.
@@ -878,6 +918,10 @@ export default function DebtorDetail() {
   // oferecer" numa proposta carrega ela no simulador.
   const [pedidoOferta, setPedidoOferta] = useState(null)
   const [ofertaSimulada, setOfertaSimulada] = useState(null)
+  // Registrou um atendimento: oferece o próximo da fila (ProximoDevedor).
+  const [registro, setRegistro] = useState(null)
+  const pagos = useRef(null)                    // CPFs já pagos, para não oferecer como "próximo"
+  const [ofertaCombinada, setOfertaCombinada] = useState(null)
   // A tela inicial é uma só: dizer "Dashboard" é escolher a vista dela.
   const voltarAoDashboard = () => { setVista('dashboard'); navigate('/') }
 
@@ -934,13 +978,31 @@ export default function DebtorDetail() {
     }
   }, [result, d, navigate, erroBusca, buscou, procurando])
 
+  // Veio de um compromisso criado por "Fazer oferta": a oferta combinada
+  // (ligada pelo contato) já entra no simulador, sem rolar a tela.
+  useEffect(() => {
+    if (!deAgenda?.contato_id || !d?.cpf) return
+    let vivo = true
+    listarOfertasFeitas(d.cpf).then(r => {
+      const o = r?.ativo ? (r.itens ?? []).find(x => x.contato_id === deAgenda.contato_id) : null
+      if (!vivo || !o) return
+      setOfertaCombinada(o)
+      setPedidoOferta({ n: Date.now(), silencioso: true, base_id: o.base_id,
+        valores: { desconto_pct: o.desconto_pct, entrada_pct: o.entrada_pct, n_parcelas: o.n_parcelas, juros_mensal_pct: o.juros_mensal_pct } })
+    }).catch(() => {})
+    return () => { vivo = false }
+  }, [deAgenda?.contato_id, d?.cpf])
+
   // "Tentar novamente" na recomendação ou na explicação refaz as consultas do devedor.
   const [recarga, setRecarga] = useState(0)
   useEffect(() => {
     if (!d?.cpf) return
     setRecLoading(true); setRecErro(null); setExplicacaoErro(null)
     buscarRecomendacao(d.cpf).then(setRec).catch(e => setRecErro(e.message)).finally(() => setRecLoading(false))
-    buscarStatusFeedbacks(carteiraId).then(map => setStatusPag(map[String(d.cpf)] ?? null)).catch(() => {})
+    buscarStatusFeedbacks(carteiraId).then(map => {
+      setStatusPag(map[String(d.cpf)] ?? null)
+      pagos.current = new Set(Object.entries(map).filter(([, v]) => v?.pagou === true).map(([k]) => String(k)))
+    }).catch(() => {})
     setExplicacaoLoading(true)
     buscarExplicacaoScore(d.cpf).then(setExplicacao).catch(e => setExplicacaoErro(e.message)).finally(() => setExplicacaoLoading(false))
     setPropostasLoading(true)
@@ -1030,6 +1092,8 @@ export default function DebtorDetail() {
           <PriorityBadge rank={d.rank} total={result?.resumo?.total_devedores ?? result?.ranking_completo?.length ?? 0} large />
         </div>
 
+        {deAgenda && <ContextoAgenda item={deAgenda} oferta={ofertaCombinada} />}
+
         {/* Resumo: o essencial para entender o caso antes de agir. */}
         <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[
@@ -1063,6 +1127,11 @@ export default function DebtorDetail() {
               <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Abordagem → proposta → oferta → mensagem → registro</p>
             </div>
 
+            {!isComando && (
+              <RegistroRapido cpf={d.cpf} canalPadrao={rec?.canal}
+                onRegistrado={() => { setVersaoContatos(v => v + 1); setRegistro({ n: Date.now() }) }} />
+            )}
+
             <ApproachRecommendation devedor={d} rec={rec} loading={recLoading} erro={recErro} onTentar={() => setRecarga(n => n + 1)} />
 
             <Section title="Propostas de renegociação" ajuda="propostas-de-renegociacao">
@@ -1077,10 +1146,11 @@ export default function DebtorDetail() {
             <FazerOferta cpf={d.cpf} despesas={despesas} setDespesas={setDespesas} canalPadrao={rec?.canal} confirmavel={!isComando}
               sugeridaId={propostas?.recomendada?.id || propostas?.alternativa_a_vista?.id}
               pedido={pedidoOferta} onSimulado={setOfertaSimulada}
-              onRegistrada={() => setVersaoContatos(v => v + 1)} />
+              onRegistrada={() => { setVersaoContatos(v => v + 1); setRegistro({ n: Date.now() }) }} />
 
             <MensagemSugerida devedor={d} rec={rec} propostas={propostas} simulada={ofertaSimulada} />
-            <HistoricoContatos key={versaoContatos} cpf={d.cpf} rec={rec} propostas={propostas} />
+            <HistoricoContatos cpf={d.cpf} rec={rec} propostas={propostas} versao={versaoContatos}
+              onRegistrado={() => setRegistro({ n: Date.now() })} />
           </section>
 
           {/* Sobre o devedor: consulta. No celular vem depois do atendimento. */}
@@ -1147,6 +1217,11 @@ export default function DebtorDetail() {
             </SecaoRecolhivel>
           </aside>
         </div>
+
+        {registro && carteiraId && (
+          <ProximoDevedor key={registro.n} carteiraId={carteiraId} rankAtual={d.rank} doOperador={!isAdmin && !isComando}
+            pagos={pagos.current} onIr={r => navigate(`/devedor/${r}`)} onVoltar={voltarAoDashboard} onFechar={() => setRegistro(null)} />
+        )}
       </div>
     </AppShell>
   )

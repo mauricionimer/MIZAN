@@ -8,7 +8,7 @@ import ErroCarga from './ErroCarga'
 import useModal from './useModal'
 import { buscarOfertas, simularOferta, registrarOferta, listarOfertasFeitas } from '../api'
 import { hojeISO, somarDias, avisarAgendaMudou } from '../utils/agenda'
-import { resumoOferta, NOME_FAMILIA } from '../utils/ofertas'
+import { resumoOferta, resumoConta, NOME_FAMILIA } from '../utils/ofertas'
 
 const brl = (v) => v == null ? '—' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
 const pct = (v) => v == null ? '—' : `${Math.round(v * 100)}%`
@@ -60,11 +60,6 @@ const RESPOSTAS = [
 ]
 const NOME_CANAL = { whatsapp: 'WhatsApp', telefone: 'Ligação', carta: 'Carta / e-mail' }
 const NOME_RESPOSTA = { aceitou: 'Aceitou', vai_pensar: 'Vai pensar', recusou: 'Recusou' }
-
-function resumoConta(c, n, desconto) {
-  const base = n > 1 ? `${c.entrada > 0 ? `${brl(c.entrada)} + ` : ''}${n}x de ${brl(c.parcela)}` : `À vista ${brl(c.total_pago)}`
-  return Number(desconto) > 0 ? `${base} · ${Number(desconto)}% de desconto` : base
-}
 
 // O3 — confirmar que a oferta foi feita: canal, resposta do devedor e data.
 function Confirmar({ cpf, analise, condicoes, canalPadrao, despesas, onFechar, onFeito }) {
@@ -123,7 +118,7 @@ function Confirmar({ cpf, analise, condicoes, canalPadrao, despesas, onFechar, o
                     className="flex flex-col items-center gap-1 rounded-xl px-2 py-3 text-xs font-semibold transition-colors"
                     style={on ? { border: `1.5px solid ${r.cor}`, color: r.cor, background: 'var(--raise-1)' } : { border: '1px solid var(--line)', color: 'var(--ink-2)' }}>
                     <I className="h-5 w-5" /> {r.label}
-                    <span className="text-[11px] font-normal" style={{ color: 'var(--ink-3)' }}>{r.nota}</span>
+                    <span className="text-xs font-normal" style={{ color: 'var(--ink-3)' }}>{r.nota}</span>
                   </button>
                 )
               })}
@@ -211,15 +206,27 @@ export default function FazerOferta({ cpf, despesas, setDespesas, canalPadrao, c
     usarBase(catalogo.find(o => o.id === sugeridaId) || catalogo[0])
   }, [catalogo, sugeridaId])        // eslint-disable-line react-hooks/exhaustive-deps
 
-  // "Ajustar e oferecer" numa proposta: carrega aqui e rola até o simulador.
+  // Um pedido de fora carrega aqui: "Ajustar e oferecer" numa proposta (rola até
+  // o simulador) ou a oferta combinada que veio da Agenda (valores exatos, sem
+  // rolar). Espera o catálogo chegar e aplica cada pedido uma vez só.
+  const aplicado = useRef(null)
   useEffect(() => {
-    if (!pedido) return
-    const o = catalogo.find(x => x.id === pedido.id)
-    if (!o) return
-    tocado.current = true
-    usarBase(o)
-    raiz.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, [pedido])                      // eslint-disable-line react-hooks/exhaustive-deps
+    if (!pedido || aplicado.current === pedido || !catalogo.length) return
+    if (pedido.valores) {
+      const v = pedido.valores
+      const base_ = catalogo.some(x => x.id === pedido.base_id) ? pedido.base_id : ''
+      tocado.current = true; aplicado.current = pedido
+      setBase(base_)
+      setModo(v.n_parcelas > 1 ? 'parcelado' : 'avista')
+      setF({ desconto_pct: v.desconto_pct, entrada_pct: v.entrada_pct, n_parcelas: v.n_parcelas, juros_mensal_pct: v.juros_mensal_pct })
+    } else {
+      const o = catalogo.find(x => x.id === pedido.id)
+      if (!o) return
+      tocado.current = true; aplicado.current = pedido
+      usarBase(o)
+    }
+    if (!pedido.silencioso) raiz.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [pedido, catalogo])            // eslint-disable-line react-hooks/exhaustive-deps
 
   function usarBase(o) {
     setBase(o.id)
@@ -255,7 +262,7 @@ export default function FazerOferta({ cpf, despesas, setDespesas, canalPadrao, c
   const geral = res?.geral
 
   return (
-    <div ref={raiz} className="scroll-mt-20 rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
+    <div ref={raiz} id="fazer-oferta" className="scroll-mt-20 rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
       <div className="flex flex-wrap items-center justify-between gap-2 border-b px-5 py-4" style={{ borderColor: 'var(--line)' }}>
         <p className="section-label flex items-center gap-1.5"><Calculator className="h-3.5 w-3.5" /> Fazer oferta<DicaAjuda id="simulador-de-oferta" /></p>
         {res && <span className="flex items-center gap-2 text-xs" style={{ color: 'var(--ink-3)' }}>
@@ -275,6 +282,13 @@ export default function FazerOferta({ cpf, despesas, setDespesas, canalPadrao, c
                   {o.nome}
                 </button>
               ))}
+              {!base && tocado.current && (
+                <span className="inline-flex min-h-[36px] items-center rounded-full border border-dashed px-3 py-1 text-xs font-medium"
+                  style={{ borderColor: 'var(--line-2, var(--line))', color: 'var(--ink-2)' }}
+                  title="Você alterou os valores: esta oferta não é mais igual a nenhuma da empresa.">
+                  Personalizada
+                </span>
+              )}
             </div>
           </div>
         )}
@@ -284,7 +298,7 @@ export default function FazerOferta({ cpf, despesas, setDespesas, canalPadrao, c
             const on = v === 1 ? modo === 'avista' : modo === 'parcelado'
             return (
               <button key={l} type="button" role="tab" aria-selected={on}
-                onClick={() => { setModo(v === 1 ? 'avista' : 'parcelado'); setBase(''); if (v !== 1 && (parseInt(f.n_parcelas, 10) || 1) < 2) setF(x => ({ ...x, n_parcelas: 6 })) }}
+                onClick={() => { tocado.current = true; setModo(v === 1 ? 'avista' : 'parcelado'); setBase(''); if (v !== 1 && (parseInt(f.n_parcelas, 10) || 1) < 2) setF(x => ({ ...x, n_parcelas: 6 })) }}
                 className="min-h-[40px] flex-1 rounded-md py-1.5 text-sm font-medium"
                 style={on ? { background: 'var(--surface)', color: 'var(--ink)', boxShadow: '0 1px 2px rgb(0 0 0 / .08)' } : { color: 'var(--ink-2)' }}>{l}</button>
             )
@@ -372,8 +386,8 @@ export default function FazerOferta({ cpf, despesas, setDespesas, canalPadrao, c
         {res && (
           <p className="flex items-start gap-1.5 text-xs" style={{ color: 'var(--ink-3)' }}>
             <Info className="mt-0.5 h-3 w-3 shrink-0" />
-            A chance de pagar vem das ofertas de {NOME_FAMILIA[res.familia]}
-            {res.banco.origem_chance === 'bandit' ? ` (histórico de ${res.banco.observacoes_chance} ofertas registradas)` : ' (estimativa do modelo, ainda sem histórico)'};
+            A chance de pagar vem de ofertas parecidas ({NOME_FAMILIA[res.familia]})
+            {res.banco.origem_chance === 'bandit' ? `: histórico de ${res.banco.observacoes_chance} ofertas registradas` : ': estimativa do modelo, ainda sem histórico'};
             {' '}o sistema ainda não estima como cada ponto de desconto muda essa chance.
           </p>
         )}

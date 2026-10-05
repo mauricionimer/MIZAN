@@ -1,8 +1,9 @@
 // F3 — "Meu painel" (operador) e "Painel da equipe" (admin, COMANDO).
 // Só contagens do que foi registrado; nada estimado (backend/painel.py).
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Gauge, PhoneOutgoing, Handshake, Banknote, Target, Loader2, Info } from 'lucide-react'
+import { Gauge, PhoneOutgoing, Handshake, Banknote, Target, Loader2, Info, ArrowRight } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import DicaAjuda from '../components/DicaAjuda'
 import ErroCarga from '../components/ErroCarga'
@@ -14,7 +15,7 @@ const fmtNum = (v) => new Intl.NumberFormat('pt-BR').format(v || 0)
 const fmtPct = (v) => v == null ? '—' : `${Math.round(v * 100)}%`
 const PERIODOS = [['hoje', 'Hoje'], ['7d', '7 dias'], ['30d', '30 dias']]
 
-function Cartao({ icone: Icone, rotulo, valor, nota, cor = 'text-blue-400', i = 0 }) {
+function Cartao({ icone: Icone, rotulo, valor, nota, cor = 'text-blue-400', i = 0, link }) {
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
       className="rounded-xl border border-line bg-surface p-5">
@@ -24,6 +25,11 @@ function Cartao({ icone: Icone, rotulo, valor, nota, cor = 'text-blue-400', i = 
       </div>
       <p className="mt-2 text-3xl font-bold tabular-nums tracking-tight text-ink">{valor}</p>
       {nota && <p className="mt-1 text-xs text-ink-2">{nota}</p>}
+      {link && (
+        <Link to={link.to} className="mt-2 inline-flex min-h-[36px] items-center gap-1 text-xs font-semibold text-blue-400 hover:text-blue-300">
+          {link.label} <ArrowRight className="h-3 w-3" aria-hidden="true" />
+        </Link>
+      )}
     </motion.div>
   )
 }
@@ -46,7 +52,7 @@ function BarraMeta({ feitos, meta, compacta = false }) {
         <motion.div initial={{ width: 0 }} animate={{ width: `${pct * 100}%` }} transition={{ duration: 0.6, ease: 'easeOut' }}
           className={`h-full rounded-full ${bateu ? 'bg-emerald-500' : 'bg-blue-500'}`} />
       </div>
-      {compacta && <p className="mt-0.5 text-[11px] tabular-nums text-ink-2">{fmtNum(feitos)}/{fmtNum(meta)}</p>}
+      {compacta && <p className="mt-0.5 text-xs tabular-nums text-ink-2">{fmtNum(feitos)}/{fmtNum(meta)}</p>}
     </div>
   )
 }
@@ -82,13 +88,14 @@ function MeusNumeros({ d }) {
         <Cartao i={2} icone={Banknote} rotulo="Recebido" valor={fmtBRL(d.recebido)} cor="text-emerald-400"
           nota={`${fmtNum(d.pagamentos)} ${d.pagamentos === 1 ? 'pagamento confirmado' : 'pagamentos confirmados'} da sua fila`} />
         <Cartao i={3} icone={Gauge} rotulo="Promessas" valor={`${fmtNum(d.promessas_cumpridas)} pagas`} cor="text-ink-2"
-          nota={`${fmtNum(d.promessas_quebradas)} não pagas · ${fmtNum(d.promessas_pendentes)} pendentes`} />
+          nota={`${fmtNum(d.promessas_quebradas)} não pagas · ${fmtNum(d.promessas_pendentes)} pendentes`}
+          link={d.promessas_pendentes > 0 ? { to: '/agenda', label: 'Ver na Agenda' } : null} />
       </div>
     </>
   )
 }
 
-function Equipe({ d }) {
+function Equipe({ d, comando }) {
   const t = d.total
   return (
     <>
@@ -100,7 +107,8 @@ function Equipe({ d }) {
         <Cartao i={2} icone={Banknote} rotulo="Recebido" valor={fmtBRL(t.recebido)} cor="text-emerald-400"
           nota={d.recebido_sem_responsavel > 0 ? `${fmtBRL(d.recebido_sem_responsavel)} de devedores sem responsável` : `${fmtNum(t.pagamentos)} pagamentos confirmados`} />
         <Cartao i={3} icone={Gauge} rotulo="Promessas" valor={`${fmtNum(t.promessas_cumpridas)} pagas`} cor="text-ink-2"
-          nota={`${fmtNum(t.promessas_quebradas)} não pagas · ${fmtNum(t.promessas_pendentes)} pendentes`} />
+          nota={`${fmtNum(t.promessas_quebradas)} não pagas · ${fmtNum(t.promessas_pendentes)} pendentes`}
+          link={t.promessas_pendentes > 0 && !comando ? { to: '/agenda', label: 'Ver na Agenda' } : null} />
       </div>
       <section className="overflow-hidden rounded-xl border border-line bg-surface">
         <div className="border-b border-line px-5 py-3">
@@ -209,7 +217,7 @@ export default function PainelOperador() {
         {dados && (
           <div className={`space-y-4 transition-opacity ${carregando ? 'opacity-60' : ''}`}>
             <Avisos d={dados} />
-            {equipe ? <Equipe d={dados} /> : <MeusNumeros d={dados} />}
+            {equipe ? <Equipe d={dados} comando={isComando} /> : <MeusNumeros d={dados} />}
           </div>
         )}
       </div>

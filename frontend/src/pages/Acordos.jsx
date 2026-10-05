@@ -48,17 +48,21 @@ function Numero({ icone: Icone, rotulo, valor, nota, cor, i, ativo, onClick }) {
   )
 }
 
-// Régua de parcelas: paga (cheia), vencida (vermelha), futura (vazia). Com legenda.
-function Regua({ parcelas, hoje }) {
+// Régua de parcelas: paga (cheia), vencida (vermelha), futura (vazia), com o
+// "3/6" ao lado: o número vale mesmo sem passar o mouse nos quadrados.
+function Regua({ parcelas, hoje, pagas, total }) {
   return (
-    <div className="flex flex-wrap gap-1" aria-label="Parcelas">
+    <div className="flex items-center gap-2.5">
+    <div className="flex flex-wrap gap-1" role="img" aria-label={`${pagas} de ${total} parcelas pagas`}>
       {parcelas.map(p => {
         const vencida = p.situacao !== 'paga' && String(p.vencimento).slice(0, 10) < hoje
         const estilo = p.situacao === 'paga' ? { background: 'var(--success)' }
           : vencida ? { background: 'var(--danger)' } : { background: 'transparent', border: '1px solid var(--line-2, var(--line))' }
         return <span key={p.id} title={`${p.numero}ª · ${fmtData(p.vencimento)} · ${p.situacao === 'paga' ? 'paga' : vencida ? 'vencida' : 'a vencer'}`}
-          className="h-2.5 w-4 rounded-sm" style={estilo} />
+          className="h-4 w-5 rounded-sm" style={estilo} />
       })}
+    </div>
+    <span className="shrink-0 text-sm font-semibold tabular-nums text-ink">{pagas}/{total}<span className="font-normal text-ink-2"> pagas</span></span>
     </div>
   )
 }
@@ -80,9 +84,9 @@ function Acordo({ a, hoje, podeBaixar, onParcela, destaque }) {
         </div>
         <Selo s={a.situacao} />
         <div className="col-span-2 space-y-1 sm:col-span-1">
-          <Regua parcelas={a.parcelas} hoje={hoje} />
+          <Regua parcelas={a.parcelas} hoje={hoje} pagas={a.pagas} total={a.total} />
           <p className="text-xs text-ink-2">
-            {a.pagas} de {a.total} pagas · {fmtBRL2(a.valor_parcela)}/mês
+            {fmtBRL2(a.valor_parcela)}/mês
             {a.dias_atraso > 0 && <span style={{ color: SIT[a.situacao].cor }}> · {a.dias_atraso} dias de atraso</span>}
           </p>
         </div>

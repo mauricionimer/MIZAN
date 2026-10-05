@@ -163,7 +163,7 @@ export default function Ofertas() {
                         className={`w-full rounded-lg border px-3 py-2.5 text-left transition-colors ${sel === i ? 'border-blue-500/40 bg-blue-500/10' : 'border-transparent hover:bg-raise-1'} ${o.ativa ? '' : 'opacity-55'}`}>
                         <div className="flex items-center justify-between gap-2">
                           <p className="truncate text-sm font-medium text-ink">{o.nome || 'Sem nome'}</p>
-                          {!o.ativa && <span className="shrink-0 rounded bg-raise-2 px-1.5 py-px text-[11px] text-ink-2">inativa</span>}
+                          {!o.ativa && <span className="shrink-0 rounded bg-raise-2 px-1.5 py-px text-xs text-ink-2">inativa</span>}
                         </div>
                         <p className="truncate text-xs text-ink-2">{resumoOferta(efetiva(o))}</p>
                       </button>
@@ -174,7 +174,7 @@ export default function Ofertas() {
                   className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-blue-500/40 px-3 py-2 text-sm font-medium text-blue-400 hover:bg-blue-500/10 disabled:opacity-40">
                   <Plus className="h-4 w-4" /> Nova oferta
                 </button>
-                <p className="px-1 text-[11px] text-ink-2">{catalogo.length} de {dados.max_ofertas} ofertas</p>
+                <p className="px-1 text-xs text-ink-2">{catalogo.length} de {dados.max_ofertas} ofertas</p>
               </aside>
 
               {atual && (
@@ -228,7 +228,7 @@ export default function Ofertas() {
                       ))}
                     </dl>
                     <p className="mt-3 text-xs text-ink-2">
-                      Aprende junto com as ofertas de <strong className="font-semibold text-ink">{NOME_FAMILIA[fam]}</strong>: a chance de pagar começa pelo histórico delas.
+                      Aprende junto com ofertas parecidas (<strong className="font-semibold text-ink">{NOME_FAMILIA[fam]}</strong>): a chance de pagar começa pelo histórico delas.
                       {conta.juros_total > 0 && ` Juros somam ${brl(conta.juros_total)} e não contam como recuperação.`}
                     </p>
                   </div>

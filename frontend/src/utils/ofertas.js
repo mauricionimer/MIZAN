@@ -42,4 +42,10 @@ export function resumoOferta(o) {
   return partes.join(' · ')
 }
 
+// "R$ 100,00 + 4x de R$ 105,00 · 15% de desconto": a conta como foi (ou será) feita.
+export function resumoConta(c, n, desconto) {
+  const base = n > 1 ? `${c.entrada > 0 ? `${brl(c.entrada)} + ` : ''}${n}x de ${brl(c.parcela)}` : `À vista ${brl(c.total_pago)}`
+  return Number(desconto) > 0 ? `${base} · ${Number(desconto)}% de desconto` : base
+}
+
 export { brl }

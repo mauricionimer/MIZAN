@@ -257,7 +257,7 @@ export default function Roteiros() {
               <div>
                 <div className="mb-1.5 flex items-baseline justify-between">
                   <span className="text-xs font-semibold text-ink-2">Texto</span>
-                  <span className={`text-[11px] tabular-nums ${form.texto.length > 2000 ? 'text-red-400' : 'text-ink-2'}`}>{form.texto.length}/2000</span>
+                  <span className={`text-xs tabular-nums ${form.texto.length > 2000 ? 'text-red-400' : 'text-ink-2'}`}>{form.texto.length}/2000</span>
                 </div>
                 {!somenteLeitura && (
                   <div className="mb-2 flex flex-wrap gap-1.5">
