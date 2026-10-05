@@ -2173,6 +2173,73 @@ def painel_equipe(periodo: str = "hoje", empresa_id: Optional[str] = None,
             "recebido_sem_responsavel": round(sum(float(p.get("valor_recuperado") or 0) for p in sem_dono), 2)}
 
 
+# ── A1: painel de resultados (o que está funcionando) ────────────────────────
+
+_PERIODOS_RESULTADOS = {"30d": 30, "90d": 90, "365d": 365, "tudo": None}
+
+
+@app.get("/resultados")
+def painel_resultados(periodo: str = "90d", empresa_id: Optional[str] = None,
+                      credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Pagamentos registrados cruzados por canal, fase, modalidade e desconto."""
+    import resultados as R
+    from agenda import hoje
+    from painel import meia_noite_utc
+    from datetime import timedelta
+    payload = _exigir_admin_ou_comando(credentials)
+    emp = _empresa_da_agenda(payload, empresa_id)
+    if periodo not in _PERIODOS_RESULTADOS:
+        raise HTTPException(status_code=422, detail="Período inválido. Use: 30d, 90d, 365d ou tudo.")
+    dias = _PERIODOS_RESULTADOS[periodo]
+    desde = meia_noite_utc(hoje() - timedelta(days=dias - 1)) if dias else None
+    db = get_db()
+
+    def consulta(colunas):
+        def q():
+            c = db.table("feedbacks").select(colunas).eq("empresa", emp)
+            return c.gte("created_at", desde) if desde else c
+        return q
+    completas = "id, pagou, valor_recuperado, predicao_id, created_at, " + ", ".join(_COLUNAS_ACORDO)
+    condicoes = True
+    try:
+        fbs = _todas_as_linhas(consulta(completas))
+    except Exception as e:
+        if not any(c in str(e) for c in _COLUNAS_ACORDO):
+            raise
+        # Banco sem as colunas do acordo: canal e condições ficam "Não informado".
+        fbs, condicoes = _todas_as_linhas(consulta("id, pagou, valor_recuperado, predicao_id, created_at")), False
+
+    ids = list({f["predicao_id"] for f in fbs if f.get("predicao_id")})
+    atraso: dict = {}
+    for i in range(0, len(ids), ITENS_POR_IN):
+        for l in (db.table("predicoes").select("id, dias_em_atraso")
+                  .in_("id", ids[i:i + ITENS_POR_IN]).execute().data or []):
+            if l.get("dias_em_atraso") is not None:
+                atraso[l["id"]] = int(l["dias_em_atraso"])
+
+    def contatos_q():
+        c = db.table("contatos").select("canal, resultado, created_at").eq("empresa_id", emp)
+        return c.gte("created_at", desde) if desde else c
+    contatos = _todas_as_linhas(contatos_q)
+
+    fase = lambda f: _aging_label(atraso[f["predicao_id"]]) if f.get("predicao_id") in atraso else None
+    por_canal = R.agrupar(fbs, lambda f: f.get("canal_cobranca"), com_taxa=True)
+    por_fase = R.agrupar(fbs, fase, com_taxa=True, ordem=R.ORDEM_FASE)
+    return {
+        "periodo": periodo, "desde": desde, "condicoes_ativas": condicoes,
+        "amostra_minima": R.AMOSTRA_MINIMA,
+        "totais": R.totais(fbs),
+        "por_canal": por_canal, "melhor_canal": R.melhor(por_canal),
+        "por_fase": por_fase, "melhor_fase": R.melhor(por_fase),
+        "por_modalidade": R.agrupar(fbs, lambda f: R.modalidade(f.get("parcelas")), com_taxa=False,
+                                    ordem=("a_vista", "parcelado")),
+        "por_desconto": R.agrupar(fbs, lambda f: R.faixa_desconto(f.get("desconto_pct")), com_taxa=False,
+                                  ordem=tuple(k for k, _, _ in R.FAIXAS_DESCONTO)),
+        "por_forma": R.agrupar(fbs, lambda f: f.get("forma_pagamento"), com_taxa=False),
+        "contatos_por_canal": R.contatos_por_canal(contatos),
+    }
+
+
 # ── F4: roteiros de abordagem ────────────────────────────────────────────────
 
 _MSG_SEM_MIGRACAO_ROTEIROS = ("Os roteiros ainda não estão ativos: rode "

@@ -138,3 +138,26 @@ fazer: Use para conferir o que a equipe já registrou antes de registrar de novo
 cuidado: Se houver mais de 5.000 registros, só os mais recentes aparecem.
 fontes:
 - backend/main.py::rota /performance/pagamentos
+
+## painel-de-resultados
+titulo: Resultados: o que está funcionando
+perfis: admin, comando
+telas: Resultados
+perguntas:
+- qual canal traz mais pagamento
+- whatsapp ou ligação funciona melhor
+- em que fase de atraso vale mais cobrar
+- quanto desconto estamos dando
+- o que é amostra pequena
+- por que não tem taxa no à vista e parcelado
+- de onde vem a taxa de pagamento
+curta: Cruza os pagamentos registrados em Pagamentos por canal, fase de atraso, à vista × parcelado, desconto e forma de pagamento, no período escolhido.
+calculo: Taxa de pagamento = registros com "pagou" ÷ todos os registros do grupo (pagou e não pagou); cada registro de Pagamentos conta uma vez. Recuperado soma o valor dos que pagaram; ticket médio = recuperado ÷ pagamentos. A fase vem dos dias em atraso do devedor na carteira ligada ao pagamento, nas faixas do aging. À vista × parcelado, desconto e forma só existem quando o devedor paga, então esses cortes mostram a composição do que entrou, sem taxa. Grupo com menos de 30 registros (ou pagamentos) leva o selo "amostra pequena" e fica fora do "melhor".
+fazer: Use a taxa por canal e por fase para decidir onde pôr a equipe, e confira em "Contatos por canal" quantos contatos viram promessa. Peça à equipe para registrar também quem não pagou, com o canal: sem isso a taxa sobe artificialmente.
+cuidado: A taxa mede só o que foi registrado; se a equipe registra só quem pagou, ela fica perto de 100% e não diz nada. O que veio sem canal ou sem condição aparece em "Não informado" e nunca é redistribuído. Comparação entre canais mostra associação, não causa: o canal escolhido pode depender do perfil do devedor.
+fontes:
+- backend/resultados.py::agrupar
+- backend/resultados.py::melhor
+- backend/main.py::painel_resultados
+constantes:
+- backend/resultados.py::AMOSTRA_MINIMA = 30

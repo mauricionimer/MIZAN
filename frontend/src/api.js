@@ -641,6 +641,12 @@ export async function buscarPainelEquipe(periodo, empresaId) {
   return _jsonOuErroFila(res)
 }
 
+// ── A1: painel de resultados ─────────────────────────────────────────────────
+export async function buscarResultados(periodo, empresaId) {
+  const res = await fetch(`${BASE}/resultados?${_qs({ periodo, empresa_id: empresaId })}`, { headers: { Authorization: `Bearer ${_getToken()}` } })
+  return _jsonOuErroFila(res)
+}
+
 // ── F4: roteiros de abordagem ────────────────────────────────────────────────
 export async function listarRoteiros(params = {}) {
   const res = await fetch(`${BASE}/roteiros?${_qs(params)}`, { headers: { Authorization: `Bearer ${_getToken()}` } })

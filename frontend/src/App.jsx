@@ -85,6 +85,7 @@ const PerformanceIA = lazy(() => import('./pages/PerformanceIA'))
 const Agenda = lazy(() => import('./pages/Agenda'))
 const PainelOperador = lazy(() => import('./pages/PainelOperador'))
 const Roteiros = lazy(() => import('./pages/Roteiros'))
+const Resultados = lazy(() => import('./pages/Resultados'))
 const Retencao = lazy(() => import('./pages/Retencao'))
 const TreinoModelo = lazy(() => import('./pages/TreinoModelo'))
 const ChavesApi = lazy(() => import('./pages/ChavesApi'))
@@ -140,6 +141,7 @@ function RotasAnimadas() {
           <Route path="/comando" element={P(['comando'], <ComandoDashboard />)} />
           <Route path="/admin/usuarios" element={P(['admin', 'comando'], <AdminUsuarios />)} />
           <Route path="/painel" element={P(['operador', 'admin', 'comando'], <PainelOperador />)} />
+          <Route path="/resultados" element={P(['admin', 'comando'], <Resultados />)} />
           <Route path="/roteiros" element={P(['operador', 'admin', 'comando'], <Roteiros />)} />
           <Route path="/agenda" element={P(['operador', 'admin', 'comando'], <Agenda />)} />
           <Route path="/backtest" element={P(['admin', 'comando'], <Backtest />)} />
