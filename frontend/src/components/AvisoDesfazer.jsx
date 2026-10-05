@@ -12,7 +12,7 @@ const DURACAO_MS = 8000
  * página rolada e no celular. Some sozinho em 8 s; "Desfazer" chama
  * `aviso.desfazer()` (que deve reverter no servidor) e não dispara duas vezes.
  *
- * `aviso`: { id, texto, desfazer: async () => void } | null
+ * `aviso`: { id, texto, desfeito?, desfazer: async () => void } | null
  */
 export default function AvisoDesfazer({ aviso, onFechar }) {
   const [estado, setEstado] = useState('aberto')    // aberto | desfazendo | desfeito | erro
@@ -51,7 +51,7 @@ export default function AvisoDesfazer({ aviso, onFechar }) {
           <div className="flex items-center gap-3 px-4 py-3">
             {estado === 'desfeito' ? <Check className="h-4 w-4 shrink-0" /> : null}
             <p className="min-w-0 flex-1 text-sm">
-              {estado === 'desfeito' ? 'Desfeito. O compromisso voltou para a Agenda.' : estado === 'erro' ? erro : aviso.texto}
+              {estado === 'desfeito' ? (aviso.desfeito || 'Desfeito.') : estado === 'erro' ? erro : aviso.texto}
             </p>
             {(estado === 'aberto' || estado === 'desfazendo') && (
               <button type="button" onClick={desfazer} disabled={estado === 'desfazendo'}

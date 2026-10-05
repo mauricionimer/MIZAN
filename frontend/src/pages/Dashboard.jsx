@@ -1078,7 +1078,7 @@ export default function Dashboard({ onIrPara }) {
                       { k: 'sem', label: `Sem responsável · ${fmtNum(distrib.sem_responsavel?.devedores ?? 0)}` },
                     ].map(({ k, label }) => (
                       <button key={k} onClick={() => setFiltroResp(k)}
-                        className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+                        className={`min-h-[40px] md:min-h-[32px] rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
                           filtroResp === k ? 'border-blue-500/30 bg-blue-500/15 text-blue-300' : 'border-line bg-raise-1 text-ink-2 hover:text-ink'
                         }`}>
                         {label}

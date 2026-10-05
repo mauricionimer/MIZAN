@@ -139,11 +139,11 @@ export default function DistribuirFila({ carteiraId, resumo, onFechar, onFeito }
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-xl border border-line bg-surface-2 px-4 py-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-2">Devedores a repartir</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-2">Devedores a repartir</p>
                     <p className="mt-1 text-lg font-bold tabular-nums text-ink">{fmtNum(base)}</p>
                   </div>
                   <div className="rounded-xl border border-line bg-surface-2 px-4 py-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-2">Valor esperado por operador</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-2">Valor esperado por operador</p>
                     <p className="mt-1 text-lg font-bold tabular-nums text-ink">
                       {escolhidos.length ? <>≈ {fmtBRL(valorBase / escolhidos.length)}</> : '—'}
                     </p>

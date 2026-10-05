@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Phone, Tag, Zap, MessageSquare, Brain, Plus, ClipboardList, CheckCircle2, XCircle, Clock, Wallet, AlertTriangle, ChevronDown } from 'lucide-react'
 import { useAnalysis } from '../context/AnalysisContext'
@@ -176,11 +176,11 @@ function Propostas({ dados, loading, erro, despesas, setDespesas, onRecalcular, 
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>{p.rotulo}</span>
                     {recomendada && (
-                      <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
+                      <span className="text-[11px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
                         style={{ background: 'rgb(var(--c-success) / 0.16)', color: 'var(--success)' }}>Sugerida</span>
                     )}
                     {alternativa && (
-                      <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
+                      <span className="text-[11px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
                         style={{ background: 'var(--raise-3)', color: 'var(--ink-2)' }}>Alternativa</span>
                     )}
                   </div>
@@ -191,29 +191,29 @@ function Propostas({ dados, loading, erro, despesas, setDespesas, onRecalcular, 
                     {p.desconto_pct > 0 && ` · ${Number(p.desconto_pct).toFixed(0)}% de desconto`}
                     {p.juros_mensal_pct > 0 && ` · ${String(p.juros_mensal_pct).replace('.', ',')}% a.m.`}
                   </p>
-                  <p className="text-[11px] mt-1 leading-relaxed" style={{ color: naoCabe ? 'var(--danger)' : 'var(--ink-3)' }}>
+                  <p className="text-xs mt-1 leading-relaxed" style={{ color: naoCabe ? 'var(--danger)' : 'var(--ink-3)' }}>
                     {p.observacao}
                   </p>
                   {onSimular && p.id && (
                     <button type="button" onClick={() => onSimular(p.id)}
-                      className="mt-1.5 text-[11px] font-semibold text-blue-400 hover:text-blue-300">
+                      className="min-h-[40px] md:min-h-[32px] mt-1 inline-flex items-center text-xs font-semibold text-blue-400 hover:text-blue-300">
                       Ajustar e oferecer →
                     </button>
                   )}
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-[10px] uppercase tracking-wide" style={{ color: 'var(--ink-3)' }}>Valor esperado</p>
+                  <p className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--ink-3)' }}>Valor esperado</p>
                   <p className="text-sm font-semibold tabular-nums" style={{ color: 'var(--ink)' }}>
                     {fmtBRL(p.valor_esperado)}
                   </p>
                   {p.pop != null && (
                     <>
-                      <p className="text-[11px] tabular-nums" style={{ color: 'var(--ink-3)' }}>
+                      <p className="text-xs tabular-nums" style={{ color: 'var(--ink-3)' }}>
                         {fmtPct(p.pop)} de chance<DicaAjuda id="chance-de-pagamento-por-oferta" />
                       </p>
                       {/* 65% do modelo e 65% de vinte renegociações reais não
                           valem o mesmo — a origem precisa estar à vista. */}
-                      <p className="text-[10px]" style={{ color: 'var(--ink-3)', opacity: 0.8 }}>
+                      <p className="text-[11px]" style={{ color: 'var(--ink-3)', opacity: 0.8 }}>
                         {p.origem_pop === 'bandit'
                           ? (p.pop_observacoes === 1 ? '1 caso real' : `${p.pop_observacoes} casos reais`)
                           : 'estimativa do modelo'}
@@ -297,7 +297,7 @@ function ExplicacaoScore({ explicacao, loading, erro, onTentar }) {
                     backgroundColor: positivo ? 'var(--success)' : 'var(--danger)',
                   }} />
                 </div>
-                <p className="text-[11px] mt-1" style={{ color: 'var(--ink-3)' }}>
+                <p className="text-xs mt-1" style={{ color: 'var(--ink-3)' }}>
                   Valor real: <strong>{fmtValorExplicacao(c.valor_real)}</strong> · Referência da base: {fmtValorExplicacao(c.valor_referencia)}
                   {' — '}{positivo ? 'melhora' : 'piora'} o score em relação à média.
                 </p>
@@ -424,40 +424,40 @@ function MensagemSugerida({ devedor, rec, propostas, simulada }) {
               {texto}
             </div>
             {daSimulacao && (
-              <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>Valores da oferta montada em “Fazer oferta”.</p>
+              <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Valores da oferta montada em “Fazer oferta”.</p>
             )}
             {proposta && roteiro.oferta && proposta.oferta !== roteiro.oferta && (
-              <p className="text-[11px]" style={{ color: 'var(--warning)' }}>
+              <p className="text-xs" style={{ color: 'var(--warning)' }}>
                 {daSimulacao ? 'Este roteiro foi escrito para outro tipo de oferta: confira se o texto combina com a oferta montada.'
                   : 'Os valores vêm da proposta recomendada: esta oferta não está entre as propostas deste devedor.'}
               </p>
             )}
             {faltando.length > 0 && (
-              <p className="text-[11px]" style={{ color: 'var(--warning)' }}>Complete antes de enviar: {faltando.join(', ').replace(/_/g, ' ')}.</p>
+              <p className="text-xs" style={{ color: 'var(--warning)' }}>Complete antes de enviar: {faltando.join(', ').replace(/_/g, ' ')}.</p>
             )}
             <div className="flex flex-wrap gap-2">
               <button onClick={copiar}
-                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-blue-400"
+                className="min-h-[40px] md:min-h-[32px] inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-blue-400"
                 style={{ background: 'rgb(var(--c-royal) / 0.10)', border: '1px solid rgb(var(--c-royal) / 0.20)' }}>
                 {copiado ? <CheckCircle2 className="h-3.5 w-3.5" /> : <ClipboardList className="h-3.5 w-3.5" />} {copiado ? 'Copiado' : 'Copiar'}
               </button>
               {(canal === 'whatsapp' || canal === 'sms') && (
                 <a href={linkWhatsApp(texto)} target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-emerald-400"
+                  className="min-h-[40px] md:min-h-[32px] inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-emerald-400"
                   style={{ background: 'rgb(var(--c-success) / 0.10)', border: '1px solid rgb(var(--c-success) / 0.20)' }}>
                   <MessageSquare className="h-3.5 w-3.5" /> Abrir no WhatsApp
                 </a>
               )}
               {canal === 'email' && (
                 <a href={`mailto:?body=${encodeURIComponent(texto)}`}
-                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-ink-2"
+                  className="min-h-[40px] md:min-h-[32px] inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-ink-2"
                   style={{ background: 'var(--surface-2)', border: '1px solid var(--line)' }}>
                   Abrir no e-mail
                 </a>
               )}
             </div>
             {(canal === 'whatsapp' || canal === 'sms') && (
-              <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>A base não tem o telefone do devedor: o WhatsApp abre com o texto pronto e você escolhe o contato.</p>
+              <p className="text-xs" style={{ color: 'var(--ink-3)' }}>A base não tem o telefone do devedor: o WhatsApp abre com o texto pronto e você escolhe o contato.</p>
             )}
           </>
         )}
@@ -487,7 +487,7 @@ function CompromissosDevedor({ cpf, versao }) {
       const texto = acao === 'quebrar' ? 'Promessa marcada como não paga.'
         : item.tipo === 'promessa' ? 'Promessa cumprida. Registre o pagamento em Pagamentos.' : 'Retorno feito.'
       setDesfazer({
-        id: `${item.id}-${Date.now()}`, texto,
+        id: `${item.id}-${Date.now()}`, texto, desfeito: 'Desfeito. O compromisso voltou para a lista.',
         desfazer: async () => {
           const v = await mudarAgenda(item.id, 'reabrir', { situacao_esperada: r.item.situacao })
           setItens(l => [...(l || []).filter(i => i.id !== item.id), { ...item, ...v.item }]
@@ -506,7 +506,7 @@ function CompromissosDevedor({ cpf, versao }) {
   return (
     <div className="px-5 py-3 border-b space-y-2" style={DIVIDER}>
       {aviso}
-      <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--ink-3)' }}>
+      <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--ink-3)' }}>
         Compromissos pendentes<DicaAjuda id="agenda-de-retorno" />
       </p>
       {itens.map(i => {
@@ -517,14 +517,14 @@ function CompromissosDevedor({ cpf, versao }) {
             <span className="text-xs font-semibold" style={{ color: cfg.cor }}>{TIPO_LABEL[i.tipo]}</span>
             <span className="text-xs text-ink">{quando(i.data, i.hora)}</span>
             {i.valor > 0 && <span className="text-xs font-semibold tabular-nums text-ink">{fmtBRL(i.valor)}</span>}
-            {i.operador_nome && <span className="text-[11px]" style={{ color: 'var(--ink-3)' }}>· {i.operador_nome}</span>}
+            {i.operador_nome && <span className="text-xs" style={{ color: 'var(--ink-3)' }}>· {i.operador_nome}</span>}
             <span className="ml-auto flex gap-1">
               <button onClick={() => agir(i, 'cumprir')} title={i.tipo === 'promessa' ? "Marca a promessa como cumprida. O pagamento só entra nos resultados quando for registrado em Pagamentos." : undefined}
-                className="rounded px-2 py-0.5 text-[11px] font-semibold text-emerald-400 hover:bg-emerald-500/10">
+                className="min-h-[40px] md:min-h-[32px] rounded px-2 py-0.5 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/10">
                 {i.tipo === 'promessa' ? 'Cumpriu' : 'Feito'}
               </button>
               {i.tipo === 'promessa' && (
-                <button onClick={() => agir(i, 'quebrar')} className="rounded px-2 py-0.5 text-[11px] font-semibold text-red-400 hover:bg-red-500/10">Não pagou</button>
+                <button onClick={() => agir(i, 'quebrar')} className="min-h-[40px] md:min-h-[32px] rounded px-2 py-0.5 text-xs font-semibold text-red-400 hover:bg-red-500/10">Não pagou</button>
               )}
             </span>
           </div>
@@ -625,7 +625,7 @@ function HistoricoContatos({ cpf, rec, propostas }) {
           <p className="section-label">Histórico de Contatos{contatos.length > 0 && ` (${contatos.length})`}<DicaAjuda id="registrar-contato" /></p>
         </div>
         <button onClick={() => setFormAberto(o => !o)}
-          className="flex items-center gap-1.5 text-xs font-semibold text-blue-400 px-3 py-1.5 rounded-lg transition-colors"
+          className="min-h-[40px] md:min-h-[32px] flex items-center gap-1.5 text-xs font-semibold text-blue-400 px-3 py-1.5 rounded-lg transition-colors"
           style={{ background: 'rgb(var(--c-royal) / 0.10)', border: '1px solid rgb(var(--c-royal) / 0.20)' }}
           onMouseOver={e => e.currentTarget.style.background = 'rgb(var(--c-royal) / 0.18)'}
           onMouseOut={e => e.currentTarget.style.background = 'rgb(var(--c-royal) / 0.10)'}>
@@ -635,7 +635,7 @@ function HistoricoContatos({ cpf, rec, propostas }) {
 
       {formAberto && (
         <div className="px-5 py-4 border-b space-y-3" style={{ ...DIVIDER, background: 'var(--raise-1)' }}>
-          <p className="text-[11px] leading-relaxed" style={{ color: 'var(--ink-3)' }}>
+          <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-3)' }}>
             Fez uma proposta de acordo? Use “Fazer oferta” e confirme por lá: a oferta fica completa no histórico e a Agenda é preenchida junto.
             Aqui é para os demais contatos (sem resposta, recado, conversa sem proposta).
           </p>
@@ -676,12 +676,12 @@ function HistoricoContatos({ cpf, rec, propostas }) {
                 <option key={p.oferta} value={p.oferta}>{p.rotulo}</option>
               ))}
             </select>
-            <p className="text-[11px] mt-1.5" style={{ color: 'var(--ink-3)' }}>
+            <p className="text-xs mt-1.5" style={{ color: 'var(--ink-3)' }}>
               Registrar a oferta é o que ensina o sistema qual funciona nesta carteira.
             </p>
           </div>
           {form.resultado === 'pagou' && (
-            <p className="text-[11px] leading-relaxed" style={{ color: 'var(--ink-3)' }}>
+            <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-3)' }}>
               Isto registra o que o devedor disse; não confirma o pagamento. A confirmação vem da baixa em Pagamentos
               (administrador) ou da integração com o banco, e é ela que ensina o sistema, creditada à oferta registrada aqui.
             </p>
@@ -702,7 +702,7 @@ function HistoricoContatos({ cpf, rec, propostas }) {
                 </label>
                 <input type="number" min="0" max="100" step="1" value={form.desconto_oferecido_pct} onChange={e => set('desconto_oferecido_pct', e.target.value)} placeholder="Ex: 30" style={inputStyle} />
               </div>
-              <p className="col-span-2 text-[11px]" style={{ color: 'var(--ink-3)' }}>
+              <p className="col-span-2 text-xs" style={{ color: 'var(--ink-3)' }}>
                 A promessa entra na Agenda e vira “paga” sozinha quando o pagamento for confirmado.
               </p>
             </div>
@@ -950,6 +950,15 @@ export default function DebtorDetail() {
 
   // O operador informa a despesa que o devedor declarou na ligação e a
   // margem é refeita na hora — sem isso o teste de capacidade não roda.
+  // Despesas: uma fonte só (este estado), usada pelas Propostas e pelo simulador.
+  // Mudou (em qualquer um dos dois campos), as Propostas se refazem sozinhas.
+  const despesasUsadas = useRef('')
+  useEffect(() => {
+    if (!d?.cpf || despesas === despesasUsadas.current) return
+    const t = setTimeout(() => { despesasUsadas.current = despesas; recalcularPropostas() }, 700)
+    return () => clearTimeout(t)
+  }, [despesas, d?.cpf])          // eslint-disable-line react-hooks/exhaustive-deps
+
   function recalcularPropostas() {
     if (!d?.cpf) return
     setPropostasLoading(true)
@@ -965,7 +974,7 @@ export default function DebtorDetail() {
       <AppShell>
         <div className="w-full max-w-5xl mx-auto">
           <button onClick={voltarAoDashboard}
-            className="mb-4 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 -ml-2 text-sm text-ink-2 transition-colors hover:bg-raise-1 hover:text-ink">
+            className="mb-4 inline-flex min-h-[40px] items-center gap-1.5 rounded-lg px-2 py-1 -ml-2 text-sm text-ink-2 transition-colors hover:bg-raise-1 hover:text-ink">
             <ArrowLeft className="h-4 w-4" /> Voltar à fila
           </button>
           <ErroCarga erro={erroBusca} ocupado={procurando} onTentar={() => setTentativa(t => t + 1)} />
@@ -985,7 +994,7 @@ export default function DebtorDetail() {
     <AppShell titulo="Devedor">
       <div className="w-full max-w-5xl mx-auto">
         <button onClick={voltarAoDashboard}
-          className="mb-4 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 -ml-2 text-sm text-ink-2 transition-colors hover:bg-raise-1 hover:text-ink">
+          className="mb-4 inline-flex min-h-[40px] items-center gap-1.5 rounded-lg px-2 py-1 -ml-2 text-sm text-ink-2 transition-colors hover:bg-raise-1 hover:text-ink">
           <ArrowLeft className="h-4 w-4" /> Voltar à fila
         </button>
         <div className="flex items-start justify-between mb-7">
@@ -1065,7 +1074,7 @@ export default function DebtorDetail() {
               />
             </Section>
 
-            <FazerOferta cpf={d.cpf} despesas={despesas} canalPadrao={rec?.canal} confirmavel={!isComando}
+            <FazerOferta cpf={d.cpf} despesas={despesas} setDespesas={setDespesas} canalPadrao={rec?.canal} confirmavel={!isComando}
               sugeridaId={propostas?.recomendada?.id || propostas?.alternativa_a_vista?.id}
               pedido={pedidoOferta} onSimulado={setOfertaSimulada}
               onRegistrada={() => setVersaoContatos(v => v + 1)} />

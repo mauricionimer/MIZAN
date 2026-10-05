@@ -10,6 +10,8 @@ import {
 import ThemeToggle from './ThemeToggle'
 import useAvisosDeDuvida from './useAvisosDeDuvida'
 import useAvisoAgenda from './useAvisoAgenda'
+import ConfirmarModal from './ConfirmarModal'
+import { saidaTravada, liberarSaida } from './protecaoSaida'
 import { LogoMark } from './Logo'
 import { useAuth } from '../context/AuthContext'
 import { useAnalysis } from '../context/AnalysisContext'
@@ -187,6 +189,7 @@ export function ShellLayout() {
   const grupos = useItens()
   const [gaveta, setGaveta] = useState(false)
   const [slotAcoes, setSlotAcoes] = useState(null)
+  const [saidaPendente, setSaidaPendente] = useState(null)   // ação de navegar à espera da confirmação
 
   const nomeEmpresa = empresaConfig?.nome_exibicao || 'Mizan'
   const nomeUser = usuario?.nome || 'Operador'
@@ -198,13 +201,25 @@ export function ShellLayout() {
 
   function acionar(it) {
     setGaveta(false)
+    // Tela com alterações não salvas: pergunta antes de sair.
+    const trava = saidaTravada()
+    if (trava && !ativo(it)) { setSaidaPendente({ mensagem: trava.mensagem, ir: () => irPara(it) }); return }
+    irPara(it)
+  }
+  function irPara(it) {
     if (it.vista) {
       // Antes, fora da tela inicial, isto só trocava a vista e nada acontecia na tela.
       setVista(it.vista)
       if (pathname !== '/') navigate('/')
     } else navigate(it.rota)
   }
-  function sair() { setGaveta(false); logout(); navigate('/login') }
+  function sair() {
+    setGaveta(false)
+    const trava = saidaTravada()
+    const efetivar = () => { logout(); navigate('/login') }
+    if (trava) { setSaidaPendente({ mensagem: trava.mensagem, ir: efetivar }); return }
+    efetivar()
+  }
 
   // Fecha a gaveta com Esc e ao trocar de tela.
   useEffect(() => { setGaveta(false) }, [pathname])
@@ -295,6 +310,11 @@ export function ShellLayout() {
           </main>
         </div>
       </div>
+      <ConfirmarModal aberto={!!saidaPendente} titulo={saidaPendente?.mensagem}
+        texto="O que não foi salvo nesta tela será perdido."
+        cancelar="Continuar editando" confirmar="Sair sem salvar" perigo
+        onCancelar={() => setSaidaPendente(null)}
+        onConfirmar={() => { const ir = saidaPendente.ir; liberarSaida(); setSaidaPendente(null); ir() }} />
     </ShellCtx.Provider>
   )
 }

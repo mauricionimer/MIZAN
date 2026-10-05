@@ -5,6 +5,8 @@ import { Tags, Plus, Copy, Trash2, Save, Loader2, RotateCcw, ShieldAlert, Check 
 import AppShell from '../components/AppShell'
 import DicaAjuda from '../components/DicaAjuda'
 import ErroCarga from '../components/ErroCarga'
+import ConfirmarModal from '../components/ConfirmarModal'
+import { useProtegerSaida } from '../components/protecaoSaida'
 import { useAuth } from '../context/AuthContext'
 import { buscarOfertas, salvarOfertas, listarEmpresas } from '../api'
 import { calcularOferta, familia, NOME_FAMILIA, resumoOferta, brl } from '../utils/ofertas'
@@ -21,7 +23,7 @@ function Campo({ rotulo, sufixo, value, onChange, min, max, step = 'any', inteir
           className="h-10 w-full rounded-lg border border-line bg-surface-2 px-3 text-right text-sm font-normal tabular-nums text-ink disabled:opacity-50" />
         {sufixo && <span className="w-12 shrink-0 whitespace-nowrap text-xs font-normal text-ink-2">{sufixo}</span>}
       </div>
-      {nota && <span className="mt-1 block text-[11px] font-normal text-ink-2">{nota}</span>}
+      {nota && <span className="mt-1 block text-xs font-normal text-ink-2">{nota}</span>}
     </label>
   )
 }
@@ -57,13 +59,9 @@ export default function Ofertas() {
   }
   useEffect(() => { carregar() }, [isComando, alvo])     // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fechar ou recarregar a aba com alterações não salvas pede confirmação.
-  useEffect(() => {
-    if (!sujo) return
-    const aviso = (e) => { e.preventDefault(); e.returnValue = '' }
-    window.addEventListener('beforeunload', aviso)
-    return () => window.removeEventListener('beforeunload', aviso)
-  }, [sujo])
+  // Sair pelo menu, fechar ou recarregar a aba com alterações não salvas pede confirmação.
+  useProtegerSaida(sujo, 'Você tem alterações não salvas nas ofertas. Deseja sair?')
+  const [trocaEmpresa, setTrocaEmpresa] = useState(null)
 
   const atual = catalogo[sel]
   const efetiva = (o) => {
@@ -116,7 +114,7 @@ export default function Ofertas() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {isComando && (
-              <select value={alvo} onChange={e => setAlvo(e.target.value)} aria-label="Empresa"
+              <select value={alvo} onChange={e => { const v = e.target.value; if (sujo) setTrocaEmpresa(v); else setAlvo(v) }} aria-label="Empresa"
                 className="rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-sm text-ink focus:outline-none [color-scheme:dark]">
                 <option value="">Escolha a empresa…</option>
                 {empresas.map(e => <option key={e.empresa_id} value={e.empresa_id}>{e.nome_exibicao || e.empresa_id}</option>)}
@@ -159,9 +157,9 @@ export default function Ofertas() {
                         className={`w-full rounded-lg border px-3 py-2.5 text-left transition-colors ${sel === i ? 'border-blue-500/40 bg-blue-500/10' : 'border-transparent hover:bg-raise-1'} ${o.ativa ? '' : 'opacity-55'}`}>
                         <div className="flex items-center justify-between gap-2">
                           <p className="truncate text-sm font-medium text-ink">{o.nome || 'Sem nome'}</p>
-                          {!o.ativa && <span className="shrink-0 rounded bg-raise-2 px-1.5 py-px text-[10px] text-ink-2">inativa</span>}
+                          {!o.ativa && <span className="shrink-0 rounded bg-raise-2 px-1.5 py-px text-[11px] text-ink-2">inativa</span>}
                         </div>
-                        <p className="truncate text-[11px] text-ink-2">{resumoOferta(efetiva(o))}</p>
+                        <p className="truncate text-xs text-ink-2">{resumoOferta(efetiva(o))}</p>
                       </button>
                     </li>
                   ))}
@@ -220,10 +218,10 @@ export default function Ofertas() {
                       {[['Valor negociado', brl(conta.valor_negociado)],
                         ...(n > 1 ? [['Entrada', brl(conta.entrada)], [`${n} parcelas de`, brl(conta.parcela)]] : [['Pagamento único', brl(conta.parcela)]]),
                         ['Total pago', brl(conta.total_pago)]].map(([k, v]) => (
-                        <div key={k}><dt className="text-[11px] text-ink-2">{k}</dt><dd className="text-base font-semibold tabular-nums text-ink">{v}</dd></div>
+                        <div key={k}><dt className="text-xs text-ink-2">{k}</dt><dd className="text-base font-semibold tabular-nums text-ink">{v}</dd></div>
                       ))}
                     </dl>
-                    <p className="mt-3 text-[11px] text-ink-2">
+                    <p className="mt-3 text-xs text-ink-2">
                       Aprende junto com as ofertas de <strong className="font-semibold text-ink">{NOME_FAMILIA[fam]}</strong>: a chance de pagar começa pelo histórico delas.
                       {conta.juros_total > 0 && ` Juros somam ${brl(conta.juros_total)} e não contam como recuperação.`}
                     </p>
@@ -264,6 +262,11 @@ export default function Ofertas() {
           </>
         )}
       </div>
+      <ConfirmarModal aberto={trocaEmpresa !== null} titulo="Trocar de empresa sem salvar?"
+        texto="As alterações nas ofertas desta empresa ainda não foram salvas."
+        cancelar="Continuar editando" confirmar="Trocar sem salvar" perigo
+        onCancelar={() => setTrocaEmpresa(null)}
+        onConfirmar={() => { setSujo(false); setAlvo(trocaEmpresa); setTrocaEmpresa(null) }} />
     </AppShell>
   )
 }

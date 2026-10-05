@@ -37,7 +37,7 @@ function Campo({ rotulo, sufixo, value, onChange, min, max, step = 'any', inteir
           value={value} disabled={disabled} onChange={e => onChange(e.target.value)}
           className="h-9 w-full rounded-lg px-2.5 text-right text-sm font-normal tabular-nums disabled:opacity-50"
           style={{ background: 'var(--surface-2)', border: '1px solid var(--line)', color: 'var(--ink)' }} />
-        {sufixo && <span className="w-9 shrink-0 whitespace-nowrap text-[11px] font-normal" style={{ color: 'var(--ink-3)' }}>{sufixo}</span>}
+        {sufixo && <span className="w-9 shrink-0 whitespace-nowrap text-xs font-normal" style={{ color: 'var(--ink-3)' }}>{sufixo}</span>}
       </div>
     </label>
   )
@@ -98,7 +98,7 @@ function Confirmar({ cpf, analise, condicoes, canalPadrao, despesas, onFechar, o
             <h2 id="confirmar-oferta" className="text-base font-bold" style={{ color: 'var(--ink)' }}>Confirmar oferta feita</h2>
             <p className="mt-0.5 text-xs" style={{ color: 'var(--ink-2)' }}>{resumoConta(analise.conta, condicoes.n_parcelas, condicoes.desconto_pct)}</p>
           </div>
-          <button onClick={onFechar} aria-label="Fechar" className="rounded-lg p-1" style={{ color: 'var(--ink-2)' }}><X className="h-4 w-4" /></button>
+          <button onClick={onFechar} aria-label="Fechar" className="rounded-lg p-2.5 -m-1.5" style={{ color: 'var(--ink-2)' }}><X className="h-4 w-4" /></button>
         </div>
         <div className="space-y-4 overflow-y-auto px-5 py-4">
           {analise.geral === 'ruim' && (
@@ -121,7 +121,7 @@ function Confirmar({ cpf, analise, condicoes, canalPadrao, despesas, onFechar, o
                     className="flex flex-col items-center gap-1 rounded-xl px-2 py-3 text-xs font-semibold transition-colors"
                     style={on ? { border: `1.5px solid ${r.cor}`, color: r.cor, background: 'var(--raise-1)' } : { border: '1px solid var(--line)', color: 'var(--ink-2)' }}>
                     <I className="h-5 w-5" /> {r.label}
-                    <span className="text-[10px] font-normal" style={{ color: 'var(--ink-3)' }}>{r.nota}</span>
+                    <span className="text-[11px] font-normal" style={{ color: 'var(--ink-3)' }}>{r.nota}</span>
                   </button>
                 )
               })}
@@ -144,9 +144,9 @@ function Confirmar({ cpf, analise, condicoes, canalPadrao, despesas, onFechar, o
           <ErroCarga erro={erro} compacto />
         </div>
         <div className="flex justify-end gap-2 border-t px-5 py-4" style={{ borderColor: 'var(--line)' }}>
-          <button onClick={onFechar} className="rounded-lg px-4 py-2 text-sm" style={{ color: 'var(--ink-2)' }}>Cancelar</button>
+          <button onClick={onFechar} className="min-h-[44px] rounded-lg px-4 py-2 text-sm" style={{ color: 'var(--ink-2)' }}>Cancelar</button>
           <button onClick={enviar} disabled={enviando || (pedeData && !data)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-40">
+            className="min-h-[44px] inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-40">
             {enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Registrar
           </button>
         </div>
@@ -181,7 +181,7 @@ function Historico({ cpf, versao }) {
   )
 }
 
-export default function FazerOferta({ cpf, despesas, canalPadrao, confirmavel = true, onRegistrada, sugeridaId, pedido, onSimulado }) {
+export default function FazerOferta({ cpf, despesas, setDespesas, canalPadrao, confirmavel = true, onRegistrada, sugeridaId, pedido, onSimulado }) {
   const [confirmando, setConfirmando] = useState(null)      // {analise, condicoes}
   const [aviso, setAviso] = useState('')
   const [versao, setVersao] = useState(0)
@@ -269,7 +269,7 @@ export default function FazerOferta({ cpf, despesas, canalPadrao, confirmavel = 
             <div className="flex flex-wrap gap-1.5">
               {catalogo.map(o => (
                 <button key={o.id} type="button" onClick={() => { tocado.current = true; usarBase(o) }} title={resumoOferta(o)}
-                  className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${base === o.id ? 'border-blue-500/40 bg-blue-500/15 text-blue-300' : 'hover:text-ink'}`}
+                  className={`min-h-[36px] rounded-full border px-3 py-1 text-xs font-medium transition-colors ${base === o.id ? 'border-blue-500/40 bg-blue-500/15 text-blue-300' : 'hover:text-ink'}`}
                   style={base === o.id ? undefined : { borderColor: 'var(--line)', color: 'var(--ink-2)', background: 'var(--raise-1)' }}>
                   {o.nome}
                 </button>
@@ -284,7 +284,7 @@ export default function FazerOferta({ cpf, despesas, canalPadrao, confirmavel = 
             return (
               <button key={l} type="button" role="tab" aria-selected={on}
                 onClick={() => { setModo(v === 1 ? 'avista' : 'parcelado'); setBase(''); if (v !== 1 && (parseInt(f.n_parcelas, 10) || 1) < 2) setF(x => ({ ...x, n_parcelas: 6 })) }}
-                className="flex-1 rounded-md py-1.5 text-sm font-medium"
+                className="min-h-[40px] flex-1 rounded-md py-1.5 text-sm font-medium"
                 style={on ? { background: 'var(--surface)', color: 'var(--ink)', boxShadow: '0 1px 2px rgb(0 0 0 / .08)' } : { color: 'var(--ink-2)' }}>{l}</button>
             )
           })}
@@ -295,6 +295,17 @@ export default function FazerOferta({ cpf, despesas, canalPadrao, confirmavel = 
           <Campo rotulo="Entrada" sufixo="%" min={0} max={90} value={f.entrada_pct} disabled={modo === 'avista'} onChange={v => mudar('entrada_pct', v)} />
           <Campo rotulo="Juros" sufixo="% a.m." min={0} max={20} step="0.01" value={f.juros_mensal_pct} disabled={modo === 'avista'} onChange={v => mudar('juros_mensal_pct', v)} />
         </div>
+        {setDespesas && (
+          // O mesmo valor das Propostas: muda aqui, muda lá (e vice-versa).
+          <div className="grid items-end gap-3 sm:grid-cols-[minmax(0,14rem)_1fr]">
+            <Campo rotulo="Despesas mensais declaradas" sufixo="R$" min={0} step="50" value={despesas ?? ''} onChange={v => setDespesas(v)} />
+            <p className="pb-2 text-xs" style={{ color: res?.devedor?.parcela_maxima == null ? 'var(--warning)' : 'var(--ink-3)' }}>
+              {res?.devedor?.parcela_maxima == null
+                ? 'Pergunte as despesas do mês: sem elas não dá para saber se a parcela cabe no bolso.'
+                : 'Vale também para as Propostas acima.'}
+            </p>
+          </div>
+        )}
 
         <ErroCarga erro={erro} ocupado={carregando} onTentar={() => setTentativa(t => t + 1)} />
 
@@ -358,7 +369,7 @@ export default function FazerOferta({ cpf, despesas, canalPadrao, confirmavel = 
         )}
 
         {res && (
-          <p className="flex items-start gap-1.5 text-[11px]" style={{ color: 'var(--ink-3)' }}>
+          <p className="flex items-start gap-1.5 text-xs" style={{ color: 'var(--ink-3)' }}>
             <Info className="mt-0.5 h-3 w-3 shrink-0" />
             A chance de pagar vem das ofertas de {NOME_FAMILIA[res.familia]}
             {res.banco.origem_chance === 'bandit' ? ` (histórico de ${res.banco.observacoes_chance} ofertas registradas)` : ' (estimativa do modelo, ainda sem histórico)'};
@@ -373,7 +384,7 @@ export default function FazerOferta({ cpf, despesas, canalPadrao, confirmavel = 
             {!confirmavel && <span className="text-xs" style={{ color: 'var(--ink-3)' }}>Só quem trabalha a fila da empresa registra ofertas.</span>}
             <button type="button" onClick={() => { setAviso(''); setConfirmando({ analise: res, condicoes: { ...f, n_parcelas: n, base_id: base || undefined } }) }}
               disabled={!res.pode_confirmar || !confirmavel || carregando}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-40">
+              className="min-h-[44px] inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-40">
               <Send className="h-4 w-4" /> Confirmar que fiz esta oferta
             </button>
           </div>

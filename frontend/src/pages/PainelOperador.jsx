@@ -46,7 +46,7 @@ function BarraMeta({ feitos, meta, compacta = false }) {
         <motion.div initial={{ width: 0 }} animate={{ width: `${pct * 100}%` }} transition={{ duration: 0.6, ease: 'easeOut' }}
           className={`h-full rounded-full ${bateu ? 'bg-emerald-500' : 'bg-blue-500'}`} />
       </div>
-      {compacta && <p className="mt-0.5 text-[10px] tabular-nums text-ink-2">{fmtNum(feitos)}/{fmtNum(meta)}</p>}
+      {compacta && <p className="mt-0.5 text-[11px] tabular-nums text-ink-2">{fmtNum(feitos)}/{fmtNum(meta)}</p>}
     </div>
   )
 }

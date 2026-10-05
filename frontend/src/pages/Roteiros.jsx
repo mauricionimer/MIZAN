@@ -5,16 +5,20 @@ import { MessageSquareText, Plus, Copy, Trash2, Save, Loader2, Building2, User, 
 import AppShell from '../components/AppShell'
 import DicaAjuda from '../components/DicaAjuda'
 import ErroCarga from '../components/ErroCarga'
+import ConfirmarModal from '../components/ConfirmarModal'
+import { useProtegerSaida } from '../components/protecaoSaida'
 import { useAuth } from '../context/AuthContext'
 import { listarRoteiros, salvarRoteiro, apagarRoteiro, listarEmpresas } from '../api'
 import { VARIAVEIS, CANAIS, OFERTAS, OFERTA_LABEL, EXEMPLO, dadosParaRoteiro, preencher, desconhecidas } from '../utils/roteiros'
 
 const NOVO = (canal) => ({ id: null, titulo: '', canal, oferta: '', texto: '', escopo: 'pessoal' })
+// O que conta como "mexeu no roteiro": comparar com o que foi carregado.
+const chave = (f) => JSON.stringify([f.titulo, f.oferta || '', f.texto, f.escopo])
 
 function Grupo({ titulo, icone: Icone, itens, ativo, onEscolher, vazio }) {
   return (
     <div>
-      <p className="mb-1.5 flex items-center gap-1.5 px-1 text-[10px] font-semibold uppercase tracking-wider text-ink-2">
+      <p className="mb-1.5 flex items-center gap-1.5 px-1 text-[11px] font-semibold uppercase tracking-wider text-ink-2">
         <Icone className="h-3 w-3" /> {titulo}
       </p>
       {itens.length === 0 ? <p className="px-1 pb-2 text-xs text-ink-2 opacity-70">{vazio}</p> : (
@@ -24,7 +28,7 @@ function Grupo({ titulo, icone: Icone, itens, ativo, onEscolher, vazio }) {
               <button onClick={() => onEscolher(r)}
                 className={`w-full rounded-lg border px-3 py-2 text-left transition-colors ${ativo === r.id ? 'border-blue-500/40 bg-blue-500/10' : 'border-transparent hover:bg-raise-1'}`}>
                 <p className="truncate text-sm font-medium text-ink">{r.titulo}</p>
-                <p className="truncate text-[11px] text-ink-2">{r.oferta ? OFERTA_LABEL[r.oferta] : 'Qualquer oferta'}</p>
+                <p className="truncate text-xs text-ink-2">{r.oferta ? OFERTA_LABEL[r.oferta] : 'Qualquer oferta'}</p>
               </button>
             </li>
           ))}
@@ -43,14 +47,14 @@ function Previa({ canal, texto, oferta, empresa, operador }) {
     : 'rounded-xl border border-line bg-surface px-4 py-3 text-ink'
   return (
     <div className="rounded-xl border border-line bg-surface-2 p-4">
-      <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-ink-2">
+      <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-ink-2">
         Prévia · {canal === 'telefone' ? 'roteiro de fala' : 'como chega'} · devedor de exemplo
       </p>
       {texto.trim() ? (
         <div className={`${balao} whitespace-pre-wrap text-sm leading-relaxed`}>{pronto}</div>
       ) : <p className="text-xs text-ink-2">Escreva o texto para ver a prévia.</p>}
       {faltando.length > 0 && (
-        <p className="mt-2 text-[11px] text-ink-2">Sem valor no exemplo: {faltando.join(', ')}.</p>
+        <p className="mt-2 text-xs text-ink-2">Sem valor no exemplo: {faltando.join(', ')}.</p>
       )}
     </div>
   )
@@ -62,6 +66,9 @@ export default function Roteiros() {
   const [dados, setDados] = useState(null)
   const [carregando, setCarregando] = useState(true)
   const [form, setForm] = useState(NOVO('whatsapp'))
+  const [base, setBase] = useState(chave(NOVO('whatsapp')))
+  const [pendente, setPendente] = useState(null)     // ação à espera de "Descartar o rascunho?"
+  function carregarForm(f) { setForm(f); setBase(chave(f)) }
   const [somenteLeitura, setSomenteLeitura] = useState(false)
   const [salvando, setSalvando] = useState(false)
   const [msg, setMsg] = useState(null)        // {tipo: 'ok', texto} | {tipo: 'erro', erro}
@@ -91,7 +98,7 @@ export default function Roteiros() {
       .catch(e => setErroCarga(e))
       .finally(() => setCarregando(false))
   }
-  useEffect(() => { setForm(NOVO(canal)); setSomenteLeitura(isComando); setMsg(null); carregar() }, [canal, alvo])   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { carregarForm(NOVO(canal)); setSomenteLeitura(isComando); setMsg(null); carregar() }, [canal, alvo])   // eslint-disable-line react-hooks/exhaustive-deps
 
   const daEmpresa = (dados?.roteiros ?? []).filter(r => !r.dono_id)
   const meus = (dados?.roteiros ?? []).filter(r => r.dono_id)
@@ -101,9 +108,14 @@ export default function Roteiros() {
     if (limparAviso) setMsg(null)
     const podeEditar = !isComando && !r.padrao && (r.dono_id ? true : isAdmin)
     setSomenteLeitura(!podeEditar)
-    setForm({ id: r.padrao ? null : r.id, titulo: r.titulo, canal: r.canal, oferta: r.oferta || '', texto: r.texto,
+    carregarForm({ id: r.padrao ? null : r.id, titulo: r.titulo, canal: r.canal, oferta: r.oferta || '', texto: r.texto,
               escopo: r.dono_id ? 'pessoal' : 'empresa', padrao: !!r.padrao, origem: r.id })
   }
+
+  // Sem rascunho, a ação acontece direto; com rascunho, pergunta antes.
+  const sujo = !somenteLeitura && chave(form) !== base
+  useProtegerSaida(sujo, 'Você tem um roteiro não salvo. Deseja sair?')
+  function pedir(acao) { if (sujo) setPendente(() => acao); else acao() }
 
   function duplicar() {
     setMsg({ tipo: 'ok', texto: 'Cópia criada: ajuste e salve.' })
@@ -138,6 +150,8 @@ export default function Roteiros() {
     try {
       const r = await salvarRoteiro({ titulo: form.titulo, canal, oferta: form.oferta || null, texto: form.texto, escopo: form.escopo }, form.id)
       setMsg({ tipo: 'ok', texto: form.id ? 'Roteiro atualizado.' : 'Roteiro salvo.' })
+      // Salvo é salvo: não depende da lista recarregada trazer o roteiro de volta.
+      carregarForm({ ...form, id: r.roteiro.id, origem: r.roteiro.id, padrao: false })
       carregar(r.roteiro.id)
     } catch (e) { setMsg({ tipo: 'erro', erro: e }) } finally { setSalvando(false) }
   }
@@ -146,7 +160,7 @@ export default function Roteiros() {
     if (!form.id || !window.confirm(`Excluir o roteiro “${form.titulo}”?`)) return
     try {
       await apagarRoteiro(form.id)
-      setForm(NOVO(canal)); setMsg({ tipo: 'ok', texto: 'Roteiro excluído.' }); carregar()
+      carregarForm(NOVO(canal)); setMsg({ tipo: 'ok', texto: 'Roteiro excluído.' }); carregar()
     } catch (e) { setMsg({ tipo: 'erro', erro: e }) }
   }
 
@@ -161,7 +175,7 @@ export default function Roteiros() {
             <p className="mt-1 text-sm text-ink-2">Mensagens prontas por canal. Na ficha do devedor elas saem preenchidas com o nome, a dívida e a proposta.</p>
           </div>
           {isComando && (
-            <select value={alvo} onChange={e => setAlvo(e.target.value)} aria-label="Empresa"
+            <select value={alvo} onChange={e => { const v = e.target.value; pedir(() => setAlvo(v)) }} aria-label="Empresa"
               className="rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-sm text-ink focus:outline-none [color-scheme:dark]">
               <option value="">Escolha a empresa…</option>
               {empresas.map(e => <option key={e.empresa_id} value={e.empresa_id}>{e.nome_exibicao || e.empresa_id}</option>)}
@@ -171,7 +185,7 @@ export default function Roteiros() {
 
         <div className="flex gap-1 overflow-x-auto rounded-xl border border-line bg-surface-2 p-1" role="tablist" aria-label="Canal">
           {CANAIS.map(c => (
-            <button key={c.k} role="tab" aria-selected={canal === c.k} onClick={() => setCanal(c.k)}
+            <button key={c.k} role="tab" aria-selected={canal === c.k} onClick={() => { if (c.k !== canal) pedir(() => setCanal(c.k)) }}
               className={`relative flex-1 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-colors ${canal === c.k ? 'text-ink' : 'text-ink-2 hover:text-ink'}`}>
               {canal === c.k && <motion.span layoutId="aba-canal" className="absolute inset-0 rounded-lg bg-surface shadow-sm" transition={{ type: 'spring', stiffness: 500, damping: 40 }} />}
               <span className="relative">{c.label}</span>
@@ -191,22 +205,22 @@ export default function Roteiros() {
           <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
             <aside className="space-y-4 rounded-xl border border-line bg-surface p-3 lg:max-h-[640px] lg:overflow-y-auto">
               {!isComando && (
-                <button onClick={() => { setForm({ ...NOVO(canal), escopo: isAdmin ? 'empresa' : 'pessoal' }); setSomenteLeitura(false); setMsg(null) }}
+                <button onClick={() => pedir(() => { carregarForm({ ...NOVO(canal), escopo: isAdmin ? 'empresa' : 'pessoal' }); setSomenteLeitura(false); setMsg(null) })}
                   className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-blue-500/40 px-3 py-2 text-sm font-medium text-blue-400 hover:bg-blue-500/10">
                   <Plus className="h-4 w-4" /> Novo roteiro
                 </button>
               )}
-              <Grupo titulo="Da empresa" icone={Building2} itens={daEmpresa} ativo={form.origem} onEscolher={escolher}
+              <Grupo titulo="Da empresa" icone={Building2} itens={daEmpresa} ativo={form.origem} onEscolher={r => pedir(() => escolher(r))}
                 vazio={isAdmin ? 'Crie os roteiros que toda a equipe usa.' : 'O administrador ainda não criou.'} />
-              {!isComando && <Grupo titulo="Meus" icone={User} itens={meus} ativo={form.origem} onEscolher={escolher} vazio="Só você vê os seus." />}
-              <Grupo titulo="Modelos do Mizan" icone={Sparkles} itens={padroes} ativo={form.origem} onEscolher={escolher} vazio="" />
+              {!isComando && <Grupo titulo="Meus" icone={User} itens={meus} ativo={form.origem} onEscolher={r => pedir(() => escolher(r))} vazio="Só você vê os seus." />}
+              <Grupo titulo="Modelos do Mizan" icone={Sparkles} itens={padroes} ativo={form.origem} onEscolher={r => pedir(() => escolher(r))} vazio="" />
             </aside>
 
             <section className="space-y-4 rounded-xl border border-line bg-surface p-5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm font-semibold text-ink">
                   {form.padrao ? 'Modelo do Mizan' : form.id ? 'Editar roteiro' : 'Novo roteiro'}
-                  {somenteLeitura && <span className="ml-2 rounded-full bg-raise-2 px-2 py-0.5 text-[11px] font-medium text-ink-2">só leitura</span>}
+                  {somenteLeitura && <span className="ml-2 rounded-full bg-raise-2 px-2 py-0.5 text-xs font-medium text-ink-2">só leitura</span>}
                 </p>
                 {carregando && <Loader2 className="h-4 w-4 animate-spin text-ink-2" />}
               </div>
@@ -245,7 +259,7 @@ export default function Roteiros() {
                   <div className="mb-2 flex flex-wrap gap-1.5">
                     {VARIAVEIS.map(([k, l]) => (
                       <button key={k} type="button" onMouseDown={e => e.preventDefault()} onClick={() => inserir(k)} title={`Insere {${k}}`}
-                        className="rounded-full border border-blue-500/30 bg-blue-500/10 px-2.5 py-0.5 text-[11px] font-medium text-blue-300 hover:bg-blue-500/20">
+                        className="rounded-full border border-blue-500/30 bg-blue-500/10 px-2.5 py-0.5 text-xs font-medium text-blue-300 hover:bg-blue-500/20">
                         + {l}
                       </button>
                     ))}
@@ -298,6 +312,11 @@ export default function Roteiros() {
           </div>
         )}
       </div>
+      <ConfirmarModal aberto={!!pendente} titulo="Descartar o rascunho?"
+        texto="O texto deste roteiro ainda não foi salvo e será perdido."
+        cancelar="Continuar editando" confirmar="Descartar" perigo
+        onCancelar={() => setPendente(null)}
+        onConfirmar={() => { const a = pendente; setBase(chave(form)); setPendente(null); a() }} />
     </AppShell>
   )
 }

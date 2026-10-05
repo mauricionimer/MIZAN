@@ -6,6 +6,7 @@ import { Handshake, Loader2, ChevronDown, CalendarClock, AlertTriangle, XOctagon
 import AppShell from '../components/AppShell'
 import DicaAjuda from '../components/DicaAjuda'
 import ErroCarga from '../components/ErroCarga'
+import AvisoDesfazer from '../components/AvisoDesfazer'
 import { useAuth } from '../context/AuthContext'
 import { listarAcordos, mudarParcela, listarEmpresas } from '../api'
 
@@ -26,7 +27,7 @@ const FILTROS = [['', 'Todos'], ['quebrado', 'Quebrados'], ['atrasado', 'Atrasad
 function Selo({ s }) {
   const c = SIT[s]; const I = c.icone
   return (
-    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold"
+    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold"
       style={{ background: c.fundo, color: c.cor, border: `1px solid ${c.borda}` }}>
       <I className="h-3 w-3" /> {c.label}
     </span>
@@ -62,7 +63,7 @@ function Regua({ parcelas, hoje }) {
   )
 }
 
-function Acordo({ a, hoje, podeBaixar, onParcela }) {
+function Acordo({ a, hoje, podeBaixar, onParcela, destaque }) {
   const [aberto, setAberto] = useState(false)
   const [ocupado, setOcupado] = useState(null)
   async function agir(p, acao) {
@@ -75,19 +76,19 @@ function Acordo({ a, hoje, podeBaixar, onParcela }) {
         className="grid w-full grid-cols-[1fr_auto] items-center gap-x-4 gap-y-2 p-4 text-left sm:grid-cols-[minmax(0,1.4fr)_auto_minmax(0,1fr)_auto_auto]">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-ink">{a.nome || a.cpf}</p>
-          <p className="truncate text-[11px] text-ink-2">{a.cpf}{a.responsavel_nome ? ` · ${a.responsavel_nome}` : ''}</p>
+          <p className="truncate text-xs text-ink-2">{a.cpf}{a.responsavel_nome ? ` · ${a.responsavel_nome}` : ''}</p>
         </div>
         <Selo s={a.situacao} />
         <div className="col-span-2 space-y-1 sm:col-span-1">
           <Regua parcelas={a.parcelas} hoje={hoje} />
-          <p className="text-[11px] text-ink-2">
+          <p className="text-xs text-ink-2">
             {a.pagas} de {a.total} pagas · {fmtBRL2(a.valor_parcela)}/mês
             {a.dias_atraso > 0 && <span style={{ color: SIT[a.situacao].cor }}> · {a.dias_atraso} dias de atraso</span>}
           </p>
         </div>
         <div className="text-left sm:text-right">
           <p className="text-sm font-semibold tabular-nums text-ink">{fmtBRL(a.valor_aberto)}</p>
-          <p className="text-[11px] text-ink-2">{a.situacao === 'quitado' ? 'quitado' : `em aberto · próx. ${fmtData(a.proximo_vencimento)}`}</p>
+          <p className="text-xs text-ink-2">{a.situacao === 'quitado' ? 'quitado' : `em aberto · próx. ${fmtData(a.proximo_vencimento)}`}</p>
         </div>
         <ChevronDown className={`h-4 w-4 justify-self-end text-ink-2 transition-transform ${aberto ? 'rotate-180' : ''}`} />
       </button>
@@ -100,23 +101,26 @@ function Acordo({ a, hoje, podeBaixar, onParcela }) {
                 const vencida = p.situacao !== 'paga' && String(p.vencimento).slice(0, 10) < hoje
                 const cor = p.situacao === 'paga' ? 'var(--success)' : vencida ? 'var(--danger)' : 'var(--ink-2)'
                 return (
-                  <li key={p.id} className="flex flex-wrap items-center gap-x-4 gap-y-1.5 py-2.5">
+                  <li key={p.id} className="-mx-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg px-2 py-2.5 transition-colors duration-700"
+                    style={destaque === p.id ? { background: 'rgb(var(--c-success) / 0.12)' } : undefined}>
                     <span className="w-8 text-sm font-semibold tabular-nums text-ink">{p.numero}ª</span>
                     <span className="w-24 text-sm tabular-nums text-ink-2">{fmtData(p.vencimento)}</span>
                     <span className="w-24 text-sm tabular-nums text-ink">{fmtBRL2(p.valor)}</span>
                     <span className="text-xs" style={{ color: cor }}>
-                      {p.situacao === 'paga' ? `Paga${p.pago_em ? ` em ${fmtData(p.pago_em)}` : ''}` : vencida ? 'Vencida' : 'A vencer'}
+                      {p.situacao === 'paga'
+                        ? (p.pago_em && String(p.pago_em).slice(0, 10) === hoje ? 'Paga hoje' : `Paga${p.pago_em ? ` em ${fmtData(p.pago_em)}` : ''}`)
+                        : vencida ? 'Vencida' : 'A vencer'}
                     </span>
                     <span className="ml-auto">
                       {podeBaixar && p.situacao !== 'paga' && (
                         <button disabled={ocupado === p.id} onClick={() => agir(p, 'pagar')}
-                          className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-40">
+                          className="min-h-[40px] md:min-h-[32px] inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-40">
                           {ocupado === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />} Marcar paga
                         </button>
                       )}
                       {podeBaixar && p.situacao === 'paga' && p.numero > 1 && (
                         <button disabled={ocupado === p.id} onClick={() => agir(p, 'desfazer')}
-                          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-ink-2 hover:text-ink disabled:opacity-40">
+                          className="min-h-[40px] md:min-h-[32px] inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-ink-2 hover:text-ink disabled:opacity-40">
                           <Undo2 className="h-3 w-3" /> Desfazer
                         </button>
                       )}
@@ -147,20 +151,40 @@ export default function Acordos() {
     listarEmpresas(token).then(d => setEmpresas(d.empresas || [])).catch(() => {})
   }, [isComando, token])
 
-  function carregar() {
+  function carregar(silencioso = false) {
     if (isComando && !alvo) { setDados(null); setCarregando(false); return }
-    setCarregando(true); setErro(null)
+    if (!silencioso) setCarregando(true)
+    setErro(null)
     return listarAcordos(isComando ? alvo : undefined)
       .then(setDados).catch(e => setErro(e)).finally(() => setCarregando(false))
   }
   useEffect(() => { carregar() }, [isComando, alvo])     // eslint-disable-line react-hooks/exhaustive-deps
 
+  const [destaque, setDestaque] = useState(null)       // parcela que acabou de mudar
+  const [desfazer, setDesfazer] = useState(null)
+  // Atualiza a parcela na própria linha (o aviso no topo ficava fora da vista
+  // de quem trabalha num acordo mais abaixo) e refaz o resumo sem piscar a tela.
+  function marcar(acordoId, parcelaId, campos) {
+    setDados(d => d && ({ ...d, acordos: d.acordos.map(x => x.id !== acordoId ? x : {
+      ...x, parcelas: x.parcelas.map(q => q.id === parcelaId ? { ...q, ...campos } : q) }) }))
+    setDestaque(parcelaId); setTimeout(() => setDestaque(d => d === parcelaId ? null : d), 2500)
+  }
   async function onParcela(a, p, acao) {
     setAviso(''); setErro(null)
     try {
       await mudarParcela(p.id, acao)
-      setAviso(`${(a.nome || a.cpf).split(' ')[0]}: ${p.numero}ª parcela ${acao === 'pagar' ? 'marcada como paga' : 'voltou para em aberto'}.`)
-      carregar()
+      marcar(a.id, p.id, acao === 'pagar' ? { situacao: 'paga', pago_em: new Date().toISOString() } : { situacao: 'pendente', pago_em: null })
+      carregar(true)
+      if (acao === 'pagar') {
+        setDesfazer({
+          id: `${p.id}-${Date.now()}`, texto: `${(a.nome || a.cpf).split(' ')[0]}: ${p.numero}ª parcela marcada como paga.`, desfeito: 'Desfeito. A parcela voltou para em aberto.',
+          desfazer: async () => {
+            await mudarParcela(p.id, 'desfazer')
+            marcar(a.id, p.id, { situacao: 'pendente', pago_em: null })
+            carregar(true)
+          },
+        })
+      }
     } catch (e) { setErro(e) }
   }
 
@@ -212,12 +236,12 @@ export default function Acordos() {
                 const n = k ? r[k] : r.acordos
                 return (
                   <button key={k || 'todos'} onClick={() => setFiltro(k)}
-                    className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${filtro === k ? 'border-blue-500/30 bg-blue-500/15 text-blue-300' : 'border-line bg-raise-1 text-ink-2 hover:text-ink'}`}>
+                    className={`min-h-[40px] md:min-h-[32px] rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${filtro === k ? 'border-blue-500/30 bg-blue-500/15 text-blue-300' : 'border-line bg-raise-1 text-ink-2 hover:text-ink'}`}>
                     {l} · {fmtNum(n)}
                   </button>
                 )
               })}
-              <span className="ml-auto flex items-center gap-3 text-[11px] text-ink-2">
+              <span className="ml-auto flex items-center gap-3 text-xs text-ink-2">
                 <span className="flex items-center gap-1"><span className="h-2.5 w-4 rounded-sm" style={{ background: 'var(--success)' }} /> paga</span>
                 <span className="flex items-center gap-1"><span className="h-2.5 w-4 rounded-sm" style={{ background: 'var(--danger)' }} /> vencida</span>
                 <span className="flex items-center gap-1"><span className="h-2.5 w-4 rounded-sm border border-line" /> a vencer</span>
@@ -234,12 +258,13 @@ export default function Acordos() {
               <p className="rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm text-ink-2">Nenhum acordo nesta situação.</p>
             ) : (
               <ul className="space-y-2.5">
-                {lista.map(a => <Acordo key={a.id} a={a} hoje={dados.hoje} podeBaixar={isAdmin} onParcela={onParcela} />)}
+                {lista.map(a => <Acordo key={a.id} a={a} hoje={dados.hoje} podeBaixar={isAdmin} onParcela={onParcela} destaque={destaque} />)}
               </ul>
             )}
           </div>
         )}
       </div>
+      <AvisoDesfazer aviso={desfazer} onFechar={() => setDesfazer(null)} />
     </AppShell>
   )
 }
