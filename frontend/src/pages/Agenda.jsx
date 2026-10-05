@@ -2,14 +2,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { CalendarClock, Check, X, CalendarDays, ExternalLink, Loader2, Banknote, PhoneCall, RotateCcw } from 'lucide-react'
+import { ArrowLeft, Users, CalendarClock, Check, X, CalendarDays, ExternalLink, Loader2, Banknote, PhoneCall, RotateCcw } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import DicaAjuda from '../components/DicaAjuda'
 import ErroCarga from '../components/ErroCarga'
 import AvisoDesfazer from '../components/AvisoDesfazer'
 import { useAuth } from '../context/AuthContext'
 import { useAnalysis } from '../context/AnalysisContext'
-import { listarAgenda, mudarAgenda, buscarPaginaRanking, listarEmpresas, carregarCarteira } from '../api'
+import { listarAgenda, listarEquipeAgenda, mudarAgenda, buscarPaginaRanking, listarEmpresas, carregarCarteira } from '../api'
 import { NIVEIS, NIVEL_CFG, TIPO_LABEL, quando, hojeISO, somarDias, avisarAgendaMudou } from '../utils/agenda'
 
 const fmtBRL = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0)
@@ -164,16 +164,22 @@ export default function Agenda() {
   const [desfazer, setDesfazer] = useState(null)  // aviso com "Desfazer" no rodapé
   const [aba, setAba] = useState('alto')          // no celular, uma coluna por vez
   const [vista, setVista] = useState('pendentes')  // pendentes | resolvidos (hoje)
+  // Administração: 'Equipe' mostra primeiro os operadores; só ao escolher um abre a agenda dele.
+  const [operador, setOperador] = useState(null)      // {id, nome}
+  const [equipe, setEquipe] = useState(null)
+  const gestor = isAdmin || isComando
+  const naLista = gestor && escopo === 'equipe' && !operador
   const resolvidos = vista === 'resolvidos'
 
   const carregar = useCallback(() => {
-    if (isComando && !alvo) { setDados(null); setCarregando(false); return }
+    if (isComando && !alvo) { setDados(null); setEquipe(null); setCarregando(false); return }
     setCarregando(true); setErro(null); setErroAcao(null)
-    return listarAgenda({ escopo, empresa_id: isComando ? alvo : undefined, situacao: resolvidos ? 'resolvidos_hoje' : undefined })
-      .then(setDados)
-      .catch(e => setErro(e))
-      .finally(() => setCarregando(false))
-  }, [escopo, isComando, alvo, resolvidos])
+    const empresa_id = isComando ? alvo : undefined
+    const busca = naLista
+      ? listarEquipeAgenda({ empresa_id }).then(setEquipe)
+      : listarAgenda({ escopo, empresa_id, operador_id: operador?.id, situacao: resolvidos ? 'resolvidos_hoje' : undefined }).then(setDados)
+    return busca.catch(e => setErro(e)).finally(() => setCarregando(false))
+  }, [escopo, isComando, alvo, resolvidos, operador, naLista])
   useEffect(() => { carregar() }, [carregar])
 
   const grupos = useMemo(() => {
@@ -259,7 +265,9 @@ export default function Agenda() {
               <CalendarClock className="h-5 w-5 text-blue-400" /> Agenda<DicaAjuda id="agenda-de-retorno" />
             </h1>
             <p className="mt-1 text-sm text-ink-2">
-              Retornos e promessas de pagamento. Quando o pagamento é registrado em Pagamentos, a promessa vira cumprida sozinha.
+              {naLista ? 'Escolha um operador para ver a agenda dele.'
+                : operador ? `Agenda de ${operador.nome}.`
+                : gestor ? 'Seus compromissos, por prazo.' : 'Seus compromissos, por prazo.'}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -270,18 +278,18 @@ export default function Agenda() {
                 {empresas.map(e => <option key={e.empresa_id} value={e.empresa_id}>{e.nome_exibicao || e.empresa_id}</option>)}
               </select>
             )}
-            <div className="flex rounded-lg border border-line bg-surface-2 p-0.5" role="tablist" aria-label="O que mostrar">
+            {!naLista && <div className="flex rounded-lg border border-line bg-surface-2 p-0.5" role="tablist" aria-label="O que mostrar">
               {[['pendentes', 'Pendentes'], ['resolvidos', 'Resolvidos hoje']].map(([k, l]) => (
                 <button key={k} role="tab" aria-selected={vista === k} onClick={() => { if (k !== vista) { setDados(null); setVista(k) } }}
                   className={`min-h-[36px] rounded-md px-3 py-1 text-xs font-medium transition-colors ${vista === k ? 'bg-surface text-ink shadow-sm' : 'text-ink-2 hover:text-ink'}`}>
                   {l}
                 </button>
               ))}
-            </div>
+            </div>}
             {isAdmin && (
               <div className="flex rounded-lg border border-line bg-surface-2 p-0.5">
-                {[['equipe', 'Equipe'], ['minha', 'Minha']].map(([k, l]) => (
-                  <button key={k} onClick={() => setEscopo(k)}
+                {[['minha', 'Minha agenda'], ['equipe', 'Equipe']].map(([k, l]) => (
+                  <button key={k} onClick={() => { setDados(null); setOperador(null); setVista('pendentes'); setEscopo(k) }}
                     className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${escopo === k ? 'bg-surface text-ink shadow-sm' : 'text-ink-2 hover:text-ink'}`}>
                     {l}
                   </button>
@@ -299,29 +307,65 @@ export default function Agenda() {
         <ErroCarga erro={erro} onTentar={carregar} />
         <ErroCarga erro={erroAcao} onTentar={carregar} compacto />
 
+        {operador && (
+          <button type="button" onClick={() => { setDados(null); setOperador(null); setVista('pendentes') }}
+            className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg px-2 py-1 -ml-2 text-sm text-ink-2 hover:bg-raise-1 hover:text-ink">
+            <ArrowLeft className="h-4 w-4" /> Equipe
+          </button>
+        )}
+
+        {naLista && equipe?.ativo === false && (
+          <div className="rounded-xl border border-line bg-surface p-6 text-sm text-ink-2">{equipe.mensagem}</div>
+        )}
+        {naLista && equipe?.ativo && (
+          equipe.operadores.length === 0
+            ? <div className="rounded-xl border border-line bg-surface px-6 py-10 text-center text-sm text-ink-2">Nenhum operador ativo nesta empresa.</div>
+            : (
+              <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-label="Minha equipe">
+                {equipe.operadores.map(o => (
+                  <li key={o.id}>
+                    <button type="button" onClick={() => { setDados(null); setOperador({ id: o.id, nome: o.nome }) }}
+                      className="flex w-full items-center gap-3 rounded-xl border border-line bg-surface p-4 text-left transition-colors hover:border-blue-500/40">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-500/15 text-sm font-bold text-blue-300">
+                        {(o.nome || '?').split(' ').map(p => p[0]).slice(0, 2).join('').toUpperCase()}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold text-ink">{o.nome}</span>
+                        <span className="block text-xs text-ink-2">
+                          {o.total === 0 ? 'Nada pendente'
+                            : `${o.alto ? `${o.alto} vencido${o.alto > 1 ? 's' : ''} · ` : ''}${o.medio} para hoje/amanhã · ${o.safe} depois`}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )
+        )}
+
         {isComando && !alvo && (
           <div className="rounded-xl border border-line bg-surface p-6 text-sm text-ink-2">Escolha a empresa para ver a agenda da equipe dela.</div>
         )}
 
-        {dados && dados.ativo === false && (
+        {!naLista && dados && dados.ativo === false && (
           <div className="rounded-xl border border-line bg-surface p-6 text-sm text-ink-2">{dados.mensagem}</div>
         )}
 
-        {carregando && !dados && (
+        {carregando && !dados && !naLista && (
           <div className="flex items-center gap-2 py-10 text-sm text-ink-2"><Loader2 className="h-4 w-4 animate-spin" /> Carregando a agenda…</div>
         )}
 
-        {dados?.ativo && resolvidos && (
+        {!naLista && dados?.ativo && resolvidos && (
           total === 0
             ? <div className="rounded-xl border border-line bg-surface px-6 py-10 text-center text-sm text-ink-2">Nada foi resolvido hoje ainda.</div>
             : <ul className="space-y-2.5">
                 {dados.itens.map(i => (
-                  <ItemResolvido key={i.id} item={i} mostrarOperador={escopo === 'equipe'} podeDesfazer={!isComando} onDesfazer={desfazerResolvido} />
+                  <ItemResolvido key={i.id} item={i} mostrarOperador={false} podeDesfazer={!isComando} onDesfazer={desfazerResolvido} />
                 ))}
               </ul>
         )}
 
-        {dados?.ativo && !resolvidos && total === 0 && (
+        {!naLista && dados?.ativo && !resolvidos && total === 0 && (
           <div className="rounded-xl border border-line bg-surface px-6 py-12 text-center">
             <CalendarClock className="mx-auto h-8 w-8 text-ink-2 opacity-50" />
             <p className="mt-3 text-sm font-medium text-ink">Nada pendente</p>
@@ -331,7 +375,7 @@ export default function Agenda() {
           </div>
         )}
 
-        {dados?.ativo && !resolvidos && total > 0 && (
+        {!naLista && dados?.ativo && !resolvidos && total > 0 && (
           <>
             {/* celular: abas; computador: três colunas */}
             <div className="flex gap-1.5 md:hidden">
@@ -358,7 +402,7 @@ export default function Agenda() {
                   <ul className="space-y-2.5">
                     <AnimatePresence initial={false}>
                       {grupos[n].map(i => (
-                        <Item key={i.id} item={i} mostrarOperador={escopo === 'equipe'}
+                        <Item key={i.id} item={i} mostrarOperador={false}
                           onAcao={acao} onAbrir={abrir} carteiraAberta={carteiraAberta} soLeitura={isComando} meuId={usuario?.id} />
                       ))}
                     </AnimatePresence>

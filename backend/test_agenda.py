@@ -114,6 +114,22 @@ checar(c.get("/agenda", headers=OUTRA).json()["itens"] == [], "outra empresa nã
 checar(c.get("/agenda", headers=CMD).status_code == 400, "comando precisa escolher a empresa")
 checar(len(c.get("/agenda?empresa_id=goias", headers=CMD).json()["itens"]) == 4, "comando lê a empresa escolhida")
 checar(len(c.get("/agenda?cpf=222&escopo=equipe", headers=ADM).json()["itens"]) == 2, "filtra por devedor")
+r = c.get("/agenda?escopo=equipe&operador_id=op-beto", headers=ADM).json()
+checar(r["itens"] and all(i["operador_id"] == "op-beto" for i in r["itens"]), "admin abre a agenda de um operador só")
+checar(all(i["operador_id"] == "op-ana" for i in c.get("/agenda?escopo=equipe&operador_id=op-beto", headers=ANA).json()["itens"]),
+       "operador não consegue ver a agenda de outro por esse filtro")
+import auth as _auth
+_auth.listar_usuarios = lambda emp="": [{"id": "op-ana", "nome": "Ana", "role": "operador", "ativo": True},
+                                         {"id": "op-beto", "nome": "Beto", "role": "operador", "ativo": True},
+                                         {"id": "op-zeca", "nome": "Zeca", "role": "operador", "ativo": True},
+                                         {"id": "op-fora", "nome": "Fora", "role": "operador", "ativo": False},
+                                         {"id": "adm", "nome": "Adm", "role": "admin", "ativo": True}]
+r = c.get("/agenda/equipe", headers=ADM).json()
+ids = [o["id"] for o in r["operadores"]]
+checar(r["ativo"] and set(ids) == {"op-ana", "op-beto", "op-zeca"}, "equipe lista só os operadores ativos (sem admin e sem inativo)", str(ids))
+checar(next(o for o in r["operadores"] if o["id"] == "op-zeca")["total"] == 0, "operador sem compromisso aparece com zero")
+checar(next(o for o in r["operadores"] if o["id"] == "op-ana")["total"] > 0, "e cada um traz quantos tem")
+checar(c.get("/agenda/equipe", headers=ANA).status_code == 403, "operador não abre a lista da equipe")
 
 print("— resolver —")
 id_hoje = next(i["id"] for i in TABELAS["agenda"] if i["data"] == d(0))

@@ -636,6 +636,11 @@ export async function listarAgenda(params = {}) {
   return _jsonOuErroFila(res)
 }
 
+export async function listarEquipeAgenda(params = {}) {
+  const res = await fetch(`${BASE}/agenda/equipe?${_qs(params)}`, { headers: { Authorization: `Bearer ${_getToken()}` } })
+  return _jsonOuErroFila(res)
+}
+
 export async function resumoAgenda(params = {}) {
   const res = await fetch(`${BASE}/agenda/resumo?${_qs(params)}`, { headers: { Authorization: `Bearer ${_getToken()}` } })
   return _jsonOuErroFila(res)

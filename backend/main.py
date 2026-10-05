@@ -1958,7 +1958,7 @@ def _consulta_agenda(db, payload: dict, emp: str, escopo: str):
 
 @app.get("/agenda")
 def listar_agenda(escopo: str = "minha", situacao: str = "pendente", cpf: Optional[str] = None,
-                  empresa_id: Optional[str] = None,
+                  empresa_id: Optional[str] = None, operador_id: Optional[str] = None,
                   credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """Compromissos da agenda. Pendentes vêm com o nível (alto, médio, safe)."""
     from agenda import hoje, SITUACOES
@@ -1970,6 +1970,8 @@ def listar_agenda(escopo: str = "minha", situacao: str = "pendente", cpf: Option
     try:
         def consulta():
             q = _consulta_agenda(db, payload, emp, escopo)
+            if operador_id and payload.get("role") != "operador":
+                q = q.eq("operador_id", operador_id)          # a agenda de um operador só
             return q.eq("cpf", cpf.strip()) if cpf else q
         if situacao == "resolvidos_hoje":
             # O que foi resolvido desde 00:00 de Brasília: a lista de onde se desfaz um engano.
@@ -2010,6 +2012,34 @@ def resumo_agenda(escopo: str = "minha", empresa_id: Optional[str] = None,
         raise
     datas = [date.fromisoformat(str(l["data"])[:10]) for l in linhas if l.get("data")]
     return {"ativo": True, **contar_niveis(datas, hoje())}
+
+
+@app.get("/agenda/equipe")
+def agenda_da_equipe(empresa_id: Optional[str] = None,
+                     credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Os operadores da empresa e quantos compromissos pendentes cada um tem, para
+    o administrador abrir a agenda de um de cada vez (sem misturar a equipe)."""
+    from agenda import hoje, contar_niveis
+    from auth import listar_usuarios
+    payload = _exigir_admin_ou_comando(credentials)
+    emp = _empresa_da_agenda(payload, empresa_id)
+    db = get_db()
+    ops = [u for u in listar_usuarios(emp) if u.get("role") == "operador" and u.get("ativo", True)]
+    try:
+        linhas = _todas_as_linhas(lambda: _consulta_agenda(db, payload, emp, "equipe").eq("situacao", "pendente"))
+    except Exception as e:
+        if _falta_tabela(e, "agenda"):
+            return {"ativo": False, "mensagem": _MSG_SEM_MIGRACAO_AGENDA, "operadores": []}
+        raise
+    por_op: dict = {}
+    for l in linhas:
+        if l.get("data"):
+            por_op.setdefault(l.get("operador_id"), []).append(date.fromisoformat(str(l["data"])[:10]))
+    ref = hoje()
+    saida = [{"id": u["id"], "nome": u.get("nome") or u.get("email"),
+              **contar_niveis(por_op.get(u["id"], []), ref), "total": len(por_op.get(u["id"], []))} for u in ops]
+    saida.sort(key=lambda o: (-o["alto"], -o["medio"], o["nome"] or ""))
+    return {"ativo": True, "operadores": saida}
 
 
 # Desfazer na Agenda: quem resolveu um compromisso por engano pode reabri-lo.
