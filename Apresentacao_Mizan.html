@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Apresentação Mizan</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap">
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:'Bricolage Grotesque',Arial,sans-serif}
+*{box-sizing:border-box;margin:0}
+ul{padding-left:1.2em}
+#palco{position:absolute;left:50%;top:50%;width:1920px;height:1080px;transform-origin:center center}
+#palco>section{position:absolute!important;inset:0;width:1920px;height:1080px;overflow:hidden;visibility:hidden}
+#palco>section.ativo{visibility:visible}
+#ajuda{position:fixed;bottom:12px;right:16px;color:#8b85a8;font:14px Arial;opacity:.7}
+table{border-collapse:collapse;width:100%} th,td{padding:20px 24px;text-align:left}
+</style></head><body>
+<div id="palco">
+<section id="capa" data-transition="fade" style="display:flex; flex-direction:column; gap:56px; justify-content:center; padding:128px; background:#1a0033; font-family:'Bricolage Grotesque', Arial, sans-serif; color:#f4f2fa">
+  <div style="display:flex; flex-direction:row; align-items:center; gap:48px">
+    <div style="display:flex; flex-direction:row; align-items:center; gap:28px">
+      <svg aria-label="Símbolo do Mizan" width="180" height="180" viewBox="0 0 30 30"><polygon points="6.5,15 11.5,15 9,27 4,27" fill="#b8c0ee"/><polygon points="13.5,9 18.5,9 16,27 11,27" fill="#8f9be9"/><polygon points="20.5,3 25.5,3 23,27 18,27" fill="#5966d9"/></svg>
+      <h1 style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:200px; font-weight:700; line-height:1; letter-spacing:-6px; color:#f4f2fa">Mizan</h1>
+    </div>
+    <div style="width:3px; height:200px; background:#a9b4cf; opacity:0.5"></div>
+    <img src="data:image/png;base64,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" alt="Logotipo do Goiás Bank" style="width:240px; height:240px; object-fit:cover; border-radius:28px">
+  </div>
+  <p style="width:1300px; font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:56px; font-weight:500; line-height:1.15; color:#f4f2fa">Inteligência Artificial aplicada à recuperação de crédito</p>
+  <template class="nota">Somos o Mizan, apresentando ao Goiás Bank: inteligência artificial aplicada à recuperação de crédito. Começamos pelo problema, não pela tecnologia.</template>
+</section>
+
+<section id="mercado" data-transition="fade" style="display:flex; flex-direction:column; gap:48px; padding:128px 128px 160px; background:#151027; font-family:'Bricolage Grotesque', Arial, sans-serif; color:#f4f2fa">
+  <h2 style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:72px; font-weight:700; line-height:1.05; letter-spacing:-2px; color:#f4f2fa">Mercado de Crédito e Inadimplência</h2>
+  <div style="display:flex; flex-direction:row; gap:32px; flex:1">
+    <div style="display:flex; flex-direction:column; gap:24px; justify-content:center; flex:1; padding:48px; background:#0b0814; border:1px solid #2f2748; border-radius:28px">
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:28px; font-weight:600; letter-spacing:3px; text-transform:uppercase; color:#a9b4cf">Quem está inadimplente</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:96px; font-weight:700; line-height:1; white-space:nowrap; color:#9aa4ee">84 mi</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:32px; line-height:1.35; color:#f4f2fa">de brasileiros com contas em atraso</p>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:24px; justify-content:center; flex:1; padding:48px; background:#0b0814; border:1px solid #2f2748; border-radius:28px">
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:28px; font-weight:600; letter-spacing:3px; text-transform:uppercase; color:#a9b4cf">Quanto soma</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:88px; font-weight:700; line-height:1.05; white-space:nowrap; color:#9aa4ee">R$ 568 bi</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:32px; line-height:1.35; color:#f4f2fa">em dívidas atrasadas</p>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:24px; justify-content:center; flex:1; padding:48px; background:#0b0814; border:1px solid #6b77e3; border-radius:28px">
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:28px; font-weight:600; letter-spacing:3px; text-transform:uppercase; color:#a9b4cf">O que representa</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:96px; font-weight:700; line-height:1; white-space:nowrap; color:#9aa4ee">51%</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:32px; line-height:1.35; color:#f4f2fa">da população adulta do país</p>
+    </div>
+  </div>
+  <p style="position:absolute; bottom:64px; left:128px; width:1300px; font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:24px; color:#8b85a8">Fonte: Serasa, Mapa da Inadimplência · agosto de 2026</p>
+  <p style="position:absolute; right:128px; bottom:64px; width:200px; font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:24px; text-align:right; color:#8b85a8">02 / 11</p>
+  <template class="nota">Segundo a Serasa, em agosto de 2026 eram cerca de 84 milhões de brasileiros inadimplentes, 51% da população adulta, com mais de R$ 568 bilhões em dívidas atrasadas. Conferir os números na fonte oficial antes de apresentar.</template>
+</section>
+
+<section id="problema" data-transition="fade" style="background:#0b0814;color:#f4f2fa;font-family:'Bricolage Grotesque', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:56px">
+  <h2 id="2f77011d" style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:80px; font-weight:700; line-height:1.05; letter-spacing:-2px; color:#f4f2fa">Problema Identificado</h2>
+  <div id="a2159e1e" style="flex:1; display:flex; flex-direction:row; gap:40px">
+    <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:36px; padding:64px; background:#151027; border:1px solid #2f2748; border-radius:28px">
+      <h3 style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:64px; font-weight:700; line-height:1.1; color:#f4f2fa">Quem cobrar primeiro?</h3>
+      <hr style="width:96px; border-top:4px solid #6b77e3">
+      <ul style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:36px; line-height:1.6; color:#a9b4cf">
+        <li>A fila segue regras genéricas, como atraso ou valor</li>
+        <li>O operador não sabe por onde começar</li>
+        <li>O histórico de cobrança é pouco aproveitado</li>
+      </ul>
+    </div>
+    <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:36px; padding:64px; background:#151027; border:1px solid #2f2748; border-radius:28px">
+      <h3 style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:64px; font-weight:700; line-height:1.1; color:#f4f2fa">Como cobrar?</h3>
+      <hr style="width:96px; border-top:4px solid #6b77e3">
+      <ul style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:36px; line-height:1.6; color:#a9b4cf">
+        <li>Mesmo canal e tratamento para perfis diferentes</li>
+        <li>Descontos definidos sem critério</li>
+        <li>A decisão depende da experiência de cada pessoa</li>
+      </ul>
+    </div>
+  </div>
+  <p id="e1-1epp6kn" style="position:absolute; bottom:64px; left:128px; width:800px; font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:24px; color:#8b85a8">Mizan</p>
+  <p id="e2-1epp6kn" style="position:absolute; right:128px; bottom:64px; width:200px; font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:24px; text-align:right; color:#8b85a8">03 / 11</p>
+  <template class="nota">O problema se resume em duas decisões. Primeiro: quem cobrar primeiro, porque a fila costuma seguir regras genéricas e o operador não sabe por onde começar. Segundo: como cobrar, com qual canal e qual oferta, porque hoje todos recebem o mesmo tratamento e o desconto depende de quem atende.</template>
+</section>
+
+<section id="hoje" data-transition="fade" style="background:#0b0814;color:#f4f2fa;font-family:'Bricolage Grotesque', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<h2 style="font-family:'Bricolage Grotesque', Arial, sans-serif;font-size:80px;font-weight:700;line-height:1.05;letter-spacing:-2px">O que já é feito hoje?</h2>
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:20px">
+<div style="background:#151027;border:1px solid #2f2748;border-radius:20px;padding:28px"><p style="font-size:32px;font-weight:500;line-height:1.25">CRM de cobrança</p></div>
+<div style="background:#151027;border:1px solid #2f2748;border-radius:20px;padding:28px"><p style="font-size:32px;font-weight:500;line-height:1.25">Segmentação de clientes</p></div>
+<div style="background:#151027;border:1px solid #2f2748;border-radius:20px;padding:28px"><p style="font-size:32px;font-weight:500;line-height:1.25">Score de crédito</p></div>
+<div style="background:#151027;border:1px solid #2f2748;border-radius:20px;padding:28px"><p style="font-size:32px;font-weight:500;line-height:1.25">Disparos de WhatsApp</p></div>
+<div style="background:#151027;border:1px solid #2f2748;border-radius:20px;padding:28px"><p style="font-size:32px;font-weight:500;line-height:1.25">Ligações</p></div>
+<div style="background:#151027;border:1px solid #2f2748;border-radius:20px;padding:28px"><p style="font-size:32px;font-weight:500;line-height:1.25">E-mails</p></div>
+<div style="background:#151027;border:1px solid #2f2748;border-radius:20px;padding:28px"><p style="font-size:32px;font-weight:500;line-height:1.25">Réguas de cobrança</p></div>
+<div style="background:#151027;border:1px solid #2f2748;border-radius:20px;padding:28px"><p style="font-size:32px;font-weight:500;line-height:1.25">Dashboards</p></div>
+</div>
+<div style="flex:1"></div>
+<div style="display:flex;flex-direction:column;gap:12px">
+<p style="font-family:'Bricolage Grotesque', Arial, sans-serif;font-size:48px;font-weight:600;line-height:1.15">As ferramentas atuais ajudam a executar a cobrança.</p>
+<p style="font-family:'Bricolage Grotesque', Arial, sans-serif;font-size:48px;font-weight:600;line-height:1.15;color:#9aa4ee">Mas ainda deixam para o operador decidir qual é a melhor ação.</p>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:800px;font-size:24px;color:#8b85a8">Mizan</p>
+<p style="position:absolute;right:128px;bottom:64px;width:200px;font-size:24px;color:#8b85a8;text-align:right">04 / 11</p>
+<template class="nota">Reconhecer o que o mercado já faz bem. Essas ferramentas executam a cobrança; a escolha da melhor ação para cada devedor continua com o operador.</template>
+</section>
+
+<section id="solucao" data-transition="fade" style="background:#1a0033; color:#f4f2fa; font-family:'Bricolage Grotesque', Arial, sans-serif; padding:128px 128px 160px; display:flex; flex-direction:column; justify-content:space-between; gap:48px">
+  <div style="display:flex; flex-direction:column; gap:24px">
+    <p id="3fc42384" style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:26px; font-weight:600; letter-spacing:4px; text-transform:uppercase; color:#a9b4cf">Solução Proposta</p>
+    <h2 id="737ae6f4" style="width:1500px; font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:72px; font-weight:700; line-height:1.08; letter-spacing:-2px; color:#f4f2fa">Plataforma inteligente para análise, priorização e recuperação de dívidas com IA</h2>
+  </div>
+  <div id="5f77cf22" style="display:flex; flex-direction:row; gap:24px">
+    <div style="display:flex; flex-direction:column; gap:10px; flex:1; padding:24px 28px; border:1px solid #6b77e3; border-radius:20px">
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:26px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:#9aa4ee">Prioriza</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:30px; line-height:1.3; color:#f4f2fa">Ordena a fila por chance de pagar e valor a recuperar</p>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:10px; flex:1; padding:24px 28px; border:1px solid #6b77e3; border-radius:20px">
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:26px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:#9aa4ee">Recomenda</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:30px; line-height:1.3; color:#f4f2fa">Sugere o canal e a oferta para cada devedor</p>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:10px; flex:1; padding:24px 28px; border:1px solid #6b77e3; border-radius:20px">
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:26px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:#9aa4ee">Aprende</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:30px; line-height:1.3; color:#f4f2fa">Melhora a cada pagamento, promessa ou recusa registrada</p>
+    </div>
+  </div>
+  <div id="15b56945" style="display:flex; flex-direction:row; gap:32px">
+    <div style="display:flex; flex-direction:column; gap:16px; flex:1; padding:36px; background:#151027; border:1px solid #2f2748; border-radius:28px">
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:26px; font-weight:600; letter-spacing:3px; text-transform:uppercase; color:#a9b4cf">Software tradicional</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:44px; font-weight:600; line-height:1.2; color:#f4f2fa">“Qual a chance desse cliente pagar?”</p>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:16px; flex:1; padding:36px; background:#6b77e3; border-radius:28px">
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:26px; font-weight:600; letter-spacing:3px; text-transform:uppercase; color:#14101f">Mizan</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:44px; font-weight:600; line-height:1.2; color:#14101f">“Qual ação devemos tomar agora para aumentar essa chance?”</p>
+    </div>
+  </div>
+  <p id="e1-p65pbl" style="position:absolute; bottom:64px; left:128px; width:800px; font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:24px; color:#a9b4cf">Mizan</p>
+  <p id="e2-p65pbl" style="position:absolute; right:128px; bottom:64px; width:200px; font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:24px; text-align:right; color:#a9b4cf">05 / 11</p>
+  <template class="nota">A IA do Mizan faz três coisas: prioriza quem cobrar primeiro, recomenda como cobrar (canal e oferta) e aprende com cada resultado. A mudança central está nas duas perguntas: o software tradicional estima a chance de pagar; o Mizan recomenda a ação que aumenta essa chance.</template>
+</section>
+
+<section id="produto" data-transition="fade" style="display:flex; flex-direction:row; gap:56px; padding:128px 128px 160px; background:#0b0814">
+  <div style="width:520px; display:flex; flex-direction:column; gap:20px">
+    <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:26px; font-weight:600; letter-spacing:4px; text-transform:uppercase; color:#9aa4ee">Mizan</p>
+    <h2 style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:64px; font-weight:700; line-height:1.08; letter-spacing:-2px; color:#f4f2fa">Plataforma de recuperação inteligente</h2>
+    <div style="flex:1"></div>
+    <div style="display:flex; flex-direction:column; gap:8px">
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:40px; font-weight:700; letter-spacing:2px; color:#f4f2fa">ANALISAR</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:32px; color:#6b77e3">↓</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:40px; font-weight:700; letter-spacing:2px; color:#f4f2fa">DECIDIR</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:32px; color:#6b77e3">↓</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:40px; font-weight:700; letter-spacing:2px; color:#f4f2fa">AGIR</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:32px; color:#6b77e3">↓</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:40px; font-weight:700; letter-spacing:2px; color:#9aa4ee">APRENDER</p>
+    </div>
+  </div>
+  <div style="display:flex; flex-direction:column; gap:28px; flex:1; padding:40px; background:#151027; border:1px solid #2f2748; border-radius:28px">
+    <div style="display:flex; flex-direction:row; align-items:center; justify-content:space-between">
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:44px; font-weight:600; color:#f4f2fa">João</p>
+      <p style="padding:8px 20px; font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:24px; font-weight:600; color:#a9b4cf; background:#1e1738; border-radius:256px">Exemplo ilustrativo</p>
+    </div>
+    <div style="display:flex; flex-direction:row; gap:20px">
+      <div style="display:flex; flex-direction:column; gap:6px; flex:1; padding:24px; background:#0b0814; border:1px solid #2f2748; border-radius:20px">
+        <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:26px; color:#a9b4cf">Dívida</p>
+        <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:48px; font-weight:700; font-variant-numeric:tabular-nums; color:#f4f2fa">R$ 42.000</p>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:6px; flex:1; padding:24px; background:#0b0814; border:1px solid #2f2748; border-radius:20px">
+        <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:26px; color:#a9b4cf">Chance de pagar</p>
+        <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:48px; font-weight:700; color:#34c98d">67%</p>
+      </div>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:14px; padding:32px; background:#20224a; border:1px solid #6b77e3; border-radius:20px">
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:26px; font-weight:600; letter-spacing:3px; text-transform:uppercase; color:#9aa4ee">Ação recomendada</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:56px; font-weight:700; line-height:1.1; color:#f4f2fa">WhatsApp</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:36px; line-height:1.3; color:#f4f2fa">Oferta: desconto de 8%</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:28px; line-height:1.4; color:#a9b4cf">Justificativa: perfis semelhantes responderam melhor a esta oferta neste canal.</p>
+    </div>
+  </div>
+  <p id="e2-1q7fwu6" style="position:absolute; right:128px; bottom:64px; width:200px; font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:24px; text-align:right; color:#8b85a8">06 / 11</p>
+  <template class="nota">Para cada dívida o Mizan mostra a chance de pagar e a ação recomendada: canal, oferta e justificativa. Os valores do cartão são ilustrativos; se possível, trocar por uma captura real da ficha do devedor.</template>
+</section>
+
+<section id="funcionamento" data-transition="fade" style="display:flex; flex-direction:column; gap:40px; padding:128px 128px 160px; background:#0b0814">
+  <h2 style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:80px; font-weight:700; line-height:1.05; letter-spacing:-2px; color:#f4f2fa">Como funciona</h2>
+  <div style="display:grid; gap:24px; grid-template-columns:1fr 1fr 1fr; grid-template-rows:1fr 1fr; flex:1">
+    <div style="display:flex; flex-direction:column; gap:12px; justify-content:center; padding:32px; background:#151027; border:1px solid #2f2748; border-radius:24px">
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:28px; font-weight:600; color:#9aa4ee">01</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:44px; font-weight:700; line-height:1.1; color:#f4f2fa">Dados</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:30px; line-height:1.35; color:#a9b4cf">Histórico de cobrança, valores, datas, perfil e interações</p>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:12px; justify-content:center; padding:32px; background:#151027; border:1px solid #2f2748; border-radius:24px">
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:28px; font-weight:600; color:#9aa4ee">02</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:44px; font-weight:700; line-height:1.1; color:#f4f2fa">Análise</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:30px; line-height:1.35; color:#a9b4cf">Identificação de padrões e contexto</p>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:12px; justify-content:center; padding:32px; background:#20224a; border:1px solid #6b77e3; border-radius:24px">
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:28px; font-weight:600; color:#9aa4ee">03</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:44px; font-weight:700; line-height:1.1; color:#f4f2fa">Decisão</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:30px; line-height:1.35; color:#a9b4cf">Canal e oferta</p>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:12px; justify-content:center; padding:32px; background:#151027; border:1px solid #2f2748; border-radius:24px">
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:28px; font-weight:600; color:#9aa4ee">04</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:44px; font-weight:700; line-height:1.1; color:#f4f2fa">Ação</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:30px; line-height:1.35; color:#a9b4cf">Negociação e canais</p>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:12px; justify-content:center; padding:32px; background:#151027; border:1px solid #2f2748; border-radius:24px">
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:28px; font-weight:600; color:#9aa4ee">05</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:44px; font-weight:700; line-height:1.1; color:#f4f2fa">Resultado</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:30px; line-height:1.35; color:#a9b4cf">Pagamento e resposta do cliente</p>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:12px; justify-content:center; padding:32px; background:#20224a; border:1px solid #6b77e3; border-radius:24px">
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:28px; font-weight:600; color:#9aa4ee">06</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:44px; font-weight:700; line-height:1.1; color:#f4f2fa">Aprendizado</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:30px; line-height:1.35; color:#a9b4cf">Modelo de IA treinado</p>
+    </div>
+  </div>
+  <p style="position:absolute; bottom:64px; left:128px; width:800px; font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:24px; color:#8b85a8">Mizan</p>
+  <p style="position:absolute; right:128px; bottom:64px; width:200px; font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:24px; text-align:right; color:#8b85a8">07 / 11</p>
+  <template class="nota">O sistema forma um ciclo: cada resultado registrado (pagamento, promessa, recusa ou silêncio) volta para o modelo e ajusta as próximas recomendações.</template>
+</section>
+
+<section id="prescritiva" data-transition="fade" style="display:flex; flex-direction:column; gap:40px; padding:128px 128px 160px; background:#151027; font-family:'Bricolage Grotesque', Arial, sans-serif; color:#f4f2fa">
+  <h2 style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:80px; font-weight:700; line-height:1.05; letter-spacing:-2px; color:#f4f2fa">Prever não é suficiente</h2>
+  <div style="display:flex; flex-direction:row; gap:32px; flex:1">
+    <div style="display:flex; flex-direction:column; justify-content:space-between; gap:24px; flex:1; padding:40px; background:#0b0814; border:1px solid #2f2748; border-radius:28px">
+      <div style="display:flex; flex-direction:column; gap:16px">
+        <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:26px; font-weight:600; letter-spacing:3px; text-transform:uppercase; color:#a9b4cf">Modelo tradicional</p>
+        <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:44px; font-weight:600; line-height:1.2; color:#f4f2fa">“Qual a chance desse cliente pagar?”</p>
+      </div>
+      <div style="display:flex; flex-direction:row; flex-wrap:wrap; align-items:center; gap:12px"><p style="padding:10px 22px; border-radius:999px; font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:30px; font-weight:500; background:#1e1738; color:#f4f2fa">Cliente</p><p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:30px; color:#6b77e3">→</p><p style="padding:10px 22px; border-radius:999px; font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:30px; font-weight:500; background:#1e1738; color:#f4f2fa">Score</p><p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:30px; color:#6b77e3">→</p><p style="padding:10px 22px; border-radius:999px; font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:30px; font-weight:500; background:#1e1738; color:#f4f2fa">15% de chance de pagamento</p></div>
+    </div>
+    <div style="display:flex; flex-direction:column; justify-content:space-between; gap:24px; flex:1; padding:40px; background:#0b0814; border:1px solid #6b77e3; border-radius:28px">
+      <div style="display:flex; flex-direction:column; gap:16px">
+        <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:26px; font-weight:600; letter-spacing:3px; text-transform:uppercase; color:#9aa4ee">Mizan</p>
+        <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:44px; font-weight:600; line-height:1.2; color:#f4f2fa">“Qual ação aumenta a chance dele pagar?”</p>
+      </div>
+      <div style="display:flex; flex-direction:row; flex-wrap:wrap; align-items:center; gap:12px"><p style="padding:10px 22px; border-radius:999px; font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:30px; font-weight:500; background:#1e1738; color:#f4f2fa">Cliente</p><p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:30px; color:#6b77e3">→</p><p style="padding:10px 22px; border-radius:999px; font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:30px; font-weight:500; background:#1e1738; color:#f4f2fa">Contexto</p><p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:30px; color:#6b77e3">→</p><p style="padding:10px 22px; border-radius:999px; font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:30px; font-weight:600; background:#6b77e3; color:#14101f">WhatsApp + desconto de 5%</p><p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:30px; color:#6b77e3">→</p><p style="padding:10px 22px; border-radius:999px; font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:30px; font-weight:500; background:#1e1738; color:#f4f2fa">Maior expectativa de recuperação</p></div>
+    </div>
+  </div>
+  <div style="display:flex; flex-direction:column; gap:16px">
+    <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:26px; font-weight:600; letter-spacing:3px; text-transform:uppercase; color:#9aa4ee">Contextual Bandit</p>
+    <div style="display:flex; flex-direction:row; gap:20px">
+      <div style="display:flex; flex-direction:column; justify-content:center; flex:1; padding:24px 28px; background:#20224a; border-radius:20px">
+        <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:34px; font-weight:600; color:#f4f2fa">Explora novas estratégias</p>
+      </div>
+      <div style="display:flex; flex-direction:column; justify-content:center; flex:1; padding:24px 28px; background:#20224a; border-radius:20px">
+        <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:34px; font-weight:600; color:#f4f2fa">Aproveita as que já funcionam</p>
+      </div>
+      <div style="display:flex; flex-direction:column; justify-content:center; flex:1; padding:24px 28px; background:#20224a; border-radius:20px">
+        <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:34px; font-weight:600; color:#f4f2fa">Aprende continuamente</p>
+      </div>
+    </div>
+  </div>
+  <p id="e2-lh0rgn" style="position:absolute; right:128px; bottom:64px; width:200px; font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:24px; text-align:right; color:#8b85a8">08 / 11</p>
+  <template class="nota">Um score diz a probabilidade de pagamento; ele não diz o que fazer. O Contextual Bandit escolhe uma ação para cada contexto, testa alternativas com moderação, repete o que funciona e se ajusta com cada resultado. Os percentuais do slide são ilustrativos.</template>
+</section>
+
+<section id="impacto" data-transition="fade" style="display:flex; flex-direction:column; gap:56px; padding:128px 128px 160px; background:#1a0033; font-family:'Bricolage Grotesque', Arial, sans-serif; color:#f4f2fa">
+  <div style="display:flex; flex-direction:row; align-items:center; justify-content:space-between; gap:24px">
+    <h2 style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:64px; font-weight:700; line-height:1.05; letter-spacing:-2px; color:#f4f2fa">Impacto Financeiro</h2>
+    <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:24px; font-weight:600; color:#a9b4cf; background:#1e1738; border-radius:999px; padding:8px 20px">Simulação ilustrativa</p>
+  </div>
+  <div style="display:flex; flex-direction:row; gap:24px; flex:1">
+    <div style="display:flex; flex-direction:column; justify-content:center; gap:20px; flex:1; padding:40px; background:#151027; border:1px solid #2f2748; border-radius:24px">
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:30px; line-height:1.25; color:#a9b4cf">Valor de face da carteira</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:60px; font-weight:700; line-height:1.1; white-space:nowrap; color:#f4f2fa">R$ 5 mi</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:28px; line-height:1.3; color:#a9b4cf">Soma das dívidas</p>
+    </div>
+    <div style="display:flex; flex-direction:column; justify-content:center; gap:20px; flex:1; padding:40px; background:#151027; border:1px solid #2f2748; border-radius:24px">
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:30px; line-height:1.25; color:#a9b4cf">Preço de compra</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:60px; font-weight:700; line-height:1.1; white-space:nowrap; color:#f4f2fa">R$ 500 mil</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:28px; line-height:1.3; color:#a9b4cf">10% do valor de face</p>
+    </div>
+    <div style="display:flex; flex-direction:column; justify-content:center; gap:20px; flex:1; padding:40px; background:#151027; border:1px solid #2f2748; border-radius:24px">
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:30px; line-height:1.25; color:#a9b4cf">Recuperação sem Mizan</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:60px; font-weight:700; line-height:1.1; white-space:nowrap; color:#f4f2fa">R$ 750 mil</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:28px; line-height:1.3; color:#a9b4cf">15% do valor de face</p>
+    </div>
+    <div style="display:flex; flex-direction:column; justify-content:center; gap:20px; flex:1; padding:40px; background:#6b77e3; border:1px solid #6b77e3; border-radius:24px">
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:30px; line-height:1.25; color:#14101f">Recuperação com Mizan</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:60px; font-weight:700; line-height:1.1; white-space:nowrap; color:#14101f">R$ 825 mil</p>
+      <p style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:28px; line-height:1.3; color:#14101f">+1,5%</p>
+    </div>
+  </div>
+  <p id="e2-1rjafl4" style="position:absolute; right:128px; bottom:64px; width:200px; font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:24px; text-align:right; color:#a9b4cf">09 / 11</p>
+  <template class="nota">Simulação ilustrativa, não é resultado medido. Carteira com valor de face de R$ 5 milhões, comprada por R$ 500 mil. Sem o Mizan, recuperando 15% do valor de face, entram R$ 750 mil. Com o Mizan, com 1,5 ponto percentual a mais (16,5%), entram R$ 825 mil: R$ 75 mil a mais. Trocar pelos números reais do banco quando houver.</template>
+</section>
+
+<section id="diferenciais" data-transition="fade" style="display:flex; flex-direction:column; gap:48px; padding:128px 128px 160px; background:#0b0814">
+  <h2 style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:80px; font-weight:700; line-height:1.05; letter-spacing:-2px; color:#f4f2fa">Diferenciais</h2>
+  <table style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:32px; color:#f4f2fa">
+    <tr style="background:#1e1738"><th style="width:32%; padding:20px 24px">Capacidade</th><th style="width:17%; text-align:center">CRMs</th><th style="width:17%; text-align:center">Plataformas de cobrança</th><th style="width:17%; text-align:center">Scores tradicionais</th><th style="width:17%; text-align:center; color:#9aa4ee">Mizan</th></tr>
+    <tr><td>Gestão de carteira</td><td style="text-align:center">Sim</td><td style="text-align:center">Sim</td><td style="text-align:center">Não</td><td style="text-align:center; color:#9aa4ee">Sim</td></tr>
+    <tr style="background:#151027"><td>Score de risco</td><td style="text-align:center">Parcial</td><td style="text-align:center">Parcial</td><td style="text-align:center">Sim</td><td style="text-align:center; color:#9aa4ee">Sim</td></tr>
+    <tr><td>Recomendação de ação</td><td style="text-align:center">Não</td><td style="text-align:center">Parcial</td><td style="text-align:center">Não</td><td style="text-align:center; color:#9aa4ee">Sim</td></tr>
+    <tr style="background:#151027"><td>Aprendizado contínuo</td><td style="text-align:center">Não</td><td style="text-align:center">Não</td><td style="text-align:center">Não</td><td style="text-align:center; color:#9aa4ee">Sim</td></tr>
+    <tr><td>Exploração e aproveitamento</td><td style="text-align:center">Não</td><td style="text-align:center">Não</td><td style="text-align:center">Não</td><td style="text-align:center; color:#9aa4ee">Sim</td></tr>
+    <tr style="background:#151027"><td>Estratégia personalizada</td><td style="text-align:center">Parcial</td><td style="text-align:center">Parcial</td><td style="text-align:center">Não</td><td style="text-align:center; color:#9aa4ee">Sim</td></tr>
+  </table>
+  <p id="e2-152606f" style="position:absolute; right:128px; bottom:64px; width:200px; font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:24px; text-align:right; color:#8b85a8">10 / 11</p>
+  <template class="nota">A tabela compara categorias de ferramentas, não empresas específicas. Antes de apresentar, validar com concorrentes reais e ajustar o que for preciso.</template>
+</section>
+
+<section id="fechamento" data-transition="fade" style="display:flex; flex-direction:column; gap:40px; justify-content:center; padding:128px; background:#1a0033">
+  <div style="position:absolute; top:0; left:1180px; width:120px; height:1080px; display:flex; flex-direction:column; background:#6b77e3; opacity:0.9; transform:skew(-20deg, 0deg)">
+  </div>
+  <div style="position:absolute; top:0; left:1340px; width:120px; height:1080px; display:flex; flex-direction:column; background:#5966d9; opacity:0.55; transform:skew(-20deg, 0deg)">
+  </div>
+  <div style="position:absolute; top:0; left:1500px; width:120px; height:1080px; display:flex; flex-direction:column; background:#a9b4cf; opacity:0.25; transform:skew(-20deg, 0deg)">
+  </div>
+  <h1 style="font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:200px; font-weight:700; line-height:1; letter-spacing:-5px; color:#f4f2fa">Mizan</h1>
+  <p style="width:1000px; font-family:'Bricolage Grotesque', Arial, sans-serif; font-size:56px; font-weight:500; line-height:1.15; color:#f4f2fa">Inteligência que transforma cobrança em decisão.</p>
+  <template class="nota">Retomar a proposta de valor da capa: o Mizan transforma dados de cobrança em decisão. Abrir para perguntas ou seguir para a demonstração da plataforma.</template>
+</section>
+
+</div>
+<div id="ajuda">← → ou clique para avançar · F para tela cheia</div>
+<script>
+const s=[...document.querySelectorAll('#palco>section')];let i=0;
+function ver(n){i=Math.max(0,Math.min(s.length-1,n));s.forEach((e,k)=>e.classList.toggle('ativo',k===i));}
+function caber(){const k=Math.min(innerWidth/1920,innerHeight/1080);document.getElementById('palco').style.transform='translate(-50%,-50%) scale('+k+')';}
+addEventListener('resize',caber);caber();ver(0);
+addEventListener('keydown',e=>{if(['ArrowRight','PageDown',' '].includes(e.key))ver(i+1);if(['ArrowLeft','PageUp'].includes(e.key))ver(i-1);if(e.key==='f'||e.key==='F')(document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen());if(e.key==='Home')ver(0);if(e.key==='End')ver(s.length-1);});
+addEventListener('click',e=>ver(i+(e.clientX<innerWidth/3?-1:1)));
+setTimeout(()=>document.getElementById('ajuda').style.display='none',5000);
+</script></body></html>
