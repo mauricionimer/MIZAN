@@ -41,7 +41,7 @@ PAGINAS = {
     "pages/AprendizadoDashboard.jsx": {"comando"}, "pages/BanditDashboard.jsx": {"comando"},
     "pages/ComandoDashboard.jsx": {"comando"}, "pages/TreinoModelo.jsx": {"comando"},
     "pages/ChavesApi.jsx": {"comando"}, "pages/PerformanceIA.jsx": TODOS,
-    "components/DistribuirFila.jsx": {"admin", "comando"}, "pages/Agenda.jsx": TODOS, "pages/PainelOperador.jsx": TODOS, "pages/Roteiros.jsx": TODOS, "pages/Resultados.jsx": {"admin", "comando"}, "pages/Acordos.jsx": {"admin", "comando"}, "pages/Ofertas.jsx": {"admin", "comando"},
+    "components/DistribuirFila.jsx": {"admin", "comando"}, "pages/Agenda.jsx": TODOS, "pages/PainelOperador.jsx": TODOS, "pages/Roteiros.jsx": TODOS, "pages/Resultados.jsx": {"admin", "comando"}, "pages/Acordos.jsx": {"admin", "comando"}, "pages/Ofertas.jsx": {"admin", "comando"}, "components/FazerOferta.jsx": TODOS,
 }
 
 # ids citados em cada arquivo (qualquer texto entre aspas, na linha de um "?")

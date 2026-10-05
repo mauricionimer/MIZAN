@@ -673,6 +673,14 @@ export async function salvarOfertas(dados, empresaId) {
   return _jsonOuErroFila(res)
 }
 
+// ── O2: simulador de oferta ──────────────────────────────────────────────────
+export async function simularOferta(cpf, dados) {
+  const res = await fetch(`${BASE}/predicoes/${encodeURIComponent(cpf)}/simular-oferta`, {
+    method: 'POST', headers: _authHeader(_getToken()), body: JSON.stringify(dados),
+  })
+  return _jsonOuErroFila(res)
+}
+
 // ── F4: roteiros de abordagem ────────────────────────────────────────────────
 export async function listarRoteiros(params = {}) {
   const res = await fetch(`${BASE}/roteiros?${_qs(params)}`, { headers: { Authorization: `Bearer ${_getToken()}` } })

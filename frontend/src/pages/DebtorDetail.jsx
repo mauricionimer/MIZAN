@@ -11,6 +11,7 @@ import { buscarRecomendacao, registrarContato, listarContatos, buscarStatusFeedb
 import { LogoMark } from '../components/Logo'
 import DicaAjuda from '../components/DicaAjuda'
 import AppShell from '../components/AppShell'
+import FazerOferta from '../components/FazerOferta'
 
 // F1 — quem cuida deste devedor. Admin troca na hora; os demais só veem.
 function Responsavel({ carteiraId, devedor, podeTrocar }) {
@@ -1013,6 +1014,8 @@ export default function DebtorDetail() {
                 onRecalcular={recalcularPropostas}
               />
             </Section>
+
+            <FazerOferta cpf={d.cpf} despesas={despesas} />
 
             <Section title="Por que esse score?" ajuda="por-que-esse-score">
               <ExplicacaoScore explicacao={explicacao} loading={explicacaoLoading} erro={explicacaoErro} />

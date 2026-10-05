@@ -209,3 +209,77 @@ def para_arquetipos(catalogo: list) -> list:
     return [{"id": o["id"], "rotulo": o["nome"], "desconto_pct": o["desconto_pct"], "n_parcelas": o["n_parcelas"],
              "entrada_pct": o["entrada_pct"], "juros_mensal_pct": o["juros_mensal_pct"], "oferta": o["familia"]}
             for o in catalogo if o["ativa"]]
+
+
+# ── O2: análise de uma oferta montada pelo operador ──────────────────────────
+# Limiares do veredito do banco (escolha de projeto, escritos na ajuda): o valor
+# esperado da oferta comparado com o da melhor oferta do catálogo.
+LIMIAR_BOA = 0.95
+LIMIAR_ATENCAO = 0.80
+_ORDEM = {"boa": 0, "atencao": 1, "ruim": 2}
+
+
+def _brl(v: float) -> str:
+    return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def analisar(divida: float, cond: dict, *, teto_parcela, sobra_mes, pop: "float | None", origem_pop: str,
+             melhor_ev: "float | None", melhor_rotulo: str = "", valor_venda: "float | None" = None,
+             alcada: "dict | None" = None) -> dict:
+    """Para quem paga, para o banco e se cabe na alçada. Só regras e números visíveis."""
+    conta = calcular(divida, **cond)
+    n = cond["n_parcelas"]
+
+    # Para quem paga
+    motivos_d = []
+    if n == 1:
+        if sobra_mes is not None and conta["total_pago"] <= sobra_mes:
+            v_d = "boa"; motivos_d.append(f"Pagamento único de {_brl(conta['total_pago'])} cabe na sobra de um mês ({_brl(sobra_mes)}).")
+        else:
+            v_d = "atencao"; motivos_d.append("Pagamento único: depende de reserva do devedor, não da renda do mês.")
+    elif teto_parcela is None:
+        v_d = "atencao"; motivos_d.append("Não dá para verificar se cabe no bolso: informe as despesas do devedor.")
+    elif conta["parcela"] > teto_parcela:
+        v_d = "ruim"; motivos_d.append(f"Parcela de {_brl(conta['parcela'])} acima da parcela máxima de {_brl(teto_parcela)}.")
+    else:
+        v_d = "boa"; motivos_d.append(f"Parcela de {_brl(conta['parcela'])} dentro da parcela máxima de {_brl(teto_parcela)}.")
+    if n > 1 and conta["entrada"] > 0 and sobra_mes is not None and conta["entrada"] > sobra_mes:
+        motivos_d.append(f"A entrada de {_brl(conta['entrada'])} passa da sobra do mês ({_brl(sobra_mes)}).")
+        if v_d == "boa":
+            v_d = "atencao"
+    if conta["economia"] > 0:
+        motivos_d.append(f"Economiza {_brl(conta['economia'])} em relação à dívida.")
+    comprometimento = (round(conta["parcela"] / sobra_mes, 4) if n > 1 and sobra_mes else None)
+
+    # Para o banco
+    ev = round(conta["valor_negociado"] * pop, 2) if pop is not None else None
+    razao = round(ev / melhor_ev, 4) if ev is not None and melhor_ev else None
+    motivos_b = []
+    if ev is None:
+        v_b = "atencao"; motivos_b.append("Sem chance de pagar estimada para este devedor.")
+    elif valor_venda is not None and ev < valor_venda:
+        v_b = "ruim"; motivos_b.append(f"Valor esperado de {_brl(ev)} abaixo do que a venda da dívida renderia ({_brl(valor_venda)}).")
+    elif razao is None:
+        v_b = "atencao"; motivos_b.append("Sem oferta do catálogo para comparar.")
+    elif razao >= LIMIAR_BOA:
+        v_b = "boa"; motivos_b.append(f"Valor esperado de {_brl(ev)}, {razao:.0%} do da melhor oferta do catálogo ({melhor_rotulo}).")
+    elif razao >= LIMIAR_ATENCAO:
+        v_b = "atencao"; motivos_b.append(f"Valor esperado de {_brl(ev)}, {razao:.0%} do da melhor oferta ({melhor_rotulo}): deixa dinheiro na mesa.")
+    else:
+        v_b = "ruim"; motivos_b.append(f"Valor esperado de {_brl(ev)}, só {razao:.0%} do da melhor oferta ({melhor_rotulo}).")
+    if divida > 0:
+        motivos_b.append(f"Recupera {conta['valor_negociado'] / divida:.0%} da dívida"
+                         + (f"; os juros somam {_brl(conta['juros_total'])} e não contam como recuperação." if conta["juros_total"] > 0 else "."))
+
+    fora = fora_da_alcada(cond, conta, alcada or {})
+    pior = max((v_d, v_b), key=lambda v: _ORDEM[v])
+    return {
+        "condicoes": cond, "conta": conta, "familia": familia(n, cond["desconto_pct"]),
+        "devedor": {"veredito": v_d, "motivos": motivos_d, "parcela_maxima": teto_parcela,
+                    "sobra_mes": sobra_mes, "comprometimento": comprometimento},
+        "banco": {"veredito": v_b, "motivos": motivos_b, "chance_pagar": pop, "origem_chance": origem_pop,
+                  "valor_esperado": ev, "melhor_valor_esperado": melhor_ev, "melhor_oferta": melhor_rotulo,
+                  "razao_melhor": razao, "valor_venda": valor_venda},
+        "geral": "ruim" if fora else pior,
+        "fora_da_alcada": fora, "pode_confirmar": not fora,
+    }

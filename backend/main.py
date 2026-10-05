@@ -6882,23 +6882,14 @@ def recomendacao_devedor(cpf: str, credentials: HTTPAuthorizationCredentials = S
     return {**rec, "cpf": cpf, "nome": pred.get("nome")}
 
 
-@app.get("/predicoes/{cpf}/propostas")
-def propostas_devedor(
-    cpf: str,
-    despesas_mensais: Optional[float] = None,
-    credentials: HTTPAuthorizationCredentials = Security(bearer),
-):
-    """Monta as propostas de renegociação para o CPF, com margem livre e valor esperado.
+def _contexto_propostas(cpf: str, payload: dict, despesas_mensais: "float | None"):
+    """Predição, margem, chance de pagar e propostas do catálogo de UM devedor.
 
-    Filtra pelo que cabe no bolso do devedor e ordena por valor esperado —
-    a decisão descrita na referência técnica. As propostas que não cabem
-    continuam na resposta, marcadas, para o operador ver por que foram
-    descartadas em vez de receber uma lista sem explicação.
+    Compartilhado pelas propostas da ficha e pelo simulador "Fazer oferta":
+    as duas telas precisam dizer a mesma coisa sobre o mesmo devedor.
     """
-    payload = _usuario_autenticado(credentials)
     empresa_id = payload.get("empresa_id", "")
     db = get_db()
-
     role = payload.get("role", "")
     if not empresa_id and role != "comando":
         raise HTTPException(status_code=403, detail="Acesso negado: usuário sem empresa definida.")
@@ -6912,7 +6903,10 @@ def propostas_devedor(
     if not pred:
         raise HTTPException(status_code=404, detail=f"Nenhuma predição encontrada para CPF: {cpf}")
     from model.proposta import avaliar, calcular_margem, montar_propostas
+    from model.oferta import catalogo_da_empresa, alcada_da_empresa, para_arquetipos
 
+    emp = empresa_id or _empresa_da_carteira(db, pred.get("carteira_id"))
+    extra = _extra_empresa(emp)
     politica = _politica_proposta(empresa_id)
     # A carteira pode trazer as despesas; a query string permite ao operador
     # informar na hora, quando o devedor declara na ligação.
@@ -6923,9 +6917,7 @@ def propostas_devedor(
 
     divida = float(pred.get("valor_divida") or 0)
     # O1: as ofertas do catálogo da empresa (sem catálogo, as 4 de sempre).
-    from model.oferta import catalogo_da_empresa, para_arquetipos
-    emp_ofertas = empresa_id or _empresa_da_carteira(db, pred.get("carteira_id"))
-    catalogo, _ = catalogo_da_empresa(_extra_empresa(emp_ofertas))
+    catalogo, _ = catalogo_da_empresa(extra)
     propostas = montar_propostas(divida, para_arquetipos(catalogo))
 
     # A probabilidade do modelo é uma por devedor, igual para toda oferta.
@@ -6944,7 +6936,7 @@ def propostas_devedor(
 
     try:
         from model.bandit import pop_por_oferta as _pop_oferta
-        pops_oferta = _pop_oferta(empresa_id, pop)
+        pops_oferta = _pop_oferta(empresa_id or emp, pop)
     except Exception as _e:
         # Bandit indisponível não pode derrubar a proposta: cai na do modelo.
         print(f"[Propostas] PoP por oferta indisponível: {_e}")
@@ -6952,12 +6944,81 @@ def propostas_devedor(
 
     aval = avaliar(propostas, margem, [pop] * len(propostas), origem_pop,
                    politica, pop_por_oferta=pops_oferta)
+    return SimpleNamespace(pred=pred, divida=divida, margem=margem, aval=aval, pop=pop, origem_pop=origem_pop,
+                           pops_oferta=pops_oferta or {}, extra=extra, empresa=emp,
+                           alcada=alcada_da_empresa(extra), catalogo=catalogo)
+
+
+@app.get("/predicoes/{cpf}/propostas")
+def propostas_devedor(
+    cpf: str,
+    despesas_mensais: Optional[float] = None,
+    credentials: HTTPAuthorizationCredentials = Security(bearer),
+):
+    """Monta as propostas de renegociação para o CPF, com margem livre e valor esperado.
+
+    Filtra pelo que cabe no bolso do devedor e ordena por valor esperado —
+    a decisão descrita na referência técnica. As propostas que não cabem
+    continuam na resposta, marcadas, para o operador ver por que foram
+    descartadas em vez de receber uma lista sem explicação.
+    """
+    ctx = _contexto_propostas(cpf, _usuario_autenticado(credentials), despesas_mensais)
     return {
         "cpf": cpf,
-        "nome": pred.get("nome"),
-        "valor_divida": divida,
-        **aval.para_json(),
+        "nome": ctx.pred.get("nome"),
+        "valor_divida": ctx.divida,
+        **ctx.aval.para_json(),
     }
+
+
+class SimularOfertaIn(BaseModel):
+    desconto_pct: float = 0.0
+    entrada_pct: float = 0.0
+    n_parcelas: int = 1
+    juros_mensal_pct: float = 0.0
+    despesas_mensais: Optional[float] = Field(None, ge=0)
+    base_id: Optional[str] = None          # oferta do catálogo usada de ponto de partida
+
+
+def _analisar_oferta(ctx, body: "SimularOfertaIn") -> dict:
+    """Análise de UMA oferta montada pelo operador, no contexto do devedor."""
+    from model.oferta import analisar, condicoes, familia
+    try:
+        cond = condicoes(body.model_dump())
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    fam = familia(cond["n_parcelas"], cond["desconto_pct"])
+    est = ctx.pops_oferta.get(fam)
+    pop = float(est["pop"]) if est else ctx.pop
+    origem = (est.get("origem") if est else ctx.origem_pop) or ctx.origem_pop
+    # Melhor oferta do catálogo: entre as que cabem no bolso e a melhor à vista;
+    # sem margem conhecida, a de maior valor esperado (com aviso na ajuda).
+    aval = ctx.aval
+    candidatas = [p for p in (aval.recomendada, aval.alternativa_a_vista) if p is not None and p.valor_esperado is not None]
+    if not candidatas:
+        candidatas = [p for p in aval.propostas if p.valor_esperado is not None]
+    melhor = max(candidatas, key=lambda p: p.valor_esperado) if candidatas else None
+    cessao = ctx.extra.get("cessao_pct")
+    try:
+        valor_venda = round(ctx.divida * float(cessao) / 100, 2) if cessao not in (None, "") else None
+    except (TypeError, ValueError):
+        valor_venda = None
+    r = analisar(ctx.divida, cond, teto_parcela=aval.parcela_maxima,
+                 sobra_mes=ctx.margem.valor if ctx.margem.conhecida else None,
+                 pop=pop, origem_pop=origem, melhor_ev=melhor.valor_esperado if melhor else None,
+                 melhor_rotulo=melhor.rotulo if melhor else "", valor_venda=valor_venda, alcada=ctx.alcada)
+    r["banco"]["observacoes_chance"] = int(est.get("n_tentativas") or 0) if est else 0
+    r["valor_divida"] = ctx.divida
+    r["base_id"] = body.base_id
+    r["margem_motivo"] = None if ctx.margem.conhecida else (ctx.margem.motivo or "Margem livre desconhecida.")
+    return r
+
+
+@app.post("/predicoes/{cpf}/simular-oferta")
+def simular_oferta(cpf: str, body: SimularOfertaIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """O operador monta uma oferta; o sistema diz se é boa para quem paga e para o banco."""
+    ctx = _contexto_propostas(cpf, _usuario_autenticado(credentials), body.despesas_mensais)
+    return {"cpf": cpf, "nome": ctx.pred.get("nome"), "alcada": ctx.alcada, **_analisar_oferta(ctx, body)}
 
 
 def _empresa_da_carteira(db, carteira_id) -> str:
