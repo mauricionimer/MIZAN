@@ -1,0 +1,26 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mizan — Entrega dos ajustes de UX/UI</title>
+<style>body{font-family:system-ui,Arial,sans-serif;background:#151027;color:#f4f2fa;margin:0;padding:32px 16px}main{max-width:820px;margin:auto}h1{font-size:28px;margin:0 0 4px}h2{font-size:18px;margin:28px 0 8px;color:#9aa4ee}p,li{line-height:1.55;color:#d6d2e6}.card{background:#1e1738;border:1px solid #2f2748;border-radius:14px;padding:16px 20px;margin:12px 0}.sub{color:#a9b4cf}.warn{border-color:#c9972b}code{background:#0b0814;padding:1px 6px;border-radius:6px}</style></head><body><main>
+<h1>Ajustes de UX/UI — Roteiros, Painel da Equipe e Gestão</h1>
+<p class="sub">Commit 4420bcb · backend: 0 falhas nos testes · build do front ok</p>
+<h2>O que mudou</h2>
+<div class="card"><ol>
+<li><b>Roteiros dentro de Pagamentos.</b> Pagamentos agora tem abas: Pagamentos, Acordos e Roteiros. Roteiros saiu do menu; o endereço antigo redireciona.</li>
+<li><b>Painel da Equipe</b> mantido (contatos, acordos fechados, valor recebido, promessas pagas).</li>
+<li><b>Desempenho individual do operador.</b> Ao clicar no nome na tabela: contatos, devedores trabalhados, promessas e pagas, valor recuperado, ofertas (feitas, aceitas, a pensar, recusadas) e retornos (marcados, feitos, pendentes). Botão "Voltar para a equipe".</li>
+<li><b>Resultados</b> sem pagamentos mostra: "Nenhum pagamento registrado no período."</li>
+<li><b>Backtest</b> com explicação didática: compara o que aconteceu com o que o Mizan estimaria recuperar; medida do passado, não garantia futura.</li>
+<li><b>Mantidos como estão:</b> Acordos parcelados, Performance da IA, Ofertas, Premissas (texto didático fica para depois), Usuários e Trilha de auditoria.</li>
+</ol></div>
+<h2>Integração entre módulos</h2>
+<div class="card"><ul>
+<li>Pagamento confirmado marca a promessa como cumprida na Agenda.</li>
+<li>Pagamento parcelado abre o acordo automaticamente.</li>
+<li>Painel da equipe, indicadores e Resultados são calculados na hora a partir dos registros: sem redigitar.</li></ul>
+<p class="sub">Verificado pelo código; não testei cada tela com dados reais.</p></div>
+<h2>Pontos de atenção</h2>
+<div class="card warn"><ul>
+<li><b>Atividades/reuniões</b> não entrou no painel individual: não existe esse registro no sistema e não inventei número.</li>
+<li>Trilha de auditoria: não conferi campo a campo (anterior/novo).</li>
+<li>Testes de navegador (Playwright) não foram rodados nesta rodada.</li>
+<li>Pendente com você: promover <code>v1_inicial</code> como modelo global e enviar uma dúvida de teste ao COMANDO.</li></ul></div>
+</main></body></html>
