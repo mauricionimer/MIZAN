@@ -182,8 +182,11 @@ function Propostas({ dados, loading, erro, despesas, setDespesas, onRecalcular }
                     )}
                   </div>
                   <p className="text-xs mt-1" style={{ color: 'var(--ink-2)' }}>
-                    {p.n_parcelas > 1 ? `${p.n_parcelas}x de ${fmtBRL(p.parcela)}` : `À vista: ${fmtBRL(p.valor_cobrado)}`}
+                    {p.n_parcelas > 1
+                      ? `${p.entrada > 0 ? `${fmtBRL(p.entrada)} de entrada + ` : ''}${p.n_parcelas}x de ${fmtBRL(p.parcela)}`
+                      : `À vista: ${fmtBRL(p.valor_cobrado)}`}
                     {p.desconto_pct > 0 && ` · ${Number(p.desconto_pct).toFixed(0)}% de desconto`}
+                    {p.juros_mensal_pct > 0 && ` · ${String(p.juros_mensal_pct).replace('.', ',')}% a.m.`}
                   </p>
                   <p className="text-[11px] mt-1 leading-relaxed" style={{ color: naoCabe ? 'var(--danger)' : 'var(--ink-3)' }}>
                     {p.observacao}

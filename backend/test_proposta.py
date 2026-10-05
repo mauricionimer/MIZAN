@@ -98,8 +98,10 @@ MARGEM_2 = Margem(800.0, "informada")
 # R$ 3.000 — juros novos não são recuperação da dívida.
 ARQ_2 = [
     {"rotulo": "A — 3x sem juros", "desconto_pct": 0.0,  "n_parcelas": 3},
+    # 1,204346% ao mês pela tabela Price dá a parcela de R$ 270 da referência
+    # (antes a conta era de juros simples, com 0,667% ao mês).
     {"rotulo": "B — 12x",          "desconto_pct": 0.0,  "n_parcelas": 12,
-     "juros_mensal_pct": 0.6666667},
+     "juros_mensal_pct": 1.204346},
     {"rotulo": "C — 10x",          "desconto_pct": 33.0, "n_parcelas": 10},
     {"rotulo": "D — À vista",      "desconto_pct": 60.0, "n_parcelas": 1},
 ]

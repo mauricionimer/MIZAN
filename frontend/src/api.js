@@ -660,6 +660,19 @@ export async function mudarParcela(id, acao) {
   return _jsonOuErroFila(res)
 }
 
+// ── O1: catálogo de ofertas ──────────────────────────────────────────────────
+export async function buscarOfertas(empresaId) {
+  const res = await fetch(`${BASE}/empresa/ofertas?${_qs({ empresa_id_alvo: empresaId })}`, { headers: { Authorization: `Bearer ${_getToken()}` } })
+  return _jsonOuErroFila(res)
+}
+
+export async function salvarOfertas(dados, empresaId) {
+  const res = await fetch(`${BASE}/empresa/ofertas?${_qs({ empresa_id_alvo: empresaId })}`, {
+    method: 'PUT', headers: _authHeader(_getToken()), body: JSON.stringify(dados),
+  })
+  return _jsonOuErroFila(res)
+}
+
 // ── F4: roteiros de abordagem ────────────────────────────────────────────────
 export async function listarRoteiros(params = {}) {
   const res = await fetch(`${BASE}/roteiros?${_qs(params)}`, { headers: { Authorization: `Bearer ${_getToken()}` } })

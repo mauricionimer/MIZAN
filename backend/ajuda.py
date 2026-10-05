@@ -66,6 +66,7 @@ TELAS = {
     "Roteiros":                ("operador", "admin", "comando"),
     "Resultados":              ("admin", "comando"),
     "Acordos":                 ("admin", "comando"),
+    "Ofertas":                 ("admin", "comando"),
     "Ajuda":                   ("operador", "admin", "comando"),
     "Dúvidas":                 ("comando",),
     "Painel COMANDO":          ("comando",),

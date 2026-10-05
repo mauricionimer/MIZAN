@@ -5,7 +5,7 @@ import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'framer-m
 import {
   LayoutDashboard, UploadCloud, ClipboardList, Users, KeyRound, LogOut, Loader2, Menu, X,
   ShieldCheck, Zap, Brain, Command, FlaskConical, Lock, HelpCircle, SlidersHorizontal,
-  MessageCircleQuestion, GraduationCap, KeySquare, CalendarClock, Gauge, MessageSquareText, TrendingUp, Handshake,
+  MessageCircleQuestion, GraduationCap, KeySquare, CalendarClock, Gauge, MessageSquareText, TrendingUp, Handshake, Tags,
 } from 'lucide-react'
 import ThemeToggle from './ThemeToggle'
 import useAvisosDeDuvida from './useAvisosDeDuvida'
@@ -70,6 +70,7 @@ function useItens() {
       itens: [
         { id: 'resultados', label: 'Resultados', icon: TrendingUp,        rota: '/resultados' },
         { id: 'acordos',   label: 'Acordos',   icon: Handshake,         rota: '/acordos' },
+        { id: 'ofertas',   label: 'Ofertas',   icon: Tags,              rota: '/ofertas' },
         { id: 'premissas', label: 'Premissas', icon: SlidersHorizontal, rota: '/premissas' },
         { id: 'backtest',  label: 'Backtest',  icon: FlaskConical,      rota: '/backtest' },
         { id: 'usuarios',  label: 'Usuários',  icon: Users,             rota: '/admin/usuarios' },

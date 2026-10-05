@@ -2936,6 +2936,87 @@ def put_premissas(body: PremissasIn, empresa_id_alvo: Optional[str] = None,
     return {"empresa_id": empresa, "premissas": descrever(depois)}
 
 
+# ── O1: catálogo de ofertas da empresa e alçada do operador ──────────────────
+
+def _gravar_extra(db, empresa: str, novos: dict, payload: dict) -> tuple:
+    """Mescla `novos` em empresa_config.extra (None apaga a chave). (antes, depois)."""
+    try:
+        lido = db.table("empresa_config").select("extra").eq("empresa_id", empresa).limit(1).execute()
+    except Exception:
+        raise HTTPException(status_code=503, detail="Não foi possível ler a configuração atual. Tente de novo.")
+    antes = (lido.data or [{}])[0].get("extra") or {}
+    depois = dict(antes)
+    for k, v in novos.items():
+        if v is None:
+            depois.pop(k, None)
+        else:
+            depois[k] = v
+    updates = {"extra": depois, "updated_by": payload.get("email", ""), "updated_at": datetime.utcnow().isoformat()}
+    if lido.data:
+        db.table("empresa_config").update(updates).eq("empresa_id", empresa).execute()
+    else:
+        db.table("empresa_config").insert({"empresa_id": empresa, **updates}).execute()
+    return antes, depois
+
+
+def _ofertas_resposta(empresa: str, extra: dict) -> dict:
+    from model.oferta import catalogo_da_empresa, alcada_da_empresa, CAMPOS_ALCADA, LIMITES, MAX_OFERTAS
+    catalogo, padrao = catalogo_da_empresa(extra)
+    return {"empresa_id": empresa, "catalogo": catalogo, "padrao": padrao, "alcada": alcada_da_empresa(extra),
+            "campos_alcada": {k: v[0] for k, v in CAMPOS_ALCADA.items()},
+            "limites": {k: list(v) for k, v in LIMITES.items()}, "max_ofertas": MAX_OFERTAS}
+
+
+@app.get("/empresa/ofertas")
+def get_ofertas(empresa_id_alvo: Optional[str] = None,
+                credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Catálogo de ofertas e alçada. Todos da empresa leem (o simulador usa)."""
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") == "comando":
+        empresa = (empresa_id_alvo or "").strip().lower()
+        if not empresa:
+            raise HTTPException(status_code=400, detail="Informe a empresa.")
+    else:
+        empresa = payload.get("empresa_id", "")
+        if not empresa:
+            raise HTTPException(status_code=403, detail="Acesso negado: usuário sem empresa definida.")
+    return _ofertas_resposta(empresa, _extra_empresa(empresa))
+
+
+class OfertasIn(BaseModel):
+    catalogo: Optional[list] = None        # None = volta às ofertas padrão
+    alcada: Optional[dict] = None
+    restaurar_padrao: bool = False
+
+
+@app.put("/empresa/ofertas")
+def put_ofertas(body: OfertasIn, empresa_id_alvo: Optional[str] = None,
+                credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    from model.oferta import validar_catalogo, validar_alcada
+    payload = _usuario_autenticado(credentials)
+    empresa = _empresa_das_premissas(payload, empresa_id_alvo)
+    novos = {}
+    try:
+        if body.restaurar_padrao:
+            novos["catalogo_ofertas"] = None
+        elif body.catalogo is not None:
+            novos["catalogo_ofertas"] = validar_catalogo(body.catalogo)
+        if body.alcada is not None:
+            novos["alcada_oferta"] = validar_alcada(body.alcada) or None
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    if not novos:
+        raise HTTPException(status_code=422, detail="Nada para salvar.")
+    antes, depois = _gravar_extra(get_db(), empresa, novos, payload)
+    _registrar_auditoria(
+        acao="ofertas_atualizadas", entidade="empresa", entidade_id=empresa,
+        usuario_email=payload.get("email", ""), empresa_id=empresa, usuario_id=payload.get("sub", ""),
+        detalhes={"ofertas_antes": len(antes.get("catalogo_ofertas") or []),
+                  "ofertas_depois": len(depois.get("catalogo_ofertas") or []),
+                  "alcada": depois.get("alcada_oferta"), "restaurou_padrao": body.restaurar_padrao})
+    return _ofertas_resposta(empresa, depois)
+
+
 def _tipo_de_imagem(conteudo: bytes) -> "str | None":
     """Tipo da imagem pelos primeiros bytes (assinatura do formato)."""
     if conteudo.startswith(b"\x89PNG\r\n\x1a\n"):
@@ -6841,7 +6922,11 @@ def propostas_devedor(
     margem = calcular_margem(pred.get("renda_estimada"), despesas, politica)
 
     divida = float(pred.get("valor_divida") or 0)
-    propostas = montar_propostas(divida)
+    # O1: as ofertas do catálogo da empresa (sem catálogo, as 4 de sempre).
+    from model.oferta import catalogo_da_empresa, para_arquetipos
+    emp_ofertas = empresa_id or _empresa_da_carteira(db, pred.get("carteira_id"))
+    catalogo, _ = catalogo_da_empresa(_extra_empresa(emp_ofertas))
+    propostas = montar_propostas(divida, para_arquetipos(catalogo))
 
     # A probabilidade do modelo é uma por devedor, igual para toda oferta.
     # Ela serve de ponto de partida; o que distingue uma proposta da outra por

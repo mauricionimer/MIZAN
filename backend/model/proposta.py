@@ -134,9 +134,13 @@ class Proposta:
     rotulo: str
     desconto_pct: float
     n_parcelas: int              # 1 = à vista
-    oferta: str = ""             # id da oferta no bandit, quando houver
+    oferta: str = ""             # família da oferta no bandit, quando houver
     valor_cobrado: float = 0.0   # dívida já com desconto — o que o banco recupera
     parcela: float = 0.0
+    entrada: float = 0.0         # paga no ato, antes das parcelas
+    total_pago: float = 0.0      # entrada + parcelas (com juros)
+    juros_mensal_pct: float = 0.0
+    id: str = ""                 # oferta do catálogo da empresa
     pop: "float | None" = None   # probabilidade de pagamento desta proposta
     origem_pop: str = ""
     pop_observacoes: int = 0     # feedbacks reais por trás da PoP
@@ -172,25 +176,31 @@ def montar_propostas(divida: float, arquetipos: "list[dict] | None" = None,
                      juros_mensal_pct: float = 0.0) -> "list[Proposta]":
     """Gera as propostas a partir da dívida.
 
-    juros_mensal_pct embute juros na parcela sem alterar o valor recuperado:
-    é isso que faz 12 × R$ 270 somarem mais que a dívida de R$ 3.000 na
-    referência, sem que o EV suba junto.
+    A conta é a de model/oferta.calcular (a mesma do simulador): parcela pela
+    tabela Price sobre o saldo depois da entrada. Os juros entram na parcela
+    sem alterar o valor recuperado: é isso que faz 12 × R$ 270 somarem mais
+    que a dívida de R$ 3.000 na referência, sem que o EV suba junto — juros
+    compensam o tempo, não são recuperação da dívida.
     """
+    from model.oferta import calcular
     divida = max(0.0, float(divida or 0))
     propostas = []
     for a in (arquetipos or ARQUETIPOS_PADRAO):
         desconto = float(a.get("desconto_pct", 0.0))
         n = max(1, int(a.get("n_parcelas", 1)))
-        cobrado = round(divida * (1 - desconto / 100), 2)
         juros = float(a.get("juros_mensal_pct", juros_mensal_pct))
-        total_parcelado = cobrado * (1 + juros / 100 * n)
+        c = calcular(divida, desconto, float(a.get("entrada_pct", 0.0)), n, juros)
         propostas.append(Proposta(
             rotulo=a.get("rotulo", ""),
             oferta=a.get("oferta", ""),
             desconto_pct=desconto,
             n_parcelas=n,
-            valor_cobrado=cobrado,
-            parcela=round(total_parcelado / n, 2),
+            valor_cobrado=c["valor_negociado"],
+            parcela=c["parcela"],
+            entrada=c["entrada"],
+            total_pago=c["total_pago"],
+            juros_mensal_pct=juros if n > 1 else 0.0,
+            id=str(a.get("id", "")),
         ))
     return propostas
 

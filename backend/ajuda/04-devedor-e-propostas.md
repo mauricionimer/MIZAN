@@ -183,3 +183,44 @@ fazer: Para a análise completa, com margem e o motivo de cada proposta, abra o 
 cuidado: Sem feedback por oferta, a de maior valor esperado é sempre a sem desconto, e o sistema avisa na tela. Isso vale para a carteira, não para a pessoa.
 fontes:
 - backend/main.py::_analisar_df
+
+## catalogo-de-ofertas
+titulo: Catálogo de ofertas da empresa
+perfis: admin, comando
+telas: Ofertas
+perguntas:
+- como crio uma oferta nova
+- posso mudar o desconto das ofertas
+- como coloco entrada e juros na oferta
+- o que é a família da oferta
+- como volto às ofertas padrão
+- por que os juros não contam como recuperação
+- como funciona a conta da parcela
+curta: O admin define as ofertas que a equipe pode fazer (até 20): nome, desconto, entrada, parcelas e juros. As propostas da ficha do devedor e o simulador passam a usar este catálogo.
+calculo: Valor negociado = dívida × (1 − desconto). Entrada = valor negociado × entrada%. A parcela segue a tabela Price sobre o saldo (valor negociado − entrada) com os juros do mês; sem juros, saldo ÷ parcelas. Total pago = entrada + parcelas. À vista não tem entrada nem juros. Cada oferta entra automaticamente numa família de aprendizado: à vista até 15% de desconto, à vista acima de 15%, parcelado até 6x e parcelado em 7x ou mais.
+fazer: Crie ofertas com nomes que a equipe reconheça ("Feirão 40% à vista") e confira a prévia numa dívida de exemplo. Desative em vez de excluir quando a campanha acabar e quiser reaproveitar depois.
+cuidado: Juros compensam o tempo: entram no total pago pelo devedor, mas o valor esperado do banco usa o valor negociado. A chance de pagar de uma oferta nova começa pelo histórico da família dela; o sistema ainda não estima como cada ponto de desconto muda a chance. Sem catálogo salvo, valem as 4 ofertas padrão.
+fontes:
+- backend/model/oferta.py::calcular
+- backend/model/oferta.py::familia
+- backend/main.py::put_ofertas
+constantes:
+- backend/model/oferta.py::MAX_OFERTAS = 20
+
+## alcada-do-operador
+titulo: Alçada do operador
+perfis: admin, comando
+telas: Ofertas
+perguntas:
+- como limito o desconto que o operador pode dar
+- qual o máximo de parcelas que o operador pode oferecer
+- o que acontece quando a oferta passa da alçada
+- o que é parcela mínima
+- como tiro o limite do operador
+curta: Limites do operador no simulador "Fazer oferta": desconto máximo, parcelas máximas, parcela mínima e juros mínimos. Fora deles, a oferta aparece em vermelho e não pode ser confirmada.
+calculo: Cada limite é comparado com a oferta montada: desconto acima do máximo, parcelas acima do máximo, parcela abaixo do mínimo (só parcelado) e juros abaixo do mínimo (só parcelado). Campo vazio é sem limite.
+fazer: Defina a alçada antes de liberar o simulador para a equipe. Ofertas fora dela continuam possíveis pelo administrador ajustando o catálogo.
+cuidado: A alçada vale para o simulador e para o registro da oferta (o servidor confere de novo ao gravar); não muda as propostas sugeridas da ficha, que seguem o catálogo.
+fontes:
+- backend/model/oferta.py::fora_da_alcada
+- backend/model/oferta.py::validar_alcada
