@@ -141,6 +141,28 @@ checar(r["total"]["recebido"] == 1370 and r["total"]["contatos"] == 6, "total da
 checar(c.get("/painel/equipe", headers=CMD).status_code == 400, "comando precisa escolher a empresa")
 checar(c.get("/painel/equipe?empresa_id=goias", headers=CMD).status_code == 200, "comando lê a empresa escolhida")
 
+print("— um operador por vez (visão do administrador) —")
+for l in TAB["contatos"]:
+    l["cpf"] = {1: "111", 2: "111", 3: "222", 4: "333", 5: "333", 6: "444", 8: "555"}.get(l["id"])
+TAB["ofertas_feitas"] = [
+    {"id": "o1", "empresa_id": "goias", "operador_id": "op-ana", "resposta": "aceitou", "created_at": em(0)},
+    {"id": "o2", "empresa_id": "goias", "operador_id": "op-ana", "resposta": "recusou", "created_at": em(1)},
+    {"id": "o3", "empresa_id": "goias", "operador_id": "op-ana", "resposta": "vai_pensar", "created_at": em(2)},
+    {"id": "o4", "empresa_id": "goias", "operador_id": "op-beto", "resposta": "aceitou", "created_at": em(0)},
+    {"id": "o5", "empresa_id": "goias", "operador_id": "op-ana", "resposta": "aceitou", "created_at": em(40)}]
+r = c.get("/painel/operador/op-ana?periodo=7d", headers=ADM)
+j = r.json()
+checar(r.status_code == 200 and j["operador"]["nome"] == "Ana", "admin abre o painel de um operador", r.text[:100])
+checar(j["contatos"] == 5 and j["devedores_trabalhados"] == 4, "contatos e devedores trabalhados (cpfs distintos) só dele", str((j["contatos"], j["devedores_trabalhados"])))
+checar(j["ofertas"] == {"feitas": 3, "aceitas": 1, "vai_pensar": 1, "recusadas": 1, "ativo": True}, "ofertas feitas, aceitas, a pensar e recusadas no período", str(j["ofertas"]))
+checar(j["retornos"]["marcados"] == 1 and j["retornos"]["pendentes"] == 1, "retornos marcados e pendentes", str(j["retornos"]))
+checar(j["recebido"] == 300 and j["acordos"] == 3, "recebido e promessas dele", str((j["recebido"], j["acordos"])))
+checar(c.get("/painel/operador/op-beto?periodo=7d", headers=ADM).json()["ofertas"]["feitas"] == 1, "cada operador com os seus números")
+checar(c.get("/painel/operador/op-ana", headers=ANA).status_code in (403, 404, 405) or c.get("/painel/operador/op-ana", headers=ANA).status_code == 403, "operador não abre o painel de outro")
+checar(c.get("/painel/operador/adm", headers=ADM).status_code == 404, "quem não é operador: 404")
+checar(c.get("/painel/operador/op-ana?periodo=7d", headers=jwt("beta", "admin", "adm2")).status_code == 404, "admin de outra empresa: 404")
+checar(c.get("/painel/operador/op-ana?periodo=7d&empresa_id=goias", headers=CMD).status_code == 200, "comando lê pela empresa escolhida")
+
 print("— sem o SQL novo —")
 MODO.update(sem_agenda=True, sem_responsavel=True)
 r = c.get("/painel/operador?periodo=7d", headers=ANA)

@@ -3,12 +3,12 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Gauge, PhoneOutgoing, Handshake, Banknote, Target, Loader2, Info, ArrowRight } from 'lucide-react'
+import { ChevronLeft, Gauge, PhoneOutgoing, Handshake, Banknote, Target, Loader2, Info, ArrowRight } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import DicaAjuda from '../components/DicaAjuda'
 import ErroCarga from '../components/ErroCarga'
 import { useAuth } from '../context/AuthContext'
-import { buscarPainelOperador, buscarPainelEquipe, listarEmpresas } from '../api'
+import { buscarPainelOperador, buscarPainelEquipe, buscarPainelDeUmOperador, listarEmpresas } from '../api'
 
 const fmtBRL = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v || 0)
 const fmtNum = (v) => new Intl.NumberFormat('pt-BR').format(v || 0)
@@ -95,7 +95,48 @@ function MeusNumeros({ d }) {
   )
 }
 
-function Equipe({ d, comando }) {
+function Individual({ id, periodo, empresa, onVoltar }) {
+  const [d, setD] = useState(null)
+  const [erro, setErro] = useState(null)
+  const [tent, setTent] = useState(0)
+  useEffect(() => {
+    let vivo = true
+    setErro(null)
+    buscarPainelDeUmOperador(id, periodo, empresa).then(r => { if (vivo) setD(r) }).catch(e => { if (vivo) setErro(e) })
+    return () => { vivo = false }
+  }, [id, periodo, empresa, tent])
+  const o = d?.ofertas, r = d?.retornos
+  return (
+    <section className="space-y-4">
+      <button type="button" onClick={onVoltar} className="btn-ghost btn-sm inline-flex min-h-[40px] items-center gap-1">
+        <ChevronLeft className="h-4 w-4" aria-hidden="true" /> Voltar para a equipe
+      </button>
+      <ErroCarga erro={erro} onTentar={() => setTent(t => t + 1)} />
+      {!d && !erro && <div className="flex items-center gap-2 py-6 text-sm text-ink-2"><Loader2 className="h-4 w-4 animate-spin" /> Carregando…</div>}
+      {d && (
+        <>
+          <h2 className="text-base font-semibold text-ink">{d.operador.nome}</h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Cartao i={0} icone={PhoneOutgoing} rotulo="Contatos" valor={fmtNum(d.contatos)}
+              nota={d.contatos ? `${fmtPct(d.taxa_contato_efetivo)} efetivos` : 'Nenhum contato no período'} />
+            <Cartao i={1} icone={Target} rotulo="Devedores trabalhados" valor={fmtNum(d.devedores_trabalhados)} cor="text-blue-400" nota="Devedores diferentes contatados" />
+            <Cartao i={2} icone={Handshake} rotulo="Promessas" valor={fmtNum(d.acordos)} cor="text-amber-400"
+              nota={d.acordos ? `${fmtBRL(d.acordos_valor)} prometidos` : 'Promessas registradas'} />
+            <Cartao i={3} icone={Gauge} rotulo="Promessas pagas" valor={fmtNum(d.promessas_cumpridas)} cor="text-ink-2"
+              nota={`${fmtNum(d.promessas_quebradas)} não pagas · ${fmtNum(d.promessas_pendentes)} pendentes`} />
+            <Cartao i={4} icone={Banknote} rotulo="Valor recuperado" valor={fmtBRL(d.recebido)} cor="text-emerald-400" nota={`${fmtNum(d.pagamentos)} pagamentos confirmados`} />
+            <Cartao i={5} icone={Handshake} rotulo="Ofertas feitas" valor={o.ativo ? fmtNum(o.feitas) : '—'} cor="text-blue-400"
+              nota={o.ativo ? `${fmtNum(o.aceitas)} aceitas · ${fmtNum(o.vai_pensar)} a pensar · ${fmtNum(o.recusadas)} recusadas` : 'Disponível após ativar o histórico de ofertas'} />
+            <Cartao i={6} icone={ArrowRight} rotulo="Retornos marcados" valor={r.ativo ? fmtNum(r.marcados) : '—'} cor="text-amber-400"
+              nota={r.ativo ? `${fmtNum(r.feitos)} feitos · ${fmtNum(r.pendentes)} pendentes` : 'Disponível com a Agenda ativa'} />
+          </div>
+        </>
+      )}
+    </section>
+  )
+}
+
+function Equipe({ d, comando, onAbrir }) {
   const t = d.total
   return (
     <>
@@ -112,7 +153,7 @@ function Equipe({ d, comando }) {
       </div>
       <section className="overflow-hidden rounded-xl border border-line bg-surface">
         <div className="border-b border-line px-5 py-3">
-          <h2 className="section-label">Por operador</h2>
+          <h2 className="section-label">Por operador <span className="font-normal normal-case tracking-normal text-ink-2">· clique no nome para ver o desempenho individual</span></h2>
         </div>
         {d.operadores.length === 0 ? (
           <p className="px-5 py-8 text-center text-sm text-ink-2">Nenhum operador ativo nesta empresa.</p>
@@ -129,7 +170,9 @@ function Equipe({ d, comando }) {
               <tbody>
                 {d.operadores.map(o => (
                   <tr key={o.operador_id} className="border-b border-line last:border-0">
-                    <td className="whitespace-nowrap px-4 py-3 font-medium text-ink">{o.nome}</td>
+                    <td className="whitespace-nowrap px-4 py-3 font-medium text-ink">
+                      <button type="button" onClick={() => onAbrir(o.operador_id)} className="min-h-[40px] text-left text-blue-400 hover:text-blue-300">{o.nome}</button>
+                    </td>
                     <td className="px-4 py-3 text-right tabular-nums text-ink">{fmtNum(o.contatos)}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-ink-2">{fmtPct(o.taxa_contato_efetivo)}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-ink">{fmtNum(o.acordos)}</td>
@@ -159,6 +202,7 @@ export default function PainelOperador() {
   const [carregando, setCarregando] = useState(true)
   const [empresas, setEmpresas] = useState([])
   const [alvo, setAlvo] = useState('')
+  const [opSel, setOpSel] = useState(null)
 
   useEffect(() => {
     if (!isComando) return
@@ -217,7 +261,9 @@ export default function PainelOperador() {
         {dados && (
           <div className={`space-y-4 transition-opacity ${carregando ? 'opacity-60' : ''}`}>
             <Avisos d={dados} />
-            {equipe ? <Equipe d={dados} comando={isComando} /> : <MeusNumeros d={dados} />}
+            {equipe ? (opSel
+              ? <Individual id={opSel} periodo={periodo} empresa={isComando ? alvo : undefined} onVoltar={() => setOpSel(null)} />
+              : <Equipe d={dados} comando={isComando} onAbrir={setOpSel} />) : <MeusNumeros d={dados} />}
           </div>
         )}
       </div>

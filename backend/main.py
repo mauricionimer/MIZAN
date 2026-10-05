@@ -2166,7 +2166,7 @@ def _dados_painel(db, emp: str, desde_iso: str, operador_id: "str | None" = None
     marcada — o resto do painel continua valendo.
     """
     def contatos_q():
-        q = (db.table("contatos").select("usuario_id, resultado, created_at")
+        q = (db.table("contatos").select("usuario_id, cpf, resultado, created_at")
              .eq("empresa_id", emp).gte("created_at", desde_iso))
         return q.eq("usuario_id", operador_id) if operador_id else q
     contatos = _todas_as_linhas(contatos_q)
@@ -2240,6 +2240,55 @@ def painel_operador(periodo: str = "hoje", credentials: HTTPAuthorizationCredent
     return {"periodo": periodo, "desde": inicio.isoformat(), "hoje": ref.isoformat(),
             "agenda_ativa": d["agenda_ativa"], "divisao_ativa": d["divisao_ativa"],
             **resumir(d["contatos"], d["promessas"], meus_pagamentos, ref, _meta_contatos(emp))}
+
+
+@app.get("/painel/operador/{operador_id}")
+def painel_de_um_operador(operador_id: str, periodo: str = "7d", empresa_id: Optional[str] = None,
+                          credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """O que UM operador fez no período e o resultado dele (visão do administrador)."""
+    from painel import resumir
+    payload = _exigir_admin_ou_comando(credentials)
+    emp = _empresa_da_agenda(payload, empresa_id)
+    db = get_db()
+    try:
+        u = (db.table("usuarios").select("id, nome, email, role, empresa_id").eq("id", operador_id).limit(1).execute().data or [None])[0]
+    except Exception:
+        u = None
+    if not u or u.get("empresa_id") != emp or u.get("role") != "operador":
+        raise HTTPException(status_code=404, detail="Operador não encontrado nesta empresa.")
+    ref, inicio, desde = _periodo_do_painel(periodo)
+    d = _dados_painel(db, emp, desde, operador_id=operador_id)
+    meus_pagamentos = [p for p in d["pagamentos"] if p.get("responsavel_id") == operador_id]
+    base = resumir(d["contatos"], d["promessas"], meus_pagamentos, ref, _meta_contatos(emp))
+
+    # O que só esta visão mostra: devedores trabalhados, ofertas e retornos.
+    trabalhados = len({c.get("cpf") for c in d["contatos"] if c.get("cpf")})
+    ofertas = {"feitas": 0, "aceitas": 0, "vai_pensar": 0, "recusadas": 0, "ativo": True}
+    try:
+        linhas = _todas_as_linhas(lambda: db.table("ofertas_feitas").select("resposta, created_at")
+                                  .eq("empresa_id", emp).eq("operador_id", operador_id).gte("created_at", desde))
+        ofertas.update(feitas=len(linhas), aceitas=sum(1 for l in linhas if l.get("resposta") == "aceitou"),
+                       vai_pensar=sum(1 for l in linhas if l.get("resposta") == "vai_pensar"),
+                       recusadas=sum(1 for l in linhas if l.get("resposta") == "recusou"))
+    except Exception as e:
+        if not _falta_tabela(e, "ofertas_feitas"):
+            raise
+        ofertas["ativo"] = False
+    retornos = {"marcados": 0, "feitos": 0, "pendentes": 0, "ativo": True}
+    try:
+        linhas = _todas_as_linhas(lambda: db.table("agenda").select("situacao, tipo, created_at")
+                                  .eq("empresa_id", emp).eq("operador_id", operador_id).eq("tipo", "retorno")
+                                  .gte("created_at", desde))
+        retornos.update(marcados=len(linhas), feitos=sum(1 for l in linhas if l.get("situacao") == "cumprida"),
+                        pendentes=sum(1 for l in linhas if l.get("situacao") == "pendente"))
+    except Exception as e:
+        if not _falta_tabela(e, "agenda"):
+            raise
+        retornos["ativo"] = False
+    return {"periodo": periodo, "desde": inicio.isoformat(), "hoje": ref.isoformat(),
+            "operador": {"id": u["id"], "nome": u.get("nome") or u.get("email") or ""},
+            "agenda_ativa": d["agenda_ativa"], "divisao_ativa": d["divisao_ativa"],
+            **base, "devedores_trabalhados": trabalhados, "ofertas": ofertas, "retornos": retornos}
 
 
 @app.get("/painel/equipe")

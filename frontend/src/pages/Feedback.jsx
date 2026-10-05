@@ -1,5 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { lazy, Suspense } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { saidaTravada } from '../components/protecaoSaida'
+import ConfirmarModal, { useConfirmar } from '../components/ConfirmarModal'
+const Roteiros = lazy(() => import('./Roteiros'))
+const Acordos = lazy(() => import('./Acordos'))
 import {
   CheckCircle2, XCircle, Loader2, ClipboardList, Plus, Trash2, UploadCloud, FileText, Download, Search, X,
 } from 'lucide-react'
@@ -294,6 +299,17 @@ export default function Feedback() {
   const { token, usuario, logout, isComando, isAdmin, isOperador } = useAuth()
   const podeRegistrar = isAdmin || isComando
   const [aba, setAba]             = useState('manual')
+  // Pagamentos reúne o processo de cobrança: registrar, acordos e roteiros.
+  const [params, setParams] = useSearchParams()
+  const secao = ['acordos', 'roteiros'].includes(params.get('secao')) ? params.get('secao') : 'pagamentos'
+  const { pedir: pedirConfirmacao, modal: modalConfirmar } = useConfirmar()
+  async function irParaSecao(k) {
+    if (k === secao) return
+    // Um roteiro com texto ainda não salvo: pergunta antes de trocar de aba.
+    if (saidaTravada() && !(await pedirConfirmacao({ titulo: saidaTravada().mensagem, texto: 'O que não foi salvo nesta tela será perdido.',
+      confirmar: 'Trocar de aba', perigo: true }))) return
+    setParams(k === 'pagamentos' ? {} : { secao: k })
+  }
   const [form, setForm]           = useState(EMPTY)
   const [loading, setLoading]     = useState(false)
   const [historico, setHistorico] = useState([])
@@ -385,10 +401,24 @@ export default function Feedback() {
   return (
     <AppShell titulo="Pagamentos">
 
-      <div className="w-full max-w-5xl mx-auto space-y-6">
+      <div className={`w-full mx-auto space-y-6 ${secao === 'pagamentos' ? 'max-w-5xl' : 'max-w-6xl'}`}>
         <div>
           <h1 className="text-xl font-bold text-ink tracking-tight">Pagamentos<DicaAjuda id="registrar-pagamento" /></h1>
+          <div className="mt-4 flex w-fit max-w-full gap-1 overflow-x-auto rounded-xl p-1" role="tablist" aria-label="Seções de Pagamentos"
+            style={{ background: 'var(--raise-2)', border: '1px solid var(--line)' }}>
+            {[['pagamentos', 'Pagamentos'], ['acordos', 'Acordos'], ['roteiros', 'Roteiros']].map(([k, l]) => (
+              <button key={k} role="tab" aria-selected={secao === k} onClick={() => irParaSecao(k)}
+                className={`min-h-[40px] whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-all ${secao === k ? 'bg-raise-3 text-ink' : 'text-ink-2 hover:text-ink'}`}>
+                {l}
+              </button>
+            ))}
+          </div>
         </div>
+
+        {secao === 'acordos' && <Suspense fallback={null}><Acordos embutido /></Suspense>}
+        {secao === 'roteiros' && <Suspense fallback={null}><Roteiros embutido /></Suspense>}
+
+        {secao === 'pagamentos' && <>
 
         {/* Operador: só visualiza, não registra */}
         {isOperador && (
@@ -644,8 +674,10 @@ export default function Feedback() {
             )}
           </>
         )}
+        </>}
 
       </div>
+      {modalConfirmar}
     </AppShell>
   )
 }

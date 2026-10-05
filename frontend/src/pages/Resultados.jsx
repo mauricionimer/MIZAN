@@ -218,7 +218,7 @@ export default function Resultados() {
             {t.registros === 0 ? (
               <div className="rounded-xl border border-line bg-surface px-6 py-12 text-center">
                 <TrendingUp className="mx-auto h-8 w-8 text-ink-2 opacity-50" />
-                <p className="mt-3 text-sm font-medium text-ink">Nenhum pagamento registrado no período</p>
+                <p className="mt-3 text-sm font-medium text-ink">Nenhum pagamento registrado no período.</p>
                 <p className="mt-1 text-xs text-ink-2">Os resultados aparecem conforme a equipe registra em Pagamentos quem pagou e quem não pagou, com o canal.</p>
               </div>
             ) : (

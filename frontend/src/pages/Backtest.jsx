@@ -101,6 +101,11 @@ export default function Backtest() {
             com a que a operação usa hoje. Nada é gravado: a carteira entra para ser analisada,
             não para virar base.
           </p>
+          <p className="text-sm leading-relaxed mt-2" style={{ color: 'var(--ink-2)' }}>
+            Em resumo: o teste compara o que <strong>realmente aconteceu</strong> com o que o Mizan
+            <strong> estimaria</strong> recuperar se tivesse priorizado a carteira. É uma medida do
+            passado, não uma garantia de recuperação futura.
+          </p>
           <p className="text-xs mt-2" style={{ color: 'var(--ink-3)' }}>
             Colunas obrigatórias: <code>cpf</code>, <code>valor_divida</code>,
             {' '}<code>dias_em_atraso</code>, <code>pagou</code>. Melhoram a análise:

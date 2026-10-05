@@ -669,6 +669,11 @@ export async function buscarPainelEquipe(periodo, empresaId) {
   return _jsonOuErroFila(res)
 }
 
+export async function buscarPainelDeUmOperador(operadorId, periodo, empresaId) {
+  const res = await fetch(`${BASE}/painel/operador/${encodeURIComponent(operadorId)}?${_qs({ periodo, empresa_id: empresaId })}`, { headers: { Authorization: `Bearer ${_getToken()}` } })
+  return _jsonOuErroFila(res)
+}
+
 // ── A1: painel de resultados ─────────────────────────────────────────────────
 export async function buscarResultados(periodo, empresaId) {
   const res = await fetch(`${BASE}/resultados?${_qs({ periodo, empresa_id: empresaId })}`, { headers: { Authorization: `Bearer ${_getToken()}` } })

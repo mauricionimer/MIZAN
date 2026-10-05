@@ -70,7 +70,6 @@ function useItens() {
         { id: 'pagamentos', label: 'Pagamentos', icon: ClipboardList, rota: '/feedback' },
         itemAgenda,
         ...(gestor ? [] : [{ id: 'acordos', label: 'Meus acordos', icon: Handshake, rota: '/acordos' }]),
-        { id: 'roteiros', label: 'Roteiros', icon: MessageSquareText, rota: '/roteiros' },
         ...(gestor ? [] : [ia]),
       ],
     },

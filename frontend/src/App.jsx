@@ -84,7 +84,6 @@ const Backtest = lazy(() => import('./pages/Backtest'))
 const PerformanceIA = lazy(() => import('./pages/PerformanceIA'))
 const Agenda = lazy(() => import('./pages/Agenda'))
 const PainelOperador = lazy(() => import('./pages/PainelOperador'))
-const Roteiros = lazy(() => import('./pages/Roteiros'))
 const Resultados = lazy(() => import('./pages/Resultados'))
 const Acordos = lazy(() => import('./pages/Acordos'))
 const Ofertas = lazy(() => import('./pages/Ofertas'))
@@ -146,7 +145,7 @@ function RotasAnimadas() {
           <Route path="/ofertas" element={P(['admin', 'comando'], <Ofertas />)} />
           <Route path="/acordos" element={P(['operador', 'admin', 'comando'], <Acordos />)} />
           <Route path="/resultados" element={P(['admin', 'comando'], <Resultados />)} />
-          <Route path="/roteiros" element={P(['operador', 'admin', 'comando'], <Roteiros />)} />
+          <Route path="/roteiros" element={<Navigate to="/feedback?secao=roteiros" replace />} />
           <Route path="/agenda" element={P(['operador', 'admin', 'comando'], <Agenda />)} />
           <Route path="/backtest" element={P(['admin', 'comando'], <Backtest />)} />
           <Route path="/premissas" element={P(['admin', 'comando'], <Premissas />)} />

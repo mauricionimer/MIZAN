@@ -228,7 +228,7 @@ perguntas:
 - como uso o modelo do mizan
 curta: Roteiros são mensagens prontas por canal (WhatsApp, SMS, e-mail, ligação). Na ficha do devedor, a "Mensagem sugerida" escolhe o roteiro do canal e da oferta recomendados e preenche nome, dívida e proposta.
 calculo: As variáveis entre chaves viram os dados do devedor e da proposta da oferta do roteiro: {primeiro_nome}, {nome}, {valor_divida}, {dias_atraso}, {valor_proposta} (à vista, já com desconto), {parcelas}, {valor_parcela}, {desconto}, {empresa} e {operador}. Se a oferta do roteiro não estiver entre as propostas do devedor, valem os valores da proposta recomendada, com aviso. Valor que falta aparece como [falta: ...].
-fazer: Em Roteiros, escolha a aba do canal, clique em "Novo roteiro", escreva o texto usando os botões de variável e confira a prévia. "Usar como base" copia um modelo do Mizan ou da empresa para você ajustar. Na ficha, use Copiar ou Abrir no WhatsApp.
+fazer: Em Pagamentos > Roteiros, escolha a aba do canal, clique em "Novo roteiro", escreva o texto usando os botões de variável e confira a prévia. "Usar como base" copia um modelo do Mizan ou da empresa para você ajustar. Na ficha, use Copiar ou Abrir no WhatsApp.
 cuidado: Roteiro da empresa é criado e editado só pelo administrador; o pessoal só o dono vê. Variável fora da lista é recusada. A base não tem o telefone do devedor: o WhatsApp abre com o texto pronto e o operador escolhe o contato.
 fontes:
 - backend/roteiros.py::VARIAVEIS

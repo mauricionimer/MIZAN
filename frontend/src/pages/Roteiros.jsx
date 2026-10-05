@@ -3,6 +3,9 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { MessageSquareText, Plus, Copy, Trash2, Save, Loader2, Building2, User, Sparkles, Check, AlertTriangle } from 'lucide-react'
 import AppShell from '../components/AppShell'
+
+// Dentro de Pagamentos (aba) não repete o menu e o cabeçalho da página.
+const Casca = ({ embutido, children }) => embutido ? <>{children}</> : <AppShell>{children}</AppShell>
 import DicaAjuda from '../components/DicaAjuda'
 import ErroCarga from '../components/ErroCarga'
 import ConfirmarModal, { useConfirmar } from '../components/ConfirmarModal'
@@ -60,7 +63,7 @@ function Previa({ canal, texto, oferta, empresa, operador }) {
   )
 }
 
-export default function Roteiros() {
+export default function Roteiros({ embutido = false }) {
   const { token, usuario, isAdmin, isComando, empresaConfig } = useAuth()
   const [canal, setCanal] = useState('whatsapp')
   const [dados, setDados] = useState(null)
@@ -169,7 +172,7 @@ export default function Roteiros() {
   }
 
   return (
-    <AppShell>
+    <Casca embutido={embutido}>
       <div className="mx-auto w-full max-w-6xl space-y-5">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -319,6 +322,6 @@ export default function Roteiros() {
         onCancelar={() => setPendente(null)}
         onConfirmar={() => { const a = pendente; setBase(chave(form)); setPendente(null); a() }} />
       {modalConfirmar}
-    </AppShell>
+    </Casca>
   )
 }

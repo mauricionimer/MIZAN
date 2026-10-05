@@ -4,6 +4,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Handshake, Loader2, ChevronDown, CalendarClock, AlertTriangle, XOctagon, Wallet, Check, Undo2, Info } from 'lucide-react'
 import AppShell from '../components/AppShell'
+
+// Dentro de Pagamentos (aba) não repete o menu e o cabeçalho da página.
+const Casca = ({ embutido, children }) => embutido ? <>{children}</> : <AppShell>{children}</AppShell>
 import DicaAjuda from '../components/DicaAjuda'
 import ErroCarga from '../components/ErroCarga'
 import AvisoDesfazer from '../components/AvisoDesfazer'
@@ -140,7 +143,7 @@ function Acordo({ a, hoje, podeBaixar, onParcela, destaque }) {
   )
 }
 
-export default function Acordos() {
+export default function Acordos({ embutido = false }) {
   const { token, isAdmin, isComando, isOperador } = useAuth()
   const [dados, setDados] = useState(null)
   const [filtro, setFiltro] = useState('')
@@ -196,7 +199,7 @@ export default function Acordos() {
   const r = dados?.resumo
 
   return (
-    <AppShell>
+    <Casca embutido={embutido}>
       <div className="mx-auto w-full max-w-6xl space-y-5">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -274,6 +277,6 @@ export default function Acordos() {
         )}
       </div>
       <AvisoDesfazer aviso={desfazer} onFechar={() => setDesfazer(null)} />
-    </AppShell>
+    </Casca>
   )
 }
