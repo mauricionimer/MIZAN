@@ -4,6 +4,7 @@ import {
   Loader2, Brain, AlertTriangle, CheckCircle2, ShieldCheck, UploadCloud, Undo2, Play, Database,
 } from 'lucide-react'
 import AppShell from '../components/AppShell'
+import { useConfirmar } from '../components/ConfirmarModal'
 import { useAuth } from '../context/AuthContext'
 import {
   treinarModeloEmpresa, treinarComPagamentos, estadoTreino, listarModelosEmpresa,
@@ -73,6 +74,7 @@ function Metricas({ m }) {
 }
 
 export default function TreinoModelo() {
+  const { pedir, modal } = useConfirmar()
   const navigate = useNavigate()
   const { token, usuario, logout } = useAuth()
 
@@ -157,7 +159,10 @@ export default function TreinoModelo() {
       try {
         await ativarModeloEmpresa(token, empresa.trim(), versao)
       } catch (e) {
-        if (e.status === 409 && window.confirm(`${e.message}\n\nAtivar mesmo assim?`)) {
+        // 409: o servidor avisa que a ativação tem um risco (ex.: modelo pior que o atual).
+        // A pessoa decide, com o motivo à vista.
+        const seguir = e.status === 409 && await pedir({ titulo: 'Ativar mesmo assim?', texto: e.message, confirmar: 'Ativar mesmo assim', perigo: true })
+        if (seguir) {
           await ativarModeloEmpresa(token, empresa.trim(), versao, true)
         } else throw e
       }
@@ -167,7 +172,9 @@ export default function TreinoModelo() {
   }
 
   async function voltarAoGeral() {
-    if (!window.confirm('Voltar esta empresa ao modelo geral? As versões treinadas continuam guardadas.')) return
+    const ok = await pedir({ titulo: 'Voltar esta empresa ao modelo geral?',
+      texto: 'As versões treinadas continuam guardadas, mas as análises passam a usar o modelo geral.', confirmar: 'Voltar ao modelo geral' })
+    if (!ok) return
     setAgindo(true); setErro(''); setInfo('')
     try {
       await desativarModeloEmpresa(token, empresa.trim())
@@ -304,6 +311,7 @@ export default function TreinoModelo() {
           </Cartao>
         )}
       </div>
+      {modal}
     </AppShell>
   )
 }

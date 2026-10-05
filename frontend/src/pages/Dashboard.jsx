@@ -25,6 +25,7 @@ import { useAuth } from '../context/AuthContext'
 import AppShell from '../components/AppShell'
 import DicaAjuda from '../components/DicaAjuda'
 import DistribuirFila from '../components/DistribuirFila'
+import useModal from '../components/useModal'
 import { NIVEL_CFG, seloFila } from '../utils/agenda'
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
@@ -270,6 +271,7 @@ export default function Dashboard({ onIrPara }) {
   const [confirmando, setConfirmando]       = useState(false)
   const [confirmarForm, setConfirmarForm]   = useState({ valor_recuperado: '', data_pagamento: '' })
   const [confirmarErro, setConfirmarErro]   = useState('')
+  const caixaConfirmar = useModal(!!confirmarModal, () => { setConfirmarModal(null); setConfirmarErro('') })
 
   // carteira_id vem dentro de resumo na resposta do backend
   const carteiraId = result?.resumo?.carteira_id ?? result?.carteira_id ?? null
@@ -537,23 +539,13 @@ export default function Dashboard({ onIrPara }) {
   // usuário, porque pertencem à vista e não à navegação.
   const acoesTopo = (
     <>
-      <button
-        onClick={baixarCSV}
-        className="flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink-2 transition-colors hover:border-emerald-500/50 hover:text-ink"
-      >
+      <button onClick={baixarCSV} className="btn-secondary btn-sm">
         <FileSpreadsheet className="h-3.5 w-3.5" /> CSV
       </button>
-      <button
-        onClick={baixarExcel}
-        className="flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink-2 transition-colors hover:border-emerald-500/50 hover:text-ink"
-      >
+      <button onClick={baixarExcel} className="btn-secondary btn-sm">
         <FileSpreadsheet className="h-3.5 w-3.5" /> Excel
       </button>
-      <button
-        onClick={exportPDF}
-        disabled={exporting}
-        className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-brand-ink transition-colors hover:bg-blue-700 disabled:opacity-50"
-      >
+      <button onClick={exportPDF} disabled={exporting} className="btn-primary btn-sm">
         {exporting
           ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Exportando...</>
           : <><Download className="h-3.5 w-3.5" /> PDF</>}
@@ -580,18 +572,21 @@ export default function Dashboard({ onIrPara }) {
         />
       )}
       {confirmarModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md space-y-5 rounded-2xl border border-line bg-surface p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          onClick={() => { setConfirmarModal(null); setConfirmarErro('') }}>
+          <div ref={caixaConfirmar} role="dialog" aria-modal="true" aria-labelledby="confirmar-pag-titulo"
+            onClick={e => e.stopPropagation()}
+            className="w-full max-w-md space-y-5 rounded-2xl border border-line bg-surface p-6 shadow-2xl">
             <div className="flex items-start justify-between">
               <div>
-                <h2 className="text-base font-bold text-ink">Confirmar pagamento</h2>
+                <h2 id="confirmar-pag-titulo" className="text-base font-bold text-ink">Confirmar pagamento</h2>
                 <p className="mt-0.5 text-xs text-ink-2">
                   <span className="font-semibold text-ink">{confirmarModal.nome}</span>
                   {' · '}<span className="tabular-nums">{confirmarModal.cpf}</span>
                 </p>
               </div>
-              <button onClick={() => { setConfirmarModal(null); setConfirmarErro('') }}
-                className="rounded-lg p-1 text-ink-2 transition-colors hover:bg-raise-3 hover:text-ink">
+              <button onClick={() => { setConfirmarModal(null); setConfirmarErro('') }} aria-label="Fechar"
+                className="-m-1.5 rounded-lg p-2.5 text-ink-2 transition-colors hover:bg-raise-3 hover:text-ink">
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -634,11 +629,10 @@ export default function Dashboard({ onIrPara }) {
               <div className="flex gap-2 pt-1">
                 <button type="button"
                   onClick={() => { setConfirmarModal(null); setConfirmarErro('') }}
-                  className="flex-1 rounded-lg border border-line px-4 py-2.5 text-sm font-medium text-ink-2 transition-colors hover:bg-raise-2">
+                  className="btn-secondary flex-1">
                   Cancelar
                 </button>
-                <button type="submit" disabled={confirmando}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-brand-ink transition-colors hover:bg-emerald-700 disabled:opacity-60">
+                <button type="submit" disabled={confirmando} className="btn-primary flex-1">
                   {confirmando
                     ? <><Loader2 className="h-4 w-4 animate-spin" /> Confirmando...</>
                     : <><CheckCircle2 className="h-4 w-4" /> Confirmar pagamento</>}

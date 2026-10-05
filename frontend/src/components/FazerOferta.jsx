@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Calculator, CheckCircle2, AlertTriangle, XCircle, Loader2, User, Landmark, ShieldAlert, Info, Send, X, ThumbsUp, Clock, ThumbsDown, History } from 'lucide-react'
 import DicaAjuda from './DicaAjuda'
 import ErroCarga from './ErroCarga'
+import useModal from './useModal'
 import { buscarOfertas, simularOferta, registrarOferta, listarOfertasFeitas } from '../api'
 import { hojeISO, somarDias, avisarAgendaMudou } from '../utils/agenda'
 import { resumoOferta, NOME_FAMILIA } from '../utils/ofertas'
@@ -74,6 +75,7 @@ function Confirmar({ cpf, analise, condicoes, canalPadrao, despesas, onFechar, o
   const [obs, setObs] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState('')
+  const caixa = useModal(true, onFechar, { focoInicial: 'select' })
   const pedeData = resposta !== 'recusou'
   async function enviar() {
     setEnviando(true); setErro('')
@@ -90,7 +92,7 @@ function Confirmar({ cpf, analise, condicoes, canalPadrao, despesas, onFechar, o
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={onFechar}>
-      <motion.div initial={{ y: 12, opacity: 0 }} animate={{ y: 0, opacity: 1 }} onClick={e => e.stopPropagation()}
+      <motion.div ref={caixa} initial={{ y: 12, opacity: 0 }} animate={{ y: 0, opacity: 1 }} onClick={e => e.stopPropagation()}
         role="dialog" aria-modal="true" aria-labelledby="confirmar-oferta"
         className="flex max-h-[90vh] w-full max-w-md flex-col rounded-2xl shadow-2xl" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
         <div className="flex items-start justify-between border-b px-5 py-4" style={{ borderColor: 'var(--line)' }}>
@@ -144,9 +146,8 @@ function Confirmar({ cpf, analise, condicoes, canalPadrao, despesas, onFechar, o
           <ErroCarga erro={erro} compacto />
         </div>
         <div className="flex justify-end gap-2 border-t px-5 py-4" style={{ borderColor: 'var(--line)' }}>
-          <button onClick={onFechar} className="min-h-[44px] rounded-lg px-4 py-2 text-sm" style={{ color: 'var(--ink-2)' }}>Cancelar</button>
-          <button onClick={enviar} disabled={enviando || (pedeData && !data)}
-            className="min-h-[44px] inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-40">
+          <button onClick={onFechar} className="btn-secondary min-h-[44px]">Cancelar</button>
+          <button onClick={enviar} disabled={enviando || (pedeData && !data)} className="btn-primary min-h-[44px]">
             {enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Registrar
           </button>
         </div>
@@ -384,7 +385,7 @@ export default function FazerOferta({ cpf, despesas, setDespesas, canalPadrao, c
             {!confirmavel && <span className="text-xs" style={{ color: 'var(--ink-3)' }}>Só quem trabalha a fila da empresa registra ofertas.</span>}
             <button type="button" onClick={() => { setAviso(''); setConfirmando({ analise: res, condicoes: { ...f, n_parcelas: n, base_id: base || undefined } }) }}
               disabled={!res.pode_confirmar || !confirmavel || carregando}
-              className="min-h-[44px] inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-40">
+              className="btn-primary min-h-[44px]">
               <Send className="h-4 w-4" /> Confirmar que fiz esta oferta
             </button>
           </div>

@@ -267,7 +267,7 @@ export default function Resultados() {
                 </section>
 
                 <section className="rounded-xl border border-line bg-surface p-5">
-                  <h2 className="mb-1 text-sm font-semibold text-ink">Contatos por canal</h2>
+                  <h2 className="section-label mb-1">Contatos por canal</h2>
                   <p className="mb-3 text-xs text-ink-2">Dos contatos registrados na ficha do devedor: quantos foram efetivos (houve conversa) e quantos viraram promessa de pagamento.</p>
                   <Contatos grupos={dados.contatos_por_canal} />
                 </section>

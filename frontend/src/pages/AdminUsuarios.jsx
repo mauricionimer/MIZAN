@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
+import { useConfirmar } from '../components/ConfirmarModal'
 import { useAuth } from '../context/AuthContext'
 import {
   listarUsuarios, registrarUsuario, toggleUsuarioAtivo, alterarRoleUsuario,
@@ -219,6 +220,7 @@ function DominiosEmpresa({ empresaId, token }) {
 }
 
 function CardEmpresa({ empresa, token, onAtualizar }) {
+  const { pedir, modal } = useConfirmar()
   const [membros, setMembros] = useState(empresa.usuarios)
   const [emailInput, setEmailInput] = useState('')
   const usuariosKey = empresa.usuarios.map(u => u.id).sort().join(',')
@@ -281,7 +283,9 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
   }
 
   async function handleDeletar() {
-    if (!confirm(`Excluir empresa "${empresa.empresa_id}"? Todos os ${membros.length} usuário(s) ficarão sem empresa.`)) return
+    const ok = await pedir({ titulo: `Excluir a empresa “${empresa.empresa_id}”?`,
+      texto: `Os ${membros.length} usuário(s) dela ficam sem empresa. Não dá para desfazer.`, confirmar: 'Excluir empresa', perigo: true })
+    if (!ok) return
     try {
       await deletarEmpresa(token, empresa.empresa_id)
       onAtualizar()
@@ -292,6 +296,7 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
 
   return (
     <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--line)', boxShadow: '0 2px 12px rgba(0,0,0,0.40)' }}>
+      {modal}
       <div className="px-5 py-4 border-b flex items-center justify-between gap-3" style={{ borderColor: 'var(--line)' }}>
         <div className="relative shrink-0">
           <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center" style={{ background: 'rgb(var(--c-royal) / 0.12)', border: '1px solid rgb(var(--c-royal) / 0.20)' }}>
@@ -431,6 +436,7 @@ const ROTULO_ROLE = {
 }
 
 export default function AdminUsuarios() {
+  const { pedir: pedirConfirmacao, modal: modalConfirmar } = useConfirmar()
   const { token, usuario, logout, isAdmin, isComando, empresaConfig, refreshEmpresaConfig } = useAuth()
   const navigate = useNavigate()
 
@@ -544,7 +550,10 @@ export default function AdminUsuarios() {
 
   async function handleToggleRole(u) {
     const novo = ROTULO_ROLE[u.role]?.destino || 'admin'
-    if (!confirm(`Alterar ${u.nome} para ${novo}?`)) return
+    const ok = await pedirConfirmacao({ titulo: `Alterar ${u.nome} para ${novo}?`,
+      texto: novo === 'admin' ? 'Ele passa a ver e gerenciar os usuários, as premissas e as ofertas da empresa.' : 'Ele perde o acesso à gestão da empresa.',
+      confirmar: 'Alterar permissão' })
+    if (!ok) return
     try {
       await alterarRoleUsuario(token, u.id, novo)
       flash(`Permissão de ${u.nome} alterada para ${novo}.`)
@@ -569,6 +578,7 @@ export default function AdminUsuarios() {
 
   return (
     <AppShell titulo="Usuários">
+      {modalConfirmar}
 
       <div className="w-full max-w-5xl mx-auto">
 
@@ -639,7 +649,7 @@ export default function AdminUsuarios() {
                           style={{ border: '1px solid var(--line)' }}
                         />
                         <button onClick={handleSalvarNome} disabled={salvandoBrand}
-                          className="flex items-center gap-1 px-3 py-2 bg-blue-600 text-brand-ink text-xs font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors shrink-0">
+                          className="btn-primary btn-sm shrink-0">
                           <Check className="w-3.5 h-3.5" />{salvandoBrand ? 'Salvando...' : 'Salvar'}
                         </button>
                       </div>

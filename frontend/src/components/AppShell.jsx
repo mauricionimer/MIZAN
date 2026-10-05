@@ -11,6 +11,7 @@ import ThemeToggle from './ThemeToggle'
 import useAvisosDeDuvida from './useAvisosDeDuvida'
 import useAvisoAgenda from './useAvisoAgenda'
 import ConfirmarModal from './ConfirmarModal'
+import useModal from './useModal'
 import { saidaTravada, liberarSaida } from './protecaoSaida'
 import { LogoMark } from './Logo'
 import { useAuth } from '../context/AuthContext'
@@ -50,37 +51,52 @@ function useItens() {
   const { result } = useAnalysis()
   const avisos = useAvisosDeDuvida()
   const agenda = useAvisoAgenda()
+  const gestor = isAdmin || isComando
+  const painel = { id: 'painel', label: gestor ? 'Painel da equipe' : 'Meu painel', icon: Gauge, rota: '/painel' }
+  // Retornos e promessas: o número é o que vence hoje/amanhã ou já venceu.
+  const itemAgenda = { id: 'agenda', label: 'Agenda', icon: CalendarClock, rota: '/agenda',
+    aviso: isComando ? 0 : agenda.alto + agenda.medio, corAviso: agenda.alto > 0 ? 'bg-red-600' : 'bg-amber-500',
+    tituloAviso: agenda.alto > 0 ? `compromissos (${agenda.alto} ${agenda.alto === 1 ? 'vencido' : 'vencidos'})` : 'compromissos para hoje ou amanhã' }
+  const ia = { id: 'ia', label: 'Performance da IA', icon: Brain, rota: '/ia' }
+
   const grupos = [
     {
+      // O que se faz no dia a dia. O operador tem só este grupo (com o painel e a IA dele aqui).
       nome: 'Trabalho',
       itens: [
         ...(result ? [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, vista: 'dashboard' }] : []),
         { id: 'analise', label: 'Análise de carteira', icon: UploadCloud, vista: 'analise' },
-        { id: 'painel', label: isAdmin || isComando ? 'Painel da equipe' : 'Meu painel', icon: Gauge, rota: '/painel' },
+        ...(gestor ? [] : [painel]),
         { id: 'pagamentos', label: 'Pagamentos', icon: ClipboardList, rota: '/feedback' },
-        // Retornos e promessas: o número é o que vence hoje/amanhã ou já venceu.
-        ...[{ id: 'agenda', label: 'Agenda', icon: CalendarClock, rota: '/agenda',
-          aviso: isComando ? 0 : agenda.alto + agenda.medio, corAviso: agenda.alto > 0 ? 'bg-red-600' : 'bg-amber-500',
-          tituloAviso: agenda.alto > 0 ? `compromissos (${agenda.alto} ${agenda.alto === 1 ? "vencido" : "vencidos"})` : 'compromissos para hoje ou amanhã' }],
+        itemAgenda,
         { id: 'roteiros', label: 'Roteiros', icon: MessageSquareText, rota: '/roteiros' },
-        // O operador não tem o grupo Gestão: a aba dele fica aqui.
-        ...(!isAdmin && !isComando ? [{ id: 'ia', label: 'Performance da IA', icon: Brain, rota: '/ia' }] : []),
+        ...(gestor ? [] : [ia]),
       ],
     },
-    ...((isAdmin || isComando) ? [{
-      nome: 'Gestão',
-      itens: [
-        { id: 'resultados', label: 'Resultados', icon: TrendingUp,        rota: '/resultados' },
-        { id: 'acordos',   label: 'Acordos',   icon: Handshake,         rota: '/acordos' },
-        { id: 'ofertas',   label: 'Ofertas',   icon: Tags,              rota: '/ofertas' },
-        { id: 'premissas', label: 'Premissas', icon: SlidersHorizontal, rota: '/premissas' },
-        { id: 'backtest',  label: 'Backtest',  icon: FlaskConical,      rota: '/backtest' },
-        { id: 'usuarios',  label: 'Usuários',  icon: Users,             rota: '/admin/usuarios' },
-        { id: 'auditoria', label: 'Auditoria', icon: ShieldCheck,       rota: '/auditoria' },
-        // O COMANDO vê a IA de cada empresa em Aprendizado e Performance IA.
-        ...(!isComando ? [{ id: 'ia', label: 'Performance da IA', icon: Brain, rota: '/ia' }] : []),
-      ],
-    }] : []),
+    ...(gestor ? [
+      {
+        // Ler como a operação está indo.
+        nome: 'Acompanhar',
+        itens: [
+          painel,
+          { id: 'resultados', label: 'Resultados', icon: TrendingUp, rota: '/resultados' },
+          { id: 'acordos',    label: 'Acordos',    icon: Handshake,  rota: '/acordos' },
+          // O COMANDO vê a IA de cada empresa em Aprendizado e Performance IA.
+          ...(!isComando ? [ia] : []),
+        ],
+      },
+      {
+        // Mudar como a operação funciona.
+        nome: 'Configurar',
+        itens: [
+          { id: 'ofertas',   label: 'Ofertas',   icon: Tags,              rota: '/ofertas' },
+          { id: 'premissas', label: 'Premissas', icon: SlidersHorizontal, rota: '/premissas' },
+          { id: 'usuarios',  label: 'Usuários',  icon: Users,             rota: '/admin/usuarios' },
+          { id: 'auditoria', label: 'Auditoria', icon: ShieldCheck,       rota: '/auditoria' },
+          { id: 'backtest',  label: 'Backtest',  icon: FlaskConical,      rota: '/backtest' },
+        ],
+      },
+    ] : []),
     ...(isComando ? [{
       nome: 'Plataforma',
       itens: [
@@ -221,14 +237,10 @@ export function ShellLayout() {
     efetivar()
   }
 
-  // Fecha a gaveta com Esc e ao trocar de tela.
+  // Fecha a gaveta ao trocar de tela; com ela aberta, Esc fecha e o foco fica preso
+  // nela (mesmo comportamento dos demais modais) e volta ao botão do menu.
   useEffect(() => { setGaveta(false) }, [pathname])
-  useEffect(() => {
-    if (!gaveta) return
-    const fechar = e => { if (e.key === 'Escape') setGaveta(false) }
-    window.addEventListener('keydown', fechar)
-    return () => window.removeEventListener('keydown', fechar)
-  }, [gaveta])
+  const caixaGaveta = useModal(gaveta, () => setGaveta(false))
 
   const marca = empresaConfig?.foto_url
     ? <img src={empresaConfig.foto_url} alt={nomeEmpresa} className="h-8 w-8 rounded object-cover" />
@@ -259,7 +271,7 @@ export function ShellLayout() {
               <motion.div key="fundo" className="fixed inset-0 z-40 bg-black/50 md:hidden"
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}
                 onClick={() => setGaveta(false)} aria-hidden="true" />
-              <motion.aside key="gaveta" role="dialog" aria-modal="true" aria-label="Menu"
+              <motion.aside ref={caixaGaveta} key="gaveta" role="dialog" aria-modal="true" aria-label="Menu"
                 className="panel-surface fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r md:hidden"
                 initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }}
                 transition={reduzir ? { duration: 0 } : { type: 'spring', stiffness: 420, damping: 42 }}>

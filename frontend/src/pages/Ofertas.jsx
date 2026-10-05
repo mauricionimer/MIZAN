@@ -1,11 +1,11 @@
 // O1 — Ofertas: o catálogo da empresa, editável, e a alçada do operador.
 import { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Tags, Plus, Copy, Trash2, Save, Loader2, RotateCcw, ShieldAlert, Check } from 'lucide-react'
+import { Tags, Plus, Copy, Trash2, Save, Loader2, RotateCcw, ShieldAlert, Check, AlertTriangle } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import DicaAjuda from '../components/DicaAjuda'
 import ErroCarga from '../components/ErroCarga'
-import ConfirmarModal from '../components/ConfirmarModal'
+import ConfirmarModal, { useConfirmar } from '../components/ConfirmarModal'
 import { useProtegerSaida } from '../components/protecaoSaida'
 import { useAuth } from '../context/AuthContext'
 import { buscarOfertas, salvarOfertas, listarEmpresas } from '../api'
@@ -62,6 +62,7 @@ export default function Ofertas() {
   // Sair pelo menu, fechar ou recarregar a aba com alterações não salvas pede confirmação.
   useProtegerSaida(sujo, 'Você tem alterações não salvas nas ofertas. Deseja sair?')
   const [trocaEmpresa, setTrocaEmpresa] = useState(null)
+  const { pedir: pedirConfirmacao, modal: modalConfirmar } = useConfirmar()
 
   const atual = catalogo[sel]
   const efetiva = (o) => {
@@ -81,6 +82,17 @@ export default function Ofertas() {
   function duplicar() {
     if (!atual || catalogo.length >= (dados?.max_ofertas ?? 20)) return
     setCatalogo(c => [...c, { ...atual, id: '', nome: `${atual.nome} (cópia)`.slice(0, 60) }]); setSel(catalogo.length); setSujo(true)
+  }
+  async function restaurarPadrao() {
+    const ok = await pedirConfirmacao({ titulo: 'Voltar às 4 ofertas padrão do Mizan?',
+      texto: 'O catálogo atual da empresa será descartado e as propostas voltam ao padrão. Isto já vale para toda a equipe.',
+      confirmar: 'Restaurar padrão', perigo: true })
+    if (ok) salvar({ restaurar_padrao: true, catalogo: undefined })
+  }
+  async function descartar() {
+    const ok = await pedirConfirmacao({ titulo: 'Descartar as alterações?',
+      texto: 'As ofertas e a alçada voltam ao que está salvo.', confirmar: 'Descartar', perigo: true })
+    if (ok) { aplicar(dados); setMsg(null) }
   }
   function excluir() {
     if (catalogo.length <= 1) return
@@ -119,12 +131,6 @@ export default function Ofertas() {
                 <option value="">Escolha a empresa…</option>
                 {empresas.map(e => <option key={e.empresa_id} value={e.empresa_id}>{e.nome_exibicao || e.empresa_id}</option>)}
               </select>
-            )}
-            {dados && (
-              <button onClick={() => salvar()} disabled={!sujo || salvando}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-40">
-                {salvando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} {sujo ? 'Salvar alterações' : 'Salvo'}
-              </button>
             )}
           </div>
         </div>
@@ -228,17 +234,14 @@ export default function Ofertas() {
                   </div>
 
                   <div className="flex flex-wrap gap-2 border-t border-line pt-4">
-                    <button onClick={duplicar} disabled={catalogo.length >= dados.max_ofertas}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-sm text-ink-2 hover:bg-raise-2 hover:text-ink disabled:opacity-40">
+                    <button onClick={duplicar} disabled={catalogo.length >= dados.max_ofertas} className="btn-secondary">
                       <Copy className="h-4 w-4" /> Duplicar
                     </button>
-                    <button onClick={excluir} disabled={catalogo.length <= 1}
-                      className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 disabled:opacity-40">
+                    <button onClick={excluir} disabled={catalogo.length <= 1} className="btn-ghost-danger">
                       <Trash2 className="h-4 w-4" /> Excluir
                     </button>
                     {!dados.padrao && (
-                      <button onClick={() => window.confirm('Voltar às 4 ofertas padrão do Mizan? O catálogo atual será descartado.') && salvar({ restaurar_padrao: true, catalogo: undefined })}
-                        className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-ink-2 hover:text-ink">
+                      <button onClick={restaurarPadrao} className="btn-ghost ml-auto">
                         <RotateCcw className="h-4 w-4" /> Restaurar padrão
                       </button>
                     )}
@@ -248,7 +251,7 @@ export default function Ofertas() {
             </div>
 
             <section className="rounded-xl border border-line bg-surface p-5">
-              <h2 className="flex items-center gap-2 text-sm font-semibold text-ink">
+              <h2 className="section-label flex items-center gap-2">
                 <ShieldAlert className="h-4 w-4 text-amber-400" /> Alçada do operador<DicaAjuda id="alcada-do-operador" />
               </h2>
               <p className="mt-1 text-xs text-ink-2">Até onde o operador pode ir no simulador “Fazer oferta”. Fora disso, ele não consegue confirmar a oferta. Vazio = sem limite.</p>
@@ -259,9 +262,24 @@ export default function Ofertas() {
                 ))}
               </div>
             </section>
+
+            {/* Salvar no rodapé: a barra acompanha a rolagem, então o botão está
+                sempre à mão, seja qual for a parte do catálogo que se edita. */}
+            <div className="sticky bottom-3 z-20 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface px-4 py-3 shadow-lg">
+              <p className="flex items-center gap-2 text-sm" style={{ color: sujo ? 'var(--warning)' : 'var(--ink-2)' }} aria-live="polite">
+                {sujo ? <><AlertTriangle className="h-4 w-4" /> Alterações não salvas</> : <><Check className="h-4 w-4" style={{ color: 'var(--success)' }} /> Tudo salvo</>}
+              </p>
+              <div className="flex gap-2">
+                {sujo && <button onClick={descartar} disabled={salvando} className="btn-ghost">Descartar</button>}
+                <button onClick={() => salvar()} disabled={!sujo || salvando} className="btn-primary">
+                  {salvando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Salvar alterações
+                </button>
+              </div>
+            </div>
           </>
         )}
       </div>
+      {modalConfirmar}
       <ConfirmarModal aberto={trocaEmpresa !== null} titulo="Trocar de empresa sem salvar?"
         texto="As alterações nas ofertas desta empresa ainda não foram salvas."
         cancelar="Continuar editando" confirmar="Trocar sem salvar" perigo

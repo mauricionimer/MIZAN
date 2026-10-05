@@ -104,7 +104,7 @@ function Equipe({ d }) {
       </div>
       <section className="overflow-hidden rounded-xl border border-line bg-surface">
         <div className="border-b border-line px-5 py-3">
-          <h2 className="text-sm font-semibold text-ink">Por operador</h2>
+          <h2 className="section-label">Por operador</h2>
         </div>
         {d.operadores.length === 0 ? (
           <p className="px-5 py-8 text-center text-sm text-ink-2">Nenhum operador ativo nesta empresa.</p>

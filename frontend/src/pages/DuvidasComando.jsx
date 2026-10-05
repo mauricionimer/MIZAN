@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Loader2, CheckCircle2, Send, Lightbulb, X } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import DicaAjuda from '../components/DicaAjuda'
+import { useConfirmar } from '../components/ConfirmarModal'
 import { atualizarAvisosDeDuvida } from '../components/useAvisosDeDuvida'
 import { useAuth } from '../context/AuthContext'
 import { useAnalysis } from '../context/AnalysisContext'
@@ -46,7 +47,7 @@ function Cartao({ d, token, aba, onMudou }) {
           <div className="flex gap-2">
             <button disabled={ocupado || resposta.trim().length < 2}
               onClick={() => agir(async () => { await responderDuvida(token, d.id, resposta.trim()); setEditando(false) })}
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50">
+              className="btn-primary">
               {ocupado ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               {d.estado === 'respondida' ? 'Salvar a correção' : 'Responder'}
             </button>
@@ -111,6 +112,7 @@ function Cartao({ d, token, aba, onMudou }) {
 const NOMES_PERFIL = { operador: 'operador', admin: 'diretor', comando: 'COMANDO' }
 
 function Lacunas({ token }) {
+  const { pedir, modal } = useConfirmar()
   const [estado, setEstado] = useState('pendentes')
   const [dados, setDados]   = useState(null)
   const [erro, setErro]     = useState('')
@@ -127,12 +129,15 @@ function Lacunas({ token }) {
     try { await fn(); await carregar() } catch (e) { setErro(e.message) } finally { setOcupado('') }
   }
   async function limpar() {
-    if (!window.confirm('Apagar o registro de buscas com mais de 180 dias? Isso não pode ser desfeito.')) return
+    const ok = await pedir({ titulo: 'Apagar o registro de buscas antigas?',
+      texto: 'Some o registro de buscas sem resposta com mais de 180 dias. Não dá para desfazer.', confirmar: 'Apagar', perigo: true })
+    if (!ok) return
     await agir('limpar', () => limparLacunas(token, 180))
   }
 
   return (
     <div className="space-y-4">
+      {modal}
       <p className="text-sm text-ink-2">
         <DicaAjuda id="buscas-sem-resposta" /> Perguntas que a busca não soube responder, ou que a pessoa disse que não resolveram. Estão sem nome de
         usuário e sem empresa (só o perfil de quem buscou). Escreva a resposta no catálogo (backend/ajuda) e marque como tratada.

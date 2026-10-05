@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import DicaAjuda from '../components/DicaAjuda'
 import AppShell from '../components/AppShell'
+import { useConfirmar } from '../components/ConfirmarModal'
 import { useAuth } from '../context/AuthContext'
 import { listarChavesApi, criarChaveApi, revogarChaveApi } from '../api'
 
@@ -13,6 +14,7 @@ const fmtData = iso => iso
   : '—'
 
 export default function ChavesApi() {
+  const { pedir, modal } = useConfirmar()
   const navigate = useNavigate()
   const { token } = useAuth()
   const [chaves, setChaves]   = useState([])
@@ -36,7 +38,10 @@ export default function ChavesApi() {
   }
 
   async function revogar(c) {
-    if (!window.confirm(`Revogar a chave "${c.rotulo || c.id}" de ${c.empresa_id}? A integração que a usa para de funcionar na hora.`)) return
+    const ok = await pedir({ titulo: `Revogar a chave “${c.rotulo || c.id}”?`,
+      texto: `A integração de ${c.empresa_id} que usa esta chave para de funcionar na hora. Não dá para desfazer.`,
+      confirmar: 'Revogar chave', perigo: true })
+    if (!ok) return
     setErro('')
     try { await revogarChaveApi(token, c.id); await carregar() } catch (e) { setErro(e.message) }
   }
@@ -57,7 +62,7 @@ export default function ChavesApi() {
             <input value={rotulo} onChange={e => setRotulo(e.target.value)} placeholder="Rótulo (ex.: webhook produção)" aria-label="Rótulo"
               className="rounded-lg border border-line bg-page px-3 py-2 text-sm text-ink" />
             <button type="submit" disabled={ocupado || !empresa.trim() || rotulo.trim().length < 2}
-              className="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50">
+              className="btn-primary">
               {ocupado ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />} Criar
             </button>
           </form>
@@ -94,6 +99,7 @@ export default function ChavesApi() {
           </ul>
         </section>
       </div>
+      {modal}
     </AppShell>
   )
 }

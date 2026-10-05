@@ -230,7 +230,7 @@
 
   /* ── Labels ── */
   .section-label {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.12em;
@@ -328,8 +328,27 @@
   :root:not([data-theme='light']) .btn-danger { color: var(--text); }
   .btn-danger:focus-visible { box-shadow: var(--focus-ring); }
 
-  .btn-primary:disabled, .btn-secondary:disabled,
-  .btn-ghost:disabled, .btn-danger:disabled { @apply cursor-not-allowed; opacity: .5; }
+  /* Gatilho de ação destrutiva (Excluir…): discreto; quem confirma é o .btn-danger. */
+  .btn-ghost-danger {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5
+           text-sm transition-colors duration-150 focus:outline-none;
+    font-family: var(--font-display);
+    font-weight: 600;
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--danger);
+    border: 1px solid transparent;
+  }
+  .btn-ghost-danger:hover:not(:disabled) { background: rgb(var(--c-danger) / 0.10); }
+  .btn-ghost-danger:focus-visible { box-shadow: var(--focus-ring); }
+
+  .btn-primary:disabled, .btn-secondary:disabled, .btn-ghost:disabled,
+  .btn-danger:disabled, .btn-ghost-danger:disabled { @apply cursor-not-allowed; opacity: .5; }
+
+  /* Tamanho pequeno (ações dentro de cartões e linhas). No celular o alvo de
+     toque tem 40px; no computador, 32px. Vem depois dos botões para vencer o padding. */
+  .btn-sm { padding: 6px 12px; font-size: 0.8125rem; gap: 6px; min-height: 40px; }
+  @media (min-width: 768px) { .btn-sm { min-height: 32px; } }
 
   /* ── Badges de status — cor + texto, nunca só cor (brief, seção 5) ── */
   .badge {

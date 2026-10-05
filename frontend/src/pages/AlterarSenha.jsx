@@ -174,7 +174,7 @@ function DeletarConta({ onDeleted }) {
           {erro && <p className="text-xs text-red-400">{erro}</p>}
           <div className="flex gap-2">
             <button onClick={confirmarDelecao} disabled={deletando}
-              className="px-4 py-2 rounded-xl text-sm font-semibold bg-red-600 text-brand-ink hover:bg-red-700 disabled:opacity-50 transition-colors">
+              className="btn-danger">
               {deletando ? 'Deletando...' : 'Confirmar exclusão'}
             </button>
             <button onClick={() => setConfirmando(false)}

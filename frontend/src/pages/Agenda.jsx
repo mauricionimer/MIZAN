@@ -27,9 +27,8 @@ function Remarcar({ item, onSalvar, onCancelar }) {
         <input type="time" value={hora} onChange={e => setHora(e.target.value)}
           className="mt-1 block rounded-md border border-line bg-surface px-2 py-1 text-xs text-ink [color-scheme:dark]" />
       </label>
-      <button onClick={() => onSalvar(data, hora || null)} disabled={!data}
-        className="min-h-[40px] md:min-h-[32px] rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-500 disabled:opacity-40">Salvar</button>
-      <button onClick={onCancelar} className="min-h-[40px] md:min-h-[32px] rounded-md px-2 py-1.5 text-xs text-ink-2 hover:text-ink">Cancelar</button>
+      <button onClick={() => onSalvar(data, hora || null)} disabled={!data} className="btn-primary btn-sm">Salvar</button>
+      <button onClick={onCancelar} className="btn-ghost btn-sm">Cancelar</button>
     </div>
   )
 }

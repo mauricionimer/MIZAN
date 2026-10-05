@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { X, Users, Loader2, Check, Shuffle } from 'lucide-react'
 import { distribuirFila } from '../api'
 import DicaAjuda from './DicaAjuda'
+import useModal from './useModal'
 import ErroCarga from './ErroCarga'
 
 const fmtBRL = (v) =>
@@ -29,6 +30,7 @@ export default function DistribuirFila({ carteiraId, resumo, onFechar, onFeito }
   const [somenteSem, setSomenteSem] = useState(temDono > 0)
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState('')
+  const caixa = useModal(true, onFechar, { focoInicial: 'input[type="checkbox"]' })
 
   const base = somenteSem ? (resumo?.sem_responsavel?.devedores ?? 0) : (resumo?.total ?? 0)
   const valorBase = somenteSem
@@ -58,7 +60,7 @@ export default function DistribuirFila({ carteiraId, resumo, onFechar, onFeito }
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
         onClick={onFechar}>
-        <motion.div initial={{ y: 12, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 12, opacity: 0 }}
+        <motion.div ref={caixa} initial={{ y: 12, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 12, opacity: 0 }}
           transition={{ duration: 0.18 }}
           onClick={e => e.stopPropagation()}
           role="dialog" aria-modal="true" aria-labelledby="distribuir-titulo"
@@ -76,7 +78,7 @@ export default function DistribuirFila({ carteiraId, resumo, onFechar, onFeito }
               </p>
             </div>
             <button onClick={onFechar} aria-label="Fechar"
-              className="rounded-lg p-1 text-ink-2 transition-colors hover:bg-raise-3 hover:text-ink">
+              className="-m-1.5 rounded-lg p-2.5 text-ink-2 transition-colors hover:bg-raise-3 hover:text-ink">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -155,12 +157,8 @@ export default function DistribuirFila({ carteiraId, resumo, onFechar, onFeito }
           </div>
 
           <div className="flex justify-end gap-2 border-t border-line px-6 py-4">
-            <button onClick={onFechar}
-              className="rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink-2 transition-colors hover:bg-raise-2 hover:text-ink">
-              Cancelar
-            </button>
-            <button onClick={confirmar} disabled={enviando || !escolhidos.length || !base}
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-500 disabled:opacity-40">
+            <button onClick={onFechar} className="btn-secondary">Cancelar</button>
+            <button onClick={confirmar} disabled={enviando || !escolhidos.length || !base} className="btn-primary">
               {enviando && <Loader2 className="h-4 w-4 animate-spin" />}
               {base ? `Distribuir ${fmtNum(base)} devedores` : 'Nada a distribuir'}
             </button>

@@ -5,7 +5,7 @@ import { MessageSquareText, Plus, Copy, Trash2, Save, Loader2, Building2, User, 
 import AppShell from '../components/AppShell'
 import DicaAjuda from '../components/DicaAjuda'
 import ErroCarga from '../components/ErroCarga'
-import ConfirmarModal from '../components/ConfirmarModal'
+import ConfirmarModal, { useConfirmar } from '../components/ConfirmarModal'
 import { useProtegerSaida } from '../components/protecaoSaida'
 import { useAuth } from '../context/AuthContext'
 import { listarRoteiros, salvarRoteiro, apagarRoteiro, listarEmpresas } from '../api'
@@ -68,6 +68,7 @@ export default function Roteiros() {
   const [form, setForm] = useState(NOVO('whatsapp'))
   const [base, setBase] = useState(chave(NOVO('whatsapp')))
   const [pendente, setPendente] = useState(null)     // ação à espera de "Descartar o rascunho?"
+  const { pedir: pedirConfirmacao, modal: modalConfirmar } = useConfirmar()
   function carregarForm(f) { setForm(f); setBase(chave(f)) }
   const [somenteLeitura, setSomenteLeitura] = useState(false)
   const [salvando, setSalvando] = useState(false)
@@ -157,7 +158,10 @@ export default function Roteiros() {
   }
 
   async function excluir() {
-    if (!form.id || !window.confirm(`Excluir o roteiro “${form.titulo}”?`)) return
+    if (!form.id) return
+    const ok = await pedirConfirmacao({ titulo: `Excluir o roteiro “${form.titulo}”?`,
+      texto: 'Ele deixa de aparecer para quem o usa. Não dá para desfazer.', confirmar: 'Excluir', perigo: true })
+    if (!ok) return
     try {
       await apagarRoteiro(form.id)
       carregarForm(NOVO(canal)); setMsg({ tipo: 'ok', texto: 'Roteiro excluído.' }); carregar()
@@ -218,7 +222,7 @@ export default function Roteiros() {
 
             <section className="space-y-4 rounded-xl border border-line bg-surface p-5">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm font-semibold text-ink">
+                <p className="section-label">
                   {form.padrao ? 'Modelo do Mizan' : form.id ? 'Editar roteiro' : 'Novo roteiro'}
                   {somenteLeitura && <span className="ml-2 rounded-full bg-raise-2 px-2 py-0.5 text-xs font-medium text-ink-2">só leitura</span>}
                 </p>
@@ -289,20 +293,17 @@ export default function Roteiros() {
               {!isComando && (
                 <div className="flex flex-wrap gap-2 border-t border-line pt-4">
                   {!somenteLeitura && (
-                    <button onClick={salvar} disabled={!podeSalvar || salvando}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-40">
+                    <button onClick={salvar} disabled={!podeSalvar || salvando} className="btn-primary">
                       {salvando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Salvar
                     </button>
                   )}
                   {(form.id || form.padrao || somenteLeitura) && form.texto && (
-                    <button onClick={duplicar}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink-2 hover:bg-raise-2 hover:text-ink">
+                    <button onClick={duplicar} className="btn-secondary">
                       <Copy className="h-4 w-4" /> {form.padrao || somenteLeitura ? 'Usar como base' : 'Duplicar'}
                     </button>
                   )}
                   {form.id && !somenteLeitura && (
-                    <button onClick={excluir}
-                      className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-red-400 hover:bg-red-500/10">
+                    <button onClick={excluir} className="btn-ghost-danger ml-auto">
                       <Trash2 className="h-4 w-4" /> Excluir
                     </button>
                   )}
@@ -317,6 +318,7 @@ export default function Roteiros() {
         cancelar="Continuar editando" confirmar="Descartar" perigo
         onCancelar={() => setPendente(null)}
         onConfirmar={() => { const a = pendente; setBase(chave(form)); setPendente(null); a() }} />
+      {modalConfirmar}
     </AppShell>
   )
 }

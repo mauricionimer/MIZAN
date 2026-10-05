@@ -117,7 +117,7 @@ function PedirAoComando({ token, inicial, tela, buscou, aberto, onAbrir, onEnvia
       </p>
       {erro && <p className="text-xs text-red-400" role="alert">{erro}</p>}
       <button type="submit" disabled={enviando || texto.trim().length < 3}
-        className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50">
+        className="btn-primary">
         {enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Enviar
       </button>
     </form>
@@ -242,7 +242,7 @@ export default function Ajuda() {
               className="h-11 w-full rounded-xl border border-line bg-surface pl-10 pr-3 text-sm text-ink placeholder-ink-4 focus:border-blue-500/50 focus:outline-none" />
           </div>
           <button type="submit" disabled={buscando || pergunta.trim().length < 2}
-            className="flex h-11 items-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50">
+            className="btn-primary h-11">
             {buscando ? <Loader2 className="h-4 w-4 animate-spin" /> : <HelpCircle className="h-4 w-4" />}
             Buscar
           </button>

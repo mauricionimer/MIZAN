@@ -3,6 +3,7 @@ import {
   ShieldCheck, Loader2, AlertTriangle, CheckCircle2, UserX, Clock, Play,
 } from 'lucide-react'
 import AppShell from '../components/AppShell'
+import { useConfirmar } from '../components/ConfirmarModal'
 import { useAuth } from '../context/AuthContext'
 import { useAnalysis } from '../context/AnalysisContext'
 import {
@@ -36,6 +37,7 @@ function Cartao({ children, className = '' }) {
 }
 
 export default function Retencao() {
+  const { pedir, modal } = useConfirmar()
   const { token } = useAuth()
   const { result, setVista } = useAnalysis()
 
@@ -91,11 +93,10 @@ export default function Retencao() {
 
   async function executar() {
     const total = vencidasTotal
-    if (!confirm(
-      `Anonimizar ${fmt(total)} registro(s)?\n\n` +
-      'O CPF e o nome serão removidos definitivamente. O restante do registro ' +
-      'permanece, e o modelo continua aprendendo com ele.\n\nIsso não pode ser desfeito.'
-    )) return
+    const ok = await pedir({ titulo: `Anonimizar ${fmt(total)} registro(s)?`,
+      texto: 'O CPF e o nome serão removidos definitivamente. O restante do registro permanece, e o modelo continua aprendendo com ele. Isto não pode ser desfeito.',
+      confirmar: 'Anonimizar', perigo: true })
+    if (!ok) return
     setExec(true); setErro(''); setAviso('')
     try {
       const r = await executarRetencao(token, alvo)
@@ -106,11 +107,10 @@ export default function Retencao() {
 
   async function atenderTitular(e) {
     e.preventDefault()
-    if (!confirm(
-      `Remover a identificação de ${cpf} em todos os registros?\n\n` +
-      'Atende a um pedido de eliminação (LGPD art. 18) e não depende de prazo.\n\n' +
-      'Isso não pode ser desfeito.'
-    )) return
+    const ok = await pedir({ titulo: `Remover a identificação de ${cpf}?`,
+      texto: 'Vale para todos os registros. Atende a um pedido de eliminação (LGPD art. 18) e não depende de prazo. Isto não pode ser desfeito.',
+      confirmar: 'Remover identificação', perigo: true })
+    if (!ok) return
     setElim(true); setErro(''); setAviso('')
     try {
       const r = await eliminarTitular(token, cpf, alvo)
@@ -337,6 +337,7 @@ export default function Retencao() {
           </div>
         )}
       </div>
+      {modal}
     </AppShell>
   )
 }
