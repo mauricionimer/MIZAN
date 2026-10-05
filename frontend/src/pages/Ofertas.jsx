@@ -53,8 +53,21 @@ export default function Ofertas() {
     buscarOfertas(isComando ? alvo : undefined).then(aplicar).catch(e => setMsg({ tipo: 'erro', texto: e.message }))
   }, [isComando, alvo])
 
+  // Fechar ou recarregar a aba com alterações não salvas pede confirmação.
+  useEffect(() => {
+    if (!sujo) return
+    const aviso = (e) => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', aviso)
+    return () => window.removeEventListener('beforeunload', aviso)
+  }, [sujo])
+
   const atual = catalogo[sel]
-  const conta = useMemo(() => atual ? calcularOferta(exemplo, atual) : null, [atual, exemplo])
+  const efetiva = (o) => {
+    const m = o._modo ?? (Number(o.n_parcelas) > 1 ? 'parcelado' : 'avista')
+    const { _modo, ...resto } = o
+    return { ...resto, n_parcelas: m === 'avista' ? 1 : Math.max(2, parseInt(o.n_parcelas, 10) || 2) }
+  }
+  const conta = useMemo(() => atual ? calcularOferta(exemplo, efetiva(atual)) : null, [atual, exemplo])
 
   function mudar(campo, valor) {
     setCatalogo(c => c.map((o, i) => i === sel ? { ...o, [campo]: valor } : o)); setSujo(true); setMsg(null)
@@ -75,14 +88,17 @@ export default function Ofertas() {
   async function salvar(extra = {}) {
     setSalvando(true); setMsg(null)
     try {
-      const d = await salvarOfertas({ catalogo, alcada, ...extra }, isComando ? alvo : undefined)
+      const d = await salvarOfertas({ catalogo: catalogo.map(efetiva), alcada, ...extra }, isComando ? alvo : undefined)
       aplicar(d)
       setMsg({ tipo: 'ok', texto: extra.restaurar_padrao ? 'Voltou às ofertas padrão.' : 'Ofertas salvas. As propostas da ficha já usam este catálogo.' })
     } catch (e) { setMsg({ tipo: 'erro', texto: e.message }) } finally { setSalvando(false) }
   }
 
-  const n = parseInt(atual?.n_parcelas, 10) || 1
-  const fam = atual ? familia(atual.n_parcelas, atual.desconto_pct) : null
+  // A forma fica separada do número digitado (apagar o campo de parcelas não
+  // pode virar "à vista" e sumir com o campo).
+  const modo = atual ? (atual._modo ?? (Number(atual.n_parcelas) > 1 ? 'parcelado' : 'avista')) : 'avista'
+  const n = modo === 'avista' ? 1 : Math.max(2, parseInt(atual?.n_parcelas, 10) || 2)
+  const fam = atual ? familia(n, atual.desconto_pct) : null
 
   return (
     <AppShell>
@@ -139,7 +155,7 @@ export default function Ofertas() {
                           <p className="truncate text-sm font-medium text-ink">{o.nome || 'Sem nome'}</p>
                           {!o.ativa && <span className="shrink-0 rounded bg-raise-2 px-1.5 py-px text-[10px] text-ink-2">inativa</span>}
                         </div>
-                        <p className="truncate text-[11px] text-ink-2">{resumoOferta(o)}</p>
+                        <p className="truncate text-[11px] text-ink-2">{resumoOferta(efetiva(o))}</p>
                       </button>
                     </li>
                   ))}
@@ -170,9 +186,10 @@ export default function Ofertas() {
 
                   <div className="flex gap-1.5 rounded-lg border border-line bg-surface-2 p-1" role="tablist" aria-label="Forma">
                     {[[1, 'À vista'], [6, 'Parcelado']].map(([v, l]) => {
-                      const on = v === 1 ? n === 1 : n > 1
+                      const on = v === 1 ? modo === 'avista' : modo === 'parcelado'
                       return (
-                        <button key={l} role="tab" aria-selected={on} onClick={() => mudar('n_parcelas', v === 1 ? 1 : (n > 1 ? n : 6))}
+                        <button key={l} role="tab" aria-selected={on}
+                          onClick={() => { mudar('_modo', v === 1 ? 'avista' : 'parcelado'); if (v !== 1 && (parseInt(atual.n_parcelas, 10) || 1) < 2) mudar('n_parcelas', 6) }}
                           className={`flex-1 rounded-md py-1.5 text-sm font-medium ${on ? 'bg-surface text-ink shadow-sm' : 'text-ink-2 hover:text-ink'}`}>{l}</button>
                       )
                     })}
@@ -180,9 +197,9 @@ export default function Ofertas() {
 
                   <div className="grid gap-4 sm:grid-cols-2">
                     <Campo rotulo="Desconto" sufixo="%" min={0} max={95} value={atual.desconto_pct} onChange={v => mudar('desconto_pct', v)} />
-                    {n > 1 && <Campo rotulo="Parcelas" sufixo="x" inteiro min={2} max={120} value={atual.n_parcelas} onChange={v => mudar('n_parcelas', v)} />}
-                    {n > 1 && <Campo rotulo="Entrada" sufixo="%" min={0} max={90} value={atual.entrada_pct} onChange={v => mudar('entrada_pct', v)} nota="do valor já com desconto; 0 = sem entrada" />}
-                    {n > 1 && <Campo rotulo="Juros ao mês" sufixo="% a.m." min={0} max={20} step="0.01" value={atual.juros_mensal_pct} onChange={v => mudar('juros_mensal_pct', v)} nota="tabela Price; 0 = sem juros" />}
+                    {modo === 'parcelado' && <Campo rotulo="Parcelas" sufixo="x" inteiro min={2} max={120} value={atual.n_parcelas} onChange={v => mudar('n_parcelas', v)} />}
+                    {modo === 'parcelado' && <Campo rotulo="Entrada" sufixo="%" min={0} max={90} value={atual.entrada_pct} onChange={v => mudar('entrada_pct', v)} nota="do valor já com desconto; 0 = sem entrada" />}
+                    {modo === 'parcelado' && <Campo rotulo="Juros ao mês" sufixo="% a.m." min={0} max={20} step="0.01" value={atual.juros_mensal_pct} onChange={v => mudar('juros_mensal_pct', v)} nota="tabela Price; 0 = sem juros" />}
                   </div>
 
                   <div className="rounded-xl border border-line bg-surface-2 p-4">

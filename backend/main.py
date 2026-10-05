@@ -2265,6 +2265,11 @@ def _abrir_acordo(db, empresa_id, cpf, feedback_id, pred: "dict | None", total: 
     from agenda import hoje
     if not empresa_id or not total or total < 2:
         return
+    if not valor or float(valor) <= 0:
+        # Sem o valor da 1ª parcela não há como saber o das próximas: um acordo
+        # de parcelas de R$ 0 só enganaria a tela de Acordos.
+        print(f"[Acordos] acordo de {_cpf_no_log(cpf)} não aberto: pagamento parcelado sem valor")
+        return
     inicio = primeira or hoje()
     agora = datetime.utcnow().isoformat()
     pred = dict(pred or {})

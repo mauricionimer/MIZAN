@@ -67,9 +67,9 @@ function Item({ item, mostrarOperador, onAcao, onAbrir, podeAbrir, soLeitura }) 
         ? <Remarcar item={item} onCancelar={() => setRemarcando(false)} onSalvar={(data, hora) => agir('remarcar', { data, hora })} />
         : (
           <div className="mt-3 flex flex-wrap gap-1.5">
-            <button disabled={ocupado} onClick={() => agir('cumprir')}
+            <button disabled={ocupado} onClick={() => agir('cumprir')} title={promessa ? "Marca a promessa como cumprida. O pagamento só entra nos resultados quando for registrado em Pagamentos." : undefined}
               className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-40">
-              <Check className="h-3 w-3" /> {promessa ? 'Pagou' : 'Feito'}
+              <Check className="h-3 w-3" /> {promessa ? 'Cumpriu' : 'Feito'}
             </button>
             {promessa && (
               <button disabled={ocupado} onClick={() => agir('quebrar')}
@@ -142,7 +142,7 @@ export default function Agenda() {
           : d.itens.filter(i => i.id !== item.id),
       }))
       const nome = (item.nome || 'devedor').split(' ')[0]
-      setAviso({ cumprir: `${nome}: marcado como ${item.tipo === 'promessa' ? 'pago' : 'feito'}.`,
+      setAviso({ cumprir: item.tipo === 'promessa' ? `${nome}: promessa cumprida. Lembre de registrar o pagamento em Pagamentos.` : `${nome}: retorno feito.`,
                  quebrar: `${nome}: promessa quebrada.`, cancelar: `${nome}: retorno cancelado.`,
                  remarcar: `${nome}: remarcado para ${quando(r.item.data, r.item.hora).toLowerCase()}.` }[acao])
       avisarAgendaMudou()
@@ -172,7 +172,7 @@ export default function Agenda() {
               <CalendarClock className="h-5 w-5 text-blue-400" /> Agenda<DicaAjuda id="agenda-de-retorno" />
             </h1>
             <p className="mt-1 text-sm text-ink-2">
-              Retornos e promessas de pagamento. Pagamento confirmado marca a promessa como paga sozinho.
+              Retornos e promessas de pagamento. Quando o pagamento é registrado em Pagamentos, a promessa vira cumprida sozinha.
             </p>
           </div>
           <div className="flex items-center gap-2">

@@ -87,6 +87,8 @@ checar(len(ps) == 4 and [p["situacao"] for p in ps] == ["paga", "pendente", "pen
 checar(ps[0]["nome"] == "Maria Dias" and all(p["valor"] == 250.0 and p["total"] == 4 for p in ps), "busca o nome; mesmo valor em todas")
 checar(ps[1]["vencimento"] == acordos.somar_meses(HOJE - timedelta(days=45), 1).isoformat(), "2ª vence um mês depois")
 main._abrir_acordo(DB, "goias", "222", "fb-2", None, 1, 100.0, None, "Ana")
+main._abrir_acordo(DB, "goias", "888", "fb-8", None, 6, 0.0, HOJE, "Ana")
+checar(not any(p["feedback_id"] == "fb-8" for p in TAB["acordo_parcelas"]), "parcelado sem valor não abre acordo de R$ 0")
 checar(not any(p["feedback_id"] == "fb-2" for p in TAB["acordo_parcelas"]), "à vista não abre acordo")
 main._abrir_acordo(DB, "goias", "333", "fb-3", None, 3, 90.0, HOJE - timedelta(days=100), "Ana")    # vai quebrar
 main._abrir_acordo(DB, "goias", "444", "fb-4", None, 2, 50.0, HOJE - timedelta(days=5), "Ana")      # em dia

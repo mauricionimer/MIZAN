@@ -106,7 +106,7 @@ function fmtValorExplicacao(v) {
   return String(v)
 }
 
-function Propostas({ dados, loading, erro, despesas, setDespesas, onRecalcular }) {
+function Propostas({ dados, loading, erro, despesas, setDespesas, onRecalcular, onSimular }) {
   if (loading) return <p className="text-sm" style={{ color: 'var(--ink-3)' }}>Montando propostas...</p>
   if (erro)    return <p className="text-sm" style={{ color: 'var(--ink-3)' }}>Propostas indisponíveis: {erro}</p>
   if (!dados || !Array.isArray(dados.propostas)) return null
@@ -192,6 +192,12 @@ function Propostas({ dados, loading, erro, despesas, setDespesas, onRecalcular }
                   <p className="text-[11px] mt-1 leading-relaxed" style={{ color: naoCabe ? 'var(--danger)' : 'var(--ink-3)' }}>
                     {p.observacao}
                   </p>
+                  {onSimular && p.id && (
+                    <button type="button" onClick={() => onSimular(p.id)}
+                      className="mt-1.5 text-[11px] font-semibold text-blue-400 hover:text-blue-300">
+                      Ajustar e oferecer →
+                    </button>
+                  )}
                 </div>
                 <div className="text-right shrink-0">
                   <p className="text-[10px] uppercase tracking-wide" style={{ color: 'var(--ink-3)' }}>Valor esperado</p>
@@ -322,10 +328,11 @@ const RESULTADO_CFG = {
 
 // F4 — mensagem pronta: o roteiro do canal e da oferta recomendados,
 // preenchido com os dados deste devedor e da proposta correspondente.
-function MensagemSugerida({ devedor, rec, propostas }) {
+function MensagemSugerida({ devedor, rec, propostas, simulada }) {
   const { usuario, empresaConfig, isComando } = useAuth()
   const canalRec = CANAL_DA_RECOMENDACAO[rec?.canal] || 'whatsapp'
-  const ofertaRec = propostas?.recomendada?.oferta || rec?.oferta || ''
+  // Com uma oferta montada em "Fazer oferta", a mensagem usa ela (família e valores).
+  const ofertaRec = simulada?.familia || propostas?.recomendada?.oferta || rec?.oferta || ''
   const [canal, setCanal] = useState(canalRec)
   const [lista, setLista] = useState(null)
   const [escolhido, setEscolhido] = useState('')
@@ -354,7 +361,11 @@ function MensagemSugerida({ devedor, rec, propostas }) {
   if (isComando) return null
   const roteiro = lista?.find(r => r.id === escolhido)
   const todas = propostas?.propostas ?? []
-  const proposta = (roteiro?.oferta && todas.find(p => p.oferta === roteiro.oferta)) || propostas?.recomendada || todas[0] || null
+  const daSimulacao = simulada?.conta ? {
+    valor_cobrado: simulada.conta.valor_negociado, parcela: simulada.conta.parcela,
+    n_parcelas: simulada.condicoes?.n_parcelas, desconto_pct: simulada.condicoes?.desconto_pct, oferta: simulada.familia,
+  } : null
+  const proposta = daSimulacao || (roteiro?.oferta && todas.find(p => p.oferta === roteiro.oferta)) || propostas?.recomendada || todas[0] || null
   const { texto, faltando } = roteiro
     ? preencher(roteiro.texto, dadosParaRoteiro({ devedor, proposta, empresa: empresaConfig?.nome_exibicao, operador: usuario?.nome }))
     : { texto: '', faltando: [] }
@@ -393,8 +404,14 @@ function MensagemSugerida({ devedor, rec, propostas }) {
               style={{ background: 'var(--surface-2)', border: '1px solid var(--line)', color: 'var(--ink)' }}>
               {texto}
             </div>
+            {daSimulacao && (
+              <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>Valores da oferta montada em “Fazer oferta”.</p>
+            )}
             {proposta && roteiro.oferta && proposta.oferta !== roteiro.oferta && (
-              <p className="text-[11px]" style={{ color: 'var(--warning)' }}>Os valores vêm da proposta recomendada: esta oferta não está entre as propostas deste devedor.</p>
+              <p className="text-[11px]" style={{ color: 'var(--warning)' }}>
+                {daSimulacao ? 'Este roteiro foi escrito para outro tipo de oferta: confira se o texto combina com a oferta montada.'
+                  : 'Os valores vêm da proposta recomendada: esta oferta não está entre as propostas deste devedor.'}
+              </p>
             )}
             {faltando.length > 0 && (
               <p className="text-[11px]" style={{ color: 'var(--warning)' }}>Complete antes de enviar: {faltando.join(', ').replace(/_/g, ' ')}.</p>
@@ -466,8 +483,9 @@ function CompromissosDevedor({ cpf, versao }) {
             {i.valor > 0 && <span className="text-xs font-semibold tabular-nums text-ink">{fmtBRL(i.valor)}</span>}
             {i.operador_nome && <span className="text-[11px]" style={{ color: 'var(--ink-3)' }}>· {i.operador_nome}</span>}
             <span className="ml-auto flex gap-1">
-              <button onClick={() => agir(i, 'cumprir')} className="rounded px-2 py-0.5 text-[11px] font-semibold text-emerald-400 hover:bg-emerald-500/10">
-                {i.tipo === 'promessa' ? 'Pagou' : 'Feito'}
+              <button onClick={() => agir(i, 'cumprir')} title={i.tipo === 'promessa' ? "Marca a promessa como cumprida. O pagamento só entra nos resultados quando for registrado em Pagamentos." : undefined}
+                className="rounded px-2 py-0.5 text-[11px] font-semibold text-emerald-400 hover:bg-emerald-500/10">
+                {i.tipo === 'promessa' ? 'Cumpriu' : 'Feito'}
               </button>
               {i.tipo === 'promessa' && (
                 <button onClick={() => agir(i, 'quebrar')} className="rounded px-2 py-0.5 text-[11px] font-semibold text-red-400 hover:bg-red-500/10">Não pagou</button>
@@ -581,6 +599,10 @@ function HistoricoContatos({ cpf, rec, propostas }) {
 
       {formAberto && (
         <div className="px-5 py-4 border-b space-y-3" style={{ ...DIVIDER, background: 'var(--raise-1)' }}>
+          <p className="text-[11px] leading-relaxed" style={{ color: 'var(--ink-3)' }}>
+            Fez uma proposta de acordo? Use “Fazer oferta” e confirme por lá: a oferta fica completa no histórico e a Agenda é preenchida junto.
+            Aqui é para os demais contatos (sem resposta, recado, conversa sem proposta).
+          </p>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>Canal</label>
@@ -816,6 +838,10 @@ export default function DebtorDetail() {
   const { isAdmin, isComando } = useAuth()
   // O3: oferta registrada cria um contato; a lista de contatos recarrega.
   const [versaoContatos, setVersaoContatos] = useState(0)
+  // A oferta montada no simulador alimenta a Mensagem sugerida; "Ajustar e
+  // oferecer" numa proposta carrega ela no simulador.
+  const [pedidoOferta, setPedidoOferta] = useState(null)
+  const [ofertaSimulada, setOfertaSimulada] = useState(null)
   // A tela inicial é uma só: dizer "Dashboard" é escolher a vista dela.
   const voltarAoDashboard = () => { setVista('dashboard'); navigate('/') }
 
@@ -1014,10 +1040,13 @@ export default function DebtorDetail() {
                 dados={propostas} loading={propostasLoading} erro={propostasErro}
                 despesas={despesas} setDespesas={setDespesas}
                 onRecalcular={recalcularPropostas}
+                onSimular={id => setPedidoOferta({ id, n: Date.now() })}
               />
             </Section>
 
             <FazerOferta cpf={d.cpf} despesas={despesas} canalPadrao={rec?.canal} confirmavel={!isComando}
+              sugeridaId={propostas?.recomendada?.id || propostas?.alternativa_a_vista?.id}
+              pedido={pedidoOferta} onSimulado={setOfertaSimulada}
               onRegistrada={() => setVersaoContatos(v => v + 1)} />
 
             <Section title="Por que esse score?" ajuda="por-que-esse-score">
@@ -1062,7 +1091,7 @@ export default function DebtorDetail() {
             )}
 
             <ApproachRecommendation devedor={d} rec={rec} loading={recLoading} erro={recErro} />
-            <MensagemSugerida devedor={d} rec={rec} propostas={propostas} />
+            <MensagemSugerida devedor={d} rec={rec} propostas={propostas} simulada={ofertaSimulada} />
             <HistoricoContatos key={versaoContatos} cpf={d.cpf} rec={rec} propostas={propostas} />
           </div>
         </div>

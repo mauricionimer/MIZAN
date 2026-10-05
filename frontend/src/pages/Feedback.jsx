@@ -321,6 +321,11 @@ export default function Feedback() {
     const parcelado = form.pagou === 'sim' && form.modalidade === 'parcelado'
     const nParcelas = parcelado ? parseInt(form.parcelas, 10) : 1
     if (parcelado && !(nParcelas >= 2 && nParcelas <= 120)) { setErro('Parcelas: de 2 a 120.'); return }
+    // O parcelado abre um acordo com parcelas no valor da 1ª: sem valor, as
+    // parcelas nasceriam de R$ 0 em Acordos.
+    if (parcelado && !(parseFloat(String(form.valor_recuperado).replace(',', '.')) > 0)) {
+      setErro('Informe o valor recebido agora (1ª parcela): é ele que define as próximas parcelas em Acordos.'); return
+    }
 
     setLoading(true); setErro('')
     try {

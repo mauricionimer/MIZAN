@@ -180,32 +180,51 @@ function Historico({ cpf, versao }) {
   )
 }
 
-export default function FazerOferta({ cpf, despesas, canalPadrao, confirmavel = true, onRegistrada }) {
+export default function FazerOferta({ cpf, despesas, canalPadrao, confirmavel = true, onRegistrada, sugeridaId, pedido, onSimulado }) {
   const [confirmando, setConfirmando] = useState(null)      // {analise, condicoes}
   const [aviso, setAviso] = useState('')
   const [versao, setVersao] = useState(0)
   const [catalogo, setCatalogo] = useState([])
   const [base, setBase] = useState('')
   const [f, setF] = useState({ desconto_pct: 0, entrada_pct: 0, n_parcelas: 6, juros_mensal_pct: 0 })
+  // A forma fica separada do número digitado: apagar o campo de parcelas para
+  // digitar outro não pode virar "à vista" e travar o campo.
+  const [modo, setModo] = useState('parcelado')
   const [res, setRes] = useState(null)
   const [carregando, setCarregando] = useState(false)
   const [erro, setErro] = useState('')
   const seq = useRef(0)
+  const tocado = useRef(false)          // o operador já mexeu: a sugestão não sobrescreve
+  const raiz = useRef(null)
 
   useEffect(() => {
-    buscarOfertas().then(d => {
-      const ativas = (d.catalogo || []).filter(o => o.ativa)
-      setCatalogo(ativas)
-      if (ativas[0]) usarBase(ativas[0])
-    }).catch(() => setCatalogo([]))
-  }, [])                // eslint-disable-line react-hooks/exhaustive-deps
+    buscarOfertas().then(d => setCatalogo((d.catalogo || []).filter(o => o.ativa))).catch(() => setCatalogo([]))
+  }, [])
+
+  // Começa pela oferta sugerida em Propostas (a melhor que cabe no bolso);
+  // sem sugestão, pela primeira do catálogo.
+  useEffect(() => {
+    if (tocado.current || !catalogo.length) return
+    usarBase(catalogo.find(o => o.id === sugeridaId) || catalogo[0])
+  }, [catalogo, sugeridaId])        // eslint-disable-line react-hooks/exhaustive-deps
+
+  // "Ajustar e oferecer" numa proposta: carrega aqui e rola até o simulador.
+  useEffect(() => {
+    if (!pedido) return
+    const o = catalogo.find(x => x.id === pedido.id)
+    if (!o) return
+    tocado.current = true
+    usarBase(o)
+    raiz.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [pedido])                      // eslint-disable-line react-hooks/exhaustive-deps
 
   function usarBase(o) {
     setBase(o.id)
+    setModo(o.n_parcelas > 1 ? 'parcelado' : 'avista')
     setF({ desconto_pct: o.desconto_pct, entrada_pct: o.entrada_pct, n_parcelas: o.n_parcelas, juros_mensal_pct: o.juros_mensal_pct })
   }
-  const mudar = (k, v) => { setF(x => ({ ...x, [k]: v })); setBase('') }
-  const n = parseInt(f.n_parcelas, 10) || 1
+  const mudar = (k, v) => { tocado.current = true; setF(x => ({ ...x, [k]: v })); setBase('') }
+  const n = modo === 'avista' ? 1 : Math.max(2, parseInt(f.n_parcelas, 10) || 2)
 
   // A análise acompanha cada mudança, com uma pequena espera para não chamar
   // o servidor a cada tecla; a resposta antiga que chegar depois é descartada.
@@ -214,7 +233,7 @@ export default function FazerOferta({ cpf, despesas, canalPadrao, confirmavel = 
     const t = setTimeout(() => {
       setCarregando(true); setErro('')
       simularOferta(cpf, { ...f, n_parcelas: n, despesas_mensais: despesas === '' || despesas == null ? undefined : Number(despesas), base_id: base || undefined })
-        .then(r => { if (id === seq.current) setRes(r) })
+        .then(r => { if (id === seq.current) { setRes(r); onSimulado?.(r) } })
         .catch(e => { if (id === seq.current) { setErro(e.message); setRes(null) } })
         .finally(() => { if (id === seq.current) setCarregando(false) })
     }, 350)
@@ -225,7 +244,7 @@ export default function FazerOferta({ cpf, despesas, canalPadrao, confirmavel = 
   const geral = res?.geral
 
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
+    <div ref={raiz} className="scroll-mt-20 rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
       <div className="flex flex-wrap items-center justify-between gap-2 border-b px-5 py-4" style={{ borderColor: 'var(--line)' }}>
         <p className="section-label flex items-center gap-1.5"><Calculator className="h-3.5 w-3.5" /> Fazer oferta<DicaAjuda id="simulador-de-oferta" /></p>
         {res && <span className="flex items-center gap-2 text-xs" style={{ color: 'var(--ink-3)' }}>
@@ -239,7 +258,7 @@ export default function FazerOferta({ cpf, despesas, canalPadrao, confirmavel = 
             <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--ink-3)' }}>Começar de uma oferta da empresa</p>
             <div className="flex flex-wrap gap-1.5">
               {catalogo.map(o => (
-                <button key={o.id} type="button" onClick={() => usarBase(o)} title={resumoOferta(o)}
+                <button key={o.id} type="button" onClick={() => { tocado.current = true; usarBase(o) }} title={resumoOferta(o)}
                   className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${base === o.id ? 'border-blue-500/40 bg-blue-500/15 text-blue-300' : 'hover:text-ink'}`}
                   style={base === o.id ? undefined : { borderColor: 'var(--line)', color: 'var(--ink-2)', background: 'var(--raise-1)' }}>
                   {o.nome}
@@ -251,9 +270,10 @@ export default function FazerOferta({ cpf, despesas, canalPadrao, confirmavel = 
 
         <div className="flex gap-1.5 rounded-lg p-1" style={{ background: 'var(--surface-2)', border: '1px solid var(--line)' }} role="tablist" aria-label="Forma">
           {[[1, 'À vista'], [6, 'Parcelado']].map(([v, l]) => {
-            const on = v === 1 ? n === 1 : n > 1
+            const on = v === 1 ? modo === 'avista' : modo === 'parcelado'
             return (
-              <button key={l} type="button" role="tab" aria-selected={on} onClick={() => mudar('n_parcelas', v === 1 ? 1 : (n > 1 ? n : 6))}
+              <button key={l} type="button" role="tab" aria-selected={on}
+                onClick={() => { setModo(v === 1 ? 'avista' : 'parcelado'); setBase(''); if (v !== 1 && (parseInt(f.n_parcelas, 10) || 1) < 2) setF(x => ({ ...x, n_parcelas: 6 })) }}
                 className="flex-1 rounded-md py-1.5 text-sm font-medium"
                 style={on ? { background: 'var(--surface)', color: 'var(--ink)', boxShadow: '0 1px 2px rgb(0 0 0 / .08)' } : { color: 'var(--ink-2)' }}>{l}</button>
             )
@@ -261,9 +281,9 @@ export default function FazerOferta({ cpf, despesas, canalPadrao, confirmavel = 
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Campo rotulo="Desconto" sufixo="%" min={0} max={95} value={f.desconto_pct} onChange={v => mudar('desconto_pct', v)} />
-          <Campo rotulo="Parcelas" sufixo="x" inteiro min={1} max={120} value={f.n_parcelas} disabled={n === 1} onChange={v => mudar('n_parcelas', v)} />
-          <Campo rotulo="Entrada" sufixo="%" min={0} max={90} value={f.entrada_pct} disabled={n === 1} onChange={v => mudar('entrada_pct', v)} />
-          <Campo rotulo="Juros" sufixo="% a.m." min={0} max={20} step="0.01" value={f.juros_mensal_pct} disabled={n === 1} onChange={v => mudar('juros_mensal_pct', v)} />
+          <Campo rotulo="Parcelas" sufixo="x" inteiro min={2} max={120} value={modo === 'avista' ? 1 : f.n_parcelas} disabled={modo === 'avista'} onChange={v => mudar('n_parcelas', v)} />
+          <Campo rotulo="Entrada" sufixo="%" min={0} max={90} value={f.entrada_pct} disabled={modo === 'avista'} onChange={v => mudar('entrada_pct', v)} />
+          <Campo rotulo="Juros" sufixo="% a.m." min={0} max={20} step="0.01" value={f.juros_mensal_pct} disabled={modo === 'avista'} onChange={v => mudar('juros_mensal_pct', v)} />
         </div>
 
         {erro && <p className="text-sm" style={{ color: 'var(--danger)' }}>{erro}</p>}
