@@ -3591,7 +3591,9 @@ def _gravar_responsavel(db, carteira_id: str, ids: list, operador_id, operador_n
     lotes = [ids[i:i + ITENS_POR_IN] for i in range(0, len(ids), ITENS_POR_IN)]
     patch = {"responsavel_id": operador_id, "responsavel_nome": operador_nome}
     def um(lote):
-        db.table("predicoes").update(patch).eq("carteira_id", carteira_id).in_("id", lote).execute()
+        # Cada thread com o próprio cliente (get_db é por thread): o cliente
+        # HTTP/2 não pode ser compartilhado — era a causa dos 503/500 intermitentes.
+        get_db().table("predicoes").update(patch).eq("carteira_id", carteira_id).in_("id", lote).execute()
     with ThreadPoolExecutor(max_workers=min(4, max(1, len(lotes)))) as ex:
         list(ex.map(um, lotes))
 
@@ -5312,11 +5314,15 @@ def confirmar_pagamento(
                 detail=f"CPF {cpf} não encontrado na carteira ativa. Só é possível registrar pagamentos de devedores analisados pelo Mizan.",
             )
 
+        # COMANDO não tem empresa própria: o pagamento é da empresa da carteira
+        # do devedor. Sem isso ele ficava sem empresa e sumia de Resultados,
+        # do painel e da baixa automática das promessas.
+        empresa_fb = empresa_id or (_empresa_da_carteira(db, _pred_cart_id) if _pred_cart_id else "")
         fb_row: dict = {
             "cpf":             cpf,
             "pagou":           True,
             "valor_recuperado": body.valor_recuperado or 0,
-            "empresa":         empresa_id,
+            "empresa":         empresa_fb,
             "registrado_por":  usuario_nome,
         }
         if body.data_pagamento:
@@ -5338,11 +5344,11 @@ def confirmar_pagamento(
                 db, cpf, True,
                 float(body.valor_recuperado or 0),
                 pred_res.data[0] if (pred_res and pred_res.data) else None,
-                empresa_id,
+                empresa_fb,
             )
         except Exception as _be:
             print(f"[Confirmar] Aviso — _fechar_loop_bandit falhou (não crítico): {_be}")
-        _cumprir_promessas(db, empresa_id, cpf)
+        _cumprir_promessas(db, empresa_fb, cpf)
 
         # Write-back para banco externo da empresa (non-blocking, 8s timeout)
         writeback_info = None
