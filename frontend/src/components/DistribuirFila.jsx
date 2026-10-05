@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { X, Users, Loader2, Check, Shuffle } from 'lucide-react'
 import { distribuirFila } from '../api'
 import DicaAjuda from './DicaAjuda'
+import ErroCarga from './ErroCarga'
 
 const fmtBRL = (v) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v || 0)
@@ -46,7 +47,7 @@ export default function DistribuirFila({ carteiraId, resumo, onFechar, onFeito }
       const r = await distribuirFila(carteiraId, escolhidos.map(o => o.id), somenteSem)
       onFeito?.(r)
     } catch (e) {
-      setErro(e.message)
+      setErro(e)
     } finally {
       setEnviando(false)
     }
@@ -150,7 +151,7 @@ export default function DistribuirFila({ carteiraId, resumo, onFechar, onFeito }
                 </div>
               </>
             )}
-            {erro && <p className="text-sm" style={{ color: 'var(--danger)' }}>{erro}</p>}
+            <ErroCarga erro={erro} compacto />
           </div>
 
           <div className="flex justify-end gap-2 border-t border-line px-6 py-4">

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Phone, Tag, Zap, MessageSquare, Brain, Plus, ClipboardList, CheckCircle2, XCircle, Clock, Wallet, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, Phone, Tag, Zap, MessageSquare, Brain, Plus, ClipboardList, CheckCircle2, XCircle, Clock, Wallet, AlertTriangle, ChevronDown } from 'lucide-react'
 import { useAnalysis } from '../context/AnalysisContext'
 import { buscarPaginaRanking, buscarDistribuicao, atribuirResponsavel, listarAgenda, mudarAgenda, listarRoteiros } from '../api'
 import { CANAIS, OFERTA_LABEL, CANAL_DA_RECOMENDACAO, dadosParaRoteiro, preencher, linkWhatsApp } from '../utils/roteiros'
@@ -12,6 +12,8 @@ import { LogoMark } from '../components/Logo'
 import DicaAjuda from '../components/DicaAjuda'
 import AppShell from '../components/AppShell'
 import FazerOferta from '../components/FazerOferta'
+import ErroCarga from '../components/ErroCarga'
+import AvisoDesfazer from '../components/AvisoDesfazer'
 
 // F1 — quem cuida deste devedor. Admin troca na hora; os demais só veem.
 function Responsavel({ carteiraId, devedor, podeTrocar }) {
@@ -108,7 +110,7 @@ function fmtValorExplicacao(v) {
 
 function Propostas({ dados, loading, erro, despesas, setDespesas, onRecalcular, onSimular }) {
   if (loading) return <p className="text-sm" style={{ color: 'var(--ink-3)' }}>Montando propostas...</p>
-  if (erro)    return <p className="text-sm" style={{ color: 'var(--ink-3)' }}>Propostas indisponíveis: {erro}</p>
+  if (erro)    return <ErroCarga erro={erro} onTentar={onRecalcular} compacto />
   if (!dados || !Array.isArray(dados.propostas)) return null
 
   const margem = dados.margem
@@ -228,12 +230,12 @@ function Propostas({ dados, loading, erro, despesas, setDespesas, onRecalcular, 
   )
 }
 
-function ExplicacaoScore({ explicacao, loading, erro }) {
+function ExplicacaoScore({ explicacao, loading, erro, onTentar }) {
   if (loading) {
     return <p className="text-sm" style={{ color: 'var(--ink-3)' }}>Calculando explicação do score...</p>
   }
   if (erro) {
-    return <p className="text-sm" style={{ color: 'var(--ink-3)' }}>Explicação indisponível: {erro}</p>
+    return <ErroCarga erro={erro} onTentar={onTentar} compacto />
   }
   if (!explicacao) return null
 
@@ -314,6 +316,23 @@ function Section({ title, children, ajuda }) {
       <p className="section-label mb-3">{title}{ajuda && <DicaAjuda id={ajuda} />}</p>
       {children}
     </div>
+  )
+}
+
+// Informação de consulta (não de atendimento): fica recolhida até ser pedida.
+function SecaoRecolhivel({ title, children, ajuda, aberta = false }) {
+  return (
+    <details className="group rounded-2xl" style={CARD} open={aberta}>
+      <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-2 px-5 py-3 [&::-webkit-details-marker]:hidden">
+        <span className="section-label">
+          {title}
+          {/* O "?" abre a ajuda sem abrir/fechar a seção. */}
+          {ajuda && <span onClick={e => e.preventDefault()}><DicaAjuda id={ajuda} /></span>}
+        </span>
+        <ChevronDown className="h-4 w-4 shrink-0 transition-transform group-open:rotate-180" style={{ color: 'var(--ink-3)' }} aria-hidden="true" />
+      </summary>
+      <div className="px-5 pb-5">{children}</div>
+    </details>
   )
 }
 
@@ -442,7 +461,7 @@ function MensagemSugerida({ devedor, rec, propostas, simulada }) {
             )}
           </>
         )}
-        {erro && <p className="text-xs" style={{ color: 'var(--danger)' }}>{erro}</p>}
+        <ErroCarga erro={erro} compacto />
       </div>
     </div>
   )
@@ -451,25 +470,42 @@ function MensagemSugerida({ devedor, rec, propostas, simulada }) {
 // F2 — compromissos pendentes deste devedor (retornos e promessas).
 function CompromissosDevedor({ cpf, versao }) {
   const [itens, setItens] = useState(null)
-  const [erro, setErro] = useState('')
+  const [erro, setErro] = useState(null)
+  const [desfazer, setDesfazer] = useState(null)
   useEffect(() => {
     listarAgenda({ cpf, escopo: 'equipe', situacao: 'pendente' })
       .then(r => setItens(r.ativo ? r.itens : null))
       .catch(() => setItens(null))
   }, [cpf, versao])
-  if (!itens || itens.length === 0) return null
 
   async function agir(item, acao) {
-    setErro('')
+    setErro(null)
     try {
-      await mudarAgenda(item.id, acao)
+      const r = await mudarAgenda(item.id, acao)
       setItens(l => l.filter(i => i.id !== item.id))
       avisarAgendaMudou()
-    } catch (e) { setErro(e.message) }
+      const texto = acao === 'quebrar' ? 'Promessa marcada como não paga.'
+        : item.tipo === 'promessa' ? 'Promessa cumprida. Registre o pagamento em Pagamentos.' : 'Retorno feito.'
+      setDesfazer({
+        id: `${item.id}-${Date.now()}`, texto,
+        desfazer: async () => {
+          const v = await mudarAgenda(item.id, 'reabrir', { situacao_esperada: r.item.situacao })
+          setItens(l => [...(l || []).filter(i => i.id !== item.id), { ...item, ...v.item }]
+            .sort((a, b) => String(a.data).localeCompare(String(b.data))))
+          avisarAgendaMudou()
+        },
+      })
+    } catch (e) { setErro(e) }
   }
+
+  // O aviso de desfazer fica montado mesmo quando a lista esvazia: é
+  // justamente depois de resolver o último compromisso que ele mais importa.
+  const aviso = <AvisoDesfazer aviso={desfazer} onFechar={() => setDesfazer(null)} />
+  if (!itens || itens.length === 0) return aviso
 
   return (
     <div className="px-5 py-3 border-b space-y-2" style={DIVIDER}>
+      {aviso}
       <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--ink-3)' }}>
         Compromissos pendentes<DicaAjuda id="agenda-de-retorno" />
       </p>
@@ -494,7 +530,7 @@ function CompromissosDevedor({ cpf, versao }) {
           </div>
         )
       })}
-      {erro && <p className="text-xs" style={{ color: 'var(--danger)' }}>{erro}</p>}
+      <ErroCarga erro={erro} compacto />
     </div>
   )
 }
@@ -703,7 +739,7 @@ function HistoricoContatos({ cpf, rec, propostas }) {
             <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>Observação (opcional)</label>
             <textarea value={form.observacao} onChange={e => set('observacao', e.target.value)} rows={2} placeholder="Detalhes do contato..." style={taStyle} />
           </div>
-          {erro && <p className="text-xs text-red-400 rounded-xl px-3 py-2" style={{ background: 'rgb(var(--c-danger) / 0.08)', border: '1px solid rgb(var(--c-danger) / 0.18)' }}>{erro}</p>}
+          <ErroCarga erro={erro} compacto />
           <div className="flex gap-2">
             <button onClick={salvar} disabled={salvando} className="btn-primary py-1.5 disabled:opacity-50">
               {salvando ? 'Salvando...' : 'Salvar'}
@@ -767,7 +803,7 @@ const MODO_CONFIG = {
   calibrado:          { label: 'Calibrado',  color: 'text-emerald-400', bg: 'rgb(var(--c-success) / 0.10)', border: 'rgb(var(--c-success) / 0.20)'  },
 }
 
-function ApproachRecommendation({ devedor, rec, loading, erro }) {
+function ApproachRecommendation({ devedor, rec, loading, erro, onTentar }) {
   // Antes havia aqui uma "Urgência" Alta/Média/Baixa tirada só do score (≥70,
   // ≥40), um terceiro critério que podia contradizer a Prioridade da fila
   // (achado D8). Quem decide a ordem é a fila; aqui fica só o número.
@@ -792,7 +828,7 @@ function ApproachRecommendation({ devedor, rec, loading, erro }) {
             Consultando IA...
           </div>
         )}
-        {erro && <p className="text-sm text-red-400 text-center py-4">{erro}</p>}
+        {erro && !loading && <ErroCarga erro={erro} onTentar={onTentar} compacto />}
         {rec && !loading && (
           <>
             <div className="grid grid-cols-3 gap-3">
@@ -898,9 +934,11 @@ export default function DebtorDetail() {
     }
   }, [result, d, navigate, erroBusca, buscou, procurando])
 
+  // "Tentar novamente" na recomendação ou na explicação refaz as consultas do devedor.
+  const [recarga, setRecarga] = useState(0)
   useEffect(() => {
     if (!d?.cpf) return
-    setRecLoading(true)
+    setRecLoading(true); setRecErro(null); setExplicacaoErro(null)
     buscarRecomendacao(d.cpf).then(setRec).catch(e => setRecErro(e.message)).finally(() => setRecLoading(false))
     buscarStatusFeedbacks(carteiraId).then(map => setStatusPag(map[String(d.cpf)] ?? null)).catch(() => {})
     setExplicacaoLoading(true)
@@ -908,7 +946,7 @@ export default function DebtorDetail() {
     setPropostasLoading(true)
     setPropostasErro(null)
     buscarPropostas(d.cpf).then(setPropostas).catch(e => setPropostasErro(e.message)).finally(() => setPropostasLoading(false))
-  }, [d?.cpf, carteiraId])
+  }, [d?.cpf, carteiraId, recarga])
 
   // O operador informa a despesa que o devedor declarou na ligação e a
   // margem é refeita na hora — sem isso o teste de capacidade não roda.
@@ -930,13 +968,7 @@ export default function DebtorDetail() {
             className="mb-4 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 -ml-2 text-sm text-ink-2 transition-colors hover:bg-raise-1 hover:text-ink">
             <ArrowLeft className="h-4 w-4" /> Voltar à fila
           </button>
-          <div className="card p-6 text-sm">
-            <span style={{ color: 'var(--danger)' }}>Não foi possível carregar este devedor: {erroBusca}</span>
-            <button onClick={() => setTentativa(t => t + 1)}
-              className="ml-3 rounded-md border border-line bg-raise-1 px-2.5 py-1 text-xs text-ink-2 hover:text-ink">
-              Tentar de novo
-            </button>
-          </div>
+          <ErroCarga erro={erroBusca} ocupado={procurando} onTentar={() => setTentativa(t => t + 1)} />
         </div>
       </AppShell>
     )
@@ -989,51 +1021,40 @@ export default function DebtorDetail() {
           <PriorityBadge rank={d.rank} total={result?.resumo?.total_devedores ?? result?.ranking_completo?.length ?? 0} large />
         </div>
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-1 flex flex-col gap-5">
-            {/* Score ring */}
-            <div className="rounded-2xl p-6 flex flex-col items-center" style={CARD}>
-              <p className="section-label mb-5 text-center">Score de Recuperabilidade<DicaAjuda id="score-recuperabilidade" /></p>
-              <div className="relative w-36 h-36">
-                <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-                  <circle cx="50" cy="50" r="38" fill="none" stroke="rgba(128,141,166,0.25)" strokeWidth="8" />
-                  <circle cx="50" cy="50" r="38" fill="none" stroke={scoreColor} strokeWidth="8" strokeLinecap="round"
-                    strokeDasharray={`${dash} ${circumference - dash}`}
-                    style={{ transition: 'stroke-dasharray 0.8s ease', filter: `drop-shadow(0 0 8px ${scoreColor}60)` }} />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-3xl font-bold text-ink">{score}</span>
-                  <span className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>/ 100</span>
-                </div>
-              </div>
-              <div className="w-full mt-5">
-                <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--raise-3)' }}>
-                  <div className="h-full rounded-full transition-all duration-700" style={{ width: `${score}%`, backgroundColor: scoreColor }} />
-                </div>
-                <div className="flex justify-between text-xs mt-1.5" style={{ color: 'var(--ink-3)' }}>
-                  <span>0</span><span>100</span>
-                </div>
-              </div>
+        {/* Resumo: o essencial para entender o caso antes de agir. */}
+        <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {[
+            ['Dívida', fmtBRL(d.valor_divida)],
+            ['Em atraso', `${fmtNum(d.dias_em_atraso)} dias`],
+            ['Valor esperado', fmtBRL(d.valor_esperado_recuperacao)],
+            ['Score', <span key="s" style={{ color: scoreColor }}>{score}<span className="text-xs font-normal" style={{ color: 'var(--ink-3)' }}> / 100</span></span>],
+          ].map(([k, v]) => (
+            <div key={k} className="rounded-xl px-4 py-3" style={CARD}>
+              <p className="text-xs" style={{ color: 'var(--ink-3)' }}>{k}</p>
+              <p className="mt-0.5 text-lg font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{v}</p>
             </div>
-
-            {/* Perfil IA */}
-            <div className="rounded-2xl p-5" style={CARD}>
-              <p className="section-label mb-3">Perfil IA<DicaAjuda id="perfil-cluster" /></p>
-              <div className="text-center py-3 rounded-xl text-sm font-semibold"
-                style={{ backgroundColor: `${scoreColor}18`, color: scoreColor }}>
-                {d.perfil_cluster}
-              </div>
-            </div>
+          ))}
+        </div>
+        {d.dados_incompletos && (
+          <div className="mb-5 flex items-start gap-2 rounded-xl p-3 text-sm"
+            style={{ background: 'rgb(var(--c-warning) / 0.08)', border: '1px solid rgb(var(--c-warning) / 0.18)', color: 'var(--ink-2)' }}>
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" style={{ color: 'var(--warning)' }} />
+            <span>Dados incompletos: {d.aviso_dados || 'faltam informações deste devedor'}. O score é uma estimativa com esse dado faltando.<DicaAjuda id="dados-incompletos" /></span>
           </div>
+        )}
 
-          <div className="lg:col-span-2 flex flex-col gap-4">
-            <Section title="Dados Cadastrais">
-              <DataRow label="Nome completo" value={d.nome} />
-              <DataRow label="CPF" value={d.cpf} />
-              <DataRow label="Produto" value={d.produto} />
-              <DataRow label="Status" value={d.status} />
-              <DataRow label="UF" value={d.uf} />
-            </Section>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          {/* Atendimento: entender → decidir → oferecer → comunicar → registrar.
+              A recomendação define o canal (simulador e mensagem); as propostas
+              definem a oferta inicial do simulador; a oferta montada vira a
+              mensagem; confirmar a oferta recarrega os contatos. */}
+          <section className="lg:col-span-2 flex flex-col gap-4" aria-labelledby="titulo-atendimento">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 id="titulo-atendimento" className="text-base font-bold" style={{ color: 'var(--ink)' }}>Atendimento</h2>
+              <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Abordagem → proposta → oferta → mensagem → registro</p>
+            </div>
+
+            <ApproachRecommendation devedor={d} rec={rec} loading={recLoading} erro={recErro} onTentar={() => setRecarga(n => n + 1)} />
 
             <Section title="Propostas de renegociação" ajuda="propostas-de-renegociacao">
               <Propostas
@@ -1049,27 +1070,45 @@ export default function DebtorDetail() {
               pedido={pedidoOferta} onSimulado={setOfertaSimulada}
               onRegistrada={() => setVersaoContatos(v => v + 1)} />
 
-            <Section title="Por que esse score?" ajuda="por-que-esse-score">
-              <ExplicacaoScore explicacao={explicacao} loading={explicacaoLoading} erro={explicacaoErro} />
-            </Section>
+            <MensagemSugerida devedor={d} rec={rec} propostas={propostas} simulada={ofertaSimulada} />
+            <HistoricoContatos key={versaoContatos} cpf={d.cpf} rec={rec} propostas={propostas} />
+          </section>
 
-            <Section title="Dados Financeiros" ajuda="variaveis-do-modelo">
-              {d.dados_incompletos && (
-                <div className="mb-3 flex items-start gap-2 rounded-xl p-3 text-xs"
-                  style={{ background: 'rgb(var(--c-warning) / 0.08)', border: '1px solid rgb(var(--c-warning) / 0.18)', color: 'var(--ink-2)' }}>
-                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" style={{ color: 'var(--warning)' }} />
-                  <span>Dados incompletos: {d.aviso_dados || 'faltam informações deste devedor'}. O score é uma estimativa com esse dado faltando.<DicaAjuda id="dados-incompletos" /></span>
+          {/* Sobre o devedor: consulta. No celular vem depois do atendimento. */}
+          <aside className="flex flex-col gap-4" aria-label="Sobre o devedor">
+            <h2 className="text-base font-bold" style={{ color: 'var(--ink)' }}>Sobre o devedor</h2>
+            <div className="rounded-2xl p-5 flex items-center gap-5" style={CARD}>
+              <div className="relative h-24 w-24 shrink-0">
+                <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90" aria-hidden="true">
+                  <circle cx="50" cy="50" r="38" fill="none" stroke="rgba(128,141,166,0.25)" strokeWidth="9" />
+                  <circle cx="50" cy="50" r="38" fill="none" stroke={scoreColor} strokeWidth="9" strokeLinecap="round"
+                    strokeDasharray={`${dash} ${circumference - dash}`} style={{ transition: 'stroke-dasharray 0.8s ease' }} />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-2xl font-bold text-ink">{score}</span>
                 </div>
-              )}
+              </div>
+              <div className="min-w-0">
+                <p className="section-label">Score de Recuperabilidade<DicaAjuda id="score-recuperabilidade" /></p>
+                <p className="mt-2 section-label">Perfil IA<DicaAjuda id="perfil-cluster" /></p>
+                <p className="mt-1 text-sm font-semibold" style={{ color: scoreColor }}>{d.perfil_cluster}</p>
+              </div>
+            </div>
+
+            <SecaoRecolhivel title="Por que esse score?" ajuda="por-que-esse-score">
+              <ExplicacaoScore explicacao={explicacao} loading={explicacaoLoading} erro={explicacaoErro} onTentar={() => setRecarga(n => n + 1)} />
+            </SecaoRecolhivel>
+
+            <SecaoRecolhivel title="Dados financeiros" ajuda="variaveis-do-modelo" aberta>
               <DataRow label="Valor da Dívida (face)" value={fmtBRL(d.valor_divida)} />
               <DataRow ajuda="valor-esperado" label="Valor Esperado de Recuperação" value={<span className="text-emerald-400 font-bold">{fmtBRL(d.valor_esperado_recuperacao)}</span>} />
               <DataRow label="Renda Estimada" value={d.renda_estimada > 0 ? fmtBRL(d.renda_estimada) : 'Não informada'} />
               <DataRow label="Dias em Atraso" value={fmtNum(d.dias_em_atraso)} />
               {d.comprometimento_renda != null && <DataRow ajuda="comprometimento-de-renda" label="Comprometimento de Renda" value={fmtPct(d.comprometimento_renda)} />}
-            </Section>
+            </SecaoRecolhivel>
 
             {(d.tentativas_contato != null || d.promessa_quebrada != null) && (
-              <Section title="Dados de Cobrança">
+              <SecaoRecolhivel title="Dados de cobrança">
                 {d.tentativas_contato != null && <DataRow label="Tentativas de Contato" value={fmtNum(d.tentativas_contato)} />}
                 {d.promessa_quebrada != null && (
                   <DataRow label="Promessa Quebrada" value={
@@ -1078,22 +1117,26 @@ export default function DebtorDetail() {
                     </span>
                   } />
                 )}
-              </Section>
+              </SecaoRecolhivel>
             )}
 
             {(d.desconto_sugerido_pct != null || d.estrategia_oferta) && (
-              <Section title="Precificação Sugerida" ajuda="oferta-na-planilha">
+              <SecaoRecolhivel title="Precificação da planilha" ajuda="oferta-na-planilha">
                 {d.desconto_sugerido_pct != null && <DataRow label="Desconto Sugerido" value={`${d.desconto_sugerido_pct}%`} />}
                 {d.valor_proposta != null && <DataRow label="Valor da Proposta" value={fmtBRL(d.valor_proposta)} />}
                 {d.parcelas_max != null && <DataRow label="Parcelas Máx." value={String(d.parcelas_max)} />}
                 {d.estrategia_oferta && <DataRow label="Estratégia" value={d.estrategia_oferta} />}
-              </Section>
+              </SecaoRecolhivel>
             )}
 
-            <ApproachRecommendation devedor={d} rec={rec} loading={recLoading} erro={recErro} />
-            <MensagemSugerida devedor={d} rec={rec} propostas={propostas} simulada={ofertaSimulada} />
-            <HistoricoContatos key={versaoContatos} cpf={d.cpf} rec={rec} propostas={propostas} />
-          </div>
+            <SecaoRecolhivel title="Dados cadastrais">
+              <DataRow label="Nome completo" value={d.nome} />
+              <DataRow label="CPF" value={d.cpf} />
+              <DataRow label="Produto" value={d.produto} />
+              <DataRow label="Status" value={d.status} />
+              <DataRow label="UF" value={d.uf} />
+            </SecaoRecolhivel>
+          </aside>
         </div>
       </div>
     </AppShell>

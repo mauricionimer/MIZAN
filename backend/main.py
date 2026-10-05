@@ -2006,17 +2006,40 @@ def resumo_agenda(escopo: str = "minha", empresa_id: Optional[str] = None,
     return {"ativo": True, **contar_niveis(datas, hoje())}
 
 
+# Desfazer na Agenda: quem resolveu um compromisso por engano pode reabri-lo.
+# O operador tem esta janela (a tela oferece "Desfazer" por 8 s; a folga cobre
+# rede lenta). O admin corrige a qualquer momento. Promessa cumprida por
+# pagamento confirmado não reabre por aqui: o certo é corrigir o pagamento.
+JANELA_DESFAZER_MIN = 10
+_SITUACAO_DA_ACAO = {"cumprir": "cumprida", "quebrar": "quebrada", "cancelar": "cancelada"}
+
+
 class AgendaPatch(BaseModel):
-    acao: str                                  # cumprir | quebrar | cancelar | remarcar
+    acao: str                                  # cumprir | quebrar | cancelar | remarcar | reabrir
     data: Optional[date] = None
     hora: Optional[str] = Field(None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    # Reabrir: a situação que a tela viu. Se outra pessoa mudou o compromisso
+    # nesse meio-tempo, o servidor recusa em vez de desfazer a mudança dela.
+    situacao_esperada: Optional[str] = None
 
     @field_validator('acao')
     @classmethod
     def _val_acao(cls, v):
-        if v not in ("cumprir", "quebrar", "cancelar", "remarcar"):
-            raise ValueError('Ação inválida. Use: cumprir, quebrar, cancelar ou remarcar.')
+        if v not in ("cumprir", "quebrar", "cancelar", "remarcar", "reabrir"):
+            raise ValueError('Ação inválida. Use: cumprir, quebrar, cancelar, remarcar ou reabrir.')
         return v
+
+
+def _minutos_desde(iso) -> "float | None":
+    if not iso:
+        return None
+    try:
+        t = datetime.fromisoformat(str(iso).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if t.tzinfo is not None:
+        t = t.astimezone(__import__("datetime").timezone.utc).replace(tzinfo=None)
+    return (datetime.utcnow() - t).total_seconds() / 60
 
 
 @app.patch("/agenda/{item_id}")
@@ -2038,23 +2061,52 @@ def mudar_agenda(item_id: str, body: AgendaPatch, credentials: HTTPAuthorization
         raise HTTPException(status_code=404, detail="Compromisso não encontrado.")
     if payload.get("role") == "operador" and item.get("operador_id") != payload["sub"]:
         raise HTTPException(status_code=403, detail="Este compromisso é de outro operador.")
-    if item.get("situacao") != "pendente":
-        raise HTTPException(status_code=409, detail="Este compromisso já foi resolvido.")
     quem = payload.get("nome", "") or payload.get("email", "")
-    if body.acao == "remarcar":
-        if body.data is None:
-            raise HTTPException(status_code=422, detail="Informe a nova data.")
-        try:
-            validar_data_nova(body.data)
-        except ValueError as e:
-            raise HTTPException(status_code=422, detail=str(e))
-        patch = {"data": body.data.isoformat(), "hora": body.hora}
+    atual = item.get("situacao")
+
+    if body.acao == "reabrir":
+        if atual == "pendente":
+            raise HTTPException(status_code=409, detail="Este compromisso já está em aberto.")
+        if body.situacao_esperada and body.situacao_esperada != atual:
+            raise HTTPException(status_code=409, detail="Outra pessoa mudou este compromisso. Atualize a Agenda.")
+        if item.get("resolvido_por") == "pagamento confirmado":
+            raise HTTPException(status_code=409, detail="Esta promessa foi cumprida por um pagamento confirmado: "
+                                                        "se o pagamento estiver errado, corrija em Pagamentos.")
+        idade = _minutos_desde(item.get("resolvido_em"))
+        if payload.get("role") != "admin" and (idade is None or idade > JANELA_DESFAZER_MIN):
+            raise HTTPException(status_code=409, detail=f"O prazo para desfazer ({JANELA_DESFAZER_MIN} min) passou. "
+                                                        "Peça ao administrador para reabrir.")
+        patch = {"situacao": "pendente", "resolvido_em": None, "resolvido_por": None}
+        exige = atual
     else:
-        patch = {"situacao": {"cumprir": "cumprida", "quebrar": "quebrada", "cancelar": "cancelada"}[body.acao],
-                 "resolvido_em": datetime.utcnow().isoformat(), "resolvido_por": quem}
-    res = db.table("agenda").update(patch).eq("id", item_id).eq("empresa_id", emp).execute()
-    novo = dict((res.data or [{**item, **patch}])[0])
-    return {"ok": True, "item": _com_nivel(novo, hoje())}
+        if atual != "pendente":
+            raise HTTPException(status_code=409, detail="Este compromisso já foi resolvido.")
+        if body.acao == "remarcar":
+            if body.data is None:
+                raise HTTPException(status_code=422, detail="Informe a nova data.")
+            try:
+                validar_data_nova(body.data)
+            except ValueError as e:
+                raise HTTPException(status_code=422, detail=str(e))
+            patch = {"data": body.data.isoformat(), "hora": body.hora}
+        else:
+            patch = {"situacao": _SITUACAO_DA_ACAO[body.acao],
+                     "resolvido_em": datetime.utcnow().isoformat(), "resolvido_por": quem}
+        exige = "pendente"
+    # Atualização condicional: só vale se a situação ainda for a lida acima.
+    # Dois cliques (ou duas pessoas) ao mesmo tempo: o segundo não encontra a
+    # linha no estado esperado e recebe 409, em vez de sobrescrever o primeiro.
+    res = (db.table("agenda").update(patch).eq("id", item_id).eq("empresa_id", emp)
+           .eq("situacao", exige).execute())
+    if not res.data:
+        raise HTTPException(status_code=409, detail="Outra pessoa mudou este compromisso. Atualize a Agenda.")
+    novo = dict(res.data[0])
+    if body.acao == "reabrir":
+        _registrar_auditoria(acao="agenda_reaberta", entidade="agenda", entidade_id=item_id,
+                             usuario_email=payload.get("email", ""), empresa_id=emp, usuario_id=payload.get("sub", ""),
+                             detalhes={"tipo": item.get("tipo"), "estava": atual, "resolvido_por": item.get("resolvido_por")})
+    return {"ok": True, "item": _com_nivel(novo, hoje()), "anterior": atual,
+            "desfazer_ate_min": JANELA_DESFAZER_MIN if body.acao in _SITUACAO_DA_ACAO else None}
 
 
 # ── F3: painel do operador ───────────────────────────────────────────────────

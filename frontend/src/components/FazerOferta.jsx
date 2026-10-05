@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Calculator, CheckCircle2, AlertTriangle, XCircle, Loader2, User, Landmark, ShieldAlert, Info, Send, X, ThumbsUp, Clock, ThumbsDown, History } from 'lucide-react'
 import DicaAjuda from './DicaAjuda'
+import ErroCarga from './ErroCarga'
 import { buscarOfertas, simularOferta, registrarOferta, listarOfertasFeitas } from '../api'
 import { hojeISO, somarDias, avisarAgendaMudou } from '../utils/agenda'
 import { resumoOferta, NOME_FAMILIA } from '../utils/ofertas'
@@ -83,7 +84,7 @@ function Confirmar({ cpf, analise, condicoes, canalPadrao, despesas, onFechar, o
         ...(pedeData ? { data, hora: hora || undefined } : {}),
       })
       onFeito(r, resposta)
-    } catch (e) { setErro(e.message) } finally { setEnviando(false) }
+    } catch (e) { setErro(e) } finally { setEnviando(false) }
   }
   const sel = { background: 'var(--surface-2)', border: '1px solid var(--line)', color: 'var(--ink)' }
   return (
@@ -140,7 +141,7 @@ function Confirmar({ cpf, analise, condicoes, canalPadrao, despesas, onFechar, o
             <textarea rows={2} maxLength={300} value={obs} onChange={e => setObs(e.target.value)} placeholder="Ex.: paga no dia do salário"
               className="mt-1 w-full resize-none rounded-lg px-3 py-2 text-sm font-normal" style={sel} />
           </label>
-          {erro && <p className="text-sm" style={{ color: 'var(--danger)' }}>{erro}</p>}
+          <ErroCarga erro={erro} compacto />
         </div>
         <div className="flex justify-end gap-2 border-t px-5 py-4" style={{ borderColor: 'var(--line)' }}>
           <button onClick={onFechar} className="rounded-lg px-4 py-2 text-sm" style={{ color: 'var(--ink-2)' }}>Cancelar</button>
@@ -194,6 +195,7 @@ export default function FazerOferta({ cpf, despesas, canalPadrao, confirmavel = 
   const [carregando, setCarregando] = useState(false)
   const [erro, setErro] = useState('')
   const seq = useRef(0)
+  const [tentativa, setTentativa] = useState(0)
   const tocado = useRef(false)          // o operador já mexeu: a sugestão não sobrescreve
   const raiz = useRef(null)
 
@@ -233,12 +235,20 @@ export default function FazerOferta({ cpf, despesas, canalPadrao, confirmavel = 
     const t = setTimeout(() => {
       setCarregando(true); setErro('')
       simularOferta(cpf, { ...f, n_parcelas: n, despesas_mensais: despesas === '' || despesas == null ? undefined : Number(despesas), base_id: base || undefined })
-        .then(r => { if (id === seq.current) { setRes(r); onSimulado?.(r) } })
-        .catch(e => { if (id === seq.current) { setErro(e.message); setRes(null) } })
+        .then(r => {
+          if (id !== seq.current) return
+          // Resposta fora do formato (proxy, versão antiga do servidor): mostra
+          // um erro em vez de derrubar a ficha inteira.
+          if (!r?.conta || !r?.devedor || !r?.banco) {
+            setRes(null); setErro(Object.assign(new Error('Erro HTTP 502'), { status: 502 })); return
+          }
+          setRes(r); onSimulado?.(r)
+        })
+        .catch(e => { if (id === seq.current) { setErro(e); setRes(null) } })
         .finally(() => { if (id === seq.current) setCarregando(false) })
     }, 350)
     return () => clearTimeout(t)
-  }, [cpf, f.desconto_pct, f.entrada_pct, f.juros_mensal_pct, n, despesas, base])    // eslint-disable-line react-hooks/exhaustive-deps
+  }, [cpf, f.desconto_pct, f.entrada_pct, f.juros_mensal_pct, n, despesas, base, tentativa])    // eslint-disable-line react-hooks/exhaustive-deps
 
   const c = res?.conta
   const geral = res?.geral
@@ -286,7 +296,7 @@ export default function FazerOferta({ cpf, despesas, canalPadrao, confirmavel = 
           <Campo rotulo="Juros" sufixo="% a.m." min={0} max={20} step="0.01" value={f.juros_mensal_pct} disabled={modo === 'avista'} onChange={v => mudar('juros_mensal_pct', v)} />
         </div>
 
-        {erro && <p className="text-sm" style={{ color: 'var(--danger)' }}>{erro}</p>}
+        <ErroCarga erro={erro} ocupado={carregando} onTentar={() => setTentativa(t => t + 1)} />
 
         <AnimatePresence>
           {res?.fora_da_alcada?.length > 0 && (

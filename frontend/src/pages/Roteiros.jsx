@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { MessageSquareText, Plus, Copy, Trash2, Save, Loader2, Building2, User, Sparkles, Check, AlertTriangle } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import DicaAjuda from '../components/DicaAjuda'
+import ErroCarga from '../components/ErroCarga'
 import { useAuth } from '../context/AuthContext'
 import { listarRoteiros, salvarRoteiro, apagarRoteiro, listarEmpresas } from '../api'
 import { VARIAVEIS, CANAIS, OFERTAS, OFERTA_LABEL, EXEMPLO, dadosParaRoteiro, preencher, desconhecidas } from '../utils/roteiros'
@@ -63,7 +64,8 @@ export default function Roteiros() {
   const [form, setForm] = useState(NOVO('whatsapp'))
   const [somenteLeitura, setSomenteLeitura] = useState(false)
   const [salvando, setSalvando] = useState(false)
-  const [msg, setMsg] = useState(null)        // {tipo: 'ok'|'erro', texto}
+  const [msg, setMsg] = useState(null)        // {tipo: 'ok', texto} | {tipo: 'erro', erro}
+  const [erroCarga, setErroCarga] = useState(null)
   const [empresas, setEmpresas] = useState([])
   const [alvo, setAlvo] = useState('')
   const area = useRef(null)
@@ -77,8 +79,8 @@ export default function Roteiros() {
 
   function carregar(manterId) {
     if (isComando && !alvo) { setDados(null); setCarregando(false); return }
-    setCarregando(true)
-    listarRoteiros({ canal, empresa_id: isComando ? alvo : undefined })
+    setCarregando(true); setErroCarga(null)
+    return listarRoteiros({ canal, empresa_id: isComando ? alvo : undefined })
       .then(d => {
         setDados(d)
         if (manterId) {
@@ -86,7 +88,7 @@ export default function Roteiros() {
           if (r) escolher(r, false)
         }
       })
-      .catch(e => setMsg({ tipo: 'erro', texto: e.message }))
+      .catch(e => setErroCarga(e))
       .finally(() => setCarregando(false))
   }
   useEffect(() => { setForm(NOVO(canal)); setSomenteLeitura(isComando); setMsg(null); carregar() }, [canal, alvo])   // eslint-disable-line react-hooks/exhaustive-deps
@@ -137,7 +139,7 @@ export default function Roteiros() {
       const r = await salvarRoteiro({ titulo: form.titulo, canal, oferta: form.oferta || null, texto: form.texto, escopo: form.escopo }, form.id)
       setMsg({ tipo: 'ok', texto: form.id ? 'Roteiro atualizado.' : 'Roteiro salvo.' })
       carregar(r.roteiro.id)
-    } catch (e) { setMsg({ tipo: 'erro', texto: e.message }) } finally { setSalvando(false) }
+    } catch (e) { setMsg({ tipo: 'erro', erro: e }) } finally { setSalvando(false) }
   }
 
   async function excluir() {
@@ -145,7 +147,7 @@ export default function Roteiros() {
     try {
       await apagarRoteiro(form.id)
       setForm(NOVO(canal)); setMsg({ tipo: 'ok', texto: 'Roteiro excluído.' }); carregar()
-    } catch (e) { setMsg({ tipo: 'erro', texto: e.message }) }
+    } catch (e) { setMsg({ tipo: 'erro', erro: e }) }
   }
 
   return (
@@ -178,6 +180,7 @@ export default function Roteiros() {
         </div>
 
         {isComando && !alvo && <div className="rounded-xl border border-line bg-surface p-6 text-sm text-ink-2">Escolha a empresa para ver os roteiros dela.</div>}
+        <ErroCarga erro={erroCarga} ocupado={carregando} onTentar={() => carregar()} />
         {dados && dados.ativo === false && (
           <p className="flex items-start gap-2 rounded-lg border border-line bg-surface-2 px-3 py-2 text-xs text-ink-2">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {dados.mensagem} Enquanto isso, valem os modelos do Mizan.
@@ -259,11 +262,12 @@ export default function Roteiros() {
 
               <Previa canal={canal} texto={form.texto} oferta={form.oferta} empresa={empresaNome} operador={usuario?.nome} />
 
+              <ErroCarga erro={msg?.tipo === 'erro' ? msg.erro : null} compacto />
               <AnimatePresence>
-                {msg && (
+                {msg?.tipo === 'ok' && (
                   <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                    className="flex items-center gap-1.5 text-sm" style={{ color: msg.tipo === 'ok' ? 'var(--success)' : 'var(--danger)' }}>
-                    {msg.tipo === 'ok' && <Check className="h-4 w-4" />} {msg.texto}
+                    className="flex items-center gap-1.5 text-sm" style={{ color: 'var(--success)' }}>
+                    <Check className="h-4 w-4" /> {msg.texto}
                   </motion.p>
                 )}
               </AnimatePresence>

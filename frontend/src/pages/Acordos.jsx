@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Handshake, Loader2, ChevronDown, CalendarClock, AlertTriangle, XOctagon, Wallet, Check, Undo2, Info } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import DicaAjuda from '../components/DicaAjuda'
+import ErroCarga from '../components/ErroCarga'
 import { useAuth } from '../context/AuthContext'
 import { listarAcordos, mudarParcela, listarEmpresas } from '../api'
 
@@ -135,7 +136,7 @@ export default function Acordos() {
   const { token, isAdmin, isComando } = useAuth()
   const [dados, setDados] = useState(null)
   const [filtro, setFiltro] = useState('')
-  const [erro, setErro] = useState('')
+  const [erro, setErro] = useState(null)
   const [aviso, setAviso] = useState('')
   const [carregando, setCarregando] = useState(true)
   const [empresas, setEmpresas] = useState([])
@@ -148,19 +149,19 @@ export default function Acordos() {
 
   function carregar() {
     if (isComando && !alvo) { setDados(null); setCarregando(false); return }
-    setCarregando(true); setErro('')
-    listarAcordos(isComando ? alvo : undefined)
-      .then(setDados).catch(e => setErro(e.message)).finally(() => setCarregando(false))
+    setCarregando(true); setErro(null)
+    return listarAcordos(isComando ? alvo : undefined)
+      .then(setDados).catch(e => setErro(e)).finally(() => setCarregando(false))
   }
-  useEffect(carregar, [isComando, alvo])     // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { carregar() }, [isComando, alvo])     // eslint-disable-line react-hooks/exhaustive-deps
 
   async function onParcela(a, p, acao) {
-    setAviso(''); setErro('')
+    setAviso(''); setErro(null)
     try {
       await mudarParcela(p.id, acao)
       setAviso(`${(a.nome || a.cpf).split(' ')[0]}: ${p.numero}ª parcela ${acao === 'pagar' ? 'marcada como paga' : 'voltou para em aberto'}.`)
       carregar()
-    } catch (e) { setErro(e.message) }
+    } catch (e) { setErro(e) }
   }
 
   const lista = useMemo(() => (dados?.acordos ?? []).filter(a => !filtro || a.situacao === filtro), [dados, filtro])
@@ -187,7 +188,7 @@ export default function Acordos() {
 
         {isComando && !alvo && <div className="rounded-xl border border-line bg-surface p-6 text-sm text-ink-2">Escolha a empresa para ver os acordos.</div>}
         {aviso && <p className="flex items-center gap-1.5 text-sm text-emerald-400"><Check className="h-4 w-4" /> {aviso}</p>}
-        {erro && <p className="text-sm" style={{ color: 'var(--danger)' }}>{erro}</p>}
+        <ErroCarga erro={erro} ocupado={carregando} onTentar={carregar} />
         {carregando && !dados && <div className="flex items-center gap-2 py-10 text-sm text-ink-2"><Loader2 className="h-4 w-4 animate-spin" /> Carregando…</div>}
         {dados && dados.ativo === false && (
           <p className="flex items-start gap-2 rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm text-ink-2"><Info className="mt-0.5 h-4 w-4 shrink-0" /> {dados.mensagem}</p>

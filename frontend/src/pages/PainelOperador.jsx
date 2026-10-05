@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 import { Gauge, PhoneOutgoing, Handshake, Banknote, Target, Loader2, Info } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import DicaAjuda from '../components/DicaAjuda'
+import ErroCarga from '../components/ErroCarga'
 import { useAuth } from '../context/AuthContext'
 import { buscarPainelOperador, buscarPainelEquipe, listarEmpresas } from '../api'
 
@@ -145,7 +146,8 @@ export default function PainelOperador() {
   const equipe = !isOperador
   const [periodo, setPeriodo] = useState('hoje')
   const [dados, setDados] = useState(null)
-  const [erro, setErro] = useState('')
+  const [erro, setErro] = useState(null)
+  const [tentativa, setTentativa] = useState(0)
   const [carregando, setCarregando] = useState(true)
   const [empresas, setEmpresas] = useState([])
   const [alvo, setAlvo] = useState('')
@@ -158,13 +160,13 @@ export default function PainelOperador() {
   useEffect(() => {
     if (isComando && !alvo) { setDados(null); setCarregando(false); return }
     let vivo = true
-    setCarregando(true); setErro('')
+    setCarregando(true); setErro(null)
     ;(equipe ? buscarPainelEquipe(periodo, isComando ? alvo : undefined) : buscarPainelOperador(periodo))
       .then(d => { if (vivo) setDados(d) })
-      .catch(e => { if (vivo) setErro(e.message) })
+      .catch(e => { if (vivo) setErro(e) })
       .finally(() => { if (vivo) setCarregando(false) })
     return () => { vivo = false }
-  }, [periodo, equipe, isComando, alvo])
+  }, [periodo, equipe, isComando, alvo, tentativa])
 
   return (
     <AppShell>
@@ -200,7 +202,7 @@ export default function PainelOperador() {
         {isComando && !alvo && (
           <div className="rounded-xl border border-line bg-surface p-6 text-sm text-ink-2">Escolha a empresa para ver o painel da equipe.</div>
         )}
-        {erro && <p className="text-sm" style={{ color: 'var(--danger)' }}>{erro}</p>}
+        <ErroCarga erro={erro} ocupado={carregando} onTentar={() => setTentativa(t => t + 1)} />
         {carregando && !dados && (
           <div className="flex items-center gap-2 py-10 text-sm text-ink-2"><Loader2 className="h-4 w-4 animate-spin" /> Carregando…</div>
         )}

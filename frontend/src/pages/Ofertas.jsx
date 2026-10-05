@@ -1,9 +1,10 @@
 // O1 — Ofertas: o catálogo da empresa, editável, e a alçada do operador.
 import { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Tags, Plus, Copy, Trash2, Save, Loader2, RotateCcw, ShieldAlert, Check, AlertTriangle } from 'lucide-react'
+import { Tags, Plus, Copy, Trash2, Save, Loader2, RotateCcw, ShieldAlert, Check } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import DicaAjuda from '../components/DicaAjuda'
+import ErroCarga from '../components/ErroCarga'
 import { useAuth } from '../context/AuthContext'
 import { buscarOfertas, salvarOfertas, listarEmpresas } from '../api'
 import { calcularOferta, familia, NOME_FAMILIA, resumoOferta, brl } from '../utils/ofertas'
@@ -48,10 +49,13 @@ export default function Ofertas() {
     setAlcada(Object.fromEntries(Object.keys(d.campos_alcada).map(k => [k, d.alcada[k] ?? ''])))
   }
 
-  useEffect(() => {
+  const [erroCarga, setErroCarga] = useState(null)
+  function carregar() {
     if (isComando && !alvo) { setDados(null); return }
-    buscarOfertas(isComando ? alvo : undefined).then(aplicar).catch(e => setMsg({ tipo: 'erro', texto: e.message }))
-  }, [isComando, alvo])
+    setErroCarga(null)
+    return buscarOfertas(isComando ? alvo : undefined).then(aplicar).catch(e => setErroCarga(e))
+  }
+  useEffect(() => { carregar() }, [isComando, alvo])     // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fechar ou recarregar a aba com alterações não salvas pede confirmação.
   useEffect(() => {
@@ -91,7 +95,7 @@ export default function Ofertas() {
       const d = await salvarOfertas({ catalogo: catalogo.map(efetiva), alcada, ...extra }, isComando ? alvo : undefined)
       aplicar(d)
       setMsg({ tipo: 'ok', texto: extra.restaurar_padrao ? 'Voltou às ofertas padrão.' : 'Ofertas salvas. As propostas da ficha já usam este catálogo.' })
-    } catch (e) { setMsg({ tipo: 'erro', texto: e.message }) } finally { setSalvando(false) }
+    } catch (e) { setMsg({ tipo: 'erro', erro: e }) } finally { setSalvando(false) }
   }
 
   // A forma fica separada do número digitado (apagar o campo de parcelas não
@@ -128,11 +132,13 @@ export default function Ofertas() {
         </div>
 
         {isComando && !alvo && <div className="rounded-xl border border-line bg-surface p-6 text-sm text-ink-2">Escolha a empresa para editar as ofertas dela.</div>}
+        <ErroCarga erro={erroCarga} onTentar={carregar} />
+        <ErroCarga erro={msg?.tipo === 'erro' ? msg.erro : null} compacto />
         <AnimatePresence>
-          {msg && (
+          {msg?.tipo === 'ok' && (
             <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="flex items-center gap-1.5 text-sm" style={{ color: msg.tipo === 'ok' ? 'var(--success)' : 'var(--danger)' }}>
-              {msg.tipo === 'ok' ? <Check className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />} {msg.texto}
+              className="flex items-center gap-1.5 text-sm" style={{ color: 'var(--success)' }}>
+              <Check className="h-4 w-4" /> {msg.texto}
             </motion.p>
           )}
         </AnimatePresence>

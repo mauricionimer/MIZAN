@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { CalendarClock, Check, X, CalendarDays, ExternalLink, Loader2, Banknote, PhoneCall, RotateCcw } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import DicaAjuda from '../components/DicaAjuda'
+import ErroCarga from '../components/ErroCarga'
+import AvisoDesfazer from '../components/AvisoDesfazer'
 import { useAuth } from '../context/AuthContext'
 import { useAnalysis } from '../context/AnalysisContext'
 import { listarAgenda, mudarAgenda, buscarPaginaRanking, listarEmpresas } from '../api'
@@ -111,16 +113,18 @@ export default function Agenda() {
   const [escopo, setEscopo] = useState(isAdmin || isComando ? 'equipe' : 'minha')
   const [dados, setDados] = useState(null)
   const [carregando, setCarregando] = useState(true)
-  const [erro, setErro] = useState('')
+  const [erro, setErro] = useState(null)          // falha ao carregar a lista
+  const [erroAcao, setErroAcao] = useState(null)  // falha numa ação (resolver, remarcar, abrir)
   const [aviso, setAviso] = useState('')
+  const [desfazer, setDesfazer] = useState(null)  // aviso com "Desfazer" no rodapé
   const [aba, setAba] = useState('alto')          // no celular, uma coluna por vez
 
   const carregar = useCallback(() => {
     if (isComando && !alvo) { setDados(null); setCarregando(false); return }
-    setCarregando(true); setErro('')
-    listarAgenda({ escopo, empresa_id: isComando ? alvo : undefined })
+    setCarregando(true); setErro(null); setErroAcao(null)
+    return listarAgenda({ escopo, empresa_id: isComando ? alvo : undefined })
       .then(setDados)
-      .catch(e => setErro(e.message))
+      .catch(e => setErro(e))
       .finally(() => setCarregando(false))
   }, [escopo, isComando, alvo])
   useEffect(() => { carregar() }, [carregar])
@@ -131,8 +135,11 @@ export default function Agenda() {
     return g
   }, [dados])
 
+  const ordenar = (lista) => [...lista].sort((a, b) =>
+    String(a.data).localeCompare(String(b.data)) || String(a.hora || '99:99').localeCompare(String(b.hora || '99:99')))
+
   async function acao(item, acao, extra) {
-    setAviso('')
+    setAviso(''); setErroAcao(null)
     try {
       const r = await mudarAgenda(item.id, acao, extra)
       setDados(d => ({
@@ -141,13 +148,29 @@ export default function Agenda() {
           ? d.itens.map(i => i.id === item.id ? { ...i, ...r.item } : i)
           : d.itens.filter(i => i.id !== item.id),
       }))
-      const nome = (item.nome || 'devedor').split(' ')[0]
-      setAviso({ cumprir: item.tipo === 'promessa' ? `${nome}: promessa cumprida. Lembre de registrar o pagamento em Pagamentos.` : `${nome}: retorno feito.`,
-                 quebrar: `${nome}: promessa quebrada.`, cancelar: `${nome}: retorno cancelado.`,
-                 remarcar: `${nome}: remarcado para ${quando(r.item.data, r.item.hora).toLowerCase()}.` }[acao])
       avisarAgendaMudou()
+      const nome = (item.nome || 'devedor').split(' ')[0]
+      if (acao === 'remarcar') {
+        // Remarcar não some da lista e pode ser refeito: basta a confirmação.
+        setAviso(`${nome}: remarcado para ${quando(r.item.data, r.item.hora).toLowerCase()}.`)
+        return
+      }
+      const texto = {
+        cumprir: item.tipo === 'promessa' ? `${nome}: promessa cumprida. Registre o pagamento em Pagamentos.` : `${nome}: retorno feito.`,
+        quebrar: `${nome}: promessa marcada como não paga.`,
+        cancelar: `${nome}: retorno cancelado.`,
+      }[acao]
+      // Desfazer de verdade: reabre no servidor, só se ninguém mexeu depois.
+      setDesfazer({
+        id: `${item.id}-${Date.now()}`, texto,
+        desfazer: async () => {
+          const v = await mudarAgenda(item.id, 'reabrir', { situacao_esperada: r.item.situacao })
+          setDados(d => ({ ...d, itens: ordenar([...d.itens.filter(i => i.id !== item.id), { ...item, ...v.item }]) }))
+          avisarAgendaMudou()
+        },
+      })
     } catch (e) {
-      setAviso(''); setErro(e.message)
+      setErroAcao(e)
     }
   }
 
@@ -157,8 +180,8 @@ export default function Agenda() {
       const p = await buscarPaginaRanking(carteiraAberta, { busca: item.cpf, limit: 1 })
       const rank = p.itens?.[0]?.rank
       if (rank) navigate(`/devedor/${rank}`)
-      else setErro('Este devedor não está mais na carteira aberta.')
-    } catch (e) { setErro(e.message) }
+      else setErroAcao('Este devedor não está mais na carteira aberta.')
+    } catch (e) { setErroAcao(e) }
   }
 
   const total = (dados?.itens ?? []).length
@@ -201,7 +224,8 @@ export default function Agenda() {
         </div>
 
         {aviso && <p className="flex items-center gap-1.5 text-sm text-emerald-400"><Check className="h-4 w-4" /> {aviso}</p>}
-        {erro && <p className="text-sm" style={{ color: 'var(--danger)' }}>{erro}</p>}
+        <ErroCarga erro={erro} onTentar={carregar} />
+        <ErroCarga erro={erroAcao} onTentar={carregar} compacto />
 
         {isComando && !alvo && (
           <div className="rounded-xl border border-line bg-surface p-6 text-sm text-ink-2">Escolha a empresa para ver a agenda da equipe dela.</div>
@@ -266,6 +290,7 @@ export default function Agenda() {
           </>
         )}
       </div>
+      <AvisoDesfazer aviso={desfazer} onFechar={() => setDesfazer(null)} />
     </AppShell>
   )
 }

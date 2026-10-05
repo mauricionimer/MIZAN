@@ -12,11 +12,34 @@ function _handle401(res) {
   }
 }
 
-export function traduzirErroRede(e) {
-  if (e?.message === 'Failed to fetch' || e?.message?.includes('Failed to fetch')) {
-    return 'Servidor temporariamente indisponível. Aguarde 30 segundos e tente novamente.'
+// Tipos de erro que a tela distingue (mensagem e se vale "Tentar novamente").
+// A mensagem do servidor (validação, regra de negócio, acesso) já vem em
+// português e é mostrada como está; só o que é técnico ganha texto próprio.
+const _RE_REDE = /failed to fetch|networkerror|load failed|network request failed|fetch failed/i
+export function classificarErro(e) {
+  if (!e) return { tipo: 'desconhecido', mensagem: 'Algo deu errado. Tente novamente.', podeTentar: true }
+  const msg = typeof e === 'string' ? e : (e.message || '')
+  const status = e.status ?? (Number((msg.match(/Erro HTTP (\d{3})/) || [])[1]) || null)
+  if (e.name === 'TypeError' || _RE_REDE.test(msg)) {
+    return { tipo: 'rede', podeTentar: true,
+      mensagem: 'Não foi possível falar com o servidor. Ele pode estar acordando (leva até um minuto) ou a sua conexão caiu. Tente novamente.' }
   }
-  return e?.message || 'Erro desconhecido.'
+  if (status === 502 || status === 503 || status === 504) {
+    return { tipo: 'acordando', podeTentar: true, mensagem: 'O servidor está acordando. Aguarde alguns segundos e tente novamente.' }
+  }
+  if (status >= 500) {
+    return { tipo: 'servidor', podeTentar: true,
+      mensagem: 'O servidor teve um problema ao processar o pedido. Tente novamente; se continuar, avise o suporte.' }
+  }
+  if (status === 403) return { tipo: 'autorizacao', podeTentar: false, mensagem: msg && !/^Erro HTTP/.test(msg) ? msg : 'Você não tem acesso a isto.' }
+  if (status === 400 || status === 422) return { tipo: 'validacao', podeTentar: false, mensagem: msg || 'Confira os dados informados.' }
+  if (status === 404 || status === 409) return { tipo: 'negocio', podeTentar: false, mensagem: msg || 'Não foi possível concluir.' }
+  return { tipo: 'desconhecido', podeTentar: true, mensagem: msg || 'Algo deu errado. Tente novamente.' }
+}
+
+// Mantida para quem já usava: devolve só o texto.
+export function traduzirErroRede(e) {
+  return classificarErro(e).mensagem
 }
 
 export async function analisarCarteira(file, empresaId = null) {
