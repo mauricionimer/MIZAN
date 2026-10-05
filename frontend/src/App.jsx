@@ -144,7 +144,7 @@ function RotasAnimadas() {
           <Route path="/admin/usuarios" element={P(['admin', 'comando'], <AdminUsuarios />)} />
           <Route path="/painel" element={P(['operador', 'admin', 'comando'], <PainelOperador />)} />
           <Route path="/ofertas" element={P(['admin', 'comando'], <Ofertas />)} />
-          <Route path="/acordos" element={P(['admin', 'comando'], <Acordos />)} />
+          <Route path="/acordos" element={P(['operador', 'admin', 'comando'], <Acordos />)} />
           <Route path="/resultados" element={P(['admin', 'comando'], <Resultados />)} />
           <Route path="/roteiros" element={P(['operador', 'admin', 'comando'], <Roteiros />)} />
           <Route path="/agenda" element={P(['operador', 'admin', 'comando'], <Agenda />)} />

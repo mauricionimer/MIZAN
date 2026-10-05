@@ -1,4 +1,4 @@
-// F2 — Agenda: retornos e promessas, separados em Alto · Médio · Safe.
+// F2 — Agenda: retornos e promessas, separados em Alto · Médio · Tranquilo.
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -114,6 +114,35 @@ function Item({ item, mostrarOperador, onAcao, onAbrir, carteiraAberta, soLeitur
   )
 }
 
+const SITUACAO_RESOLVIDA = { cumprida: 'Cumprida', quebrada: 'Não paga', cancelada: 'Cancelada' }
+const hora = (iso) => iso ? new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date(iso)) : ''
+
+// Resolvido hoje: fica à mão para desfazer um clique errado, mesmo depois de recarregar.
+function ItemResolvido({ item, mostrarOperador, podeDesfazer, onDesfazer }) {
+  const [ocupado, setOcupado] = useState(false)
+  // Promessa cumprida por pagamento confirmado só volta pelo próprio Pagamentos.
+  const reabre = podeDesfazer && item.resolvido_por !== 'pagamento confirmado'
+  async function desfazer() { setOcupado(true); try { await onDesfazer(item) } finally { setOcupado(false) } }
+  return (
+    <li className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-line bg-surface p-4">
+      <div className="min-w-0 flex-1 basis-48">
+        <p className="truncate text-sm font-semibold text-ink">{item.nome || item.cpf}</p>
+        <p className="text-xs text-ink-2">
+          {TIPO_LABEL[item.tipo]} de {quando(item.data, item.hora).toLowerCase()}
+          {mostrarOperador && item.operador_nome ? ` · ${item.operador_nome}` : ''}
+        </p>
+      </div>
+      <span className="text-sm font-medium text-ink">{SITUACAO_RESOLVIDA[item.situacao] ?? item.situacao}
+        <span className="font-normal text-ink-2"> às {hora(item.resolvido_em)}</span></span>
+      {reabre
+        ? <button type="button" disabled={ocupado} onClick={desfazer} className="btn-secondary btn-sm min-h-[40px] disabled:opacity-60">
+            {ocupado ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />} Desfazer
+          </button>
+        : item.resolvido_por === 'pagamento confirmado' && <span className="text-xs text-ink-2">Paga por pagamento confirmado</span>}
+    </li>
+  )
+}
+
 export default function Agenda() {
   const { token, usuario, isAdmin, isComando } = useAuth()
   // COMANDO consulta a agenda de uma empresa, sem alterar (quem resolve é a operação).
@@ -134,15 +163,17 @@ export default function Agenda() {
   const [aviso, setAviso] = useState('')
   const [desfazer, setDesfazer] = useState(null)  // aviso com "Desfazer" no rodapé
   const [aba, setAba] = useState('alto')          // no celular, uma coluna por vez
+  const [vista, setVista] = useState('pendentes')  // pendentes | resolvidos (hoje)
+  const resolvidos = vista === 'resolvidos'
 
   const carregar = useCallback(() => {
     if (isComando && !alvo) { setDados(null); setCarregando(false); return }
     setCarregando(true); setErro(null); setErroAcao(null)
-    return listarAgenda({ escopo, empresa_id: isComando ? alvo : undefined })
+    return listarAgenda({ escopo, empresa_id: isComando ? alvo : undefined, situacao: resolvidos ? 'resolvidos_hoje' : undefined })
       .then(setDados)
       .catch(e => setErro(e))
       .finally(() => setCarregando(false))
-  }, [escopo, isComando, alvo])
+  }, [escopo, isComando, alvo, resolvidos])
   useEffect(() => { carregar() }, [carregar])
 
   const grupos = useMemo(() => {
@@ -190,6 +221,16 @@ export default function Agenda() {
     }
   }
 
+  async function desfazerResolvido(item) {
+    setAviso(''); setErroAcao(null)
+    try {
+      await mudarAgenda(item.id, 'reabrir', { situacao_esperada: item.situacao })
+      setDados(d => ({ ...d, itens: d.itens.filter(i => i.id !== item.id) }))
+      avisarAgendaMudou()
+      setAviso(`${(item.nome || 'devedor').split(' ')[0]}: voltou para a Agenda.`)
+    } catch (e) { setErroAcao(e) }
+  }
+
   async function abrir(item) {
     setErroAcao(null)
     try {
@@ -229,6 +270,14 @@ export default function Agenda() {
                 {empresas.map(e => <option key={e.empresa_id} value={e.empresa_id}>{e.nome_exibicao || e.empresa_id}</option>)}
               </select>
             )}
+            <div className="flex rounded-lg border border-line bg-surface-2 p-0.5" role="tablist" aria-label="O que mostrar">
+              {[['pendentes', 'Pendentes'], ['resolvidos', 'Resolvidos hoje']].map(([k, l]) => (
+                <button key={k} role="tab" aria-selected={vista === k} onClick={() => { if (k !== vista) { setDados(null); setVista(k) } }}
+                  className={`min-h-[36px] rounded-md px-3 py-1 text-xs font-medium transition-colors ${vista === k ? 'bg-surface text-ink shadow-sm' : 'text-ink-2 hover:text-ink'}`}>
+                  {l}
+                </button>
+              ))}
+            </div>
             {isAdmin && (
               <div className="flex rounded-lg border border-line bg-surface-2 p-0.5">
                 {[['equipe', 'Equipe'], ['minha', 'Minha']].map(([k, l]) => (
@@ -262,7 +311,17 @@ export default function Agenda() {
           <div className="flex items-center gap-2 py-10 text-sm text-ink-2"><Loader2 className="h-4 w-4 animate-spin" /> Carregando a agenda…</div>
         )}
 
-        {dados?.ativo && total === 0 && (
+        {dados?.ativo && resolvidos && (
+          total === 0
+            ? <div className="rounded-xl border border-line bg-surface px-6 py-10 text-center text-sm text-ink-2">Nada foi resolvido hoje ainda.</div>
+            : <ul className="space-y-2.5">
+                {dados.itens.map(i => (
+                  <ItemResolvido key={i.id} item={i} mostrarOperador={escopo === 'equipe'} podeDesfazer={!isComando} onDesfazer={desfazerResolvido} />
+                ))}
+              </ul>
+        )}
+
+        {dados?.ativo && !resolvidos && total === 0 && (
           <div className="rounded-xl border border-line bg-surface px-6 py-12 text-center">
             <CalendarClock className="mx-auto h-8 w-8 text-ink-2 opacity-50" />
             <p className="mt-3 text-sm font-medium text-ink">Nada pendente</p>
@@ -272,7 +331,7 @@ export default function Agenda() {
           </div>
         )}
 
-        {dados?.ativo && total > 0 && (
+        {dados?.ativo && !resolvidos && total > 0 && (
           <>
             {/* celular: abas; computador: três colunas */}
             <div className="flex gap-1.5 md:hidden">

@@ -34,6 +34,9 @@ class Q:
     def select(s, *a, **k): return s
     def eq(s, c, v): s.f.append(lambda l: l.get(c) == v); return s
     def limit(s, n): s.lim = n; return s
+    def neq(s, c, v): s.f.append(lambda l: l.get(c) != v); return s
+    def gte(s, c, v): s.f.append(lambda l: (l.get(c) or "") >= v); return s
+    def order(s, *a, **k): return s
     def update(s, p): s.patch = p; return s
     def execute(s):
         if s.patch is not None:
@@ -107,6 +110,21 @@ P("a4", BETO, acao="quebrar")
 checar(P("a4", ANA, acao="reabrir").status_code == 403, "operador não reabre o compromisso do colega")
 checar(P("a4", OUTRA, acao="reabrir").status_code == 404, "outra empresa: 404")
 checar(P("a4", jwt("comando", "cmd", ""), acao="reabrir").status_code == 403, "comando não mexe")
+
+print("— resolvidos hoje —")
+from datetime import timezone
+agenda.hoje = lambda: datetime.now(agenda.FUSO).date()   # as marcas de resolução usam o relógio real
+novo("r1", operador_id="op-ana"); novo("r2", operador_id="op-ana"); novo("r3", operador_id="op-beto")
+P("r1", ANA, acao="quebrar"); P("r3", BETO, acao="cancelar")
+item("r2").update(situacao="cumprida", resolvido_em=(datetime.now(timezone.utc) - timedelta(days=2)).isoformat())
+r = c.get("/agenda?situacao=resolvidos_hoje&escopo=minha", headers=ANA)
+ids = [i["id"] for i in r.json()["itens"]]
+checar(r.status_code == 200 and "r1" in ids, "o que a pessoa resolveu hoje aparece", str(ids))
+checar("r2" not in ids, "o resolvido há dois dias não aparece")
+checar("r3" not in ids, "o do colega não aparece na visão 'minha'")
+r = c.get("/agenda?situacao=resolvidos_hoje&escopo=equipe", headers=ADM)
+checar({"r1", "r3"} <= {i["id"] for i in r.json()["itens"]} and all(i["situacao"] != "pendente" for i in r.json()["itens"]),
+       "o admin vê os da equipe, nenhum pendente")
 
 print()
 print(f"{falhas} falha(s)")

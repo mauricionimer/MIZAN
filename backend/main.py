@@ -1971,7 +1971,12 @@ def listar_agenda(escopo: str = "minha", situacao: str = "pendente", cpf: Option
         def consulta():
             q = _consulta_agenda(db, payload, emp, escopo)
             return q.eq("cpf", cpf.strip()) if cpf else q
-        if situacao in SITUACOES:
+        if situacao == "resolvidos_hoje":
+            # O que foi resolvido desde 00:00 de Brasília: a lista de onde se desfaz um engano.
+            from painel import meia_noite_utc
+            linhas = (consulta().neq("situacao", "pendente").gte("resolvido_em", meia_noite_utc(hoje()))
+                      .order("resolvido_em", desc=True).limit(300).execute().data or [])
+        elif situacao in SITUACOES:
             linhas = _todas_as_linhas(lambda: consulta().eq("situacao", situacao))
         else:
             # "todas": as 300 mais recentes — histórico, não lista de trabalho.
@@ -1982,7 +1987,8 @@ def listar_agenda(escopo: str = "minha", situacao: str = "pendente", cpf: Option
         raise
     ref = hoje()
     itens = [_com_nivel(dict(l), ref) for l in linhas]
-    itens.sort(key=lambda i: (str(i.get("data") or ""), i.get("hora") or "99:99"))
+    if situacao != "resolvidos_hoje":
+        itens.sort(key=lambda i: (str(i.get("data") or ""), i.get("hora") or "99:99"))
     return {"ativo": True, "hoje": ref.isoformat(), "itens": itens}
 
 
@@ -2350,11 +2356,20 @@ def _abrir_acordo(db, empresa_id, cpf, feedback_id, pred: "dict | None", total: 
 @app.get("/acordos")
 def listar_acordos(situacao: Optional[str] = None, empresa_id: Optional[str] = None,
                    credentials: HTTPAuthorizationCredentials = Security(bearer)):
-    """Acordos parcelados da empresa com a situação de cada um e o resumo."""
+    """Acordos parcelados da empresa com a situação de cada um e o resumo.
+
+    O operador lê só os acordos dos devedores que são dele (fila dividida) e não
+    baixa parcela: quem confirma pagamento segue sendo o administrador."""
     from acordos import situacao as _situacao, SITUACOES
     from agenda import hoje
     from datetime import timedelta
-    payload = _exigir_admin_ou_comando(credentials)
+    payload = _usuario_autenticado(credentials)
+    so_dele = payload.get("role") == "operador"
+    if so_dele:
+        if not payload.get("empresa_id"):
+            raise HTTPException(status_code=403, detail="Acesso negado: usuário sem empresa definida.")
+    else:
+        payload = _exigir_admin_ou_comando(credentials)
     emp = _empresa_da_agenda(payload, empresa_id)
     if situacao and situacao not in SITUACOES:
         raise HTTPException(status_code=422, detail="Situação inválida.")
@@ -2371,13 +2386,19 @@ def listar_acordos(situacao: Optional[str] = None, empresa_id: Optional[str] = N
         grupos.setdefault(l["feedback_id"], []).append(l)
     ids_pred = list({g[0].get("predicao_id") for g in grupos.values() if g[0].get("predicao_id")})
     responsavel: dict = {}
+    dono: dict = {}
     try:
         for i in range(0, len(ids_pred), ITENS_POR_IN):
-            for p in (db.table("predicoes").select("id, responsavel_nome")
+            for p in (db.table("predicoes").select("id, responsavel_nome, responsavel_id")
                       .in_("id", ids_pred[i:i + ITENS_POR_IN]).execute().data or []):
                 responsavel[p["id"]] = p.get("responsavel_nome")
+                dono[p["id"]] = p.get("responsavel_id")
     except Exception:
         pass        # sem a divisão da fila, o acordo sai sem responsável
+    if so_dele:
+        # Sem a divisão da fila ninguém é "dono": o operador não vê acordo de ninguém.
+        grupos = {f: g for f, g in grupos.items() if dono.get(g[0].get("predicao_id")) == payload["sub"]}
+        linhas = [l for g in grupos.values() for l in g]
     acordos = []
     for fid, ps in grupos.items():
         ps.sort(key=lambda p: p["numero"])

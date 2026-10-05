@@ -6,7 +6,7 @@ export const NIVEIS = ['alto', 'medio', 'safe']
 export const NIVEL_CFG = {
   alto:  { label: 'Alto',  dica: 'Venceu e segue pendente', cor: 'var(--danger)',  fundo: 'rgb(var(--c-danger) / 0.10)',  borda: 'rgb(var(--c-danger) / 0.25)' },
   medio: { label: 'Médio', dica: 'Vence hoje ou amanhã',    cor: 'var(--warning)', fundo: 'rgb(var(--c-warning) / 0.10)', borda: 'rgb(var(--c-warning) / 0.25)' },
-  safe:  { label: 'Safe',  dica: 'Daqui a 2 dias ou mais',  cor: 'var(--success)', fundo: 'rgb(var(--c-success) / 0.10)', borda: 'rgb(var(--c-success) / 0.25)' },
+  safe:  { label: 'Tranquilo', dica: 'Daqui a 2 dias ou mais',  cor: 'var(--success)', fundo: 'rgb(var(--c-success) / 0.10)', borda: 'rgb(var(--c-success) / 0.25)' },
 }
 
 export const TIPO_LABEL = { promessa: 'Promessa', retorno: 'Retorno' }

@@ -23,7 +23,7 @@ def hoje() -> date:
 
 
 def nivel(data_compromisso: date, referencia: date | None = None) -> str:
-    """Alto: já passou e segue pendente. Médio: hoje ou amanhã. Safe: 2 dias ou mais."""
+    """Alto: já passou e segue pendente. Médio: hoje ou amanhã. Tranquilo (safe): 2 dias ou mais."""
     ref = referencia or hoje()
     if data_compromisso < ref:
         return "alto"

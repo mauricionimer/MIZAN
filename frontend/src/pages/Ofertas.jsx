@@ -59,6 +59,25 @@ export default function Ofertas() {
   }
   useEffect(() => { carregar() }, [isComando, alvo])     // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Rascunho neste navegador: o que está sendo editado e ainda não foi salvo
+  // sobrevive a um recarregamento ou queda. Nunca publica nada: só "Salvar" muda
+  // as propostas da equipe.
+  const chaveRascunho = `mizan_rascunho_ofertas:${isComando ? alvo : 'empresa'}`
+  const [rascunho, setRascunho] = useState(null)
+  const lerRascunho = () => { try { const r = JSON.parse(localStorage.getItem(chaveRascunho) || 'null'); return r?.catalogo ? r : null } catch { return null } }
+  const apagarRascunho = () => { try { localStorage.removeItem(chaveRascunho) } catch { /* sem armazenamento */ } setRascunho(null) }
+  useEffect(() => { setRascunho(dados ? lerRascunho() : null) }, [dados, chaveRascunho])     // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!sujo || !dados) return
+    const t = setTimeout(() => {
+      try { localStorage.setItem(chaveRascunho, JSON.stringify({ catalogo, alcada, em: Date.now() })) } catch { /* sem armazenamento */ }
+    }, 600)
+    return () => clearTimeout(t)
+  }, [sujo, catalogo, alcada, dados, chaveRascunho])
+  function restaurarRascunho() {
+    setCatalogo(rascunho.catalogo); setAlcada(rascunho.alcada || {}); setSel(0); setSujo(true); setRascunho(null)
+  }
+
   // Sair pelo menu, fechar ou recarregar a aba com alterações não salvas pede confirmação.
   useProtegerSaida(sujo, 'Você tem alterações não salvas nas ofertas. Deseja sair?')
   const [trocaEmpresa, setTrocaEmpresa] = useState(null)
@@ -92,7 +111,7 @@ export default function Ofertas() {
   async function descartar() {
     const ok = await pedirConfirmacao({ titulo: 'Descartar as alterações?',
       texto: 'As ofertas e a alçada voltam ao que está salvo.', confirmar: 'Descartar', perigo: true })
-    if (ok) { aplicar(dados); setMsg(null) }
+    if (ok) { aplicar(dados); setMsg(null); apagarRascunho() }
   }
   function excluir() {
     if (catalogo.length <= 1) return
@@ -103,7 +122,7 @@ export default function Ofertas() {
     setSalvando(true); setMsg(null)
     try {
       const d = await salvarOfertas({ catalogo: catalogo.map(efetiva), alcada, ...extra }, isComando ? alvo : undefined)
-      aplicar(d)
+      aplicar(d); apagarRascunho()
       setMsg({ tipo: 'ok', texto: extra.restaurar_padrao ? 'Voltou às ofertas padrão.' : 'Ofertas salvas. As propostas da ficha já usam este catálogo.' })
     } catch (e) { setMsg({ tipo: 'erro', erro: e }) } finally { setSalvando(false) }
   }
@@ -146,6 +165,17 @@ export default function Ofertas() {
             </motion.p>
           )}
         </AnimatePresence>
+        {rascunho && !sujo && (
+          <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl px-4 py-3"
+            style={{ background: 'rgb(var(--c-warning) / 0.08)', border: '1px solid rgb(var(--c-warning) / 0.25)' }}>
+            <p className="min-w-0 flex-1 text-sm text-ink">
+              Há alterações não salvas deste navegador, de {new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(rascunho.em))}.
+              Elas ainda não valem para a equipe.
+            </p>
+            <button type="button" onClick={restaurarRascunho} className="btn-primary btn-sm">Continuar editando</button>
+            <button type="button" onClick={apagarRascunho} className="btn-ghost btn-sm">Descartar rascunho</button>
+          </div>
+        )}
         {dados?.padrao && !sujo && (
           <p className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-xs text-ink-2">
             A empresa usa as 4 ofertas padrão do Mizan. Edite à vontade: ao salvar, este passa a ser o catálogo da empresa.

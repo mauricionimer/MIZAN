@@ -37,7 +37,7 @@ st = acordos.situacao([P(HOJE - timedelta(days=30)), P(HOJE)], HOJE)
 checar(st["situacao"] == "atrasado", "exatamente 30 dias ainda é atrasado")
 checar(acordos.situacao([P(HOJE, "paga"), P(HOJE, "paga")], HOJE)["situacao"] == "quitado", "quitado")
 
-TAB = {"acordo_parcelas": [], "predicoes": [{"id": "p1", "nome": "Maria Dias", "responsavel_nome": "Ana"}]}
+TAB = {"acordo_parcelas": [], "predicoes": [{"id": "p1", "nome": "Maria Dias", "responsavel_nome": "Ana", "responsavel_id": "op"}]}
 MODO = {"sem_tabela": False}
 
 class R:
@@ -112,7 +112,12 @@ checar(res["quebrado_valor"] == 180.0, "valor quebrado = parcelas vencidas", str
 checar(res["a_vencer_7d"] == 1 and res["a_vencer_7d_valor"] == 60.0, "a vencer em 7 dias: só a parcela que vence em 3 dias", str(res["a_vencer_7d"]))
 checar([a["id"] for a in c.get("/acordos?situacao=quebrado", headers=ADM).json()["acordos"]] == ["fb-3"], "filtro por situação")
 checar(c.get("/acordos?situacao=x", headers=ADM).status_code == 422, "situação inválida: 422")
-checar(c.get("/acordos", headers=OP).status_code == 403, "operador não acessa")
+r = c.get("/acordos", headers=OP)
+checar(r.status_code == 200 and [a["id"] for a in r.json()["acordos"]] == ["fb-1"], "operador lê só os acordos dos devedores dele", r.text[:100])
+checar(r.json()["resumo"]["acordos"] == 1 and r.json()["resumo"]["atrasado"] == 1 and r.json()["resumo"]["quebrado"] == 0,
+       "e o resumo é só o dele")
+checar(c.get("/acordos", headers=jwt("goias", "operador", "outro")).json()["acordos"] == [], "operador sem devedor com acordo: lista vazia")
+checar(c.get("/acordos", headers=jwt("", "operador", "sememp")).status_code == 403, "operador sem empresa: 403")
 checar(c.get("/acordos?empresa_id=beta", headers=CMD).json()["resumo"]["acordos"] == 1, "comando lê a empresa escolhida")
 
 print("— baixar parcela —")

@@ -141,7 +141,7 @@ function Acordo({ a, hoje, podeBaixar, onParcela, destaque }) {
 }
 
 export default function Acordos() {
-  const { token, isAdmin, isComando } = useAuth()
+  const { token, isAdmin, isComando, isOperador } = useAuth()
   const [dados, setDados] = useState(null)
   const [filtro, setFiltro] = useState('')
   const [erro, setErro] = useState(null)
@@ -203,7 +203,10 @@ export default function Acordos() {
             <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight text-ink">
               <Handshake className="h-5 w-5 text-blue-400" /> Acordos<DicaAjuda id="acordos-em-andamento" />
             </h1>
-            <p className="mt-1 text-sm text-ink-2">Acordos parcelados: o que vence nos próximos dias e quem parou de pagar.</p>
+            <p className="mt-1 text-sm text-ink-2">
+              {isOperador ? 'Acordos parcelados dos devedores da sua fila: o que vence nos próximos dias e quem parou de pagar. A baixa de parcela é do administrador.'
+                : 'Acordos parcelados: o que vence nos próximos dias e quem parou de pagar.'}
+            </p>
           </div>
           {isComando && (
             <select value={alvo} onChange={e => setAlvo(e.target.value)} aria-label="Empresa"
@@ -256,7 +259,9 @@ export default function Acordos() {
               <div className="rounded-xl border border-line bg-surface px-6 py-12 text-center">
                 <Handshake className="mx-auto h-8 w-8 text-ink-2 opacity-50" />
                 <p className="mt-3 text-sm font-medium text-ink">Nenhum acordo parcelado ainda</p>
-                <p className="mt-1 text-xs text-ink-2">Ao registrar em Pagamentos um pagamento “Parcelado”, o acordo aparece aqui com todas as parcelas.</p>
+                <p className="mt-1 text-xs text-ink-2">{isOperador
+                  ? 'Quando um devedor da sua fila fechar um acordo parcelado, ele aparece aqui com todas as parcelas.'
+                  : 'Ao registrar em Pagamentos um pagamento “Parcelado”, o acordo aparece aqui com todas as parcelas.'}</p>
               </div>
             ) : lista.length === 0 ? (
               <p className="rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm text-ink-2">Nenhum acordo nesta situação.</p>

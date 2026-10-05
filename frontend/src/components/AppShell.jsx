@@ -12,7 +12,7 @@ import useAvisosDeDuvida from './useAvisosDeDuvida'
 import useAvisoAgenda from './useAvisoAgenda'
 import ConfirmarModal from './ConfirmarModal'
 import useModal from './useModal'
-import { saidaTravada, liberarSaida } from './protecaoSaida'
+import { saidaTravada, liberarSaida, confirmarVoltar } from './protecaoSaida'
 import { LogoMark } from './Logo'
 import { useAuth } from '../context/AuthContext'
 import { useAnalysis } from '../context/AnalysisContext'
@@ -69,6 +69,7 @@ function useItens() {
         ...(gestor ? [] : [painel]),
         { id: 'pagamentos', label: 'Pagamentos', icon: ClipboardList, rota: '/feedback' },
         itemAgenda,
+        ...(gestor ? [] : [{ id: 'acordos', label: 'Meus acordos', icon: Handshake, rota: '/acordos' }]),
         { id: 'roteiros', label: 'Roteiros', icon: MessageSquareText, rota: '/roteiros' },
         ...(gestor ? [] : [ia]),
       ],
@@ -206,6 +207,15 @@ export function ShellLayout() {
   const [gaveta, setGaveta] = useState(false)
   const [slotAcoes, setSlotAcoes] = useState(null)
   const [saidaPendente, setSaidaPendente] = useState(null)   // ação de navegar à espera da confirmação
+  // Botão "voltar" do navegador numa tela com alterações não salvas.
+  useEffect(() => {
+    const aoBloquear = () => {
+      const trava = saidaTravada()
+      if (trava) setSaidaPendente({ mensagem: trava.mensagem, voltar: true, ir: confirmarVoltar })
+    }
+    window.addEventListener('mizan:voltar-bloqueado', aoBloquear)
+    return () => window.removeEventListener('mizan:voltar-bloqueado', aoBloquear)
+  }, [])
 
   const nomeEmpresa = empresaConfig?.nome_exibicao || 'Mizan'
   const nomeUser = usuario?.nome || 'Operador'
@@ -326,7 +336,7 @@ export function ShellLayout() {
         texto="O que não foi salvo nesta tela será perdido."
         cancelar="Continuar editando" confirmar="Sair sem salvar" perigo
         onCancelar={() => setSaidaPendente(null)}
-        onConfirmar={() => { const ir = saidaPendente.ir; liberarSaida(); setSaidaPendente(null); ir() }} />
+        onConfirmar={() => { const ir = saidaPendente.ir; if (!saidaPendente.voltar) liberarSaida(); setSaidaPendente(null); ir() }} />
     </ShellCtx.Provider>
   )
 }
