@@ -239,11 +239,12 @@ perguntas:
 - como monto uma oferta diferente do catálogo
 curta: Na ficha do devedor, monte a oferta (desconto, parcelas, entrada e juros), partindo de uma oferta da empresa ou do zero. O sistema analisa na hora se ela é boa para quem paga e para o banco.
 calculo: Para quem paga: Boa se a parcela cabe na parcela máxima (margem livre × teto das Premissas); Ruim se passa; Atenção se não dá para verificar (sem despesas) ou se a entrada passa da sobra do mês. À vista é Boa quando cabe na sobra de um mês; senão Atenção (depende de reserva). Para o banco: valor esperado = valor negociado × chance de pagar da família da oferta, comparado com o da melhor oferta do catálogo (a melhor que cabe no bolso ou a melhor à vista; sem margem, a de maior valor esperado). Boa a partir de 95%, Atenção de 80% a 95%, Ruim abaixo de 80% ou abaixo do que a venda da dívida renderia (dívida × cessão das Premissas, quando informada). Juros não entram no valor esperado. A análise geral é a pior das duas; fora da alçada é Ruim.
-fazer: Comece pela oferta sugerida, ajuste com o devedor na conversa e confira os dois lados antes de fechar. Se as despesas forem declaradas na ligação, informe em Propostas: a análise refaz a margem na hora.
+fazer: Comece pela oferta sugerida, ajuste com o devedor na conversa e confira os dois lados antes de fechar. Se as despesas forem declaradas na ligação, informe em Propostas: a análise refaz a margem na hora. Depois de fazer a oferta, use "Confirmar que fiz esta oferta": escolha o canal e a resposta. Aceitou vira contato "Prometeu pagar" e promessa na Agenda (valor do primeiro pagamento); Vai pensar vira retorno na Agenda; Recusou fica no histórico. A oferta completa aparece em "Ofertas feitas a este devedor", e o contato ensina a IA com a família da oferta.
 cuidado: Os limites de 95% e 80% são escolha de projeto. A chance de pagar é a da família da oferta e ainda não muda com cada ponto de desconto. Oferta fora da alçada não pode ser confirmada.
 fontes:
 - backend/model/oferta.py::analisar
 - backend/main.py::simular_oferta
+- backend/main.py::registrar_oferta
 constantes:
 - backend/model/oferta.py::LIMIAR_BOA = 0.95
 - backend/model/oferta.py::LIMIAR_ATENCAO = 0.80

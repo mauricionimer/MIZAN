@@ -814,6 +814,8 @@ export default function DebtorDetail() {
   const navigate = useNavigate()
   const { result, setVista } = useAnalysis()
   const { isAdmin, isComando } = useAuth()
+  // O3: oferta registrada cria um contato; a lista de contatos recarrega.
+  const [versaoContatos, setVersaoContatos] = useState(0)
   // A tela inicial é uma só: dizer "Dashboard" é escolher a vista dela.
   const voltarAoDashboard = () => { setVista('dashboard'); navigate('/') }
 
@@ -1015,7 +1017,8 @@ export default function DebtorDetail() {
               />
             </Section>
 
-            <FazerOferta cpf={d.cpf} despesas={despesas} />
+            <FazerOferta cpf={d.cpf} despesas={despesas} canalPadrao={rec?.canal} confirmavel={!isComando}
+              onRegistrada={() => setVersaoContatos(v => v + 1)} />
 
             <Section title="Por que esse score?" ajuda="por-que-esse-score">
               <ExplicacaoScore explicacao={explicacao} loading={explicacaoLoading} erro={explicacaoErro} />
@@ -1060,7 +1063,7 @@ export default function DebtorDetail() {
 
             <ApproachRecommendation devedor={d} rec={rec} loading={recLoading} erro={recErro} />
             <MensagemSugerida devedor={d} rec={rec} propostas={propostas} />
-            <HistoricoContatos cpf={d.cpf} rec={rec} propostas={propostas} />
+            <HistoricoContatos key={versaoContatos} cpf={d.cpf} rec={rec} propostas={propostas} />
           </div>
         </div>
       </div>

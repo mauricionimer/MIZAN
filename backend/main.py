@@ -6898,7 +6898,7 @@ def _contexto_propostas(cpf: str, payload: dict, despesas_mensais: "float | None
         db, cpf, empresa_id,
         # despesas_mensais: sem pedir esta coluna, a margem livre só existia se o
         # operador digitasse as despesas, mesmo com a carteira trazendo-as.
-        colunas="cpf, nome, valor_divida, renda_estimada, despesas_mensais, dias_em_atraso, "
+        colunas="id, cpf, nome, valor_divida, renda_estimada, despesas_mensais, dias_em_atraso, "
                 "score_recuperabilidade, probabilidade_pagamento, carteira_id")
     if not pred:
         raise HTTPException(status_code=404, detail=f"Nenhuma predição encontrada para CPF: {cpf}")
@@ -7019,6 +7019,123 @@ def simular_oferta(cpf: str, body: SimularOfertaIn, credentials: HTTPAuthorizati
     """O operador monta uma oferta; o sistema diz se é boa para quem paga e para o banco."""
     ctx = _contexto_propostas(cpf, _usuario_autenticado(credentials), body.despesas_mensais)
     return {"cpf": cpf, "nome": ctx.pred.get("nome"), "alcada": ctx.alcada, **_analisar_oferta(ctx, body)}
+
+
+# ── O3: registrar a oferta feita ─────────────────────────────────────────────
+
+_MSG_SEM_MIGRACAO_OFERTAS = ("O histórico de ofertas ainda não está ativo: rode "
+                             "sql/migracao_ofertas.sql no Supabase.")
+_RESULTADO_DA_RESPOSTA = {"aceitou": "prometeu_pagar", "vai_pensar": "contactado", "recusou": "nao_quis"}
+
+
+class OfertaFeitaIn(SimularOfertaIn):
+    cpf: str = Field(..., min_length=3, max_length=20)
+    canal: str
+    resposta: str
+    data: Optional[date] = None             # promessa (aceitou) ou retorno (vai pensar)
+    hora: Optional[str] = Field(None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    observacao: Optional[str] = Field(None, max_length=300)
+
+    @field_validator("canal")
+    @classmethod
+    def _canal(cls, v):
+        if v not in ("whatsapp", "telefone", "carta"):
+            raise ValueError("Canal inválido. Use: whatsapp, telefone ou carta.")
+        return v
+
+    @field_validator("resposta")
+    @classmethod
+    def _resposta(cls, v):
+        if v not in _RESULTADO_DA_RESPOSTA:
+            raise ValueError("Resposta inválida. Use: aceitou, vai_pensar ou recusou.")
+        return v
+
+
+@app.post("/ofertas")
+def registrar_oferta(body: OfertaFeitaIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Confirma que a oferta foi feita: refaz a análise, registra o contato (com a
+    família da oferta, que ensina o bandit), a promessa ou o retorno na Agenda e
+    a oferta completa no histórico."""
+    from agenda import validar_data_nova
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") == "comando" or not payload.get("empresa_id"):
+        raise HTTPException(status_code=403, detail="Quem registra oferta é quem trabalha a fila de uma empresa.")
+    if body.resposta in ("aceitou", "vai_pensar"):
+        if body.data is None:
+            raise HTTPException(status_code=422, detail="Informe a data " + ("prometida." if body.resposta == "aceitou" else "do retorno."))
+        try:
+            validar_data_nova(body.data)
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+    ctx = _contexto_propostas(body.cpf, payload, body.despesas_mensais)
+    analise = _analisar_oferta(ctx, body)          # o servidor refaz a conta: não confia na tela
+    if not analise["pode_confirmar"]:
+        raise HTTPException(status_code=422, detail="Fora da alçada: " + " ".join(analise["fora_da_alcada"]))
+    cond, conta = analise["condicoes"], analise["conta"]
+    n = cond["n_parcelas"]
+    resumo = (f"À vista {_brl_txt(conta['total_pago'])}" if n == 1 else
+              (f"entrada {_brl_txt(conta['entrada'])} + " if conta["entrada"] > 0 else "")
+              + f"{n}x de {_brl_txt(conta['parcela'])}")
+    if cond["desconto_pct"]:
+        resumo += f", {cond['desconto_pct']:g}% de desconto"
+    obs = f"Oferta: {resumo}." + (f" {body.observacao.strip()}" if body.observacao else "")
+    agenda = None
+    if body.resposta == "aceitou":
+        # O valor prometido é o primeiro pagamento: entrada, parcela ou o à vista.
+        primeiro = conta["entrada"] if (n > 1 and conta["entrada"] > 0) else conta["parcela"]
+        agenda = AgendaBase(tipo="promessa", data=body.data, hora=body.hora, valor=round(primeiro, 2) or None)
+    elif body.resposta == "vai_pensar":
+        agenda = AgendaBase(tipo="retorno", data=body.data, hora=body.hora)
+    contato = registrar_contato(ContatoIn(
+        cpf=body.cpf, canal=body.canal, resultado=_RESULTADO_DA_RESPOSTA[body.resposta],
+        oferta=analise["familia"], desconto_oferecido_pct=cond["desconto_pct"] or None,
+        observacao=obs[:500], agenda=agenda), credentials)
+
+    p = ctx.pred
+    linha = {
+        "empresa_id": payload["empresa_id"], "cpf": body.cpf, "nome": p.get("nome"), "carteira_id": p.get("carteira_id"),
+        "predicao_id": p.get("id"), "operador_id": payload["sub"],
+        "operador_nome": payload.get("nome", "") or payload.get("email", ""), "canal": body.canal,
+        "resposta": body.resposta, "base_id": body.base_id, "familia": analise["familia"], **cond,
+        "valor_divida": ctx.divida, "valor_negociado": conta["valor_negociado"], "entrada": conta["entrada"],
+        "parcela": conta["parcela"], "total_pago": conta["total_pago"],
+        "chance_pagar": analise["banco"]["chance_pagar"], "valor_esperado": analise["banco"]["valor_esperado"],
+        "veredito_devedor": analise["devedor"]["veredito"], "veredito_banco": analise["banco"]["veredito"],
+        "veredito_geral": analise["geral"], "agenda_data": body.data.isoformat() if body.data else None,
+        "contato_id": (contato.get("contato") or {}).get("id"),
+        "observacao": (body.observacao or "").strip() or None,
+    }
+    resposta = {"ok": True, "contato": contato.get("contato"), "agenda": contato.get("agenda"),
+                "agenda_erro": contato.get("agenda_erro"), "analise": analise}
+    try:
+        res = get_db().table("ofertas_feitas").insert({k: v for k, v in linha.items() if v is not None}).execute()
+        resposta["oferta"] = (res.data or [linha])[0]
+    except Exception as e:
+        # O contato (e a agenda) já foram gravados: a oferta só fica sem histórico.
+        resposta["oferta_erro"] = (_MSG_SEM_MIGRACAO_OFERTAS if _falta_tabela(e, "ofertas_feitas")
+                                   else "A oferta não entrou no histórico; o contato foi registrado.")
+        print(f"[Ofertas] histórico não gravado: {type(e).__name__}")
+    return resposta
+
+
+def _brl_txt(v: float) -> str:
+    return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+@app.get("/ofertas")
+def listar_ofertas_feitas(cpf: str, empresa_id: Optional[str] = None,
+                          credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Ofertas já feitas a um devedor, da mais recente para a mais antiga."""
+    payload = _usuario_autenticado(credentials)
+    emp = _empresa_da_agenda(payload, empresa_id)
+    try:
+        linhas = (get_db().table("ofertas_feitas").select("*").eq("empresa_id", emp).eq("cpf", cpf.strip())
+                  .order("created_at", desc=True).limit(50).execute().data or [])
+    except Exception as e:
+        if _falta_tabela(e, "ofertas_feitas"):
+            return {"ativo": False, "mensagem": _MSG_SEM_MIGRACAO_OFERTAS, "itens": []}
+        raise
+    return {"ativo": True, "itens": linhas}
 
 
 def _empresa_da_carteira(db, carteira_id) -> str:

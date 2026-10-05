@@ -681,6 +681,17 @@ export async function simularOferta(cpf, dados) {
   return _jsonOuErroFila(res)
 }
 
+// ── O3: ofertas feitas ───────────────────────────────────────────────────────
+export async function registrarOferta(dados) {
+  const res = await fetch(`${BASE}/ofertas`, { method: 'POST', headers: _authHeader(_getToken()), body: JSON.stringify(dados) })
+  return _jsonOuErroFila(res)
+}
+
+export async function listarOfertasFeitas(cpf) {
+  const res = await fetch(`${BASE}/ofertas?${_qs({ cpf })}`, { headers: { Authorization: `Bearer ${_getToken()}` } })
+  return _jsonOuErroFila(res)
+}
+
 // ── F4: roteiros de abordagem ────────────────────────────────────────────────
 export async function listarRoteiros(params = {}) {
   const res = await fetch(`${BASE}/roteiros?${_qs(params)}`, { headers: { Authorization: `Bearer ${_getToken()}` } })
