@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Brain, Loader2, Target, BarChart3, Activity, MessageSquare } from 'lucide-react'
+import { Brain, Loader2, Target, BarChart3, Activity, MessageSquare, ShieldCheck, CheckCircle2, AlertTriangle, Info } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import DicaAjuda from '../components/DicaAjuda'
 import { useAuth } from '../context/AuthContext'
@@ -41,6 +41,63 @@ function Numero({ rotulo, valor, nota }) {
       <p className="mt-1 text-2xl font-bold tabular-nums tracking-tight text-ink">{valor}</p>
       {nota && <p className="mt-0.5 text-xs" style={{ color: 'var(--ink-3)' }}>{nota}</p>}
     </div>
+  )
+}
+
+// A5 — "por que confiar nesta fila?", em linguagem de gerente. Só frases que
+// os números já recebidos sustentam; o que não tem dado não aparece.
+function Confianca({ m, ativa, metr, q, pesos, deriva }) {
+  const itens = []
+  const ksReal = q?.ok && q.ks != null ? Number(q.ks) : null
+  const ks = ksReal ?? (metr?.ks != null ? Number(metr.ks) : null)
+  if (ks != null) {
+    const leitura = leituraKS(ks)
+    const fonte = ksReal != null
+      ? `medido em ${q.n_amostras?.toLocaleString('pt-BR')} devedores com resultado registrado pela equipe`
+      : 'medido no teste do treino'
+    itens.push({ tipo: ks >= 30 ? 'ok' : 'atencao',
+      texto: ks >= 30 ? `Separa bem quem paga de quem não paga: KS ${ks} (${leitura}), ${fonte}.`
+        : `Separação ainda ${leitura === 'fraco' ? 'fraca' : 'regular'}: KS ${ks}, ${fonte}. A fila ajuda, mas com folga menor.` })
+  } else {
+    itens.push({ tipo: 'info', texto: 'Ainda não há medida de acerto com os dados da empresa: registre pagamentos (pagou e não pagou) para medir.' })
+  }
+  if (m?.usando === 'proprio' && ativa) {
+    itens.push({ tipo: 'ok', texto: `Treinado com ${ativa.n_amostras?.toLocaleString('pt-BR') ?? '—'} devedores da própria empresa, em ${fmtData(ativa.criado_em)}.` })
+  } else if (m) {
+    itens.push({ tipo: 'info', texto: 'Usa o modelo geral do Mizan; ainda não foi treinado com o histórico desta empresa.' })
+  }
+  if (deriva?.mensagem) {
+    itens.push(deriva.drift_detectado
+      ? { tipo: 'atencao', texto: 'A carteira atual está diferente da usada no treino: vale treinar de novo.' }
+      : { tipo: 'ok', texto: 'A carteira atual se parece com a do treino: o modelo segue valendo.' })
+  }
+  const top = pesos?.ok ? (pesos.features || []).slice(0, 3).map(f => f.nome.toLowerCase()) : []
+  if (top.length) {
+    itens.push({ tipo: 'info', texto: `O que mais decide a posição na fila: ${top.length > 1 ? `${top.slice(0, -1).join(', ')} e ${top.at(-1)}` : top[0]}.` })
+  }
+  const ICONE = { ok: CheckCircle2, atencao: AlertTriangle, info: Info }
+  const COR = { ok: 'var(--success)', atencao: 'var(--warning)', info: 'var(--ink-2)' }
+  return (
+    <section className="rounded-xl border border-line bg-surface p-6">
+      <div className="mb-4 flex items-center gap-2">
+        <ShieldCheck className="h-4 w-4 text-blue-400" />
+        <h2 className="text-sm font-semibold text-ink">Por que confiar nesta fila</h2>
+      </div>
+      <ul className="space-y-2.5">
+        {itens.map((it, i) => {
+          const I = ICONE[it.tipo]
+          return (
+            <li key={i} className="flex items-start gap-2.5 text-sm text-ink">
+              <I className="mt-0.5 h-4 w-4 shrink-0" style={{ color: COR[it.tipo] }} aria-label={it.tipo === 'ok' ? 'ok' : it.tipo === 'atencao' ? 'atenção' : 'informação'} />
+              <span>{it.texto}</span>
+            </li>
+          )
+        })}
+      </ul>
+      <p className="mt-3 text-xs" style={{ color: 'var(--ink-3)' }}>
+        KS mede o quanto o score separa quem paga de quem não paga (régua do crédito: 20 regular, 30 bom, 40 muito bom). Detalhes abaixo.
+      </p>
+    </section>
   )
 }
 
@@ -104,6 +161,8 @@ export default function PerformanceIA() {
 
         {dados && !carregando && (
           <>
+            <Confianca m={m} ativa={ativa} metr={metr} q={q} pesos={dados.pesos} deriva={dados.deriva} />
+
             <Cartao icone={Brain} titulo="Modelo em uso">
               {m?.usando === 'proprio' && ativa ? (
                 <div className="grid grid-cols-2 gap-5 sm:grid-cols-4">
