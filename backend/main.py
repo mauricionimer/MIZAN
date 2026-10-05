@@ -2098,6 +2098,17 @@ def _dados_painel(db, emp: str, desde_iso: str, operador_id: "str | None" = None
     pagamentos = _todas_as_linhas(lambda: db.table("feedbacks")
                                   .select("id, predicao_id, valor_recuperado, created_at")
                                   .eq("empresa", emp).eq("pagou", True).gte("created_at", desde_iso))
+    # A4: parcelas de acordo baixadas no período (a 1ª já é o feedback acima).
+    try:
+        parcelas = _todas_as_linhas(lambda: db.table("acordo_parcelas")
+                                    .select("id, predicao_id, valor, numero, pago_em")
+                                    .eq("empresa_id", emp).eq("situacao", "paga").gte("pago_em", desde_iso))
+        pagamentos += [{"id": f"parcela-{p['id']}", "predicao_id": p.get("predicao_id"),
+                        "valor_recuperado": p.get("valor"), "created_at": p.get("pago_em")}
+                       for p in parcelas if int(p.get("numero") or 1) > 1]
+    except Exception as e:
+        if not _falta_tabela(e, "acordo_parcelas"):
+            raise
     divisao_ativa = True
     ids = list({p["predicao_id"] for p in pagamentos if p.get("predicao_id")})
     dono: dict = {}
@@ -2238,6 +2249,152 @@ def painel_resultados(periodo: str = "90d", empresa_id: Optional[str] = None,
         "por_forma": R.agrupar(fbs, lambda f: f.get("forma_pagamento"), com_taxa=False),
         "contatos_por_canal": R.contatos_por_canal(contatos),
     }
+
+
+# ── A4: acordos em andamento ─────────────────────────────────────────────────
+
+_MSG_SEM_MIGRACAO_ACORDOS = ("Os acordos ainda não estão ativos: rode "
+                             "sql/migracao_acordos.sql no Supabase.")
+
+
+def _abrir_acordo(db, empresa_id, cpf, feedback_id, pred: "dict | None", total: int,
+                  valor: float, primeira: "date | None", quem: str) -> None:
+    """Pagamento parcelado confirmado abre o acordo: a 1ª parcela (a que entrou)
+    paga, as demais mensais com o mesmo valor. Nunca derruba o pagamento."""
+    from acordos import vencimentos
+    from agenda import hoje
+    if not empresa_id or not total or total < 2:
+        return
+    inicio = primeira or hoje()
+    agora = datetime.utcnow().isoformat()
+    pred = dict(pred or {})
+    if pred.get("id") and not pred.get("nome"):
+        try:
+            r = db.table("predicoes").select("nome").eq("id", pred["id"]).limit(1).execute()
+            pred["nome"] = (r.data or [{}])[0].get("nome")
+        except Exception:
+            pass
+    linhas = []
+    for i, venc in enumerate(vencimentos(inicio, int(total)), start=1):
+        l = {"empresa_id": empresa_id, "feedback_id": str(feedback_id), "cpf": str(cpf), "nome": pred.get("nome"),
+             "carteira_id": pred.get("carteira_id"), "predicao_id": pred.get("id"), "numero": i, "total": int(total),
+             "vencimento": venc.isoformat(), "valor": round(float(valor or 0), 2),
+             "situacao": "paga" if i == 1 else "pendente"}
+        if i == 1:
+            l.update(pago_em=agora, pago_por=quem or "")
+        linhas.append({k: v for k, v in l.items() if v is not None})
+    try:
+        db.table("acordo_parcelas").insert(linhas).execute()
+    except Exception as e:
+        print(f"[Acordos] acordo de {_cpf_no_log(cpf)} não aberto: "
+              f"{'rode sql/migracao_acordos.sql' if _falta_tabela(e, 'acordo_parcelas') else type(e).__name__}")
+
+
+@app.get("/acordos")
+def listar_acordos(situacao: Optional[str] = None, empresa_id: Optional[str] = None,
+                   credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Acordos parcelados da empresa com a situação de cada um e o resumo."""
+    from acordos import situacao as _situacao, SITUACOES
+    from agenda import hoje
+    from datetime import timedelta
+    payload = _exigir_admin_ou_comando(credentials)
+    emp = _empresa_da_agenda(payload, empresa_id)
+    if situacao and situacao not in SITUACOES:
+        raise HTTPException(status_code=422, detail="Situação inválida.")
+    db = get_db()
+    try:
+        linhas = _todas_as_linhas(lambda: db.table("acordo_parcelas").select("*").eq("empresa_id", emp))
+    except Exception as e:
+        if _falta_tabela(e, "acordo_parcelas"):
+            return {"ativo": False, "mensagem": _MSG_SEM_MIGRACAO_ACORDOS, "acordos": [], "resumo": None}
+        raise
+    ref = hoje()
+    grupos: dict = {}
+    for l in linhas:
+        grupos.setdefault(l["feedback_id"], []).append(l)
+    ids_pred = list({g[0].get("predicao_id") for g in grupos.values() if g[0].get("predicao_id")})
+    responsavel: dict = {}
+    try:
+        for i in range(0, len(ids_pred), ITENS_POR_IN):
+            for p in (db.table("predicoes").select("id, responsavel_nome")
+                      .in_("id", ids_pred[i:i + ITENS_POR_IN]).execute().data or []):
+                responsavel[p["id"]] = p.get("responsavel_nome")
+    except Exception:
+        pass        # sem a divisão da fila, o acordo sai sem responsável
+    acordos = []
+    for fid, ps in grupos.items():
+        ps.sort(key=lambda p: p["numero"])
+        st = _situacao(ps, ref)
+        p0 = ps[0]
+        acordos.append({"id": fid, "cpf": p0["cpf"], "nome": p0.get("nome"), "carteira_id": p0.get("carteira_id"),
+                        "responsavel_nome": responsavel.get(p0.get("predicao_id")),
+                        "aberto_em": str(p0.get("vencimento"))[:10], "valor_parcela": float(p0.get("valor") or 0),
+                        **st, "parcelas": [{k: p.get(k) for k in ("id", "numero", "vencimento", "valor", "situacao", "pago_em")}
+                                           for p in ps]})
+    semana = ref + timedelta(days=7)
+    a_vencer = [p for p in linhas if p.get("situacao") != "paga"
+                and ref <= date.fromisoformat(str(p["vencimento"])[:10]) <= semana]
+    resumo = {"acordos": len(acordos),
+              "valor_aberto": round(sum(a["valor_aberto"] for a in acordos), 2),
+              "a_vencer_7d": len(a_vencer),
+              "a_vencer_7d_valor": round(sum(float(p.get("valor") or 0) for p in a_vencer), 2)}
+    for s_ in SITUACOES:
+        doS = [a for a in acordos if a["situacao"] == s_]
+        resumo[s_] = len(doS)
+        resumo[f"{s_}_valor"] = round(sum(a["valor_vencido" if s_ in ("atrasado", "quebrado") else "valor_aberto"]
+                                          for a in doS), 2)
+    ordem = {"quebrado": 0, "atrasado": 1, "em_dia": 2, "quitado": 3}
+    acordos.sort(key=lambda a: (ordem[a["situacao"]], -a["dias_atraso"], a["proximo_vencimento"] or "9999"))
+    if situacao:
+        acordos = [a for a in acordos if a["situacao"] == situacao]
+    return {"ativo": True, "hoje": ref.isoformat(), "dias_quebra": __import__("acordos").DIAS_QUEBRA,
+            "resumo": resumo, "acordos": acordos}
+
+
+class ParcelaPatch(BaseModel):
+    acao: str           # pagar | desfazer
+
+    @field_validator('acao')
+    @classmethod
+    def _val(cls, v):
+        if v not in ("pagar", "desfazer"):
+            raise ValueError("Ação inválida. Use: pagar ou desfazer.")
+        return v
+
+
+@app.patch("/acordos/parcelas/{parcela_id}")
+def mudar_parcela(parcela_id: str, body: ParcelaPatch, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    payload = _exigir_admin_ou_comando(credentials)
+    if payload.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Quem baixa parcela é o administrador da empresa.")
+    emp = payload.get("empresa_id", "")
+    db = get_db()
+    try:
+        r = db.table("acordo_parcelas").select("*").eq("id", parcela_id).eq("empresa_id", emp).limit(1).execute()
+    except Exception as e:
+        if _falta_tabela(e, "acordo_parcelas"):
+            raise HTTPException(status_code=409, detail=_MSG_SEM_MIGRACAO_ACORDOS)
+        raise
+    p = (r.data or [None])[0]
+    if not p:
+        raise HTTPException(status_code=404, detail="Parcela não encontrada.")
+    if body.acao == "pagar":
+        if p.get("situacao") == "paga":
+            raise HTTPException(status_code=409, detail="Esta parcela já está paga.")
+        patch = {"situacao": "paga", "pago_em": datetime.utcnow().isoformat(),
+                 "pago_por": payload.get("nome", "") or payload.get("email", "")}
+    else:
+        if int(p.get("numero") or 1) == 1:
+            raise HTTPException(status_code=409, detail="A 1ª parcela é o pagamento registrado em Pagamentos; corrija por lá.")
+        if p.get("situacao") != "paga":
+            raise HTTPException(status_code=409, detail="Esta parcela não está paga.")
+        patch = {"situacao": "pendente", "pago_em": None, "pago_por": None}
+    res = db.table("acordo_parcelas").update(patch).eq("id", parcela_id).eq("empresa_id", emp).execute()
+    _registrar_auditoria(acao="parcela_paga" if body.acao == "pagar" else "parcela_desfeita", entidade="acordo",
+                         entidade_id=str(p.get("feedback_id")), usuario_email=payload.get("email", ""),
+                         empresa_id=emp, usuario_id=payload.get("sub", ""),
+                         detalhes={"parcela": p.get("numero"), "total": p.get("total"), "valor": p.get("valor")})
+    return {"ok": True, "parcela": (res.data or [{**p, **patch}])[0]}
 
 
 # ── F4: roteiros de abordagem ────────────────────────────────────────────────
@@ -5056,6 +5213,9 @@ def receber_feedback(
     )
     if payload.pagou:
         _cumprir_promessas(db, empresa_nome, payload.cpf)
+        if (payload.parcelas or 1) > 1:
+            _abrir_acordo(db, empresa_nome, payload.cpf, feedback_id, pred_dict, payload.parcelas,
+                          float(payload.valor_recuperado or 0), payload.data_pagamento, usuario_nome)
 
     # Write-back: só para admin/comando — operador não pode alterar banco externo diretamente
     empresa_id_jwt = jwt_payload.get("empresa_id", "")

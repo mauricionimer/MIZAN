@@ -161,3 +161,26 @@ fontes:
 - backend/main.py::painel_resultados
 constantes:
 - backend/resultados.py::AMOSTRA_MINIMA = 30
+
+## acordos-em-andamento
+titulo: Acordos em andamento (parcelas e quebras)
+perfis: admin, comando
+telas: Acordos
+perguntas:
+- quem parou de pagar o acordo
+- quais parcelas vencem esta semana
+- o que é acordo quebrado
+- como dou baixa numa parcela
+- de onde vêm as parcelas do acordo
+- por que um acordo antigo não aparece
+- a parcela paga conta no recebido
+curta: Todo pagamento registrado como "Parcelado" vira um acordo com todas as parcelas. A tela mostra o que vence nos próximos 7 dias, os atrasados e os quebrados (pagou e parou).
+calculo: A 1ª parcela é o pagamento registrado em Pagamentos, com o valor informado; as seguintes vencem todo mês no mesmo dia (dia 31 vira o último dia dos meses curtos), com o mesmo valor. Em dia: nenhuma parcela vencida em aberto. Atrasado: parcela vencida há até 30 dias. Quebrado: parcela vencida há mais de 30 dias. Quitado: todas pagas. O valor de atrasados e quebrados é o das parcelas vencidas; "Em aberto" soma tudo o que falta pagar. O dia é o de Brasília.
+fazer: Comece pelos quebrados e atrasados: são o dinheiro que está vazando. Quando a parcela for paga, abra o acordo e use "Marcar paga"; "Desfazer" corrige um clique errado. A parcela baixada entra em "Recebido" no painel do operador responsável e no da equipe.
+cuidado: O limite de 30 dias para "quebrado" é escolha de projeto, não regra do banco. Pagamentos parcelados registrados antes desta tela não viram acordo, porque não há como saber o que foi pago depois. A 1ª parcela só se corrige em Pagamentos. Só o administrador da empresa dá baixa; o COMANDO consulta.
+fontes:
+- backend/acordos.py::situacao
+- backend/acordos.py::vencimentos
+- backend/main.py::listar_acordos
+constantes:
+- backend/acordos.py::DIAS_QUEBRA = 30

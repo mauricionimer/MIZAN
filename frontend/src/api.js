@@ -647,6 +647,19 @@ export async function buscarResultados(periodo, empresaId) {
   return _jsonOuErroFila(res)
 }
 
+// ── A4: acordos em andamento ─────────────────────────────────────────────────
+export async function listarAcordos(empresaId) {
+  const res = await fetch(`${BASE}/acordos?${_qs({ empresa_id: empresaId })}`, { headers: { Authorization: `Bearer ${_getToken()}` } })
+  return _jsonOuErroFila(res)
+}
+
+export async function mudarParcela(id, acao) {
+  const res = await fetch(`${BASE}/acordos/parcelas/${encodeURIComponent(id)}`, {
+    method: 'PATCH', headers: _authHeader(_getToken()), body: JSON.stringify({ acao }),
+  })
+  return _jsonOuErroFila(res)
+}
+
 // ── F4: roteiros de abordagem ────────────────────────────────────────────────
 export async function listarRoteiros(params = {}) {
   const res = await fetch(`${BASE}/roteiros?${_qs(params)}`, { headers: { Authorization: `Bearer ${_getToken()}` } })

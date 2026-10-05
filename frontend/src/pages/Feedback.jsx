@@ -474,7 +474,7 @@ export default function Feedback() {
                   {form.pagou === 'sim' && (
                     <div>
                       <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>
-                        Valor recuperado
+                        {form.modalidade === 'parcelado' ? 'Valor recebido agora (1ª parcela)' : 'Valor recuperado'}
                       </label>
                       <div className="relative">
                         <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-4 text-sm">R$</span>
@@ -535,6 +535,9 @@ export default function Feedback() {
                                 value={form.taxa_juros_mensal} onChange={e => set('taxa_juros_mensal', e.target.value)} className="input-base tabular-nums" />
                             </div>
                           )}
+                          <p className="col-span-2 text-[11px]" style={{ color: 'var(--ink-3)' }}>
+                            Abre um acordo em Acordos: esta é a 1ª parcela (paga) e as outras vencem todo mês, no mesmo dia e valor.
+                          </p>
                         </div>
                       )}
                       <div>
