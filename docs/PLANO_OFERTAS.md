@@ -90,7 +90,7 @@ atualiza a cada mudança (servidor, `POST /predicoes/{cpf}/simular-oferta`).
 | Recebe (nominal) | total pago |
 | Recupera | total pago ÷ dívida |
 | Chance de pagar | da família da oferta (histórico real da empresa; sem histórico, a do modelo) |
-| Valor esperado | total pago × chance de pagar |
+| Valor esperado | valor negociado × chance de pagar (juros compensam o tempo e ficam fora, como nas propostas) |
 | Comparação | valor esperado ÷ o da melhor oferta do catálogo que cabe no bolso |
 | Venda da carteira | se a Premissa de cessão estiver informada: valor esperado × o que um fundo pagaria (dívida × cessão%) |
 
