@@ -16,7 +16,7 @@ import {
   Users, TrendingDown, BarChart2, Star,
   Download, Search, Loader2,
   Tag, Percent, ArrowUpRight, Banknote, FileSpreadsheet,
-  CheckCircle2, XCircle, TrendingUp, X, AlertTriangle, Shuffle,
+  CheckCircle2, XCircle, TrendingUp, X, AlertTriangle, Shuffle, ChevronDown, SlidersHorizontal,
 } from 'lucide-react'
 import PriorityBadge from '../components/PriorityBadge'
 import { prioridadePorRank, CORTE_ALTA } from '../utils/prioridade'
@@ -352,6 +352,9 @@ export default function Dashboard({ onIrPara }) {
   const [distrib, setDistrib]               = useState(null)
   const [filtroResp, setFiltroResp]         = useState('todos')
   const [abrirDistribuir, setAbrirDistribuir] = useState(false)
+  // Ajustes que se usam pouco ficam fechados: parâmetros da simulação e filtros da fila.
+  const [verParametros, setVerParametros] = useState(false)
+  const [verFiltros, setVerFiltros] = useState(false)
   const [avisoFila, setAvisoFila]           = useState('')
   const [versaoDistrib, setVersaoDistrib]   = useState(0)
   // O operador espera o resumo antes de buscar a página: senão via a carteira
@@ -501,6 +504,8 @@ export default function Dashboard({ onIrPara }) {
 
   const totalFiltrado = filtradoLocal ? filtradoLocal.length : pagina.filtrado
   const totalPages    = Math.max(1, Math.ceil(totalFiltrado / PAGE_SIZE))
+  const respPadrao    = isOperador && distrib?.ativo && distrib?.meus > 0 ? 'me' : 'todos'
+  const nFiltros      = [filtroResp !== respPadrao, filtroPrio !== 'todos', filtroProduto !== 'todos', filtroUF !== 'todas', filtroStatus !== 'todos'].filter(Boolean).length
   const paginated     = filtradoLocal
     ? filtradoLocal.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
     : pagina.itens
@@ -788,26 +793,34 @@ export default function Dashboard({ onIrPara }) {
           {/* ── Precificação ── */}
           {!isOperador && (
             <section className="mt-6 rounded-xl border border-line bg-surface p-6">
-              <div className="mb-6 flex items-center justify-between">
+              <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--ink-2)' }}>Precificação</p>
                   <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--ink)' }}>Carteira de Crédito<DicaAjuda id="precificacao-simulador" /></h3>
                 </div>
+                <button type="button" onClick={() => setVerParametros(v => !v)} aria-expanded={verParametros}
+                  className="btn-secondary btn-sm">
+                  <SlidersHorizontal className="h-3.5 w-3.5" /> Parâmetros
+                  <span className="font-normal text-ink-2">· custo {custoCobranca}% · retorno {retornoAlvo}%</span>
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${verParametros ? 'rotate-180' : ''}`} />
+                </button>
               </div>
 
-              <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-5">
-                <div className="space-y-5 rounded-xl border border-line bg-raise-1 p-4 lg:col-span-1">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-ink-2">Parâmetros</p>
+              {verParametros && (
+                <div className="mb-6 grid gap-5 rounded-xl border border-line bg-raise-1 p-4 sm:grid-cols-2">
                   <Slider label="Custo de Cobrança" hint="Despesas operacionais e comissões"
                     value={custoCobranca} min={5} max={50} step={1} onChange={setCustoCobranca} color="blue" />
                   <Slider label="Retorno Alvo" hint="ROI mínimo desejado na operação"
                     value={retornoAlvo} min={10} max={80} step={1} onChange={setRetornoAlvo} color="emerald" />
                 </div>
+              )}
+
+              <div className="grid grid-cols-1 items-stretch gap-6">
 
                 {/* Duas linhas que ocupam a altura dos parâmetros: em cima os números
                     de base, embaixo (maiores) os dois que decidem a compra. */}
                 <motion.div variants={lista} initial="inicial" animate="entra"
-                  className="grid grid-cols-1 gap-4 sm:grid-cols-6 sm:auto-rows-fr lg:col-span-4">
+                  className="grid grid-cols-1 gap-4 sm:grid-cols-6 sm:auto-rows-fr">
                   <motion.div variants={item} className="sm:col-span-2"><PricingCard ajuda="valor-esperado" label="Valor Esperado de Recuperação" value={fmtBRL(pricing.ver)}
                     icon={ArrowUpRight} /></motion.div>
                   <motion.div variants={item} className="sm:col-span-2"><PricingCard label="Após o custo simulado" value={fmtBRL(pricing.liquido)} icon={Percent} /></motion.div>
@@ -1029,12 +1042,7 @@ export default function Dashboard({ onIrPara }) {
             <div className="space-y-3 border-b border-line px-6 py-4">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--ink-2)' }}>Ranking</p>
-                  <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--ink)' }}>Recuperabilidade<DicaAjuda id="fila-ordem" /></h3>
-                  <p className="text-xs mt-0.5" style={{ color: 'var(--ink-2)' }}>
-                    {fmtNum(totalFiltrado)} devedores{search || filtroPrio !== 'todos' || filtroProduto !== 'todos' || filtroUF !== 'todas' ? ' filtrados' : ''}
-                    {totalPages > 1 && ` · página ${page} de ${totalPages}`}
-                  </p>
+                  <h3 className="text-lg font-semibold" style={{ color: 'var(--ink)' }}>Recuperabilidade<DicaAjuda id="fila-ordem" /></h3>
                   {estadoModelo?.nivel === 'sintetico' && (
                     <p className="text-xs mt-0.5" style={{ color: 'var(--warning)' }}>
                       O score desta fila vem de um modelo treinado com dados simulados: ordena por premissas declaradas, não pelo histórico desta carteira.
@@ -1048,6 +1056,12 @@ export default function Dashboard({ onIrPara }) {
                     <Shuffle className="h-3.5 w-3.5" /> Distribuir fila
                   </button>
                 )}
+                <button type="button" onClick={() => setVerFiltros(v => !v)} aria-expanded={verFiltros}
+                  className="inline-flex h-9 items-center gap-2 rounded-lg border border-line bg-surface-2 px-3 text-xs font-semibold text-ink-2 transition-colors hover:text-ink">
+                  Responsável e filtros
+                  {nFiltros > 0 && <span className="rounded-full bg-blue-500/20 px-1.5 text-[11px] font-bold text-blue-300">{nFiltros}</span>}
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${verFiltros ? 'rotate-180' : ''}`} />
+                </button>
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-2" />
                   <input
@@ -1060,6 +1074,13 @@ export default function Dashboard({ onIrPara }) {
                 </div>
                 </div>
               </div>
+              {avisoFila && (
+                <p className="flex items-center gap-1.5 text-xs text-emerald-400">
+                  <CheckCircle2 className="h-3.5 w-3.5" /> {avisoFila}
+                </p>
+              )}
+              {verFiltros && (
+              <div className="space-y-3 rounded-xl border border-line bg-surface-2 p-3">
               {carteiraId && distrib?.ativo && (podeDistribuir || distrib.meus > 0 || (distrib.por_operador?.length ?? 0) > 0) && (
                 <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface-2 px-3 py-2">
                   <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-2">
@@ -1103,11 +1124,6 @@ export default function Dashboard({ onIrPara }) {
               {carteiraId && podeDistribuir && distrib && distrib.ativo === false && (
                 <p className="text-xs text-ink-2">
                   Divisão da fila entre operadores: falta rodar <code>sql/migracao_operador.sql</code> no Supabase.
-                </p>
-              )}
-              {avisoFila && (
-                <p className="flex items-center gap-1.5 text-xs text-emerald-400">
-                  <CheckCircle2 className="h-3.5 w-3.5" /> {avisoFila}
                 </p>
               )}
               <div className="flex flex-wrap items-center gap-2">
@@ -1162,6 +1178,8 @@ export default function Dashboard({ onIrPara }) {
                   </button>
                 )}
               </div>
+              </div>
+              )}
             </div>
 
             <div className="max-h-[520px] overflow-auto">

@@ -7222,6 +7222,57 @@ def listar_ofertas_feitas(cpf: str, empresa_id: Optional[str] = None,
     return {"ativo": True, "itens": linhas}
 
 
+@app.delete("/ofertas/{oferta_id}")
+def desfazer_oferta(oferta_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Desfaz uma oferta registrada por engano: apaga a oferta, o contato que ela
+    criou e o compromisso da Agenda (se ainda estiver pendente).
+
+    Quem registrou desfaz em até JANELA_DESFAZER_MIN minutos; o administrador, a
+    qualquer momento. O aprendizado que o contato já deu ao modelo não é
+    desfeito (é um ponto entre muitos)."""
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") == "comando" or not payload.get("empresa_id"):
+        raise HTTPException(status_code=403, detail="Quem desfaz oferta é quem trabalha a fila de uma empresa.")
+    emp = payload["empresa_id"]
+    db = get_db()
+    try:
+        r = db.table("ofertas_feitas").select("*").eq("id", oferta_id).eq("empresa_id", emp).limit(1).execute()
+    except Exception as e:
+        if _falta_tabela(e, "ofertas_feitas"):
+            raise HTTPException(status_code=409, detail=_MSG_SEM_MIGRACAO_OFERTAS)
+        raise
+    oferta = (r.data or [None])[0]
+    if not oferta:
+        raise HTTPException(status_code=404, detail="Oferta não encontrada.")
+    if payload.get("role") == "operador" and oferta.get("operador_id") != payload["sub"]:
+        raise HTTPException(status_code=403, detail="Esta oferta foi registrada por outro operador.")
+    idade = _minutos_desde(oferta.get("created_at"))
+    if payload.get("role") != "admin" and (idade is None or idade > JANELA_DESFAZER_MIN):
+        raise HTTPException(status_code=409, detail=f"O prazo para desfazer ({JANELA_DESFAZER_MIN} min) passou. "
+                                                    "Peça ao administrador.")
+    contato_id = oferta.get("contato_id")
+    agenda = []
+    if contato_id:
+        try:
+            agenda = (db.table("agenda").select("id, situacao").eq("empresa_id", emp)
+                      .eq("contato_id", contato_id).execute().data or [])
+        except Exception as e:
+            if not _falta_tabela(e, "agenda"):
+                raise
+        if any(a.get("situacao") != "pendente" for a in agenda):
+            raise HTTPException(status_code=409, detail="O compromisso desta oferta já foi resolvido na Agenda: "
+                                                        "desfaça lá primeiro.")
+        for a in agenda:
+            db.table("agenda").delete().eq("id", a["id"]).eq("empresa_id", emp).execute()
+        db.table("contatos").delete().eq("id", contato_id).eq("empresa_id", emp).execute()
+    db.table("ofertas_feitas").delete().eq("id", oferta_id).eq("empresa_id", emp).execute()
+    _registrar_auditoria(acao="oferta_desfeita", entidade="ofertas_feitas", entidade_id=oferta_id,
+                         usuario_email=payload.get("email"), empresa_id=emp, usuario_id=payload.get("sub"),
+                         detalhes={"cpf": oferta.get("cpf"), "resposta": oferta.get("resposta"),
+                                   "contato_id": contato_id, "agenda_removida": len(agenda)})
+    return {"ok": True, "agenda_removida": len(agenda)}
+
+
 def _empresa_da_carteira(db, carteira_id) -> str:
     if not carteira_id:
         return ""

@@ -710,6 +710,11 @@ export async function registrarOferta(dados) {
   return _jsonOuErroFila(res)
 }
 
+export async function desfazerOferta(id) {
+  const res = await fetch(`${BASE}/ofertas/${encodeURIComponent(id)}`, { method: 'DELETE', headers: { Authorization: `Bearer ${_getToken()}` } })
+  return _jsonOuErroFila(res)
+}
+
 export async function listarOfertasFeitas(cpf) {
   const res = await fetch(`${BASE}/ofertas?${_qs({ cpf })}`, { headers: { Authorization: `Bearer ${_getToken()}` } })
   return _jsonOuErroFila(res)

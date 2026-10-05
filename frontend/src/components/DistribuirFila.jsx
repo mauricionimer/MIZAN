@@ -72,10 +72,7 @@ export default function DistribuirFila({ carteiraId, resumo, onFechar, onFeito }
                 <Shuffle className="h-4 w-4 text-blue-400" />
                 Distribuir fila<DicaAjuda id="divisao-da-fila" />
               </h2>
-              <p className="mt-1 text-xs text-ink-2">
-                Cada operador recebe uma fatia com o mesmo perfil de valor: a fila é repartida em rodízio
-                (1, 2, 3, 3, 2, 1…) na ordem do valor esperado.
-              </p>
+              <p className="mt-1 text-sm text-ink-2">Divide os devedores desta carteira entre os operadores, em 3 passos.</p>
             </div>
             <button onClick={onFechar} aria-label="Fechar"
               className="-m-1.5 rounded-lg p-2.5 text-ink-2 transition-colors hover:bg-raise-3 hover:text-ink">
@@ -94,7 +91,7 @@ export default function DistribuirFila({ carteiraId, resumo, onFechar, onFeito }
               <>
                 <div>
                   <div className="mb-2 flex items-center justify-between">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-ink-2">Operadores</p>
+                    <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-ink"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500/15 text-xs font-bold text-blue-300">1</span>Quem vai cobrar?</p>
                     <button onClick={() => setMarcados(marcados.length === operadores.length ? [] : operadores.map(o => o.id))}
                       className="text-xs text-ink-2 underline hover:text-ink">
                       {marcados.length === operadores.length ? 'Desmarcar todos' : 'Marcar todos'}
@@ -126,30 +123,32 @@ export default function DistribuirFila({ carteiraId, resumo, onFechar, onFeito }
                   </ul>
                 </div>
 
-                <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-line bg-surface-2 px-4 py-3">
-                  <input type="checkbox" checked={somenteSem} onChange={e => setSomenteSem(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 accent-blue-500" />
-                  <span>
-                    <span className="block text-sm font-medium text-ink">Só quem está sem responsável</span>
-                    <span className="block text-xs text-ink-2">
-                      {somenteSem
-                        ? `Quem já tem dono continua com ele (${fmtNum(temDono)} devedores).`
-                        : 'Refaz a divisão da carteira inteira: quem já tinha dono pode mudar de operador.'}
-                    </span>
-                  </span>
-                </label>
+                <div>
+                  <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-ink"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500/15 text-xs font-bold text-blue-300">2</span>Quais devedores dividir?</p>
+                  <div className="space-y-2" role="radiogroup" aria-label="Quais devedores dividir">
+                    {[[true, 'Só quem ainda não tem responsável', resumo?.sem_responsavel?.devedores ?? 0, `Quem já tem operador continua com ele (${fmtNum(temDono)} devedores).`],
+                      [false, 'A carteira inteira, de novo', resumo?.total ?? 0, 'Refaz toda a divisão: um devedor pode mudar de operador.']].map(([v, t, n, nota]) => (
+                      <label key={t} className={`flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 ${somenteSem === v ? 'border-blue-500/40 bg-blue-500/[0.06]' : 'border-line bg-surface-2'}`}>
+                        <input type="radio" name="o-que-dividir" checked={somenteSem === v} onChange={() => setSomenteSem(v)} className="mt-1 h-4 w-4 accent-blue-500" />
+                        <span>
+                          <span className="block text-sm font-medium text-ink">{t} <span className="font-normal text-ink-2">· {fmtNum(n)} devedores</span></span>
+                          <span className="block text-xs text-ink-2">{nota}</span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-xl border border-line bg-surface-2 px-4 py-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-2">Devedores a repartir</p>
-                    <p className="mt-1 text-lg font-bold tabular-nums text-ink">{fmtNum(base)}</p>
-                  </div>
-                  <div className="rounded-xl border border-line bg-surface-2 px-4 py-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-2">Valor esperado por operador</p>
-                    <p className="mt-1 text-lg font-bold tabular-nums text-ink">
-                      {escolhidos.length ? <>≈ {fmtBRL(valorBase / escolhidos.length)}</> : '—'}
-                    </p>
-                  </div>
+                <div>
+                  <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-ink"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500/15 text-xs font-bold text-blue-300">3</span>Como vai ficar</p>
+                  <p className="rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm leading-relaxed text-ink-2">
+                    {escolhidos.length && base
+                      ? <>Cada um dos <strong className="text-ink">{escolhidos.length}</strong> operadores recebe cerca de{' '}
+                          <strong className="text-ink">{fmtNum(Math.round(base / escolhidos.length))} devedores</strong>, com valor esperado parecido
+                          (≈ <strong className="text-ink">{fmtBRL(valorBase / escolhidos.length)}</strong> cada). Os devedores de maior valor são
+                          alternados entre eles, para ninguém ficar só com os melhores.</>
+                      : 'Escolha pelo menos um operador e um grupo com devedores.'}
+                  </p>
                 </div>
               </>
             )}

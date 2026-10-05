@@ -15,6 +15,7 @@ import FazerOferta from '../components/FazerOferta'
 import ErroCarga from '../components/ErroCarga'
 import AvisoDesfazer from '../components/AvisoDesfazer'
 import RegistroRapido from '../components/RegistroRapido'
+import TituloRecolhivel from '../components/TituloRecolhivel'
 import ProximoDevedor from '../components/ProximoDevedor'
 import { resumoConta } from '../utils/ofertas'
 
@@ -120,11 +121,24 @@ function Propostas({ dados, loading, erro, despesas, setDespesas, onRecalcular, 
   const teto   = dados.parcela_maxima
   const recomendadaLabel = dados.recomendada?.rotulo
   const alternativaLabel = dados.alternativa_a_vista?.rotulo
+  // Duas propostas bastam para a conversa: a sugerida e a alternativa à vista
+  // (sem elas, as duas primeiras da lista).
+  const duas = []
+  for (const p of [dados.propostas.find(x => x.rotulo === recomendadaLabel), dados.propostas.find(x => x.rotulo === alternativaLabel), ...dados.propostas]) {
+    if (p && duas.length < 2 && !duas.includes(p)) duas.push(p)
+  }
 
   return (
     <div>
-      {/* Margem livre primeiro: é ela que decide quais propostas sobram. */}
-      <div className="mb-4 rounded-xl p-4" style={{ background: 'var(--raise-2)' }}>
+      {/* Margem livre: fechada; é ela que decide quais propostas cabem no bolso. */}
+      <details className="group mb-4 rounded-xl" style={{ background: 'var(--raise-2)' }}>
+        <summary className="flex min-h-[44px] cursor-pointer list-none items-center gap-2 px-4 py-2.5 [&::-webkit-details-marker]:hidden">
+          <Wallet className="h-4 w-4 shrink-0" style={{ color: 'var(--c-royal)' }} />
+          <span className="section-label">Margem livre mensal</span>
+          <span className="truncate text-xs" style={{ color: 'var(--ink-3)' }}>{margem?.valor != null ? `${fmtBRL(margem.valor)} por mês` : 'não calculada'}</span>
+          <ChevronDown className="ml-auto h-4 w-4 shrink-0 transition-transform group-open:rotate-180" style={{ color: 'var(--ink-3)' }} aria-hidden="true" />
+        </summary>
+        <div className="px-4 pb-4">
         <div className="flex items-start gap-2.5">
           <Wallet className="h-4 w-4 mt-0.5 shrink-0" style={{ color: 'var(--c-royal)' }} />
           <div className="flex-1">
@@ -146,13 +160,14 @@ function Propostas({ dados, loading, erro, despesas, setDespesas, onRecalcular, 
             type="number" min="0" step="50" value={despesas}
             onChange={e => setDespesas(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') onRecalcular() }}
-            placeholder="Despesas mensais informadas"
+            placeholder="Gastos mensais do devedor (R$)"
             className="flex-1 rounded-lg px-3 py-2 text-sm"
             style={{ background: 'var(--raise-3)', border: '1px solid var(--line)', color: 'var(--ink)' }}
           />
           <button onClick={onRecalcular} className="btn-secondary text-sm px-3 py-2">Recalcular</button>
         </div>
-      </div>
+        </div>
+      </details>
 
       {dados.aviso && (
         <div className="mb-4 flex items-start gap-2.5 rounded-xl p-3"
@@ -163,7 +178,7 @@ function Propostas({ dados, loading, erro, despesas, setDespesas, onRecalcular, 
       )}
 
       <div className="space-y-2.5">
-        {dados.propostas.map((p) => {
+        {duas.map((p) => {
           const recomendada = p.rotulo === recomendadaLabel
           const alternativa = p.rotulo === alternativaLabel && !recomendada
           const naoCabe     = p.cabe_no_bolso === false
@@ -356,6 +371,7 @@ function MensagemSugerida({ devedor, rec, propostas, simulada }) {
   // Com uma oferta montada em "Fazer oferta", a mensagem usa ela (família e valores).
   const ofertaRec = simulada?.familia || propostas?.recomendada?.oferta || rec?.oferta || ''
   const [canal, setCanal] = useState(canalRec)
+  const [aberto, setAberto] = useState(false)
   const [lista, setLista] = useState(null)
   const [escolhido, setEscolhido] = useState('')
   const [copiado, setCopiado] = useState(false)
@@ -401,9 +417,14 @@ function MensagemSugerida({ devedor, rec, propostas, simulada }) {
 
   return (
     <div className="rounded-2xl overflow-hidden" style={CARD}>
-      <div className="px-5 py-4 border-b flex flex-wrap items-center justify-between gap-2" style={DIVIDER}>
-        <p className="section-label">Mensagem sugerida<DicaAjuda id="roteiros-de-abordagem" /></p>
-        <div className="flex flex-wrap gap-2">
+      <div className={`px-5 py-3 flex flex-wrap items-center justify-between gap-2 ${aberto ? 'border-b' : ''}`} style={DIVIDER}>
+        <div className="flex min-w-0 flex-1 items-center gap-1">
+          <TituloRecolhivel aberto={aberto} onAlternar={() => setAberto(a => !a)}>
+            <span className="section-label">Mensagem sugerida</span>
+          </TituloRecolhivel>
+          <DicaAjuda id="roteiros-de-abordagem" />
+        </div>
+        {aberto && <div className="flex flex-wrap gap-2">
           <select aria-label="Canal da mensagem" value={canal} onChange={e => setCanal(e.target.value)} style={sel}>
             {CANAIS.map(c => <option key={c.k} value={c.k}>{c.label}{c.k === canalRec ? ' (recomendado)' : ''}</option>)}
           </select>
@@ -416,9 +437,9 @@ function MensagemSugerida({ devedor, rec, propostas, simulada }) {
               ))}
             </select>
           )}
-        </div>
+        </div>}
       </div>
-      <div className="px-5 py-4 space-y-3">
+      {aberto && <div className="px-5 py-4 space-y-3">
         {lista === null && <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Carregando roteiros…</p>}
         {roteiro && (
           <>
@@ -465,7 +486,7 @@ function MensagemSugerida({ devedor, rec, propostas, simulada }) {
           </>
         )}
         <ErroCarga erro={erro} compacto />
-      </div>
+      </div>}
     </div>
   )
 }
@@ -544,6 +565,7 @@ function HistoricoContatos({ cpf, rec, propostas, versao = 0, onRegistrado }) {
   const [avisoAgenda, setAvisoAgenda]   = useState('')
   const [loading, setLoading]       = useState(true)
   const [formAberto, setFormAberto] = useState(false)
+  const [aberto, setAberto] = useState(false)
   const [salvando, setSalvando]     = useState(false)
   const [erro, setErro]             = useState(null)
   const [form, setForm] = useState({
@@ -623,12 +645,15 @@ function HistoricoContatos({ cpf, rec, propostas, versao = 0, onRegistrado }) {
 
   return (
     <div className="rounded-2xl overflow-hidden" style={CARD}>
-      <div className="px-5 py-4 border-b flex items-center justify-between" style={DIVIDER}>
-        <div className="flex items-center gap-2">
-          <ClipboardList className="h-3.5 w-3.5" style={{ color: 'var(--ink-3)' }} />
-          <p className="section-label">Histórico de Contatos{contatos.length > 0 && ` (${contatos.length})`}<DicaAjuda id="registrar-contato" /></p>
+      <div className={`px-5 py-3 flex items-center justify-between gap-2 ${aberto ? 'border-b' : ''}`} style={DIVIDER}>
+        <div className="flex min-w-0 flex-1 items-center gap-1">
+          <TituloRecolhivel aberto={aberto} onAlternar={() => setAberto(a => !a)}>
+            <ClipboardList className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--ink-3)' }} />
+            <span className="section-label">Histórico de Contatos{contatos.length > 0 && ` (${contatos.length})`}</span>
+          </TituloRecolhivel>
+          <DicaAjuda id="registrar-contato" />
         </div>
-        <button onClick={() => setFormAberto(o => !o)}
+        <button onClick={() => { setAberto(true); setFormAberto(o => !o) }}
           className="min-h-[40px] md:min-h-[32px] flex items-center gap-1.5 text-xs font-semibold text-blue-400 px-3 py-1.5 rounded-lg transition-colors"
           style={{ background: 'rgb(var(--c-royal) / 0.10)', border: '1px solid rgb(var(--c-royal) / 0.20)' }}
           onMouseOver={e => e.currentTarget.style.background = 'rgb(var(--c-royal) / 0.18)'}
@@ -637,7 +662,7 @@ function HistoricoContatos({ cpf, rec, propostas, versao = 0, onRegistrado }) {
         </button>
       </div>
 
-      {formAberto && (
+      {aberto && formAberto && (
         <div className="px-5 py-4 border-b space-y-3" style={{ ...DIVIDER, background: 'var(--raise-1)' }}>
           <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-3)' }}>
             Fez uma proposta de acordo? Use “Fazer oferta” e confirme por lá: a oferta fica completa no histórico e a Agenda é preenchida junto.
@@ -764,9 +789,9 @@ function HistoricoContatos({ cpf, rec, propostas, versao = 0, onRegistrado }) {
           {avisoAgenda}
         </p>
       )}
-      <CompromissosDevedor cpf={cpf} versao={versaoAgenda + versao} />
+      {aberto && <CompromissosDevedor cpf={cpf} versao={versaoAgenda + versao} />}
 
-      <div>
+      {aberto && <div>
         {loading && (
           <div className="flex items-center justify-center py-8 text-xs gap-2" style={{ color: 'var(--ink-3)' }}>
             <div className="h-3.5 w-3.5 border-2 border-t-blue-400 rounded-full animate-spin" style={{ borderColor: 'var(--line)', borderTopColor: 'var(--royal)' }} />
@@ -796,7 +821,7 @@ function HistoricoContatos({ cpf, rec, propostas, versao = 0, onRegistrado }) {
             </div>
           )
         })}
-      </div>
+      </div>}
     </div>
   )
 }
@@ -808,6 +833,7 @@ const MODO_CONFIG = {
 }
 
 function ApproachRecommendation({ devedor, rec, loading, erro, onTentar }) {
+  const [aberto, setAberto] = useState(false)
   // Antes havia aqui uma "Urgência" Alta/Média/Baixa tirada só do score (≥70,
   // ≥40), um terceiro critério que podia contradizer a Prioridade da fila
   // (achado D8). Quem decide a ordem é a fila; aqui fica só o número.
@@ -816,16 +842,22 @@ function ApproachRecommendation({ devedor, rec, loading, erro, onTentar }) {
 
   return (
     <div className="rounded-2xl overflow-hidden" style={CARD}>
-      <div className="px-5 py-4 border-b flex items-center justify-between" style={DIVIDER}>
-        <p className="section-label">Recomendação de Abordagem<DicaAjuda id="recomendacao-de-abordagem" /></p>
-        {modoCfg && (
+      <div className={`px-5 py-3 flex items-center justify-between gap-2 ${aberto ? 'border-b' : ''}`} style={DIVIDER}>
+        <div className="flex min-w-0 flex-1 items-center gap-1">
+          <TituloRecolhivel aberto={aberto} onAlternar={() => setAberto(a => !a)}
+            resumo={rec?.canal_label && rec?.oferta_label ? `${rec.canal_label} · ${rec.oferta_label}` : null}>
+            <span className="section-label">Recomendação de Abordagem</span>
+          </TituloRecolhivel>
+          <DicaAjuda id="recomendacao-de-abordagem" />
+        </div>
+        {aberto && modoCfg && (
           <span className={`flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full ${modoCfg.color}`}
             style={{ background: modoCfg.bg, border: `1px solid ${modoCfg.border}` }}>
             <Brain className="h-3 w-3" /> IA · {modoCfg.label}
           </span>
         )}
       </div>
-      <div className="p-5 space-y-4">
+      {aberto && <div className="p-5 space-y-4">
         {loading && (
           <div className="flex items-center justify-center py-8 text-sm gap-2" style={{ color: 'var(--ink-3)' }}>
             <div className="h-4 w-4 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--line)', borderTopColor: 'var(--royal)' }} />
@@ -866,7 +898,7 @@ function ApproachRecommendation({ devedor, rec, loading, erro, onTentar }) {
             )}
           </>
         )}
-      </div>
+      </div>}
     </div>
   )
 }
@@ -1059,37 +1091,14 @@ function FichaDoDevedor() {
           className="mb-4 inline-flex min-h-[40px] items-center gap-1.5 rounded-lg px-2 py-1 -ml-2 text-sm text-ink-2 transition-colors hover:bg-raise-1 hover:text-ink">
           <ArrowLeft className="h-4 w-4" /> Voltar à fila
         </button>
-        <div className="flex items-start justify-between mb-7">
-          <div>
+        {/* Cabeçalho: só quem é, a posição na fila e o responsável. O resto está nos cartões abaixo. */}
+        <div className="mb-7">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <h1 className="text-2xl font-bold text-ink tracking-tight">{d.nome}</h1>
-            <p className="tabular-nums text-sm mt-1" style={{ color: 'var(--ink-3)' }}>{d.cpf}</p>
-            <p className="text-sm mt-1 capitalize" style={{ color: 'var(--ink-2)' }}>{d.produto} · {d.uf} · Rank #{d.rank}</p>
-            <div className="mt-3">
-              {statusPag === null && (
-                <span className="inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1 rounded-full"
-                  style={{ background: 'var(--raise-3)', color: 'var(--ink-2)', border: '1px solid var(--line)' }}>
-                  <Clock className="h-3.5 w-3.5" /> Pendente
-                </span>
-              )}
-              {statusPag?.pagou === true && (
-                <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-400 px-3 py-1 rounded-full"
-                  style={{ background: 'rgb(var(--c-success) / 0.12)', border: '1px solid rgb(var(--c-success) / 0.25)' }}>
-                  <CheckCircle2 className="h-3.5 w-3.5" /> Pago
-                  {statusPag.data_pagamento && <span className="font-normal text-emerald-500/70 text-xs">· {new Intl.DateTimeFormat('pt-BR').format(new Date(statusPag.data_pagamento.substring(0, 10) + 'T12:00:00'))}</span>}
-                  {statusPag.valor_recuperado > 0 && <span className="font-normal text-emerald-500/70 text-xs">· {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(statusPag.valor_recuperado)}</span>}
-                </span>
-              )}
-              {statusPag?.pagou === false && (
-                <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-400 px-3 py-1 rounded-full"
-                  style={{ background: 'rgb(var(--c-danger) / 0.10)', border: '1px solid rgb(var(--c-danger) / 0.20)' }}>
-                  <XCircle className="h-3.5 w-3.5" /> Não pago
-                  {statusPag.data_pagamento && <span className="font-normal text-red-400/60 text-xs">· atualizado em {new Intl.DateTimeFormat('pt-BR').format(new Date(statusPag.data_pagamento.substring(0, 10) + 'T12:00:00'))}</span>}
-                </span>
-              )}
-            </div>
-            <Responsavel carteiraId={carteiraId} devedor={d} podeTrocar={isAdmin || isComando} />
+            <span className="rounded-full px-2.5 py-0.5 text-sm font-semibold tabular-nums text-blue-300"
+              style={{ background: 'rgb(var(--c-royal) / 0.12)' }}>Rank #{d.rank}</span>
           </div>
-          <PriorityBadge rank={d.rank} total={result?.resumo?.total_devedores ?? result?.ranking_completo?.length ?? 0} large />
+          <Responsavel carteiraId={carteiraId} devedor={d} podeTrocar={isAdmin || isComando} />
         </div>
 
         {deAgenda && <ContextoAgenda item={deAgenda} oferta={ofertaCombinada} />}
@@ -1116,15 +1125,14 @@ function FichaDoDevedor() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div>
           {/* Atendimento: entender → decidir → oferecer → comunicar → registrar.
               A recomendação define o canal (simulador e mensagem); as propostas
               definem a oferta inicial do simulador; a oferta montada vira a
               mensagem; confirmar a oferta recarrega os contatos. */}
-          <section className="lg:col-span-2 flex flex-col gap-4" aria-labelledby="titulo-atendimento">
+          <section className="flex flex-col gap-4" aria-labelledby="titulo-atendimento">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h2 id="titulo-atendimento" className="text-base font-bold" style={{ color: 'var(--ink)' }}>Atendimento</h2>
-              <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Abordagem → proposta → oferta → mensagem → registro</p>
             </div>
 
             {!isComando && (
@@ -1134,51 +1142,36 @@ function FichaDoDevedor() {
 
             <ApproachRecommendation devedor={d} rec={rec} loading={recLoading} erro={recErro} onTentar={() => setRecarga(n => n + 1)} />
 
-            <Section title="Propostas de renegociação" ajuda="propostas-de-renegociacao">
+            <SecaoRecolhivel title="Propostas de renegociação" ajuda="propostas-de-renegociacao">
               <Propostas
                 dados={propostas} loading={propostasLoading} erro={propostasErro}
                 despesas={despesas} setDespesas={setDespesas}
                 onRecalcular={recalcularPropostas}
                 onSimular={id => setPedidoOferta({ id, n: Date.now() })}
               />
-            </Section>
+            </SecaoRecolhivel>
 
             <FazerOferta cpf={d.cpf} despesas={despesas} setDespesas={setDespesas} canalPadrao={rec?.canal} confirmavel={!isComando}
               sugeridaId={propostas?.recomendada?.id || propostas?.alternativa_a_vista?.id}
               pedido={pedidoOferta} onSimulado={setOfertaSimulada}
-              onRegistrada={() => { setVersaoContatos(v => v + 1); setRegistro({ n: Date.now() }) }} />
+              onRegistrada={() => { setVersaoContatos(v => v + 1); setRegistro({ n: Date.now() }) }}
+              onDesfeita={() => { setVersaoContatos(v => v + 1); setRegistro(null) }} />
 
             <MensagemSugerida devedor={d} rec={rec} propostas={propostas} simulada={ofertaSimulada} />
             <HistoricoContatos cpf={d.cpf} rec={rec} propostas={propostas} versao={versaoContatos}
               onRegistrado={() => setRegistro({ n: Date.now() })} />
-          </section>
-
-          {/* Sobre o devedor: consulta. No celular vem depois do atendimento. */}
-          <aside className="flex flex-col gap-4" aria-label="Sobre o devedor">
-            <h2 className="text-base font-bold" style={{ color: 'var(--ink)' }}>Sobre o devedor</h2>
-            <div className="rounded-2xl p-5 flex items-center gap-5" style={CARD}>
-              <div className="relative h-24 w-24 shrink-0">
-                <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90" aria-hidden="true">
-                  <circle cx="50" cy="50" r="38" fill="none" stroke="rgba(128,141,166,0.25)" strokeWidth="9" />
-                  <circle cx="50" cy="50" r="38" fill="none" stroke={scoreColor} strokeWidth="9" strokeLinecap="round"
-                    strokeDasharray={`${dash} ${circumference - dash}`} style={{ transition: 'stroke-dasharray 0.8s ease' }} />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-2xl font-bold text-ink">{score}</span>
-                </div>
-              </div>
-              <div className="min-w-0">
-                <p className="section-label">Score de Recuperabilidade<DicaAjuda id="score-recuperabilidade" /></p>
-                <p className="mt-2 section-label">Perfil IA<DicaAjuda id="perfil-cluster" /></p>
-                <p className="mt-1 text-sm font-semibold" style={{ color: scoreColor }}>{d.perfil_cluster}</p>
-              </div>
-            </div>
-
+            {/* Detalhes de consulta: fechados, sem repetir os cartões do topo. */}
+            <details className="group rounded-2xl" style={CARD}>
+              <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-2 px-5 py-3 [&::-webkit-details-marker]:hidden">
+                <span className="section-label">Mais detalhes do devedor</span>
+                <ChevronDown className="h-4 w-4 shrink-0 transition-transform group-open:rotate-180" style={{ color: 'var(--ink-3)' }} aria-hidden="true" />
+              </summary>
+              <div className="flex flex-col gap-3 px-3 pb-3">
             <SecaoRecolhivel title="Por que esse score?" ajuda="por-que-esse-score">
               <ExplicacaoScore explicacao={explicacao} loading={explicacaoLoading} erro={explicacaoErro} onTentar={() => setRecarga(n => n + 1)} />
             </SecaoRecolhivel>
 
-            <SecaoRecolhivel title="Dados financeiros" ajuda="variaveis-do-modelo" aberta>
+            <SecaoRecolhivel title="Dados financeiros" ajuda="variaveis-do-modelo">
               <DataRow label="Valor da Dívida (face)" value={fmtBRL(d.valor_divida)} />
               <DataRow ajuda="valor-esperado" label="Valor Esperado de Recuperação" value={<span className="text-emerald-400 font-bold">{fmtBRL(d.valor_esperado_recuperacao)}</span>} />
               <DataRow label="Renda Estimada" value={d.renda_estimada > 0 ? fmtBRL(d.renda_estimada) : 'Não informada'} />
@@ -1207,15 +1200,10 @@ function FichaDoDevedor() {
                 {d.estrategia_oferta && <DataRow label="Estratégia" value={d.estrategia_oferta} />}
               </SecaoRecolhivel>
             )}
+              </div>
+            </details>
+          </section>
 
-            <SecaoRecolhivel title="Dados cadastrais">
-              <DataRow label="Nome completo" value={d.nome} />
-              <DataRow label="CPF" value={d.cpf} />
-              <DataRow label="Produto" value={d.produto} />
-              <DataRow label="Status" value={d.status} />
-              <DataRow label="UF" value={d.uf} />
-            </SecaoRecolhivel>
-          </aside>
         </div>
 
         {registro && carteiraId && (

@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { PhoneMissed, Loader2, CheckCircle2 } from 'lucide-react'
 import ErroCarga from './ErroCarga'
+import TituloRecolhivel from './TituloRecolhivel'
 import { listarAgenda, registrarContato } from '../api'
 import { TIPO_LABEL, quando, hojeISO, somarDias, avisarAgendaMudou } from '../utils/agenda'
 
@@ -14,6 +15,7 @@ export default function RegistroRapido({ cpf, canalPadrao, onRegistrado }) {
   const mexeu = useRef(false)          // o operador escolheu: a recomendação não troca
   useEffect(() => { if (!mexeu.current && canalPadrao in CANAIS) setCanal(canalPadrao) }, [canalPadrao])
   const [fase, setFase] = useState('livre')           // livre | enviando | conflito
+  const [aberto, setAberto] = useState(false)
   const [pendentes, setPendentes] = useState([])
   const [erro, setErro] = useState(null)
   const [aviso, setAviso] = useState('')
@@ -53,11 +55,12 @@ export default function RegistroRapido({ cpf, canalPadrao, onRegistrado }) {
   const sel = { background: 'var(--surface-2)', border: '1px solid var(--line)', color: 'var(--ink)' }
   return (
     <div className="rounded-2xl px-4 py-3.5 sm:px-5" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-        <div className="min-w-0 flex-1 basis-56">
-          <p className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>Não conseguiu falar com o devedor?</p>
-          <p className="mt-0.5 text-xs" style={{ color: 'var(--ink-2)' }}>Registra “sem resposta” e agenda o retorno para amanhã.</p>
-        </div>
+      <TituloRecolhivel aberto={aberto} onAlternar={() => setAberto(a => !a)}>
+        <PhoneMissed className="h-4 w-4 shrink-0" style={{ color: 'var(--ink-3)' }} />
+        <span className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>Não conseguiu falar com o devedor?</span>
+      </TituloRecolhivel>
+      {aberto && <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-3">
+        <p className="min-w-0 flex-1 basis-56 text-xs" style={{ color: 'var(--ink-2)' }}>Escolha o canal que você tentou: o contato fica registrado como “sem resposta” e o retorno vai para a Agenda amanhã.</p>
         <label className="sr-only" htmlFor="canal-rapido">Canal usado</label>
         <select id="canal-rapido" value={canal} disabled={ocupado || fase === 'conflito'}
           onChange={e => { mexeu.current = true; setCanal(e.target.value) }}
@@ -67,7 +70,7 @@ export default function RegistroRapido({ cpf, canalPadrao, onRegistrado }) {
         <button type="button" onClick={iniciar} disabled={ocupado || fase === 'conflito'} className="btn-secondary min-h-[44px] md:min-h-[40px]">
           {ocupado ? <Loader2 className="h-4 w-4 animate-spin" /> : <PhoneMissed className="h-4 w-4" />} Não atendeu
         </button>
-      </div>
+      </div>}
 
       {fase === 'conflito' && (
         <div role="alert" className="mt-3 rounded-xl p-3" style={{ background: 'rgb(var(--c-warning) / 0.08)', border: '1px solid rgb(var(--c-warning) / 0.25)' }}>

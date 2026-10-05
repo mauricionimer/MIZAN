@@ -6,7 +6,8 @@ import { Calculator, CheckCircle2, AlertTriangle, XCircle, Loader2, User, Landma
 import DicaAjuda from './DicaAjuda'
 import ErroCarga from './ErroCarga'
 import useModal from './useModal'
-import { buscarOfertas, simularOferta, registrarOferta, listarOfertasFeitas } from '../api'
+import { buscarOfertas, simularOferta, registrarOferta, listarOfertasFeitas, desfazerOferta } from '../api'
+import TituloRecolhivel from './TituloRecolhivel'
 import { hojeISO, somarDias, avisarAgendaMudou } from '../utils/agenda'
 import { resumoOferta, resumoConta, NOME_FAMILIA } from '../utils/ofertas'
 
@@ -29,7 +30,7 @@ function Selo({ v, grande = false }) {
   )
 }
 
-function Campo({ rotulo, sufixo, value, onChange, min, max, step = 'any', inteiro, disabled }) {
+function Campo({ rotulo, sufixo, value, onChange, min, max, step = 'any', inteiro, disabled, nota }) {
   return (
     <label className="block text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>
       {rotulo}
@@ -40,6 +41,7 @@ function Campo({ rotulo, sufixo, value, onChange, min, max, step = 'any', inteir
           style={{ background: 'var(--surface-2)', border: '1px solid var(--line)', color: 'var(--ink)' }} />
         {sufixo && <span className="w-9 shrink-0 whitespace-nowrap text-xs font-normal" style={{ color: 'var(--ink-3)' }}>{sufixo}</span>}
       </div>
+      {nota && <span className="mt-1 block text-xs font-normal" style={{ color: 'var(--ink-3)' }}>{nota}</span>}
     </label>
   )
 }
@@ -177,9 +179,14 @@ function Historico({ cpf, versao }) {
   )
 }
 
-export default function FazerOferta({ cpf, despesas, setDespesas, canalPadrao, confirmavel = true, onRegistrada, sugeridaId, pedido, onSimulado }) {
+export default function FazerOferta({ cpf, despesas, setDespesas, canalPadrao, confirmavel = true, onRegistrada, onDesfeita, sugeridaId, pedido, onSimulado }) {
   const [confirmando, setConfirmando] = useState(null)      // {analise, condicoes}
   const [aviso, setAviso] = useState('')
+  const [aberto, setAberto] = useState(false)
+  // A última oferta registrada aqui: dá para desfazer um registro errado.
+  const [ultima, setUltima] = useState(null)        // {id, quando}
+  const [desfazendo, setDesfazendo] = useState(false)
+  const [erroDesfazer, setErroDesfazer] = useState(null)
   const [versao, setVersao] = useState(0)
   const [catalogo, setCatalogo] = useState([])
   const [base, setBase] = useState('')
@@ -212,6 +219,7 @@ export default function FazerOferta({ cpf, despesas, setDespesas, canalPadrao, c
   const aplicado = useRef(null)
   useEffect(() => {
     if (!pedido || aplicado.current === pedido || !catalogo.length) return
+    setAberto(true)
     if (pedido.valores) {
       const v = pedido.valores
       const base_ = catalogo.some(x => x.id === pedido.base_id) ? pedido.base_id : ''
@@ -261,16 +269,48 @@ export default function FazerOferta({ cpf, despesas, setDespesas, canalPadrao, c
   const c = res?.conta
   const geral = res?.geral
 
+  async function desfazer() {
+    if (!ultima || desfazendo) return
+    setDesfazendo(true); setErroDesfazer(null)
+    try {
+      const r = await desfazerOferta(ultima.id)
+      setUltima(null); setVersao(v => v + 1)
+      if (r.agenda_removida) avisarAgendaMudou()
+      setAviso('Oferta desfeita: o registro, o contato e o compromisso da Agenda foram apagados.')
+      onDesfeita?.()
+    } catch (e) { setErroDesfazer(e) } finally { setDesfazendo(false) }
+  }
+  const avisoUi = (
+    <div className="space-y-2">
+      <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm" style={{ color: aviso.startsWith('Oferta registrada') || aviso.startsWith('Oferta desfeita') ? 'var(--success)' : 'var(--warning)' }}>
+        <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 shrink-0" /> {aviso}</span>
+        {ultima && (
+          <button type="button" onClick={desfazer} disabled={desfazendo} className="btn-secondary btn-sm">
+            {desfazendo ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} Desfazer
+          </button>
+        )}
+      </p>
+      {ultima && <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Registrou errado? Dá para desfazer nos próximos 10 minutos.</p>}
+      <ErroCarga erro={erroDesfazer} compacto />
+    </div>
+  )
+
   return (
     <div ref={raiz} id="fazer-oferta" className="scroll-mt-20 rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b px-5 py-4" style={{ borderColor: 'var(--line)' }}>
-        <p className="section-label flex items-center gap-1.5"><Calculator className="h-3.5 w-3.5" /> Fazer oferta<DicaAjuda id="simulador-de-oferta" /></p>
-        {res && <span className="flex items-center gap-2 text-xs" style={{ color: 'var(--ink-3)' }}>
+      <div className={`flex flex-wrap items-center justify-between gap-2 px-5 py-3 ${aberto ? 'border-b' : ''}`} style={{ borderColor: 'var(--line)' }}>
+        <div className="flex min-w-0 flex-1 items-center gap-1">
+          <TituloRecolhivel aberto={aberto} onAlternar={() => setAberto(a => !a)}>
+            <Calculator className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--ink-3)' }} />
+            <span className="section-label">Fazer oferta</span>
+          </TituloRecolhivel>
+          <DicaAjuda id="simulador-de-oferta" />
+        </div>
+        {aberto && res && <span className="flex items-center gap-2 text-xs" style={{ color: 'var(--ink-3)' }}>
           {carregando && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Análise geral <Selo v={geral} />
         </span>}
       </div>
 
-      <div className="space-y-4 px-5 py-4">
+      {aberto && <div className="space-y-4 px-5 py-4">
         {catalogo.length > 0 && (
           <div>
             <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--ink-3)' }}>Começar de uma oferta da empresa</p>
@@ -305,19 +345,19 @@ export default function FazerOferta({ cpf, despesas, setDespesas, canalPadrao, c
           })}
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Campo rotulo="Desconto" sufixo="%" min={0} max={95} value={f.desconto_pct} onChange={v => mudar('desconto_pct', v)} />
-          <Campo rotulo="Parcelas" sufixo="x" inteiro min={2} max={120} value={modo === 'avista' ? 1 : f.n_parcelas} disabled={modo === 'avista'} onChange={v => mudar('n_parcelas', v)} />
-          <Campo rotulo="Entrada" sufixo="%" min={0} max={90} value={f.entrada_pct} disabled={modo === 'avista'} onChange={v => mudar('entrada_pct', v)} />
-          <Campo rotulo="Juros" sufixo="% a.m." min={0} max={20} step="0.01" value={f.juros_mensal_pct} disabled={modo === 'avista'} onChange={v => mudar('juros_mensal_pct', v)} />
+          <Campo rotulo="Desconto" sufixo="%" min={0} max={95} value={f.desconto_pct} onChange={v => mudar('desconto_pct', v)} nota="Sobre o valor da dívida" />
+          <Campo rotulo="Parcelas" sufixo="x" inteiro min={2} max={120} value={modo === 'avista' ? 1 : f.n_parcelas} disabled={modo === 'avista'} onChange={v => mudar('n_parcelas', v)} nota="Quantas vezes, além da entrada" />
+          <Campo rotulo="Entrada" sufixo="%" min={0} max={90} value={f.entrada_pct} disabled={modo === 'avista'} onChange={v => mudar('entrada_pct', v)} nota="Parte paga no começo" />
+          <Campo rotulo="Juros" sufixo="% a.m." min={0} max={20} step="0.01" value={f.juros_mensal_pct} disabled={modo === 'avista'} onChange={v => mudar('juros_mensal_pct', v)} nota="Por mês, sobre o que fica parcelado" />
         </div>
         {setDespesas && (
           // O mesmo valor das Propostas: muda aqui, muda lá (e vice-versa).
           <div className="grid items-end gap-3 sm:grid-cols-[minmax(0,14rem)_1fr]">
-            <Campo rotulo="Despesas mensais declaradas" sufixo="R$" min={0} step="50" value={despesas ?? ''} onChange={v => setDespesas(v)} />
+            <Campo rotulo="Gastos mensais do devedor" sufixo="R$" min={0} step="50" value={despesas ?? ''} onChange={v => setDespesas(v)} />
             <p className="pb-2 text-xs" style={{ color: res?.devedor?.parcela_maxima == null ? 'var(--warning)' : 'var(--ink-3)' }}>
               {res?.devedor?.parcela_maxima == null
-                ? 'Pergunte as despesas do mês: sem elas não dá para saber se a parcela cabe no bolso.'
-                : 'Vale também para as Propostas acima.'}
+                ? 'Quanto ele gasta por mês (aluguel, contas, outras dívidas), não quanto ganha: a renda já vem da base. Sem os gastos não dá para saber se a parcela cabe no bolso.'
+                : 'Quanto ele gasta por mês, não quanto ganha. Renda menos gastos é a sobra que mostra se a parcela cabe. Vale também para as Propostas.'}
             </p>
           </div>
         )}
@@ -339,7 +379,7 @@ export default function FazerOferta({ cpf, despesas, setDespesas, canalPadrao, c
           <div className={`grid gap-4 transition-opacity md:grid-cols-2 ${carregando ? 'opacity-60' : ''}`}>
             <div className="rounded-xl p-4" style={{ background: 'var(--surface-2)', border: '1px solid var(--line)' }}>
               <div className="mb-2 flex items-center justify-between">
-                <p className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: 'var(--ink)' }}><User className="h-4 w-4" /> Para quem paga</p>
+                <p className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: 'var(--ink)' }}><User className="h-4 w-4" /> Para quem paga: cabe no bolso?</p>
                 <Selo v={res.devedor.veredito} />
               </div>
               {n > 1 ? (
@@ -359,7 +399,7 @@ export default function FazerOferta({ cpf, despesas, setDespesas, canalPadrao, c
 
             <div className="rounded-xl p-4" style={{ background: 'var(--surface-2)', border: '1px solid var(--line)' }}>
               <div className="mb-2 flex items-center justify-between">
-                <p className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: 'var(--ink)' }}><Landmark className="h-4 w-4" /> Para o banco</p>
+                <p className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: 'var(--ink)' }}><Landmark className="h-4 w-4" /> Para o banco: vale a pena?</p>
                 <Selo v={res.banco.veredito} />
               </div>
               <Linha k="Valor negociado" v={brl(c.valor_negociado)} />
@@ -392,7 +432,7 @@ export default function FazerOferta({ cpf, despesas, setDespesas, canalPadrao, c
           </p>
         )}
 
-        {aviso && <p className="flex items-center gap-1.5 text-sm" style={{ color: aviso.startsWith('Oferta registrada') ? 'var(--success)' : 'var(--warning)' }}><CheckCircle2 className="h-4 w-4" /> {aviso}</p>}
+        {aviso && avisoUi}
 
         {res && (
           <div className="flex flex-wrap items-center justify-end gap-3 border-t pt-4" style={{ borderColor: 'var(--line)' }}>
@@ -406,7 +446,9 @@ export default function FazerOferta({ cpf, despesas, setDespesas, canalPadrao, c
         )}
 
         <Historico cpf={cpf} versao={versao} />
-      </div>
+      </div>}
+      {/* Fechado, o aviso da última oferta (com o Desfazer) continua à vista. */}
+      {!aberto && aviso && <div className="px-5 pb-4">{avisoUi}</div>}
 
       <AnimatePresence>
         {confirmando && (
@@ -420,6 +462,7 @@ export default function FazerOferta({ cpf, despesas, setDespesas, canalPadrao, c
               if (r.agenda_erro) partes.push(`Agenda: ${r.agenda_erro}`)
               if (r.oferta_erro) partes.push(r.oferta_erro)
               setAviso(partes.join(' '))
+              setUltima(r.oferta?.id ? { id: r.oferta.id } : null); setErroDesfazer(null)
               onRegistrada?.(r)
             }} />
         )}
