@@ -928,6 +928,42 @@ def comando_diagnostico_banco(credentials: HTTPAuthorizationCredentials = Securi
     return out
 
 
+def _devedores_unicos(db, carteiras: list) -> "dict | None":
+    """Totais da empresa contando cada CPF uma vez (a análise mais recente vale).
+
+    Devolve None se as predições não puderem ser lidas: aí o painel fica com a
+    soma das carteiras, como antes.
+    """
+    ordem = {c["id"]: c.get("created_at") or "" for c in carteiras}
+    ids = list(ordem)
+    try:
+        linhas = []
+        for i in range(0, len(ids), ITENS_POR_IN):
+            parte = ids[i:i + ITENS_POR_IN]
+            linhas += _todas_as_linhas(lambda: db.table("predicoes").select(
+                "id, cpf, carteira_id, valor_divida, valor_esperado_recuperacao, score_recuperabilidade")
+                .in_("carteira_id", parte))
+    except Exception:
+        return None
+    if not linhas:
+        return None
+    por_cpf: dict = {}
+    for l in linhas:
+        cpf = "".join(ch for ch in str(l.get("cpf") or "") if ch.isdigit())
+        chave = cpf or f"sem-cpf:{l.get('id')}"
+        atual = por_cpf.get(chave)
+        if atual is None or ordem.get(l.get("carteira_id"), "") > ordem.get(atual.get("carteira_id"), ""):
+            por_cpf[chave] = l
+    vivos = list(por_cpf.values())
+    scores = [float(l["score_recuperabilidade"]) for l in vivos if l.get("score_recuperabilidade") is not None]
+    return {
+        "total_devedores": len(vivos),
+        "valor_face_total": sum(float(l.get("valor_divida") or 0) for l in vivos),
+        "valor_esperado_total": sum(float(l.get("valor_esperado_recuperacao") or 0) for l in vivos),
+        "_scores": [sum(scores) / len(scores)] if scores else [],
+    }
+
+
 @app.get("/comando/visao-geral")
 def comando_visao_geral(credentials: HTTPAuthorizationCredentials = Security(bearer)):
     _exigir_comando(credentials)
@@ -973,6 +1009,17 @@ def comando_visao_geral(credentials: HTTPAuthorizationCredentials = Security(bea
         ca = c.get("created_at")
         if ca and (e["ultima_atividade"] is None or ca > e["ultima_atividade"]):
             e["ultima_atividade"] = ca
+        e.setdefault("_carteiras", []).append(c)
+
+    # A mesma base analisada duas vezes vira duas carteiras: somar as carteiras
+    # contava cada devedor (e o valor de face) em dobro. Com mais de uma
+    # carteira, os números saem dos devedores únicos por CPF, cada um com os
+    # valores da análise mais recente.
+    for e in empresas.values():
+        if len(e.get("_carteiras", [])) > 1:
+            unicos = _devedores_unicos(db, e["_carteiras"])
+            if unicos:
+                e.update(unicos)
 
     # Todos os feedbacks, paginando: "valor recuperado real", o número de
     # feedbacks e a bandeira de empresa suspeita (< 5% de feedback) saem daqui.
