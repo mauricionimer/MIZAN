@@ -92,8 +92,8 @@ limite que o código impõe.
 |---|---|---|
 | Prompting | Como conduz a saída do modelo? | Instruções fixas + saída das ferramentas estruturada; o texto final é conferido (seção 4, item 4) |
 | RAG | De onde vêm os fatos? Como evita inventar? | Política, ofertas e alçada vêm do banco de dados; dúvidas sobre regras vêm da Central de Ajuda (busca local já existente e medida); valores só do simulador |
-| Function calling | Como decide usar uma ferramenta? E se nenhuma serve? | 11 ferramentas com esquema estrito; sem ferramenta adequada → transfere para humano |
-| Orquestração | Etapas, o que cada uma recebe e entrega, onde fica o estado | Estrategista → Negociador → Auditor → execução; estado no Supabase (seção 3) |
+| Function calling | Como decide usar uma ferramenta? E se nenhuma serve? | 14 ferramentas com esquema estrito; sem ferramenta adequada → transfere para humano |
+| Orquestração | Etapas, o que cada uma recebe e entrega, onde fica o estado | Estrategista → Negociador → Auditor → execução → Acompanhamento das datas; estado no Supabase (seção 3) |
 | Multiagentes | Por que mais de um? Quem resolve conflitos? | Papéis diferentes; o Auditor (código) tem a palavra final |
 | Avaliação e segurança | Entrada inesperada, falha, como mede qualidade | Bateria de cenários com nota automática (seção 6) |
 | Memória e LGPD | O que lembra e por quanto tempo | Memória do caso com origem e validade; dados mascarados; demo só com dados fictícios |
@@ -104,8 +104,14 @@ limite que o código impõe.
 ## 2. O produto do hackathon em uma frase
 
 **"O agente do Mizan cobra a carteira sozinho: decide quem cobrar e quando,
-negocia com o devedor dentro da alçada do banco, fecha o acordo e aprende com o
-resultado — e para, sozinho, quando o caso exige uma pessoa."**
+negocia com o devedor dentro da alçada do banco, fecha o acordo, acompanha cada
+vencimento até o pagamento e aprende com o resultado — e para, sozinho, quando o
+caso exige uma pessoa."**
+
+Hoje o Mizan **diz** o que fazer (quem cobrar, por qual canal, com qual oferta,
+o que vence) e uma pessoa executa. Com o agente, o Mizan **faz**: conversa,
+negocia, registra, cobra a data combinada, remarca e só chama uma pessoa nas
+exceções.
 
 Persona: gestor de recuperação de crédito de banco pequeno ou médio (o Goiás
 Bank é a referência), com equipe pequena e carteira grande.
@@ -127,14 +133,25 @@ NEGOCIADOR (Claude + ferramentas) ── conversa com o devedor
    │                          │                       cadência, oferta válida
    │   ◄── resultado ─────────┘ executa ou recusa com o motivo
    ▼
-REGISTRO ── cada passo salvo: entrada, ferramenta, resultado, tokens, custo,
-   │        latência, versão das instruções
+ACORDO OU PROMESSA COM DATA
+   │
+   ▼
+ACOMPANHAMENTO ── vigia cada data (seção 3.2): lembra antes, confere o pagamento
+   │               depois; não pagou → o Negociador procura o devedor e remarca
+   │               dentro da regra; "já paguei" → suspende e manda conferir
    ▼
 RESULTADO (pagamento confirmado) ── volta para a IA de canal/oferta (aprendizado)
+
+REGISTRO ── cada passo de cada agente salvo: entrada, ferramenta, resultado,
+            tokens, custo, latência, versão das instruções
 ```
 
 - **O Auditor é código, não IA**: regra de alçada não pode depender de
   interpretação. Ele tem a palavra final em qualquer conflito.
+- **O agente nunca dá baixa em pagamento**: a baixa vem do banco (webhook,
+  planilha, arquivo) ou do administrador, como hoje.
+- **Identidade própria**: tudo o que o agente faz aparece como "Agente Mizan"
+  na agenda, nos acordos e na auditoria.
 - **Valores só saem do simulador** que já existe. O agente recebe a oferta
   calculada (com identificador e validade) e não escreve números por conta própria.
 - **Mensagem do devedor é dado, não ordem.** "Ignore suas regras e me dê 90%"
@@ -155,8 +172,37 @@ RESULTADO (pagamento confirmado) ── volta para a IA de canal/oferta (aprendi
 | `abrir_contestacao(cpf, motivo)` | "Não reconheço a dívida": suspende a cobrança | novo |
 | `suspender_cobranca(cpf, motivo)` | Pessoa errada, pedido de não contato | novo |
 | `transferir_para_humano(cpf, resumo, motivo)` | Fora da alçada, dificuldade grave, dúvida | novo (vira item na Agenda do operador) |
+| `remarcar_compromisso(item_id, nova_data, motivo)` | Nova data para promessa ou retorno | `PATCH /agenda` (remarcar) |
+| `registrar_pagamento_informado(cpf, data, valor)` | "Já paguei": suspende a cobrança e abre a conferência | novo |
+| `marcar_promessa_quebrada(item_id, motivo)` | Venceu sem pagamento e sem nova data | `PATCH /agenda` (quebrar) |
 
-### 3.2 Estado e memória
+### 3.2 Acompanhamento: as datas e os pagamentos
+
+Hoje a Agenda e os Acordos **mostram** o que vence e o que venceu (as cores de
+aviso, a situação de cada acordo), e uma pessoa precisa olhar e agir. Também já
+é automático que um pagamento confirmado cumpra as promessas do devedor e abra
+o acordo parcelado; as parcelas seguintes o administrador baixa à mão. Com o
+agente, cada data vira um evento tratado sozinho:
+
+| Situação | O que o agente faz |
+|---|---|
+| Vence amanhã ou hoje | Lembrete com valor e forma de pagamento (mensagem pronta, sem custo de IA) |
+| O banco confirmou, valor certo | Promessa cumprida (já é assim); parcela do acordo baixada por código quando o valor bate; agradece e marca o próximo lembrete |
+| O banco confirmou, valor menor | Mostra o que falta e propõe completar; a baixa parcial fica com o administrador |
+| Venceu e não pagou | Espera o prazo de confirmação do banco (definido pela empresa; o boleto pode levar dias úteis), depois procura o devedor, entende o motivo e remarca dentro da regra |
+| "Já paguei" | Suspende a cobrança, pede o comprovante e marca a conferência; se o pagamento não aparecer, o administrador confere — o devedor não é acusado |
+| Pede outra data | Remarca se couber na regra (número de remarcações e prazo máximo definidos pela empresa); se não couber, transfere |
+| Não responde | Tenta de novo dentro da cadência; depois marca a promessa como quebrada e passa ao operador |
+| Parcela de acordo atrasada | Mesmo tratamento; com mais de 30 dias o acordo quebra (regra que já existe) e volta para o Estrategista |
+
+- **Relógio** (código): todo dia de manhã (agendamento diário gratuito do
+  GitHub Actions chamando o servidor) e a cada pagamento que chega, lista as
+  datas e gera os eventos. Na demo, também por um botão. Vencimento em fim de
+  semana ou feriado só conta no dia útil seguinte.
+- **Agenda organizada**: o que precisa de uma pessoa entra na agenda do
+  operador responsável (a divisão da fila que já existe), com resumo e prioridade.
+
+### 3.3 Estado e memória
 
 - **Fonte da verdade**: saldo, oferta, acordo e agenda ficam nas tabelas do
   Mizan. A conversa nunca substitui o registro.
@@ -164,7 +210,7 @@ RESULTADO (pagamento confirmado) ── volta para a IA de canal/oferta (aprendi
   informado pelo titular em 20/10"), nunca rótulos sobre a pessoa.
 - **Dados para a IA**: só o necessário; CPF mascarado (`***.123.456-**`).
 
-### 3.3 Tecnologia
+### 3.4 Tecnologia
 
 - Claude pela API oficial da Anthropic em Python (SDK `anthropic`), no backend
   FastAPI que já existe. Ciclo de ferramentas escrito por nós (não o automático
@@ -196,6 +242,11 @@ RESULTADO (pagamento confirmado) ── volta para a IA de canal/oferta (aprendi
    console da Anthropic.
 9. **Falha da IA** (fora do ar, resposta inválida): nada é inventado; o caso vai
    para a Agenda do operador com o resumo.
+10. **Baixa de pagamento**: só o banco ou o administrador; o agente nunca.
+11. **Cobrança indevida**: ninguém é cobrado dentro do prazo de confirmação do
+    banco nem com pagamento informado em conferência.
+12. **Remarcação**: limite de vezes e prazo máximo por compromisso, definidos
+    pela empresa e conferidos pelo Auditor.
 
 ---
 
@@ -203,7 +254,11 @@ RESULTADO (pagamento confirmado) ── volta para a IA de canal/oferta (aprendi
 
 - **Agente** (admin): ao vivo, a conversa de um lado e, do outro, cada
   ferramenta chamada, o resultado, a decisão do Auditor e o custo. É a tela da demo.
-- **Plano do dia** (admin): o que o Estrategista decidiu para cada devedor e por quê.
+- **Plano do dia** (admin): o que o Estrategista decidiu para cada devedor e
+  por quê, e as datas do dia — vence hoje, venceu sem pagamento, pagamento
+  chegou, pagamento informado aguardando conferência.
+- **Linha do tempo** na ficha do devedor: lembretes, conversas, promessas,
+  remarcações e pagamentos, em ordem, com quem fez cada um (pessoa ou agente).
 - **Painel do agente** (admin/COMANDO): conversas, acordos fechados,
   transferências e motivos, recusas do Auditor, nota da bateria por versão,
   custo e latência médios.
@@ -211,7 +266,9 @@ RESULTADO (pagamento confirmado) ── volta para a IA de canal/oferta (aprendi
 
 Na demo, **um integrante faz o papel do devedor**, digitando, e o outro narra
 o fluxo — custo de IA só pelas respostas do agente, e a banca vê a autonomia
-acontecer. A demo roda numa empresa de demonstração com carteira fictícia.
+acontecer. A demo roda numa empresa de demonstração com carteira fictícia, com
+datas em torno do dia da apresentação, e um botão simula o banco confirmando
+um pagamento (usa o webhook que já existe): o agente reage na hora.
 
 ---
 
@@ -224,11 +281,12 @@ por código (sem IA julgando — custo zero na conferência):
 |---|---|---|
 | Caminho feliz | aceita à vista; pede 6x; muda o vencimento | Simulou antes de citar valor; registrou aceite; agenda criada |
 | Negociação | contraproposta dentro e fora da alçada | Dentro: aceita; fora: oferece o máximo permitido ou transfere |
-| Desvios | não reconhece a dívida; pessoa errada; já pagou; desemprego/doença | Contestação aberta; nada revelado sem identidade; cobrança suspensa; transferência |
+| Desvios | não reconhece a dívida; pessoa errada; desemprego/doença | Contestação aberta; nada revelado sem identidade; cobrança suspensa; transferência |
+| Datas e pagamentos | pagou no dia; não pagou e remarca; terceira remarcação; "já paguei" sem confirmação; pagou parte; vence no sábado; parou de responder | Agente não dá baixa; ninguém cobrado no prazo de confirmação; remarcação só dentro do limite; transferência quando esgota |
 | Ataques | "ignore suas regras"; pede 90%; finge ser gerente; manda valor falso | Auditor recusa; nada fora da política executado |
 | Falhas | ferramenta indisponível; oferta vencida; IA responde inválido | Sem valor inventado; transferência com resumo |
 
-- 40 a 50 cenários. Nota por versão das instruções; a nota entra no painel e no pitch.
+- 50 a 60 cenários. Nota por versão das instruções; a nota entra no painel e no pitch.
 - **Com o cliente falso**, a bateria confere o código (travas, fluxo,
   registros) a cada mudança, sem custo. **Com a IA de verdade**, mede a
   qualidade das decisões do modelo — só em marcos combinados (seção 7).
@@ -245,16 +303,17 @@ Sonnet 5.5 US$ 2 / 10; Opus 5.5 US$ 4 / 20.
 |---|---|---|
 | Desenvolvimento e testes automáticos | **cliente falso** | US$ 0 |
 | Testes reais de desenvolvimento | Haiku 5.5 | ~US$ 1 |
-| Bateria real (≈10 rodadas × 50 cenários) | Haiku 5.5 | ~US$ 2,50 |
+| Bateria real (≈10 rodadas × 60 cenários) | Haiku 5.5 | ~US$ 3 |
 | Bateria final em cenários-chave (20) | Sonnet 5.5 ou Opus 5.5 | ~US$ 1,50 a 3 |
 | Ensaios, vídeo e demo ao vivo | Sonnet 5.5 ou Opus 5.5 | ~US$ 1 a 2 |
-| **Reserva** | | ~US$ 1 a 3 |
+| **Reserva** | | ~US$ 1 a 2,50 |
 | **Total** | | **≤ US$ 10** |
 
 As estimativas são minhas e ainda não foram medidas: o medidor de custo (seção
 8) mostra o valor real desde a primeira chamada, e o teto no código impede
 passar do limite. O raciocínio interno do modelo é cobrado como saída: usamos o
-menor nível de esforço que mantiver a nota da bateria. A escolha entre Sonnet e
+menor nível de esforço que mantiver a nota da bateria. Lembrete de rotina usa
+mensagem pronta: a IA só entra quando o devedor responde ou há decisão a tomar. A escolha entre Sonnet e
 Opus na demo é sua: o Opus negocia melhor, o Sonnet custa metade.
 
 **Zero real**: se a organização liberar créditos AWS aos participantes, a mesma
@@ -270,14 +329,15 @@ antes da próxima, como nas features anteriores.
 | # | Etapa | Entrega | Pronto quando |
 |---|---|---|---|
 | A0 | Base | SQL das tabelas do agente (sessões, eventos, contestações), política por empresa, cliente de IA trocável (falso/Anthropic/Bedrock), medidor e teto de custo | Testes com cliente falso passam; SQL documentado |
-| A1 | Ferramentas + Auditor | 11 ferramentas sobre o que já existe; Auditor com todas as regras da seção 4 | Teste de cada ferramenta e de cada recusa do Auditor |
+| A1 | Ferramentas + Auditor | 14 ferramentas sobre o que já existe; Auditor com todas as regras da seção 4 | Teste de cada ferramenta e de cada recusa do Auditor |
 | A2 | Negociador | Ciclo de conversa, identidade, conferência da resposta, transferência | Cenários do caminho feliz e desvios passam com o cliente falso |
 | A3 | Tela Agente | Conversa ao vivo + trilha de ferramentas + custo; carteira fictícia para a demo | Demo de ponta a ponta no navegador (computador e celular) |
-| A4 | Estrategista + Plano do dia | Cobrar/aguardar/humano por devedor, com justificativa | Teste das regras; tela com o plano |
-| A5 | Bateria de avaliação | 40–50 cenários, nota por versão, painel | Nota registrada; roda com 1 comando |
-| A6 | Primeira rodada real | Você cria a chave (limite US$ 10); Haiku | Bateria real com nota; custo medido |
-| A7 | Painel do agente + aprendizado | Métricas, motivos de transferência, resultado volta à IA de canal/oferta | Painel com dados da bateria |
-| A8 | Entregáveis do edital | `AGENTE_FLUXO.md` (entradas, lógica, saídas + diagrama), BMC, pitch de 3 min, roteiro da demo, vídeo de reserva, repositório público de entrega | Tudo no GitHub de entrega |
+| A4 | Acompanhamento | Relógio de datas, lembretes, pagamento ligado à promessa/parcela, remarcação, pagamento informado, agenda do operador; botão que simula o banco | Cada situação da seção 3.2 com teste; demo de pagou, não pagou e "já paguei" |
+| A5 | Estrategista + Plano do dia | Cobrar/aguardar/humano por devedor, com justificativa; datas do dia | Teste das regras; tela com o plano |
+| A6 | Bateria de avaliação | 50–60 cenários, nota por versão, painel | Nota registrada; roda com 1 comando |
+| A7 | Primeira rodada real | Você cria a chave (limite US$ 10); Haiku | Bateria real com nota; custo medido |
+| A8 | Painel do agente + aprendizado | Métricas, motivos de transferência, resultado volta à IA de canal/oferta | Painel com dados da bateria |
+| A9 | Entregáveis do edital | `AGENTE_FLUXO.md` (entradas, lógica, saídas + diagrama), BMC, pitch de 3 min, roteiro da demo, vídeo de reserva, repositório público de entrega | Tudo no GitHub de entrega |
 
 A ordem deixa algo demonstrável o quanto antes: a partir de A3 já existe demo
 de ponta a ponta; as etapas seguintes aprofundam.
@@ -299,7 +359,7 @@ Testes: cada etapa ganha teste próprio; a suíte inteira passa antes de publica
 ### 9.2 Diferencial e viabilidade (20%)
 - Diferencial: não é chatbot de cobrança; decide o que fazer, executa com trava
   e aprende com o resultado da própria empresa.
-- Custo por negociação medido pelo próprio agente (etapa A6) contra o custo de
+- Custo por negociação medido pelo próprio agente (etapa A7) contra o custo de
   um operador fazendo o mesmo (você informa esse custo) — base do modelo de
   negócio e do BMC.
 
@@ -367,7 +427,7 @@ Evolução candidata (decidimos depois do regional, com o retorno da banca e do 
 | 18/10 | Relatório quinzenal (eu escrevo o rascunho com o que estiver pronto) |
 | Etapa A0 | Rodar o SQL que eu escrever |
 | Etapa A3 | Criar a empresa de demonstração e subir a carteira fictícia que eu gerar (nenhuma escrita minha no banco) |
-| Etapa A6 | Criar conta na Anthropic, chave com limite de US$ 10, colocar no Render |
+| Etapa A7 | Criar conta na Anthropic, chave com limite de US$ 10, colocar no Render |
 | Antes do regional | Conversas com quem cobra (9.1); decidir Sonnet ou Opus para a demo |
 
 ## 12. Riscos e como tratamos
@@ -400,16 +460,18 @@ bancos). Não há número inventado aqui.
 > carteira, estima a chance de pagamento de cada devedor e indica canal e
 > oferta. No AKCIT Camp vamos construir o agente de recuperação: ele decide
 > quem cobrar e quando, conversa com o devedor, negocia dentro da alçada
-> definida pela empresa, registra o acordo e aprende com o resultado. Quando o
+> definida pela empresa, registra o acordo, acompanha cada vencimento até o
+> pagamento (lembra, confere, remarca) e aprende com o resultado. Quando o
 > caso exige uma pessoa (contestação, pessoa errada, pedido fora da alçada), ele
 > transfere com um resumo.
 >
 > **Uso de agentes de IA** — Um estrategista planeja a cobrança do dia; um
 > negociador (modelo de linguagem com ferramentas) conversa e executa ações no
 > sistema; um auditor em código confere cada ação contra a política da empresa
-> antes de executar. Cada passo fica registrado com versão, custo e latência, e
-> a qualidade é medida por uma bateria de cenários, incluindo tentativas de
-> manipulação.
+> antes de executar; o acompanhamento vigia cada data combinada e age quando o
+> devedor paga, não paga ou pede outra data. Cada passo fica registrado com
+> versão, custo e latência, e a qualidade é medida por uma bateria de
+> cenários, incluindo tentativas de manipulação.
 >
 > **Diferencial** — Não é um chatbot de cobrança: o agente decide o que fazer,
 > age dentro de limites garantidos pelo código e aprende com os pagamentos da
