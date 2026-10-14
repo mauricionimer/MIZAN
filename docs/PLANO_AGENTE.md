@@ -137,6 +137,46 @@ Uma pessoa só entra nas exceções.
 Persona: gestor de recuperação de crédito de banco pequeno ou médio ou de
 cooperativa (o Goiás Bank é a referência), com equipe pequena e carteira grande.
 
+### 2.1 Ferramenta do banco, não cobradora
+
+"Não cobradora" não quer dizer que o Mizan não fale com o devedor: quer dizer
+que ele nunca é o credor nem fala em nome próprio.
+
+| | Assessoria de cobrança | Mizan |
+|---|---|---|
+| Em nome de quem fala com o devedor | Em nome dela, a serviço do banco | Em nome do banco, no canal do banco |
+| Quem faz o contato | A equipe dela | A equipe do banco e o agente que o banco configurou |
+| Quem define as regras | Ela, dentro do contrato | O banco, na tela de política, com versão |
+| Como ganha | Comissão sobre o que recupera | Assinatura e uso do software |
+
+Regras de desenho:
+
+1. **Identidade do banco**: o agente se apresenta como assistente do banco, no
+   número e com os modelos de mensagem aprovados pelo banco; o nome Mizan não
+   aparece para o devedor. Configurado por empresa.
+2. **Regras do banco**: política, alçada, tom e modelos de mensagem são
+   definidos e versionados pelo banco; o Mizan executa e registra.
+3. **Dinheiro direto para o banco**: boleto ou PIX do banco; o Mizan só recebe
+   a confirmação, como já é hoje (webhook de pagamento).
+4. **Equipe do banco**: os operadores são do banco; o Mizan não tem cobradores.
+5. **Dados do banco**: o banco é o controlador e o Mizan, o operador, com
+   contrato de operador; nenhum uso para outro fim sem autorização (ver o
+   aprendizado entre empresas, seção 10).
+6. **Preço de software**: assinatura e uso. Comissão sobre o recuperado é o
+   modelo de assessoria e confunde o posicionamento. Opção: bônus pelo ganho
+   provado contra o grupo sorteado. A decisão é sua.
+
+**Níveis de autonomia, escolhidos pelo banco na tela de política:**
+
+1. **Decidir e medir**: o Mizan decide quem cobrar, como e com qual oferta, e
+   mede contra o grupo sorteado; a equipe do banco executa.
+2. **+ Acompanhamento automático**: lembretes e conferência de pagamento, com
+   textos aprovados pelo banco.
+3. **+ Negociação pelo agente**, no canal do banco, dentro da política.
+
+É também o caminho de venda: o banco começa no nível 1 e sobe quando confiar.
+A demo mostra o nível 3.
+
 ---
 
 ## 3. Arquitetura
@@ -249,6 +289,8 @@ auditoria. Com o agente, a tela vira **Política do agente**:
   frequência de contato, horário.
 - **Custo por canal** (entra no aprendizado, seção 3.5) e **percentual do grupo
   sorteado** (seção 3.1).
+- **Identidade e autonomia** (seção 2.1): nome do assistente, canal, modelos de
+  mensagem aprovados e nível de autonomia.
 - **Versão**: quem mudou, quando, antes e depois.
 - **Cada decisão do Auditor grava a regra que permitiu ou barrou** e a versão
   da política. No pitch: "trilha de auditoria completa de cada concessão". Não
@@ -356,7 +398,8 @@ no pitch.
 5. **Cadência e horário**: limite de contatos por devedor e janela de horário
    definidos pela empresa.
 6. **Pagamento informado**: "já paguei" suspende a cobrança até a confirmação.
-7. **Interruptor**: o agente pode ser desligado por empresa a qualquer momento.
+7. **Interruptor e nível de autonomia**: o banco escolhe o nível (seção 2.1) e
+   pode desligar o agente a qualquer momento.
 8. **Teto de custo**: limite por conversa e por mês no código, além do limite no
    console da Anthropic.
 9. **Falha da IA** (fora do ar, resposta inválida): nada é inventado; o caso vai
@@ -392,7 +435,8 @@ no pitch.
 Na demo, **um integrante faz o papel do devedor**, digitando, e o outro narra
 o fluxo — custo de IA só pelas respostas do agente, e a banca vê a autonomia
 acontecer. A demo roda numa empresa de demonstração com carteira fictícia, com
-datas em torno do dia da apresentação. Um botão simula o banco confirmando um
+datas em torno do dia da apresentação, e o agente se apresenta como assistente
+do "Banco Demo", nunca como Mizan. Um botão simula o banco confirmando um
 pagamento (usa o webhook que já existe) e o agente reage na hora; o gestor
 muda uma regra na tela de política e o agente passa a obedecer na conversa
 seguinte.
@@ -503,6 +547,7 @@ Testes: cada etapa ganha teste próprio; a suíte inteira passa antes de publica
 - Custo por negociação medido pelo próprio agente (etapa A8) contra o custo de
   um operador fazendo o mesmo (você informa esse custo) — base do modelo de
   negócio e do BMC.
+- Receita de software (assinatura e uso, seção 2.1) no BMC — não comissão.
 
 ### 9.3 Pitch (15%) — 3 minutos
 Abre ou fecha com a frase da seção 2. Problema (30 s) → agente ao vivo: decide,
@@ -585,7 +630,8 @@ Evolução candidata (decidimos depois do regional, com o retorno da banca e do 
 | Etapa A3 | Criar a empresa de demonstração e subir a carteira fictícia que eu gerar (nenhuma escrita minha no banco) |
 | Etapa A6 | OK para recalcular o aprendizado com a recompensa nova |
 | Etapa A8 | Criar conta na Anthropic, chave com limite de US$ 10, colocar no Render |
-| Antes do regional | Conversas com quem cobra (9.1); validar o levantamento das alternativas (9.2); decidir Sonnet ou Opus para a demo |
+| Antes do regional | Conversas com quem cobra (9.1); validar o levantamento das alternativas (9.2); decidir Sonnet ou Opus para a demo; decidir o modelo de preço (seção 2.1) |
+| Antes do primeiro piloto | Advogado revisa o contrato modelo: papéis na LGPD, responsabilidades e as regras que o banco segue para contratar sistema em nuvem (Resolução CMN 4.893/2021) |
 
 ## 12. Riscos e como tratamos
 
@@ -594,6 +640,7 @@ Evolução candidata (decidimos depois do regional, com o retorno da banca e do 
 | Não ser selecionado na inscrição | Texto com o problema claro e o agente no centro (Anexo A) |
 | Menos de 2 pessoas no dia | Segundo integrante confirmado já na inscrição |
 | Ser visto como mais um robô de cobrança | Posicionamento da seção 2 e levantamento das alternativas com fonte |
+| Ser confundido com cobradora, no contrato ou na venda | Regras de desenho da seção 2.1; contrato revisado por advogado |
 | Prometer "X% a mais" sem ter medido | Número só depois de medido; no regional, mostramos o método |
 | Recompensa nova muda as recomendações de quem já usa | Recalcular a partir do histórico e só ativar com seu OK |
 | Grupo sorteado fica sem o agente | Parte pequena, escolhida pela empresa; é o que prova o resultado |
