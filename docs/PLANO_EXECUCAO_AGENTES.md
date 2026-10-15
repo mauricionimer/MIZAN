@@ -9,6 +9,8 @@ cita o capítulo do curso em que se apoia — é o vocabulário que a banca usa.
 Supabase de produção (o SQL você roda); testes sem dado real; suíte inteira
 passando antes de publicar.
 
+**Partes:** [Parte 1 — preparar o terreno](PARTE1_TERRENO.md) (16/10).
+
 ---
 
 ## 1. O ambiente do agente (cap. 1.3)

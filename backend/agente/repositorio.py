@@ -1,0 +1,237 @@
+"""Guarda dos dados do agente: casos, eventos e passos.
+
+Duas implementações com a mesma interface:
+- RepoMemoria: testes e demonstração local, sem banco.
+- RepoSupabase: produção, nas tabelas de sql/migracao_agente.sql.
+
+As reservas (evento e trava do caso) são atualizações condicionais: o filtro vai
+na própria cláusula do UPDATE, então de dois processos disputando a mesma linha
+só um recebe a linha de volta. Mesmo padrão de travas.py.
+"""
+import copy
+import threading
+import uuid
+from datetime import date, datetime, timedelta, timezone
+
+
+def agora_utc() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _dt(v):
+    if v is None or isinstance(v, datetime):
+        return v
+    return datetime.fromisoformat(str(v).replace("Z", "+00:00"))
+
+
+class EventoDuplicado(Exception):
+    pass
+
+
+class RepoMemoria:
+    def __init__(self):
+        self.casos: dict = {}
+        self.eventos: dict = {}
+        self.passos: list = []
+        self._lock = threading.Lock()
+
+    # ── casos ──
+    def obter_ou_criar_caso(self, empresa_id: str, predicao_id: str) -> dict:
+        with self._lock:
+            for c in self.casos.values():
+                if c["empresa_id"] == empresa_id and c["predicao_id"] == predicao_id:
+                    return copy.deepcopy(c)
+            caso = {"id": str(uuid.uuid4()), "empresa_id": empresa_id, "predicao_id": predicao_id,
+                    "situacao": "novo", "grupo": None, "grupo_controle": False, "proxima_data": None,
+                    "tentativas": 0, "versao_politica": None, "resumo": None, "ultimo_passo": None,
+                    "dados": {}, "trava_dono": None, "trava_ate": None, "atualizado_em": agora_utc()}
+            self.casos[caso["id"]] = caso
+            return copy.deepcopy(caso)
+
+    def obter_caso(self, caso_id: str) -> dict | None:
+        c = self.casos.get(caso_id)
+        return copy.deepcopy(c) if c else None
+
+    def salvar_caso(self, caso_id: str, campos: dict, dono: str | None = None) -> bool:
+        """Grava o checkpoint. Com `dono`, só grava se a trava ainda for dele."""
+        with self._lock:
+            c = self.casos.get(caso_id)
+            if not c or (dono is not None and c["trava_dono"] != dono):
+                return False
+            c.update(copy.deepcopy(campos))
+            c["atualizado_em"] = agora_utc()
+            return True
+
+    def travar_caso(self, caso_id: str, dono: str, ate: datetime, agora: datetime) -> bool:
+        with self._lock:
+            c = self.casos.get(caso_id)
+            if not c:
+                return False
+            if c["trava_ate"] is not None and c["trava_ate"] >= agora:
+                return False
+            c["trava_dono"], c["trava_ate"] = dono, ate
+            return True
+
+    def soltar_caso(self, caso_id: str, dono: str) -> None:
+        with self._lock:
+            c = self.casos.get(caso_id)
+            if c and c["trava_dono"] == dono:
+                c["trava_dono"], c["trava_ate"] = None, None
+
+    # ── eventos ──
+    def inserir_evento(self, evento: dict) -> dict:
+        with self._lock:
+            for e in self.eventos.values():
+                if e["empresa_id"] == evento["empresa_id"] and e["chave"] == evento["chave"]:
+                    raise EventoDuplicado(evento["chave"])
+            e = {"id": str(uuid.uuid4()), "situacao": "pendente", "tentativas": 0, "erro": None,
+                 "trace_id": None, "concluido_em": None, "criado_em": agora_utc(),
+                 "disponivel_em": agora_utc(), **copy.deepcopy(evento)}
+            self.eventos[e["id"]] = e
+            return copy.deepcopy(e)
+
+    def evento_por_chave(self, empresa_id: str, chave: str) -> dict | None:
+        for e in self.eventos.values():
+            if e["empresa_id"] == empresa_id and e["chave"] == chave:
+                return copy.deepcopy(e)
+        return None
+
+    def candidatos(self, agora: datetime, limite: int = 10) -> list:
+        prontos = [e for e in self.eventos.values()
+                   if e["situacao"] == "pendente" and e["disponivel_em"] <= agora]
+        prontos.sort(key=lambda e: (-e["prioridade"], e["criado_em"]))
+        return [copy.deepcopy(e) for e in prontos[:limite]]
+
+    def reservar_evento(self, evento_id: str) -> bool:
+        with self._lock:
+            e = self.eventos.get(evento_id)
+            if not e or e["situacao"] != "pendente":
+                return False
+            e["situacao"] = "processando"
+            return True
+
+    def atualizar_evento(self, evento_id: str, campos: dict) -> None:
+        with self._lock:
+            if evento_id in self.eventos:
+                self.eventos[evento_id].update(copy.deepcopy(campos))
+
+    # ── passos ──
+    def gravar_passo(self, passo: dict) -> None:
+        with self._lock:
+            self.passos.append({**copy.deepcopy(passo), "criado_em": agora_utc()})
+
+    def custo_do_dia(self, empresa_id: str, dia: date) -> float:
+        return round(sum(float(p["custo_usd"]) for p in self.passos
+                         if p["empresa_id"] == empresa_id and p["criado_em"].date() == dia), 6)
+
+
+class RepoSupabase:
+    """Mesma interface, nas tabelas agente_*. Só o backend acessa (RLS ligado)."""
+
+    def __init__(self, db=None):
+        self._db = db
+
+    @property
+    def db(self):
+        if self._db is None:
+            from db import get_db
+            return get_db()
+        return self._db
+
+    @staticmethod
+    def _iso(v):
+        return v.isoformat() if isinstance(v, (datetime, date)) else v
+
+    def _caso(self, linha: dict | None) -> dict | None:
+        if not linha:
+            return None
+        linha = dict(linha)
+        linha["trava_ate"] = _dt(linha.get("trava_ate"))
+        linha["dados"] = linha.get("dados") or {}
+        return linha
+
+    # ── casos ──
+    def obter_ou_criar_caso(self, empresa_id: str, predicao_id: str) -> dict:
+        t = self.db.table("agente_casos")
+        res = t.select("*").eq("empresa_id", empresa_id).eq("predicao_id", predicao_id).limit(1).execute()
+        if res.data:
+            return self._caso(res.data[0])
+        try:
+            res = t.insert({"empresa_id": empresa_id, "predicao_id": predicao_id}).execute()
+            return self._caso(res.data[0])
+        except Exception:
+            # Outro processo criou ao mesmo tempo (UNIQUE): usa o dele.
+            res = t.select("*").eq("empresa_id", empresa_id).eq("predicao_id", predicao_id).limit(1).execute()
+            if not res.data:
+                raise
+            return self._caso(res.data[0])
+
+    def obter_caso(self, caso_id: str) -> dict | None:
+        res = self.db.table("agente_casos").select("*").eq("id", caso_id).limit(1).execute()
+        return self._caso(res.data[0]) if res.data else None
+
+    def salvar_caso(self, caso_id: str, campos: dict, dono: str | None = None) -> bool:
+        dados = {k: self._iso(v) for k, v in campos.items()}
+        dados["atualizado_em"] = agora_utc().isoformat()
+        q = self.db.table("agente_casos").update(dados).eq("id", caso_id)
+        if dono is not None:
+            q = q.eq("trava_dono", dono)
+        return bool(q.execute().data)
+
+    def travar_caso(self, caso_id: str, dono: str, ate: datetime, agora: datetime) -> bool:
+        res = (self.db.table("agente_casos")
+               .update({"trava_dono": dono, "trava_ate": ate.isoformat()})
+               .eq("id", caso_id)
+               # Sem "+00:00" dentro do filtro: "+" em URL pode virar espaço.
+               .or_(f"trava_ate.is.null,trava_ate.lt.{agora.astimezone(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ')}")
+               .execute())
+        return bool(res.data)
+
+    def soltar_caso(self, caso_id: str, dono: str) -> None:
+        (self.db.table("agente_casos").update({"trava_dono": None, "trava_ate": None})
+         .eq("id", caso_id).eq("trava_dono", dono).execute())
+
+    # ── eventos ──
+    def inserir_evento(self, evento: dict) -> dict:
+        dados = {k: self._iso(v) for k, v in evento.items()}
+        try:
+            return self.db.table("agente_eventos").insert(dados).execute().data[0]
+        except Exception as e:
+            if self.evento_por_chave(evento["empresa_id"], evento["chave"]):
+                raise EventoDuplicado(evento["chave"]) from e
+            raise
+
+    def evento_por_chave(self, empresa_id: str, chave: str) -> dict | None:
+        res = (self.db.table("agente_eventos").select("*")
+               .eq("empresa_id", empresa_id).eq("chave", chave).limit(1).execute())
+        return res.data[0] if res.data else None
+
+    def candidatos(self, agora: datetime, limite: int = 10) -> list:
+        res = (self.db.table("agente_eventos").select("*")
+               .eq("situacao", "pendente").lte("disponivel_em", agora.isoformat())
+               .order("prioridade", desc=True).order("criado_em")
+               .limit(limite).execute())
+        return res.data or []
+
+    def reservar_evento(self, evento_id: str) -> bool:
+        res = (self.db.table("agente_eventos").update({"situacao": "processando"})
+               .eq("id", evento_id).eq("situacao", "pendente").execute())
+        return bool(res.data)
+
+    def atualizar_evento(self, evento_id: str, campos: dict) -> None:
+        dados = {k: self._iso(v) for k, v in campos.items()}
+        self.db.table("agente_eventos").update(dados).eq("id", evento_id).execute()
+
+    # ── passos ──
+    def gravar_passo(self, passo: dict) -> None:
+        self.db.table("agente_passos").insert(passo).execute()
+
+    def custo_do_dia(self, empresa_id: str, dia: date) -> float:
+        inicio = datetime(dia.year, dia.month, dia.day, tzinfo=timezone.utc)
+        res = (self.db.table("agente_passos").select("custo_usd")
+               .eq("empresa_id", empresa_id)
+               .gte("criado_em", inicio.isoformat())
+               .lt("criado_em", (inicio + timedelta(days=1)).isoformat())
+               .gt("custo_usd", 0)
+               .execute())
+        return round(sum(float(l.get("custo_usd") or 0) for l in (res.data or [])), 6)

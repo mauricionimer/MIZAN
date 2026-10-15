@@ -1,0 +1,124 @@
+"""Cliente de IA trocável, com custo medido e teto (docs/PLANO_EXECUCAO_AGENTES.md, 9).
+
+Os agentes nunca falam direto com um fornecedor: pedem a `cliente()` e recebem
+alguém que responde `gerar(...)`. Nos testes e até a chave existir, é o
+ClienteFalso: responde o que o teste mandou e custa zero.
+
+Preço não fica escrito aqui. Vem de MIZAN_AGENTE_PRECOS, conferido na página
+oficial do fornecedor no dia em que a chave for ligada:
+
+    MIZAN_AGENTE_PRECOS='{"<modelo>": [<US$ por milhão de entrada>, <US$ por milhão de saída>]}'
+
+Modelo real sem preço configurado não roda: custo desconhecido não pode virar
+custo zero no painel.
+"""
+import json
+import os
+from dataclasses import dataclass, field
+
+
+@dataclass
+class Resposta:
+    texto: str = ""
+    ferramentas: list = field(default_factory=list)   # [{"nome": str, "args": dict}]
+    tokens_entrada: int = 0
+    tokens_saida: int = 0
+    modelo: str = ""
+    custo_usd: float = 0.0
+
+
+class TetoExcedido(RuntimeError):
+    """O gasto do dia da empresa chegou ao teto: o caso vai para uma pessoa."""
+
+
+class PrecoDesconhecido(RuntimeError):
+    pass
+
+
+MODELO_FALSO = "falso"
+
+
+def _precos() -> dict:
+    bruto = os.getenv("MIZAN_AGENTE_PRECOS", "").strip()
+    if not bruto:
+        return {}
+    try:
+        dados = json.loads(bruto)
+        return {str(k): (float(v[0]), float(v[1])) for k, v in dados.items()}
+    except (ValueError, TypeError, IndexError, KeyError) as e:
+        raise PrecoDesconhecido(f"MIZAN_AGENTE_PRECOS inválido: {type(e).__name__}") from e
+
+
+def custo(modelo: str, tokens_entrada: int, tokens_saida: int) -> float:
+    if modelo == MODELO_FALSO:
+        return 0.0
+    precos = _precos()
+    if modelo not in precos:
+        raise PrecoDesconhecido(f"sem preço configurado para o modelo {modelo!r}")
+    p_in, p_out = precos[modelo]
+    return round((tokens_entrada * p_in + tokens_saida * p_out) / 1_000_000, 6)
+
+
+def teto_dia_usd() -> float:
+    """Gasto máximo por empresa por dia. Escolha de projeto: o orçamento total
+    do protótipo é US$ 10; US$ 1 por dia deixa folga para dez dias de testes."""
+    try:
+        return max(0.0, float(os.getenv("MIZAN_AGENTE_TETO_DIA_USD", "1.0")))
+    except ValueError:
+        return 1.0
+
+
+def conferir_teto(gasto_hoje: float) -> None:
+    if gasto_hoje >= teto_dia_usd():
+        raise TetoExcedido(f"gasto do dia US$ {gasto_hoje:.4f} chegou ao teto US$ {teto_dia_usd():.2f}")
+
+
+# Roteamento de modelos (cap. 9.3.4): tarefa simples no barato, conversa no maior.
+_VAR_MODELO = {"triagem": "MIZAN_MODELO_TRIAGEM", "negociador": "MIZAN_MODELO_NEGOCIADOR"}
+
+
+def modelo_para(papel: str) -> str:
+    return os.getenv(_VAR_MODELO.get(papel, ""), "") or MODELO_FALSO
+
+
+def _estimar_tokens(texto: str) -> int:
+    # Só para o cliente falso ter números plausíveis nos testes; custo é zero.
+    return max(1, len(texto) // 4)
+
+
+class ClienteFalso:
+    """Responde em ordem o que estiver em `roteiro`.
+
+    Cada item é uma Resposta, um texto, uma exceção (para testar falhas) ou uma
+    função (sistema, mensagens) -> Resposta | str. Guarda as chamadas recebidas.
+    """
+
+    def __init__(self, roteiro=None):
+        self.roteiro = list(roteiro or [])
+        self.chamadas: list = []
+
+    def gerar(self, *, sistema: str, mensagens: list, modelo: str = MODELO_FALSO,
+              ferramentas: list | None = None, max_tokens: int = 1024) -> Resposta:
+        self.chamadas.append({"sistema": sistema, "mensagens": mensagens,
+                              "modelo": modelo, "ferramentas": ferramentas})
+        item = self.roteiro.pop(0) if self.roteiro else ""
+        if callable(item) and not isinstance(item, Resposta):
+            item = item(sistema, mensagens)
+        if isinstance(item, BaseException):
+            raise item
+        r = item if isinstance(item, Resposta) else Resposta(texto=str(item))
+        entrada = sistema + "".join(str(m.get("conteudo", "")) for m in mensagens)
+        r.tokens_entrada = r.tokens_entrada or _estimar_tokens(entrada)
+        r.tokens_saida = r.tokens_saida or _estimar_tokens(r.texto)
+        r.modelo = r.modelo or modelo
+        r.custo_usd = custo(r.modelo, r.tokens_entrada, r.tokens_saida)
+        return r
+
+
+def cliente():
+    """O cliente configurado em MIZAN_AGENTE_CLIENTE (padrão: falso)."""
+    tipo = os.getenv("MIZAN_AGENTE_CLIENTE", "falso").strip().lower()
+    if tipo == "falso":
+        return ClienteFalso()
+    # O cliente da Anthropic entra na Parte 2, junto com a chave (19/10).
+    raise NotImplementedError(f"cliente de IA {tipo!r} ainda não implementado")
