@@ -23,7 +23,7 @@ import socket
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
-from agente import estado, llm
+from agente import auditor, estado, llm
 from agente.rastreio import Rastreio, novo_trace_id
 from agente.repositorio import EventoDuplicado
 
@@ -96,6 +96,7 @@ class Contexto:
     rastreio: Rastreio
     cliente: object
     hoje: object
+    agora: object = None
     saida: dict = field(default_factory=dict)       # rascunho entre nós deste evento
 
     def mudar_situacao(self, nova: str, por: str = "agente") -> None:
@@ -104,6 +105,31 @@ class Contexto:
     @property
     def pode_falar(self) -> bool:
         return estado.pode_falar(self.caso["situacao"])
+
+    def politica(self) -> tuple:
+        """(regras, versão) da política ativa da empresa; (None, None) se não houver
+        ou se a gravada for inválida — aí o Auditor só deixa passar segurança."""
+        if "_politica" not in self.saida:
+            achada = self.repo.politica_ativa(self.caso["empresa_id"])
+            try:
+                self.saida["_politica"] = ((auditor.validar_politica(achada["regras"]), achada["versao"])
+                                           if achada else (None, None))
+            except ValueError:
+                self.saida["_politica"] = (None, None)
+        return self.saida["_politica"]
+
+    def auditar(self, acao: dict, contatos_7d: int = 0, simulacao: dict | None = None) -> dict:
+        """Passa a ação pelo Auditor e registra a decisão como um passo do rastreio."""
+        regras, versao = self.politica()
+        with self.rastreio.span("auditor", "auditor") as p:
+            d = auditor.auditar(acao, self.caso, regras, versao, self.agora,
+                                contatos_7d=contatos_7d, simulacao=simulacao)
+            p["regra"], p["versao_politica"] = d["regra"], d["versao_politica"]
+            p["detalhe"] = {"acao": (acao or {}).get("tipo"), "permitida": d["permitida"]}
+            if not d["permitida"]:
+                p["resultado"] = "bloqueado"
+        self.caso["versao_politica"] = versao
+        return d
 
     def ia(self, papel: str, sistema: str, mensagens: list, ferramentas=None, max_tokens: int = 1024):
         """Chama a IA com teto de custo do dia e soma tokens e custo ao passo atual."""
@@ -225,7 +251,7 @@ def _processar(repo, grafos, ev, cliente, agora, dono) -> dict:
         rastreio = Rastreio(ev["empresa_id"], repo.gravar_passo, caso_id=caso["id"],
                             evento_id=ev["id"], trace_id=trace_id)
         ctx = Contexto(caso=caso, evento=ev, repo=repo, rastreio=rastreio,
-                       cliente=cliente, hoje=agora.date())
+                       cliente=cliente, hoje=agora.date(), agora=agora)
         resultado = executar(grafo, ctx, dono)
     except Exception as e:
         # Falha fora do grafo: volta para a fila; na segunda vira "falhou".

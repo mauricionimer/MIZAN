@@ -200,6 +200,23 @@ Redis (cache e limite compartilhados) e uma fila dedicada.
   Reprovou → uma nova tentativa → pessoa.
 - **Falha ou recusa do modelo** → pessoa, com resumo. Nada inventado.
 
+## 8.1 Política de demonstração (valores fictícios)
+
+Usada só na demonstração do AKCIT Camp; não é recomendação. Cada banco define a
+sua, com versão (`agente_politicas`). Está em `backend/agente/auditor.py`.
+
+| Regra | Valor de demonstração |
+|---|---|
+| Desconto máximo | 30% |
+| Parcelas máximas | 12 |
+| Parcela mínima | R$ 50 |
+| Entrada mínima (acordo parcelado) | 10% |
+| Horário de contato | 8h às 20h, segunda a sábado (Brasília) |
+| Contatos por semana com o mesmo devedor | 3 |
+
+Sem política ativa, o Auditor só deixa passar parar contato, contestação e
+transferência para uma pessoa.
+
 ## 9. LLMOps (cap. 9, 10, 11)
 
 - **Rastreabilidade (9.2)**: cada evento tem um id de rastreio; cada passo grava

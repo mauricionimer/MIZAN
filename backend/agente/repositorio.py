@@ -33,6 +33,7 @@ class RepoMemoria:
         self.casos: dict = {}
         self.eventos: dict = {}
         self.passos: list = []
+        self.politicas: list = []
         self._lock = threading.Lock()
 
     # ── casos ──
@@ -114,6 +115,20 @@ class RepoMemoria:
         with self._lock:
             if evento_id in self.eventos:
                 self.eventos[evento_id].update(copy.deepcopy(campos))
+
+    # ── política ──
+    def gravar_politica(self, empresa_id: str, versao: int, regras: dict, ativa: bool = True) -> None:
+        with self._lock:
+            if ativa:
+                for p in self.politicas:
+                    if p["empresa_id"] == empresa_id:
+                        p["ativa"] = False
+            self.politicas.append({"empresa_id": empresa_id, "versao": versao,
+                                   "regras": copy.deepcopy(regras), "ativa": ativa})
+
+    def politica_ativa(self, empresa_id: str) -> dict | None:
+        ativas = [p for p in self.politicas if p["empresa_id"] == empresa_id and p["ativa"]]
+        return copy.deepcopy(max(ativas, key=lambda p: p["versao"])) if ativas else None
 
     # ── passos ──
     def gravar_passo(self, passo: dict) -> None:
@@ -221,6 +236,13 @@ class RepoSupabase:
     def atualizar_evento(self, evento_id: str, campos: dict) -> None:
         dados = {k: self._iso(v) for k, v in campos.items()}
         self.db.table("agente_eventos").update(dados).eq("id", evento_id).execute()
+
+    # ── política ──
+    def politica_ativa(self, empresa_id: str) -> dict | None:
+        res = (self.db.table("agente_politicas").select("versao, regras")
+               .eq("empresa_id", empresa_id).eq("ativa", True)
+               .order("versao", desc=True).limit(1).execute())
+        return res.data[0] if res.data else None
 
     # ── passos ──
     def gravar_passo(self, passo: dict) -> None:

@@ -45,6 +45,10 @@ Nenhuma rota nova no `main.py`: o código fica parado até a Parte 2 ligá-lo.
 4. Bateria completa do backend passando → publicar nas duas branches.
 5. README do repositório público.
 
+## Situação
+
+Concluída em 15/10: SQL rodado no Supabase (6 tabelas conferidas).
+
 ## O que você faz
 
 - Rodar `backend/sql/migracao_agente.sql` no Supabase e me mandar o resultado
