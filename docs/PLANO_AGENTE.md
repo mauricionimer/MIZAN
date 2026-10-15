@@ -7,6 +7,9 @@ Mizan já tem hoje.
 **Teto de gasto com IA em todo o projeto: US$ 10.** Tudo o que pode ser testado
 sem IA de verdade é testado sem ela (seção 7).
 
+O **como construir**, peça por peça e alinhado ao curso AKCIT, está em
+`PLANO_EXECUCAO_AGENTES.md`.
+
 ---
 
 ## 1. O que o edital pede
@@ -394,8 +397,8 @@ agente, cada data vira um evento tratado sozinho:
 | Não responde | Tenta de novo dentro da cadência; depois marca a promessa como quebrada e passa ao operador |
 | Parcela de acordo atrasada | Mesmo tratamento; com mais de 30 dias o acordo quebra (regra que já existe) e volta para o Estrategista |
 
-- **Relógio** (código): todo dia de manhã (agendamento diário gratuito do
-  GitHub Actions chamando o servidor) e a cada pagamento que chega, lista as
+- **Relógio** (código): todo dia de manhã (pelo agendador que já roda dentro do
+  servidor, o mesmo do retreino, sem custo) e a cada pagamento que chega, lista as
   datas e gera os eventos. Na demo, também por um botão. Vencimento em fim de
   semana ou feriado só conta no dia útil seguinte.
 - **Agenda organizada**: o que precisa de uma pessoa entra na agenda do
@@ -644,7 +647,8 @@ você quiser, o módulo do agente. **Nada de dado real de cliente** — pelo edi
 a organização pode divulgar os projetos.
 
 ### 9.6 No dia (24/10)
-- Sistema aberto 15 minutos antes (o Render gratuito "dorme") e login da
+- Sistema aberto 15 minutos antes (o ping a cada 8 minutos já evita que o
+  Render gratuito "durma", mas é melhor conferir) e login da
   empresa de demonstração já feito.
 - Vídeo da demo no notebook e no celular, sem depender de internet.
 - Notebook carregado, carregador e internet do celular como reserva.
@@ -718,7 +722,7 @@ Evolução candidata (decidimos depois do regional, com o retorno da banca e do 
 | Prometer "X% a mais" sem ter medido | Número só depois de medido; no regional, mostramos o método |
 | Recompensa nova muda as recomendações de quem já usa | Recalcular a partir do histórico e só ativar com seu OK |
 | Grupo sorteado fica sem o agente | Parte pequena, escolhida pela empresa; é o que prova o resultado |
-| Render gratuito "dorme" | Abrir o sistema minutos antes; vídeo de reserva |
+| Render gratuito "dorme" | Já há ping a cada 8 minutos; abrir o sistema minutos antes; vídeo de reserva |
 | Internet ruim no evento | Vídeo gravado da demo (o edital aceita) |
 | IA lenta ou fora do ar | Transferência automática com resumo; vídeo de reserva |
 | Estourar o orçamento | Teto no código + limite no console; desenvolvimento com cliente falso |
