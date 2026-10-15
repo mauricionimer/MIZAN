@@ -653,37 +653,58 @@ Evolução candidata (decidimos depois do regional, com o retorno da banca e do 
 
 ---
 
-## Anexo A — Texto-base para a inscrição
+## Anexo A — Inscrição: "Apresente a sua ideia/solução"
 
-Adapte aos campos do formulário e acrescente o que é seu (equipe, conversas com
-bancos). Não há número inventado aqui.
+Texto para o campo principal do formulário (é por ele que as 25 equipes por
+região são selecionadas). Escrito para colar como texto simples. O parágrafo
+entre colchetes é seu: preencha com conversas reais ou apague. Números
+conferidos em 15/10/2026 em reportagens que citam a Serasa e o Banco Central;
+confira na fonte oficial antes de enviar.
 
-> **Problema** — Bancos, cooperativas e financeiras de pequeno e médio porte
-> recuperam crédito com equipes pequenas e carteiras grandes. Sem prioridade
-> definida, o operador não sabe quem cobrar primeiro nem de que forma: gasta
-> tempo em casos com pouca chance, deixa de lado quem pagaria com a abordagem
-> certa e fecha acordos que não são cumpridos. Segundo a Serasa, em agosto de
-> 2026 eram cerca de 84 milhões de brasileiros inadimplentes.
->
-> **Solução** — O Mizan é uma plataforma web, já funcionando, que analisa a
-> carteira, estima a chance de pagamento de cada devedor e indica canal e
-> oferta. No AKCIT Camp vamos construir os agentes que transformam essa análise
-> em ação: decidem quem cobrar, como e com qual oferta — e também quem não
-> cobrar —, negociam com o devedor dentro das regras do banco, acompanham cada
-> vencimento até o pagamento e aprendem com o dinheiro que entrou de verdade,
-> não com a promessa. Quando o caso exige uma pessoa, transferem com um resumo.
-> O banco continua sendo quem cobra; o Mizan é a ferramenta dele.
->
-> **Uso de agentes de IA** — Um estrategista separa a carteira entre quem só
-> precisa de lembrete, quem precisa de contato, quem não adianta cobrar agora e
-> quem precisa de uma pessoa; um negociador (modelo de linguagem com
-> ferramentas) conversa e executa ações no sistema; um auditor em código
-> confere cada ação contra a política da empresa e registra qual regra a
-> permitiu; o acompanhamento vigia cada data combinada. Cada passo fica
-> registrado com versão, custo e latência, e a qualidade é medida por uma
-> bateria de cenários, incluindo tentativas de manipulação.
->
-> **Diferencial** — Não é um robô de cobrança: o Mizan decide, mede e prova.
-> Busca o acordo que é cumprido, não só o fechado; segue regras que o gestor do
-> banco configura e simula antes de aplicar; e compara o resultado com um grupo
-> sorteado da própria carteira do cliente para mostrar quanto entrou a mais.
+A DOR
+
+Bancos pequenos e médios, cooperativas de crédito e financeiras recuperam crédito com equipes pequenas e carteiras grandes. Todos os dias, o gestor de recuperação precisa decidir quem cobrar primeiro, por qual canal, com qual oferta e até onde pode negociar — e muitas vezes decide por intuição ou em planilha. Na prática, isso gera tempo gasto com quem não vai pagar, contato desnecessário com quem pagaria sozinho, descontos sem critério e, principalmente, acordos fechados que não são cumpridos: a operação registra o acordo, mas o dinheiro não entra. Do outro lado, o devedor recebe propostas que não cabem no orçamento, promete, não consegue pagar e continua inadimplente.
+
+O problema é grande e está crescendo. Segundo o Banco Central, a inadimplência das pessoas físicas chegou a 6% em agosto de 2026, o maior nível desde o início da série, em 2011. Segundo a Serasa, cerca de 84 milhões de brasileiros estão com o nome negativado, e só entre maio e agosto de 2026 a Serasa registrou 19,7 milhões de acordos de renegociação, 36% a mais que no mesmo período de 2025. Cada acordo traz datas, parcelas e risco de quebra para acompanhar — trabalho que hoje depende de gente.
+
+[Evidência própria: escreva aqui as conversas que você já teve com bancos, cooperativas ou gestores de cobrança. Se não tiver, apague este parágrafo.]
+
+A SOLUÇÃO
+
+O Mizan já é uma plataforma web em funcionamento. Ela analisa a carteira, estima a chance de pagamento de cada devedor com machine learning, prioriza e divide a fila entre os operadores, recomenda canal e oferta com aprendizado por reforço treinado separadamente para cada empresa, simula propostas verificando se a parcela cabe no orçamento do devedor e controla promessas, acordos parcelados, pagamentos e resultados. Mas hoje o Mizan diz o que fazer, e a execução depende de pessoas, que não escalam.
+
+No AKCIT Camp vamos construir os agentes que transformam essa análise em ação, de ponta a ponta:
+
+Estrategista: todo dia separa a carteira entre quem só precisa de um lembrete, quem precisa de contato, quem não adianta cobrar agora e quem precisa de uma pessoa, sempre com o motivo.
+
+Negociador: conversa com o devedor em linguagem natural, entende objeções ("não consigo esse valor", "só posso no dia 15", "já paguei", "não reconheço essa dívida") e usa ferramentas do próprio sistema para consultar o caso, simular propostas e registrar o acordo.
+
+Auditor (código, não IA): antes de qualquer ação, confere a política do banco (alçada, desconto por faixa de atraso, limite de remarcações, horários) e registra qual regra permitiu ou barrou cada concessão.
+
+Acompanhamento: vigia cada data combinada, lembra antes do vencimento, confere o pagamento depois, procura quem não pagou e remarca dentro da regra.
+
+Aprendizado: o sistema aprende com o dinheiro que entrou de verdade, descontado o custo do contato, e não com o "sim" do devedor. Assim passa a oferecer o acordo que a pessoa consegue cumprir.
+
+Por que agentes, e não outra abordagem: um score ou um painel só ordenam e recomendam; um robô de regras ou um chatbot de roteiro quebra quando o devedor sai do script; e uma equipe humana não escala. Recuperar crédito é uma tarefa longa, de muitas etapas: decidir, abordar, negociar, registrar, acompanhar datas por semanas, reagir ao pagamento ou à falta dele e aprender com o resultado. Isso exige raciocinar, planejar, usar ferramentas, guardar estado e tomar decisões encadeadas, que é o que define um agente. Sem os agentes, o Mizan é um painel que depende de gente; com eles, a operação roda de ponta a ponta e uma pessoa só entra nas exceções.
+
+A autonomia tem limites garantidos pelo código: valores só saem do simulador, toda ação passa pelo auditor, a mensagem do devedor é tratada como dado e não como ordem, dados pessoais são mascarados e casos sensíveis vão para uma pessoa com um resumo. A qualidade será medida por uma bateria automática de cenários, incluindo tentativas de manipulação, e cada passo ficará registrado com versão, custo e latência. O banco escolhe quanta autonomia ligar: só decidir e medir, acompanhar as datas ou também negociar.
+
+O Mizan não vira cobrador: o banco continua sendo quem cobra, com o nome, as regras e os canais dele. O Mizan é a ferramenta.
+
+O que entrega: para o banco ou a cooperativa, mais dinheiro entrando de verdade com a mesma equipe, menos acordos quebrados, menos custo com contatos desnecessários, trilha de auditoria de cada concessão e prova do ganho na própria carteira, comparando com um grupo sorteado que segue o processo normal. Para o operador, só os casos que precisam de gente, já resumidos. Para o devedor, uma proposta que cabe no orçamento, contato respeitoso e um caminho real para sair da inadimplência.
+
+OS GAPS DE HOJE
+
+Técnico: o agente ainda não existe; a plataforma analisa e recomenda, mas não executa. Falta construir a orquestração dos agentes sobre as ferramentas que já temos, a avaliação sistemática de qualidade e segurança, a observabilidade de custo e latência e a integração segura com os canais do banco, como o WhatsApp. Também falta dado causal: para saber quem só paga se for cobrado, é preciso um grupo de comparação sorteado.
+
+Negócio: fechar o modelo de receita como software (assinatura e uso, não comissão sobre o recuperado), medir o custo real de cada negociação com IA para validar a conta por cliente, deixar claro o diferencial frente a robôs de cobrança e assessorias e atender às exigências que bancos fazem de fornecedores de tecnologia: segurança, LGPD e contratação de nuvem.
+
+Validação: ainda não temos cliente pagante nem piloto. Precisamos de conversas estruturadas com gestores de recuperação de bancos, cooperativas e financeiras e de um primeiro piloto com grupo de comparação, para medir quanto dinheiro entra a mais.
+
+O PAPEL DO AKCIT CAMP
+
+O curso cobre exatamente as peças do agente: prompting, para controlar a saída do negociador; RAG, para que as respostas venham da política do banco e da base de conhecimento, sem inventar; function calling, para as ferramentas sobre o sistema; orquestração e multiagentes, para coordenar estrategista, negociador, auditor e acompanhamento; avaliação e segurança, para a bateria de cenários e as travas; memória e LGPD, para guardar só o necessário pelo tempo certo; e LLMOps, para rastrear versão, custo e latência.
+
+Os workshops da AWS ajudam a levar o agente para uma arquitetura de produção na nuvem, com o nível de segurança que instituições financeiras exigem. Os mentores de tecnologia e de negócio ajudam a validar a arquitetura, as travas, o modelo de receita e a estratégia de entrada em bancos e cooperativas. O hackathon é o primeiro teste da solução diante de avaliadores, e a rede do programa (ecossistema AKCIT, parceiros e investidores) é o caminho mais curto até as instituições que podem ser o nosso primeiro piloto.
+
+Em troca, vamos publicar como código aberto a bateria de avaliação de agentes de negociação (cenários e travas), para que outras equipes testem seus agentes com o mesmo rigor.
