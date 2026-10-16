@@ -27,7 +27,7 @@ def checar(cond, titulo, detalhe=""):
 
 entradas = {e.id: e for e in ajuda.carregar()}
 SRC = ajuda.REPO / "frontend/src"
-ARQ = {f.relative_to(SRC): f.read_text(encoding="utf-8") for f in SRC.rglob("*.jsx")}
+ARQ = {f.relative_to(SRC).as_posix(): f.read_text(encoding="utf-8") for f in SRC.rglob("*.jsx")}
 
 # quem enxerga cada arquivo
 TODOS = {"operador", "admin", "comando"}
