@@ -8,7 +8,8 @@ import uuid
 from collections import Counter
 from datetime import datetime, timezone
 
-from agente import auditor, llm, orquestrador as orq
+from agente import auditor, estado, llm, orquestrador as orq
+from agente.rastreio import Rastreio
 from agente.fonte import FonteSupabase
 from agente.acompanhamento import grafo_pagamento, grafo_vencimento, planejar
 from agente.estrategista import grafo_abordagem, plano as _plano
@@ -23,6 +24,10 @@ MAX_TEXTO = 2000
 
 
 class AgenteDesligado(RuntimeError):
+    pass
+
+
+class CasoOcupado(RuntimeError):
     pass
 
 
@@ -196,3 +201,40 @@ def aplicar_plano(empresa_id: str, agora: datetime | None = None) -> dict:
     r = _plano(repo, fonte, empresa_id, aplicar=True, agora=agora)
     r["processados"] = len(orq.processar_fila(repo, grafos(fonte), fabrica_cliente(), limite=200, agora=agora))
     return r
+
+
+def politicas(empresa_id: str) -> dict:
+    return {"versoes": fabrica_repo().politicas_da_empresa(empresa_id),
+            "demonstracao": auditor.POLITICA_DEMONSTRACAO}
+
+
+def salvar_politica(empresa_id: str, regras: dict, quem: str | None) -> dict:
+    """Versão nova da política (validada). O agente obedece a partir do próximo evento."""
+    limpa = auditor.validar_politica(regras)                 # ValueError com o motivo
+    versao = fabrica_repo().nova_versao_politica(empresa_id, limpa, quem)
+    return {"versao": versao, "regras": limpa}
+
+
+def controle_do_gestor(empresa_id: str, predicao_id: str, acao: str, quem: str | None,
+                       agora: datetime | None = None) -> dict:
+    """Assumir (o agente para neste caso) ou devolver ao agente. Fica no rastreio."""
+    nova = {"assumir": "com_pessoa", "devolver": "em_contato"}.get(acao)
+    if nova is None:
+        raise ValueError("Ação inválida: use assumir ou devolver.")
+    agora = agora or datetime.now(timezone.utc)
+    repo = fabrica_repo()
+    caso = repo.caso_de(empresa_id, predicao_id)
+    if caso is None:
+        raise LookupError("Este devedor ainda não tem caso com o agente.")
+    dono = f"gestor:{quem or ''}"
+    if not repo.travar_caso(caso["id"], dono, agora + orq.DURACAO_TRAVA, agora):
+        raise CasoOcupado("O agente está processando este caso agora. Tente de novo em instantes.")
+    try:
+        situacao = caso["situacao"] if caso["situacao"] == nova else estado.mudar(caso["situacao"], nova, por="pessoa")
+        repo.salvar_caso(caso["id"], {"situacao": situacao}, dono=dono)
+        rt = Rastreio(empresa_id, repo.gravar_passo, caso_id=caso["id"])
+        with rt.span("controle_do_gestor", "pessoa") as p:
+            p["detalhe"] = {"acao": acao, "de": caso["situacao"], "para": situacao}
+    finally:
+        repo.soltar_caso(caso["id"], dono)
+    return ver_caso(empresa_id, predicao_id, repo)

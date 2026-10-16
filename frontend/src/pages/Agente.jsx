@@ -2,11 +2,11 @@
 // orquestração. Na demonstração, quem está na tela escreve como o devedor.
 // Regras em backend/agente/ (docs/PLANO_EXECUCAO_AGENTES.md).
 import { useEffect, useRef, useState } from 'react'
-import { Bot, Send, Search, Loader2, Activity, ShieldCheck, AlertTriangle, Power, UserRound, Coins, ListChecks, Landmark, Clock, Shuffle, CalendarDays } from 'lucide-react'
+import { Bot, Send, Search, Loader2, Activity, ShieldCheck, AlertTriangle, Power, UserRound, Coins, ListChecks, Landmark, Clock, Shuffle, CalendarDays, Scale, Hand, Undo2 } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import ErroCarga from '../components/ErroCarga'
 import { useAuth } from '../context/AuthContext'
-import { agenteDevedores, agenteCaso, agenteSimularMensagem, agenteSimularPagamento, agenteCentral, agenteRelogio, agentePlano, agenteAplicarPlano, listarEmpresas } from '../api'
+import { agenteDevedores, agenteCaso, agenteSimularMensagem, agenteSimularPagamento, agenteCentral, agenteRelogio, agentePlano, agenteAplicarPlano, agentePoliticas, agenteSalvarPolitica, agenteControle, listarEmpresas } from '../api'
 
 const fmtBRL = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0)
 const fmtUSD = (v) => `US$ ${Number(v || 0).toFixed(4)}`
@@ -74,6 +74,11 @@ function Conversa({ empresa }) {
   const [erro, setErro] = useState(null)
   const [valorPago, setValorPago] = useState('')
   const fim = useRef(null)
+
+  async function controlar(acao) {
+    setEnviando(true); setErro(null)
+    try { setDados(await agenteControle(escolhido.id, acao, empresa)) } catch (err) { setErro(err) } finally { setEnviando(false) }
+  }
 
   async function pagar(e) {
     e.preventDefault()
@@ -145,6 +150,9 @@ function Conversa({ empresa }) {
               <p className="text-sm font-semibold text-ink">{escolhido.nome}</p>
               <Selo situacao={dados?.caso?.situacao} />
               {dados?.caso?.identidade_confirmada && <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--success)' }}><ShieldCheck className="h-3.5 w-3.5" /> identidade confirmada</span>}
+              {dados?.caso && (dados.caso.situacao === 'com_pessoa'
+                ? <button onClick={() => controlar('devolver')} disabled={enviando} className="ml-auto flex items-center gap-1 rounded-md border border-line bg-raise-1 px-2 py-1 text-xs font-medium text-ink hover:bg-raise-2"><Undo2 className="h-3.5 w-3.5" /> Devolver ao agente</button>
+                : <button onClick={() => controlar('assumir')} disabled={enviando} className="ml-auto flex items-center gap-1 rounded-md border border-line bg-raise-1 px-2 py-1 text-xs font-medium text-ink hover:bg-raise-2"><Hand className="h-3.5 w-3.5" /> Assumir o caso</button>)}
             </header>
             <div className="flex-1 space-y-2 overflow-y-auto p-4">
               {(dados?.mensagens || []).map((m, i) => (
@@ -281,6 +289,83 @@ function Central({ empresa }) {
   )
 }
 
+const CAMPOS_POLITICA = [
+  ['desconto_max_pct', 'Desconto máximo (%)'], ['parcelas_max', 'Parcelas máximas'], ['parcela_min', 'Parcela mínima (R$)'],
+  ['entrada_min_pct', 'Entrada mínima no parcelado (%)'], ['hora_inicio', 'Contato a partir de (h)'], ['hora_fim', 'Contato até (h)'],
+  ['contatos_semana_max', 'Contatos por semana'], ['prazo_max_dias', 'Prazo máximo de promessa (dias)'],
+  ['remarcacoes_max', 'Remarcações pelo agente'], ['prazo_confirmacao_dias', 'Prazo de confirmação do banco (dias úteis)'],
+  ['dias_sem_resposta', 'Espera de resposta no atraso (dias úteis)'], ['percentual_controle', 'Grupo sorteado (%)'],
+]
+const DIAS = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom']
+
+function Politica({ empresa }) {
+  const [d, setD] = useState(null)
+  const [form, setForm] = useState(null)
+  const [erro, setErro] = useState(null)
+  const [aviso, setAviso] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  function carregar() {
+    setErro(null)
+    return agentePoliticas(empresa).then(r => { setD(r); setForm({ ...(r.versoes.find(v => v.ativa)?.regras || r.demonstracao) }) }).catch(setErro)
+  }
+  useEffect(() => { carregar() }, [empresa])            // eslint-disable-line react-hooks/exhaustive-deps
+  async function salvar(e) {
+    e.preventDefault(); setSalvando(true); setErro(null); setAviso('')
+    try {
+      const regras = Object.fromEntries(Object.entries(form).map(([k, v]) => [k, k === 'dias_semana' ? v : Number(v)]))
+      const r = await agenteSalvarPolitica(regras, empresa)
+      setAviso(`Versão ${r.versao} ativa. O agente obedece a partir da próxima mensagem.`); await carregar()
+    } catch (err) { setErro(err) } finally { setSalvando(false) }
+  }
+  if (!d || !form) return erro ? <ErroCarga erro={erro} onTentar={carregar} /> : <div className="flex items-center gap-2 py-10 text-sm text-ink-2"><Loader2 className="h-4 w-4 animate-spin" /> Carregando…</div>
+  const ativa = d.versoes.find(v => v.ativa)
+  return (
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <form onSubmit={salvar} className="space-y-4 rounded-xl border border-line bg-surface p-4">
+        <div>
+          <h2 className="text-sm font-semibold text-ink">{ativa ? `Política vigente: versão ${ativa.versao}` : 'Sem política: o agente só pode parar contato, registrar contestação e chamar uma pessoa'}</h2>
+          <p className="mt-1 text-xs text-ink-2">O Auditor confere cada ação do agente contra estes limites e registra a regra e a versão. Salvar cria uma versão nova; as anteriores ficam guardadas.{!ativa && ' Os valores abaixo são de demonstração (fictícios).'}</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {CAMPOS_POLITICA.map(([k, rot]) => (
+            <label key={k} className="text-xs text-ink-2">{rot}
+              <input value={form[k] ?? ''} onChange={e => setForm(f => ({ ...f, [k]: e.target.value }))} inputMode="decimal"
+                className="mt-1 w-full rounded-md border border-line bg-surface-2 px-2.5 py-1.5 text-sm text-ink focus:outline-none" />
+            </label>
+          ))}
+        </div>
+        <div className="text-xs text-ink-2">Dias de contato
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {DIAS.map((nome, i) => {
+              const on = (form.dias_semana || []).includes(i)
+              return <button type="button" key={i} onClick={() => setForm(f => ({ ...f, dias_semana: on ? f.dias_semana.filter(x => x !== i) : [...(f.dias_semana || []), i].sort() }))}
+                className={`rounded-md border px-2.5 py-1 text-xs font-medium ${on ? 'border-blue-500/30 bg-blue-500/15 text-blue-300' : 'border-line bg-raise-1 text-ink-2'}`}>{nome}</button>
+            })}
+          </div>
+        </div>
+        <ErroCarga erro={erro} compacto />
+        <div className="flex flex-wrap items-center gap-3">
+          <button type="submit" disabled={salvando} className="btn-primary flex items-center gap-1.5 disabled:opacity-50">{salvando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Scale className="h-4 w-4" />} Salvar versão nova</button>
+          {aviso && <span className="text-xs" style={{ color: 'var(--success)' }}>{aviso}</span>}
+        </div>
+      </form>
+      <section className="rounded-xl border border-line bg-surface p-4">
+        <h2 className="mb-3 text-sm font-semibold text-ink">Versões</h2>
+        {d.versoes.length === 0 ? <p className="text-xs text-ink-2">Nenhuma ainda.</p> : (
+          <ul className="space-y-2 text-xs">
+            {d.versoes.map(v => (
+              <li key={v.versao} className="rounded-lg border border-line p-2.5">
+                <p className="font-semibold text-ink">Versão {v.versao}{v.ativa && <span className="ml-2" style={{ color: 'var(--success)' }}>vigente</span>}</p>
+                <p className="mt-0.5 text-ink-2">desconto até {v.regras.desconto_max_pct}% · até {v.regras.parcelas_max}x · {v.regras.hora_inicio}h–{v.regras.hora_fim}h{v.criado_em ? ` · ${fmtHora(v.criado_em)}` : ''}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  )
+}
+
 const GRUPO = {
   contato:     { titulo: 'Precisa de contato', nota: 'Paga se for procurado: o agente manda a primeira mensagem e negocia.', cor: 'var(--accent-text, #60a5fa)' },
   so_lembrete: { titulo: 'Só lembrete', nota: 'Tende a pagar sozinho, ou já tem acordo: só lembrete de data.', cor: 'var(--success)' },
@@ -362,7 +447,7 @@ export default function Agente() {
           )}
         </div>
         <div className="flex flex-wrap gap-1.5" role="tablist">
-          {[['conversa', 'Conversa', Bot], ['plano', 'Plano do dia', CalendarDays], ['central', 'Central de orquestração', Activity]].map(([k, l, I]) => (
+          {[['conversa', 'Conversa', Bot], ['plano', 'Plano do dia', CalendarDays], ['politica', 'Política', Scale], ['central', 'Central de orquestração', Activity]].map(([k, l, I]) => (
             <button key={k} role="tab" aria-selected={aba === k} onClick={() => setAba(k)}
               className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium ${aba === k ? 'border-blue-500/30 bg-blue-500/15 text-blue-300' : 'border-line bg-raise-1 text-ink-2 hover:text-ink'}`}>
               <I className="h-4 w-4" /> {l}
@@ -371,7 +456,7 @@ export default function Agente() {
         </div>
         {isComando && !alvo ? (
           <div className="rounded-xl border border-line bg-surface p-6 text-sm text-ink-2">Escolha a empresa.</div>
-        ) : aba === 'conversa' ? <Conversa empresa={empresa} /> : aba === 'plano' ? <Plano empresa={empresa} /> : <Central empresa={empresa} />}
+        ) : aba === 'conversa' ? <Conversa empresa={empresa} /> : aba === 'plano' ? <Plano empresa={empresa} /> : aba === 'politica' ? <Politica empresa={empresa} /> : <Central empresa={empresa} />}
       </div>
     </AppShell>
   )

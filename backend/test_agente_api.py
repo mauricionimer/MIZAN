@@ -82,6 +82,43 @@ checar(c.get("/agente/central", headers=OUTRA).json()["eventos"] == {}, "outra e
 t = c.get(f"/agente/traces/{j['trace_id']}", headers=ADM).json()
 checar(len(t["passos"]) == len(j["passos"]), "trace completo")
 
+print("— política pela tela —")
+AUD = []
+main._registrar_auditoria = lambda **k: AUD.append(k)
+r = c.get("/agente/politica", headers=ADM).json()
+checar(r["versoes"][0]["versao"] == 1 and r["demonstracao"]["desconto_max_pct"] == 30, "versões e valores de demonstração")
+nova = {**auditor.POLITICA_DEMONSTRACAO, "desconto_max_pct": 20}
+checar(c.post("/agente/politica", json={"regras": nova}, headers=OP).status_code == 403, "operador não muda a política")
+checar(c.post("/agente/politica", json={"regras": {**nova, "desconto_max_pct": 200}}, headers=ADM).status_code == 422,
+       "política inválida: 422 com o motivo")
+r = c.post("/agente/politica", json={"regras": nova}, headers=ADM)
+checar(r.status_code == 200 and r.json()["versao"] == 2 and REPO.politica_ativa("goias")["regras"]["desconto_max_pct"] == 20,
+       "versão 2 ativa")
+checar([p["ativa"] for p in REPO.politicas_da_empresa("goias")] == [True, False], "a versão 1 fica guardada, inativa")
+checar(AUD and AUD[-1]["acao"] == "politica_agente_alterada" and AUD[-1]["detalhes"]["versao"] == 2, "mudança na auditoria")
+ROTEIRO[:] = [tri("pagar_negociar"), Resposta(ferramentas=[{"nome": "simular_acordo", "args": {"desconto_pct": 25, "n_parcelas": 1}}]),
+              Resposta(texto="Esse desconto não está disponível. Posso simular outras condições.")]
+j = c.post("/agente/casos/p1/mensagem", json={"texto": "faz 25% à vista?"}, headers=ADM).json()
+aud = [p for p in j["passos"] if p["no"] == "auditor"]
+checar(all(p["versao_politica"] == 2 for p in aud), "o agente obedece a versão nova na conversa seguinte")
+
+print("— controles do gestor —")
+checar(c.post("/agente/casos/p1/controle", json={"acao": "assumir"}, headers=OP).status_code == 403, "operador não assume pelo controle")
+r = c.post("/agente/casos/p1/controle", json={"acao": "assumir"}, headers=ADM)
+checar(r.status_code == 200 and r.json()["caso"]["situacao"] == "com_pessoa", "gestor assume: o agente para")
+ROTEIRO[:] = ["NÃO DEVIA SER CHAMADO"]
+j = c.post("/agente/casos/p1/mensagem", json={"texto": "oi?"}, headers=ADM).json()
+checar(j["mensagens"][-1]["direcao"] == "entrada", "com o caso assumido, o agente não responde")
+r = c.post("/agente/casos/p1/controle", json={"acao": "devolver"}, headers=ADM)
+checar(r.json()["caso"]["situacao"] == "em_contato", "devolve ao agente")
+checar(c.post("/agente/casos/p1/controle", json={"acao": "apagar"}, headers=ADM).status_code == 422, "ação inválida: 422")
+checar(c.post("/agente/casos/p9/controle", json={"acao": "assumir"}, headers=ADM).status_code == 404, "sem caso: 404")
+caso = REPO.caso_de("goias", "p1")
+REPO.travar_caso(caso["id"], "outro", datetime(2030, 1, 1, tzinfo=timezone.utc), datetime(2026, 1, 1, tzinfo=timezone.utc))
+checar(c.post("/agente/casos/p1/controle", json={"acao": "assumir"}, headers=ADM).status_code == 409,
+       "caso sendo processado: 409, tenta de novo")
+checar(any(p["no"] == "controle_do_gestor" and p["agente"] == "pessoa" for p in REPO.passos), "controle fica no rastreio")
+
 print()
 print(f"{falhas} falha(s)")
 sys.exit(1 if falhas else 0)

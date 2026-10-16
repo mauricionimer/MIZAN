@@ -1033,3 +1033,22 @@ export async function agenteAplicarPlano(empresaId) {
   const res = await fetch(`${BASE}/agente/plano?${_qs({ empresa_id: empresaId })}`, { method: 'POST', headers: _authHeader(_getToken()) })
   return _jsonOuErroFila(res)
 }
+
+export async function agentePoliticas(empresaId) {
+  const res = await fetch(`${BASE}/agente/politica?${_qs({ empresa_id: empresaId })}`, { headers: { Authorization: `Bearer ${_getToken()}` } })
+  return _jsonOuErroFila(res)
+}
+
+export async function agenteSalvarPolitica(regras, empresaId) {
+  const res = await fetch(`${BASE}/agente/politica`, {
+    method: 'POST', headers: _authHeader(_getToken()), body: JSON.stringify({ regras, empresa_id: empresaId || null }),
+  })
+  return _jsonOuErroFila(res)
+}
+
+export async function agenteControle(predicaoId, acao, empresaId) {
+  const res = await fetch(`${BASE}/agente/casos/${encodeURIComponent(predicaoId)}/controle`, {
+    method: 'POST', headers: _authHeader(_getToken()), body: JSON.stringify({ acao, empresa_id: empresaId || null }),
+  })
+  return _jsonOuErroFila(res)
+}

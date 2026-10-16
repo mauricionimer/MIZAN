@@ -168,6 +168,20 @@ class RepoMemoria:
         ativas = [p for p in self.politicas if p["empresa_id"] == empresa_id and p["ativa"]]
         return copy.deepcopy(max(ativas, key=lambda p: p["versao"])) if ativas else None
 
+    def politicas_da_empresa(self, empresa_id: str) -> list:
+        ps = [copy.deepcopy(p) for p in self.politicas if p["empresa_id"] == empresa_id]
+        return sorted(ps, key=lambda p: -p["versao"])
+
+    def nova_versao_politica(self, empresa_id: str, regras: dict, criado_por: str | None = None) -> int:
+        with self._lock:
+            versao = max([p["versao"] for p in self.politicas if p["empresa_id"] == empresa_id], default=0) + 1
+            for p in self.politicas:
+                if p["empresa_id"] == empresa_id:
+                    p["ativa"] = False
+            self.politicas.append({"empresa_id": empresa_id, "versao": versao, "regras": copy.deepcopy(regras),
+                                   "ativa": True, "criado_por": criado_por, "criado_em": agora_utc()})
+            return versao
+
     # ── passos ──
     def gravar_passo(self, passo: dict) -> None:
         with self._lock:
@@ -330,6 +344,22 @@ class RepoSupabase:
                .eq("empresa_id", empresa_id).eq("ativa", True)
                .order("versao", desc=True).limit(1).execute())
         return res.data[0] if res.data else None
+
+    def politicas_da_empresa(self, empresa_id: str) -> list:
+        res = (self.db.table("agente_politicas").select("versao, regras, ativa, criado_por, criado_em")
+               .eq("empresa_id", empresa_id).order("versao", desc=True).limit(50).execute())
+        return res.data or []
+
+    def nova_versao_politica(self, empresa_id: str, regras: dict, criado_por: str | None = None) -> int:
+        """Versão nova ativa; as anteriores ficam guardadas, inativas. O UNIQUE
+        (empresa, versão) impede duas versões com o mesmo número."""
+        atual = self.politicas_da_empresa(empresa_id)
+        versao = (atual[0]["versao"] if atual else 0) + 1
+        self.db.table("agente_politicas").insert({"empresa_id": empresa_id, "versao": versao, "regras": regras,
+                                                  "ativa": True, "criado_por": criado_por}).execute()
+        (self.db.table("agente_politicas").update({"ativa": False}).eq("empresa_id", empresa_id)
+         .neq("versao", versao).execute())
+        return versao
 
     # ── passos ──
     def gravar_passo(self, passo: dict) -> None:

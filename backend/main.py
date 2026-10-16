@@ -8350,6 +8350,63 @@ def agente_aplicar_plano(empresa_id: Optional[str] = None,
         raise HTTPException(status_code=409, detail=str(e))
 
 
+class AgentePoliticaIn(BaseModel):
+    regras: dict
+    empresa_id: Optional[str] = None
+
+
+class AgenteControleIn(BaseModel):
+    acao: str
+    empresa_id: Optional[str] = None
+
+
+@app.get("/agente/politica")
+def agente_politicas(empresa_id: Optional[str] = None,
+                     credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    from agente import api as agente_api
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") not in ("admin", "comando"):
+        raise HTTPException(status_code=403, detail="Acesso negado.")
+    return agente_api.politicas(_empresa_do_agente(payload, empresa_id))
+
+
+@app.post("/agente/politica")
+def agente_salvar_politica(body: AgentePoliticaIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Versão nova da política do agente. A anterior fica guardada."""
+    from agente import api as agente_api
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") not in ("admin", "comando"):
+        raise HTTPException(status_code=403, detail="Só administradores mudam a política.")
+    emp = _empresa_do_agente(payload, body.empresa_id)
+    try:
+        r = agente_api.salvar_politica(emp, body.regras, payload.get("sub"))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=f"Política inválida: {e}")
+    _registrar_auditoria(acao="politica_agente_alterada", entidade="empresa", entidade_id=emp,
+                         usuario_email=payload.get("email"), empresa_id=emp,
+                         detalhes={"versao": r["versao"], "regras": r["regras"]}, usuario_id=payload.get("sub"))
+    return r
+
+
+@app.post("/agente/casos/{predicao_id}/controle")
+def agente_controle(predicao_id: str, body: AgenteControleIn,
+                    credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Gestor assume um caso (o agente para) ou devolve ao agente."""
+    from agente import api as agente_api
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") not in ("admin", "comando"):
+        raise HTTPException(status_code=403, detail="Acesso negado.")
+    emp = _empresa_do_agente(payload, body.empresa_id)
+    try:
+        return agente_api.controle_do_gestor(emp, predicao_id, body.acao, payload.get("sub"))
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except agente_api.CasoOcupado as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+
 @app.get("/agente/central")
 def agente_central(empresa_id: Optional[str] = None,
                    credentials: HTTPAuthorizationCredentials = Security(bearer)):
