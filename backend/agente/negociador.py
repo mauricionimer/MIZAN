@@ -141,9 +141,11 @@ def conversar(ctx, fonte, texto_devedor: str) -> str | None:
             ctx.rastreio.atual["versao_prompt"] = VERSAO_PROMPT
         if r.parada in ("recusa", "limite"):
             raise SemResposta(r.parada)
-        blocos = ([{"type": "text", "text": r.texto}] if r.texto else []) + [
+        # O que o modelo respondeu volta ao histórico sem edição (com os blocos
+        # de raciocínio, quando houver); o cliente falso não tem blocos brutos.
+        blocos = r.bruto or (([{"type": "text", "text": r.texto}] if r.texto else []) + [
             {"type": "tool_use", "id": f["id"], "name": f["nome"], "input": f.get("args") or {}}
-            for f in r.ferramentas]
+            for f in r.ferramentas])
         mensagens.append({"role": "assistant", "content": blocos})
 
         if r.ferramentas:

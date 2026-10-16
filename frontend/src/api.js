@@ -986,3 +986,26 @@ export async function publicarNoFaq(token, id, publicar, titulo) {
     method: 'POST', headers: _authHeader(token), body: JSON.stringify({ publicar, titulo }),
   }))
 }
+
+// ── Agentes (docs/PLANO_EXECUCAO_AGENTES.md) ─────────────────────────────────
+export async function agenteDevedores(busca, empresaId) {
+  const res = await fetch(`${BASE}/agente/devedores?${_qs({ busca, empresa_id: empresaId })}`, { headers: { Authorization: `Bearer ${_getToken()}` } })
+  return _jsonOuErroFila(res)
+}
+
+export async function agenteCaso(predicaoId, empresaId) {
+  const res = await fetch(`${BASE}/agente/casos/${encodeURIComponent(predicaoId)}?${_qs({ empresa_id: empresaId })}`, { headers: { Authorization: `Bearer ${_getToken()}` } })
+  return _jsonOuErroFila(res)
+}
+
+export async function agenteSimularMensagem(predicaoId, texto, empresaId) {
+  const res = await fetch(`${BASE}/agente/casos/${encodeURIComponent(predicaoId)}/mensagem`, {
+    method: 'POST', headers: _authHeader(_getToken()), body: JSON.stringify({ texto, empresa_id: empresaId || null }),
+  })
+  return _jsonOuErroFila(res)
+}
+
+export async function agenteCentral(empresaId) {
+  const res = await fetch(`${BASE}/agente/central?${_qs({ empresa_id: empresaId })}`, { headers: { Authorization: `Bearer ${_getToken()}` } })
+  return _jsonOuErroFila(res)
+}

@@ -148,11 +148,13 @@ checar(len([x for x in m.repo.mensagens if x["direcao"] == "entrada"]) == 2, "ma
 print("— falhas viram pessoa —")
 m = Mundo()
 m.escreve("blá", ["isso não é json", "nem isso"])
-checar(m.c["situacao"] == "com_pessoa" and m.r["erro"] == "JSONDecodeError" and m.saidas() == [],
+checar(m.c["situacao"] == "com_pessoa" and m.r["erro"] == "JSONDecodeError",
        "triagem fora do formato duas vezes: pessoa assume")
+checar(len(m.saidas()) == 1 and "pessoa da equipe" in m.saidas()[0], "e o devedor é avisado, com mensagem fixa")
 m = Mundo()
 m.escreve("oi", [tri("pagar_negociar"), Resposta(parada="recusa"), Resposta(parada="recusa")])
-checar(m.c["situacao"] == "com_pessoa" and m.r["erro"] == "SemResposta", "recusa do modelo: pessoa assume")
+checar(m.c["situacao"] == "com_pessoa" and m.r["erro"] == "SemResposta" and "pessoa da equipe" in m.saidas()[0],
+       "recusa do modelo: pessoa assume e o devedor é avisado")
 m = Mundo()
 m.escreve("oi", [tri("pagar_negociar")] + [F("consultar_caso")] * 8)
 checar(m.c["situacao"] == "com_pessoa" and "pessoa da equipe" in m.saidas()[0], "laço de ferramentas: para em 8 rodadas")

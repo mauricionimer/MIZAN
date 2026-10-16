@@ -8189,5 +8189,87 @@ def eliminar_titular(body: TitularIn, empresa_id_alvo: Optional[str] = None,
 
 
 
+# ── Agentes (docs/PLANO_EXECUCAO_AGENTES.md) ──────────────────────────────────
+# Conversa de um caso, a simulação da mensagem do devedor na demonstração e a
+# Central de orquestração. A lógica fica em agente/api.py; aqui só acesso.
+
+class AgenteMensagemIn(BaseModel):
+    texto: str = Field(..., min_length=1, max_length=2000)
+    empresa_id: Optional[str] = None
+
+
+def _empresa_do_agente(payload: dict, empresa_id: "str | None" = None) -> str:
+    if payload.get("role") not in ("operador", "admin", "comando"):
+        raise HTTPException(status_code=403, detail="Acesso negado.")
+    return _empresa_da_agenda(payload, empresa_id)
+
+
+@app.get("/agente/devedores")
+def agente_devedores(busca: Optional[str] = None, empresa_id: Optional[str] = None,
+                     credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Devedores da carteira mais recente da empresa, para escolher na tela do agente."""
+    emp = _empresa_do_agente(_usuario_autenticado(credentials), empresa_id)
+    db = get_db()
+    cart = (db.table("carteiras").select("id").eq("empresa_id", emp)
+            .order("created_at", desc=True).limit(1).execute())
+    if not cart.data:
+        return {"devedores": []}
+    q = (db.table("predicoes").select("id, nome, valor_divida, dias_em_atraso, rank")
+         .eq("carteira_id", cart.data[0]["id"]))
+    alvo = (busca or "").strip().replace("*", "").replace(",", "").replace("(", "").replace(")", "")
+    if alvo:
+        q = q.or_(f"nome.ilike.*{alvo}*,cpf.ilike.*{alvo}*")
+    res = q.order("rank").limit(20).execute()
+    return {"devedores": [{k: p.get(k) for k in ("id", "nome", "valor_divida", "dias_em_atraso", "rank")}
+                          for p in res.data or []]}
+
+
+@app.get("/agente/casos/{predicao_id}")
+def agente_caso(predicao_id: str, empresa_id: Optional[str] = None,
+                credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    from agente import api as agente_api
+    emp = _empresa_do_agente(_usuario_autenticado(credentials), empresa_id)
+    return agente_api.ver_caso(emp, predicao_id)
+
+
+@app.post("/agente/casos/{predicao_id}/mensagem")
+def agente_simular_mensagem(predicao_id: str, body: AgenteMensagemIn,
+                            credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Demonstração: quem está na tela escreve como se fosse o devedor."""
+    from agente import api as agente_api
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") not in ("admin", "comando"):
+        raise HTTPException(status_code=403, detail="Só administradores simulam conversas.")
+    emp = _empresa_do_agente(payload, body.empresa_id)
+    try:
+        return agente_api.simular_mensagem(emp, predicao_id, body.texto)
+    except agente_api.AgenteDesligado as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+
+@app.get("/agente/central")
+def agente_central(empresa_id: Optional[str] = None,
+                   credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    from agente import api as agente_api
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") not in ("admin", "comando"):
+        raise HTTPException(status_code=403, detail="Acesso negado.")
+    return agente_api.central(_empresa_do_agente(payload, empresa_id))
+
+
+@app.get("/agente/traces/{trace_id}")
+def agente_trace(trace_id: str, empresa_id: Optional[str] = None,
+                 credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    from agente import api as agente_api
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") not in ("admin", "comando"):
+        raise HTTPException(status_code=403, detail="Acesso negado.")
+    return {"passos": agente_api.passos(_empresa_do_agente(payload, empresa_id), trace_id)}
+
+
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)

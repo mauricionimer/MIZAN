@@ -67,6 +67,8 @@ class Grafo:
         self.nome = nome
         self.inicio = inicio
         self.nos: dict = {}
+        # Chamado depois do nó de erro (ex.: avisar o devedor que uma pessoa assume).
+        self.ao_falhar = None
 
     def no(self, nome: str, funcao, agente: str = "codigo", seguinte=FIM) -> "Grafo":
         if nome == FIM or nome in self.nos:
@@ -136,7 +138,7 @@ class Contexto:
         em_andamento = self.rastreio.atual["custo_usd"] if self.rastreio.atual else 0.0
         llm.conferir_teto(self.repo.custo_do_dia(self.caso["empresa_id"], self.hoje) + em_andamento)
         r = self.cliente.gerar(sistema=sistema, mensagens=mensagens, modelo=llm.modelo_para(papel),
-                               ferramentas=ferramentas, max_tokens=max_tokens)
+                               ferramentas=ferramentas, max_tokens=max_tokens, papel=papel)
         self.rastreio.somar_ia(r)
         return r
 
@@ -201,6 +203,11 @@ def executar(grafo: Grafo, ctx: Contexto, dono: str = DONO) -> dict:
 
     if erro:
         _transferir(ctx, erro)
+        if grafo.ao_falhar:
+            try:
+                grafo.ao_falhar(ctx)
+            except Exception as e:                   # o aviso não pode derrubar a transferência
+                print(f"[Agente] aviso de falha não enviado: {type(e).__name__}")
     dados = dict(ctx.caso.get("dados") or {})
     dados.pop("_checkpoint", None)
     ctx.caso["dados"] = dados

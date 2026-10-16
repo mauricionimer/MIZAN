@@ -22,6 +22,8 @@ def grafo_mensagem(fonte) -> Grafo:
     def receber(ctx):
         texto = str((ctx.evento.get("dados") or {}).get("texto") or "")[:triagem.MAX_CARACTERES]
         ctx.saida["texto"] = texto
+        if ctx.caso["situacao"] == "novo":
+            ctx.mudar_situacao("em_contato")          # o devedor escreveu: a conversa começou
         ctx.repo.gravar_mensagem(ctx.caso["empresa_id"], ctx.caso["id"], "entrada", texto, ctx.rastreio.trace_id)
 
     def depois_de_receber(ctx):
@@ -95,5 +97,13 @@ def grafo_mensagem(fonte) -> Grafo:
          .no("negociar", negociar, agente="negociador", seguinte="enviar")
          .no("enviar", enviar)
          .no("avisar_equipe", avisar_equipe))
+    def ao_falhar(ctx):
+        # Algo quebrou depois de receber a mensagem: o devedor não fica sem
+        # resposta. Mensagem fixa, sem IA, só se nada foi enviado ainda.
+        if ctx.saida.get("texto") and not ctx.saida.get("enviada") and ctx.caso["situacao"] == "com_pessoa":
+            ctx.saida["resposta"] = negociador.FIXAS["com_pessoa"]
+            enviar(ctx)
+
+    g.ao_falhar = ao_falhar
     g.validar()
     return g

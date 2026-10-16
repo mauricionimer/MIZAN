@@ -93,6 +93,7 @@ const ChavesApi = lazy(() => import('./pages/ChavesApi'))
 const Ajuda = lazy(() => import('./pages/Ajuda'))
 const Premissas = lazy(() => import('./pages/Premissas'))
 const DuvidasComando = lazy(() => import('./pages/DuvidasComando'))
+const Agente = lazy(() => import('./pages/Agente'))
 
 function RotaProtegida({ children, roles }) {
   const { autenticado, usuario } = useAuth()
@@ -143,6 +144,7 @@ function RotasAnimadas() {
           <Route path="/admin/usuarios" element={P(['admin', 'comando'], <AdminUsuarios />)} />
           <Route path="/painel" element={P(['operador', 'admin', 'comando'], <PainelOperador />)} />
           <Route path="/ofertas" element={P(['admin', 'comando'], <Ofertas />)} />
+          <Route path="/agente" element={P(['admin', 'comando'], <Agente />)} />
           <Route path="/acordos" element={P(['operador', 'admin', 'comando'], <Acordos />)} />
           <Route path="/resultados" element={P(['admin', 'comando'], <Resultados />)} />
           <Route path="/roteiros" element={<Navigate to="/feedback?secao=roteiros" replace />} />

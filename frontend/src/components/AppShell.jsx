@@ -5,7 +5,7 @@ import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'framer-m
 import {
   LayoutDashboard, UploadCloud, ClipboardList, Users, KeyRound, LogOut, Loader2, Menu, X,
   ShieldCheck, Zap, Brain, Command, FlaskConical, Lock, HelpCircle, SlidersHorizontal,
-  MessageCircleQuestion, GraduationCap, KeySquare, CalendarClock, Gauge, MessageSquareText, TrendingUp, Handshake, Tags,
+  MessageCircleQuestion, GraduationCap, KeySquare, CalendarClock, Gauge, MessageSquareText, TrendingUp, Handshake, Tags, Bot,
 } from 'lucide-react'
 import ThemeToggle from './ThemeToggle'
 import useAvisosDeDuvida from './useAvisosDeDuvida'
@@ -81,6 +81,7 @@ function useItens() {
           painel,
           { id: 'resultados', label: 'Resultados', icon: TrendingUp, rota: '/resultados' },
           { id: 'acordos',    label: 'Acordos',    icon: Handshake,  rota: '/acordos' },
+          { id: 'agente',     label: 'Agente',     icon: Bot,        rota: '/agente' },
           // O COMANDO vê a IA de cada empresa em Aprendizado e Performance IA.
           ...(!isComando ? [ia] : []),
         ],

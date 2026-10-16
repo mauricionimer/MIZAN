@@ -128,6 +128,24 @@ class RepoMemoria:
         ms = [copy.deepcopy(m) for m in self.mensagens if m["empresa_id"] == empresa_id and m["caso_id"] == caso_id]
         return ms[-n:]
 
+    # ── leitura para as telas ──
+    def caso_de(self, empresa_id: str, predicao_id: str) -> dict | None:
+        for c in self.casos.values():
+            if c["empresa_id"] == empresa_id and c["predicao_id"] == predicao_id:
+                return copy.deepcopy(c)
+        return None
+
+    def passos_do_trace(self, empresa_id: str, trace_id: str) -> list:
+        return [copy.deepcopy(p) for p in self.passos if p["empresa_id"] == empresa_id and p["trace_id"] == trace_id]
+
+    def eventos_recentes(self, empresa_id: str, n: int = 500) -> list:
+        evs = [e for e in self.eventos.values() if e["empresa_id"] == empresa_id]
+        evs.sort(key=lambda e: e["criado_em"], reverse=True)
+        return [copy.deepcopy(e) for e in evs[:n]]
+
+    def situacoes_dos_casos(self, empresa_id: str) -> list:
+        return [c["situacao"] for c in self.casos.values() if c["empresa_id"] == empresa_id]
+
     # ── política ──
     def gravar_politica(self, empresa_id: str, versao: int, regras: dict, ativa: bool = True) -> None:
         with self._lock:
@@ -263,6 +281,28 @@ class RepoSupabase:
                .eq("empresa_id", empresa_id).eq("caso_id", caso_id)
                .order("criado_em", desc=True).limit(n).execute())
         return list(reversed(res.data or []))
+
+    # ── leitura para as telas ──
+    def caso_de(self, empresa_id: str, predicao_id: str) -> dict | None:
+        res = (self.db.table("agente_casos").select("*").eq("empresa_id", empresa_id)
+               .eq("predicao_id", predicao_id).limit(1).execute())
+        return self._caso(res.data[0]) if res.data else None
+
+    def passos_do_trace(self, empresa_id: str, trace_id: str) -> list:
+        res = (self.db.table("agente_passos").select("*").eq("empresa_id", empresa_id)
+               .eq("trace_id", trace_id).order("criado_em").limit(200).execute())
+        return res.data or []
+
+    def eventos_recentes(self, empresa_id: str, n: int = 500) -> list:
+        res = (self.db.table("agente_eventos")
+               .select("id, caso_id, tipo, origem, situacao, tentativas, erro, trace_id, criado_em, concluido_em")
+               .eq("empresa_id", empresa_id).order("criado_em", desc=True).limit(n).execute())
+        return res.data or []
+
+    def situacoes_dos_casos(self, empresa_id: str) -> list:
+        res = (self.db.table("agente_casos").select("situacao").eq("empresa_id", empresa_id)
+               .limit(5000).execute())
+        return [c["situacao"] for c in res.data or []]
 
     # ── política ──
     def politica_ativa(self, empresa_id: str) -> dict | None:

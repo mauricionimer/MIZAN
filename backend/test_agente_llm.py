@@ -55,9 +55,43 @@ checar(llm.modelo_para("triagem") == "falso", "sem configuração, falso")
 os.environ["MIZAN_MODELO_TRIAGEM"] = "barato"
 checar(llm.modelo_para("triagem") == "barato" and llm.modelo_para("negociador") == "falso", "cada papel o seu")
 os.environ.pop("MIZAN_MODELO_TRIAGEM")
-os.environ["MIZAN_AGENTE_CLIENTE"] = "anthropic"
-checar(levanta(NotImplementedError, llm.cliente), "cliente real ainda não ligado avisa, não finge")
+os.environ["MIZAN_AGENTE_CLIENTE"] = "outro"
+checar(levanta(NotImplementedError, llm.cliente), "cliente que não existe avisa, não finge")
 os.environ.pop("MIZAN_AGENTE_CLIENTE")
+
+print("— cliente da Anthropic (SDK simulado, sem rede) —")
+from types import SimpleNamespace as NS
+class Bloco(NS):
+    def model_dump(self, exclude_none=False):
+        return {k: v for k, v in vars(self).items() if not (exclude_none and v is None)}
+class SDK:
+    def __init__(s, msg): s.msg, s.pedidos = msg, []; s.messages = s
+    def create(s, **k): s.pedidos.append(k); return s.msg
+msg = NS(content=[Bloco(type="thinking", thinking="", signature="abc"), Bloco(type="text", text="Vou simular."),
+                  Bloco(type="tool_use", id="toolu_1", name="simular_acordo", input={"n_parcelas": 1})],
+         stop_reason="tool_use",
+         usage=NS(input_tokens=1000, output_tokens=200, cache_creation_input_tokens=3000, cache_read_input_tokens=0))
+sdk = SDK(msg)
+os.environ["MIZAN_AGENTE_PRECOS"] = '{"modelo-y": [2.0, 10.0]}'
+r = llm.ClienteAnthropic(sdk=sdk).gerar(sistema="regras", mensagens=[{"role": "user", "content": "oi"}],
+                                        modelo="modelo-y", ferramentas=[{"name": "t"}], papel="negociador")
+p = sdk.pedidos[0]
+checar(p["system"][0]["cache_control"] == {"type": "ephemeral"} and p["tools"] == [{"name": "t"}]
+       and "output_config" not in p, "instruções com cache; ferramentas; esforço padrão na conversa")
+checar(r.parada == "ferramenta" and r.ferramentas == [{"id": "toolu_1", "nome": "simular_acordo", "args": {"n_parcelas": 1}}]
+       and r.texto == "Vou simular.", "converte texto e pedido de ferramenta")
+checar([b["type"] for b in r.bruto] == ["thinking", "text", "tool_use"], "guarda os blocos como vieram (inclui raciocínio)")
+checar(r.tokens_entrada == 4000 and r.custo_usd == round((1000 * 2 + 3000 * 2 * 1.25 + 200 * 10) / 1e6, 6),
+       "custo com cache: gravar custa 1,25x a entrada", str(r.custo_usd))
+llm.ClienteAnthropic(sdk=sdk).gerar(sistema="s", mensagens=[], modelo="modelo-y", papel="triagem")
+checar(sdk.pedidos[1]["output_config"] == {"effort": "low"} and "tools" not in sdk.pedidos[1], "triagem com esforço baixo")
+msg.stop_reason = "refusal"
+checar(llm.ClienteAnthropic(sdk=sdk).gerar(sistema="s", mensagens=[], modelo="modelo-y").parada == "recusa", "recusa do modelo")
+checar(levanta(llm.PrecoDesconhecido, lambda: llm.ClienteAnthropic(sdk=sdk).gerar(sistema="s", mensagens=[], modelo="falso")),
+       "cliente real sem modelo configurado não roda")
+os.environ.pop("MIZAN_AGENTE_PRECOS")
+checar(levanta(llm.PrecoDesconhecido, lambda: llm.ClienteAnthropic(sdk=sdk).gerar(sistema="s", mensagens=[], modelo="modelo-y")),
+       "modelo real sem preço configurado não roda")
 
 print("— rastreio —")
 gravados = []
