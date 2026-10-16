@@ -110,4 +110,8 @@ def classificar(ctx, texto: str) -> dict:
         out["sinais_de_risco"] = sorted(set(out["sinais_de_risco"]) | set(r["sinais"]))
         out["origem"] = "modelo"
     ctx.saida["triagem"] = out
+    if ctx.rastreio.atual is not None:
+        # Só a classificação, nunca o texto do devedor.
+        ctx.rastreio.atual["detalhe"] = {**ctx.rastreio.atual.get("detalhe", {}), "intencao": out["intencao"],
+                                         "sinais": out["sinais_de_risco"], "origem": out["origem"]}
     return out

@@ -104,6 +104,11 @@ def _briefing(ctx, devedor_nome: str) -> str:
          "identidade_confirmada": bool(d.get("identidade_ok")),
          "intencao_da_mensagem": (ctx.saida.get("triagem") or {}).get("intencao"),
          "acordo_vigente": d.get("acordo"),
+         # Simulações ainda válidas desta conversa: o aceite pode vir numa
+         # mensagem seguinte, e o id precisa estar à vista da IA.
+         "simulacoes_validas": [{"simulacao_id": s["id"], "resumo": ferramentas._resumo_conta(s["condicoes"], s["conta"]),
+                                 "valida_ate": s["valida_ate"]}
+                                for s in d.get("simulacoes") or [] if s["valida_ate"] > ctx.agora.isoformat()],
          "objetivo": ctx.saida.get("objetivo") or d.get("objetivo")
                      or "entender a situação e chegar a um acordo que caiba no bolso"}
     return "<briefing>" + json.dumps(b, ensure_ascii=False) + "</briefing>"
