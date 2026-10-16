@@ -25,7 +25,8 @@ def _agora_iso() -> str:
 
 
 class FonteMemoria:
-    def __init__(self, devedores=None, catalogo=None):
+    def __init__(self, devedores=None, catalogo=None, nome_empresa="Banco Demonstração"):
+        self._nome_empresa = nome_empresa
         self.devedores = {d["id"]: d for d in (devedores or [])}   # predicao_id -> devedor
         self._catalogo = catalogo
         self.agenda: list = []
@@ -36,6 +37,9 @@ class FonteMemoria:
     def devedor(self, empresa_id: str, predicao_id: str) -> dict | None:
         d = self.devedores.get(predicao_id)
         return copy.deepcopy(d) if d and d.get("empresa_id") == empresa_id else None
+
+    def nome_empresa(self, empresa_id: str) -> str:
+        return self._nome_empresa
 
     def catalogo(self, empresa_id: str) -> list:
         from model.oferta import catalogo_padrao
@@ -103,6 +107,11 @@ class FonteSupabase:
         cart = (self.db.table("carteiras").select("id").eq("id", d.get("carteira_id"))
                 .eq("empresa_id", empresa_id).limit(1).execute())
         return d if cart.data else None
+
+    def nome_empresa(self, empresa_id: str) -> str:
+        res = (self.db.table("empresa_config").select("nome_exibicao")
+               .eq("empresa_id", empresa_id).limit(1).execute())
+        return ((res.data or [{}])[0].get("nome_exibicao") or "").strip() or empresa_id
 
     def catalogo(self, empresa_id: str) -> list:
         from model.oferta import catalogo_da_empresa

@@ -34,6 +34,7 @@ class RepoMemoria:
         self.eventos: dict = {}
         self.passos: list = []
         self.politicas: list = []
+        self.mensagens: list = []
         self._lock = threading.Lock()
 
     # ── casos ──
@@ -115,6 +116,17 @@ class RepoMemoria:
         with self._lock:
             if evento_id in self.eventos:
                 self.eventos[evento_id].update(copy.deepcopy(campos))
+
+    # ── mensagens ──
+    def gravar_mensagem(self, empresa_id: str, caso_id: str, direcao: str, texto: str,
+                        trace_id: str | None = None) -> None:
+        with self._lock:
+            self.mensagens.append({"empresa_id": empresa_id, "caso_id": caso_id, "direcao": direcao,
+                                   "texto": texto, "trace_id": trace_id, "criado_em": agora_utc()})
+
+    def ultimas_mensagens(self, empresa_id: str, caso_id: str, n: int = 20) -> list:
+        ms = [copy.deepcopy(m) for m in self.mensagens if m["empresa_id"] == empresa_id and m["caso_id"] == caso_id]
+        return ms[-n:]
 
     # ── política ──
     def gravar_politica(self, empresa_id: str, versao: int, regras: dict, ativa: bool = True) -> None:
@@ -236,6 +248,21 @@ class RepoSupabase:
     def atualizar_evento(self, evento_id: str, campos: dict) -> None:
         dados = {k: self._iso(v) for k, v in campos.items()}
         self.db.table("agente_eventos").update(dados).eq("id", evento_id).execute()
+
+    # ── mensagens ──
+    # Retenção: apagar_em fica nulo por enquanto; a regra entra com o
+    # model/retencao.py quando houver piloto (docs/PLANO_EXECUCAO_AGENTES.md, 7).
+    def gravar_mensagem(self, empresa_id: str, caso_id: str, direcao: str, texto: str,
+                        trace_id: str | None = None) -> None:
+        self.db.table("agente_mensagens").insert({"empresa_id": empresa_id, "caso_id": caso_id,
+                                                  "direcao": direcao, "texto": texto,
+                                                  "trace_id": trace_id}).execute()
+
+    def ultimas_mensagens(self, empresa_id: str, caso_id: str, n: int = 20) -> list:
+        res = (self.db.table("agente_mensagens").select("direcao, texto, criado_em")
+               .eq("empresa_id", empresa_id).eq("caso_id", caso_id)
+               .order("criado_em", desc=True).limit(n).execute())
+        return list(reversed(res.data or []))
 
     # ── política ──
     def politica_ativa(self, empresa_id: str) -> dict | None:

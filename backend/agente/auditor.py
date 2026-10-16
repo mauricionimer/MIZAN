@@ -50,7 +50,8 @@ _LIMITES = {                          # campo: (mínimo, máximo)
 # "Já paguei" também é segurança: suspende a cobrança enquanto o banco confere.
 SEGURANCA = frozenset({"suspender_contato", "registrar_contestacao", "transferir_para_pessoa",
                        "registrar_pagamento_informado"})
-FALA = frozenset({"enviar_mensagem"})
+FALA = frozenset({"enviar_mensagem"})          # o agente procura o devedor
+RESPOSTA = frozenset({"responder_mensagem"})   # o devedor escreveu e o agente responde
 ACORDO = frozenset({"propor_acordo", "registrar_aceite"})
 COMPROMISSO = frozenset({"agendar_retorno", "remarcar_compromisso"})
 REGISTRO = frozenset({"registrar_contato", "marcar_promessa_quebrada"})
@@ -120,7 +121,7 @@ def auditar(acao: dict, caso: dict, politica: dict | None, versao: int | None,
         return _decisao(True, "R9_SEGURANCA", "ação de segurança sempre permitida", versao)
     if tipo in LEITURA:
         return _decisao(True, "R0_LEITURA", "só consulta, não muda nada", versao)
-    if tipo not in FALA | ACORDO | COMPROMISSO | REGISTRO:
+    if tipo not in FALA | RESPOSTA | ACORDO | COMPROMISSO | REGISTRO:
         return _decisao(False, "R0_ACAO_DESCONHECIDA", f"ação não prevista: {tipo}", versao)
     if politica is None:
         return _decisao(False, "R0_SEM_POLITICA", "a empresa não tem política ativa", versao)
@@ -128,6 +129,11 @@ def auditar(acao: dict, caso: dict, politica: dict | None, versao: int | None,
     if not estado.pode_falar(caso.get("situacao", "")):
         return _decisao(False, "R1_SITUACAO",
                         f"o caso está em '{caso.get('situacao')}': o agente não fala com o devedor", versao)
+
+    if tipo in RESPOSTA:
+        # Responder a quem escreveu não é contato novo: vale a qualquer hora e
+        # não conta na frequência. Só a situação do caso importa.
+        return _decisao(True, "OK", "resposta a mensagem do devedor", versao)
 
     if tipo in REGISTRO:
         return _decisao(True, "OK", "registro do que aconteceu", versao)

@@ -12,6 +12,7 @@ oficial do fornecedor no dia em que a chave for ligada:
 Modelo real sem preço configurado não roda: custo desconhecido não pode virar
 custo zero no painel.
 """
+import copy
 import json
 import os
 from dataclasses import dataclass, field
@@ -20,11 +21,13 @@ from dataclasses import dataclass, field
 @dataclass
 class Resposta:
     texto: str = ""
-    ferramentas: list = field(default_factory=list)   # [{"nome": str, "args": dict}]
+    ferramentas: list = field(default_factory=list)   # [{"id": str, "nome": str, "args": dict}]
     tokens_entrada: int = 0
     tokens_saida: int = 0
     modelo: str = ""
     custo_usd: float = 0.0
+    # "fim", "ferramenta", "limite" (cortou no máximo de tokens) ou "recusa"
+    parada: str = ""
 
 
 class TetoExcedido(RuntimeError):
@@ -99,7 +102,7 @@ class ClienteFalso:
 
     def gerar(self, *, sistema: str, mensagens: list, modelo: str = MODELO_FALSO,
               ferramentas: list | None = None, max_tokens: int = 1024) -> Resposta:
-        self.chamadas.append({"sistema": sistema, "mensagens": mensagens,
+        self.chamadas.append({"sistema": sistema, "mensagens": copy.deepcopy(mensagens),
                               "modelo": modelo, "ferramentas": ferramentas})
         item = self.roteiro.pop(0) if self.roteiro else ""
         if callable(item) and not isinstance(item, Resposta):
@@ -107,7 +110,10 @@ class ClienteFalso:
         if isinstance(item, BaseException):
             raise item
         r = item if isinstance(item, Resposta) else Resposta(texto=str(item))
-        entrada = sistema + "".join(str(m.get("conteudo", "")) for m in mensagens)
+        for i, f in enumerate(r.ferramentas):
+            f.setdefault("id", f"falso_{len(self.chamadas)}_{i}")
+        r.parada = r.parada or ("ferramenta" if r.ferramentas else "fim")
+        entrada = sistema + "".join(str(m.get("content", m.get("conteudo", ""))) for m in mensagens)
         r.tokens_entrada = r.tokens_entrada or _estimar_tokens(entrada)
         r.tokens_saida = r.tokens_saida or _estimar_tokens(r.texto)
         r.modelo = r.modelo or modelo
