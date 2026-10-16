@@ -11,7 +11,7 @@ Regras de projeto:
   bloqueadas: quem pede para parar não pode esbarrar em regra nenhuma.
 - As contas de acordo são as mesmas do simulador (model/oferta.py).
 """
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from agente import estado
 from model import oferta
@@ -27,6 +27,8 @@ POLITICA_DEMONSTRACAO = {
     "hora_fim": 20,                   # até 19:59
     "dias_semana": [0, 1, 2, 3, 4, 5],  # segunda a sábado (0 = segunda)
     "contatos_semana_max": 3,
+    "prazo_max_dias": 30,             # data de promessa ou retorno até 30 dias à frente
+    "remarcacoes_max": 2,             # vezes que o agente pode remarcar um compromisso
 }
 
 # Horário de Brasília. Sem horário de verão desde 2019; fuso fixo evita
@@ -41,12 +43,19 @@ _LIMITES = {                          # campo: (mínimo, máximo)
     "hora_inicio": (0, 23),
     "hora_fim": (1, 24),
     "contatos_semana_max": (0, 50),
+    "prazo_max_dias": (1, 180),
+    "remarcacoes_max": (0, 10),
 }
 
-SEGURANCA = frozenset({"suspender_contato", "registrar_contestacao", "transferir_para_pessoa"})
+# "Já paguei" também é segurança: suspende a cobrança enquanto o banco confere.
+SEGURANCA = frozenset({"suspender_contato", "registrar_contestacao", "transferir_para_pessoa",
+                       "registrar_pagamento_informado"})
 FALA = frozenset({"enviar_mensagem"})
 ACORDO = frozenset({"propor_acordo", "registrar_aceite"})
-LEITURA = frozenset({"consultar_caso", "simular_acordo", "consultar_ajuda"})
+COMPROMISSO = frozenset({"agendar_retorno", "remarcar_compromisso"})
+REGISTRO = frozenset({"registrar_contato", "marcar_promessa_quebrada"})
+LEITURA = frozenset({"consultar_caso", "verificar_identidade", "listar_ofertas", "simular_acordo",
+                     "consultar_politica"})
 
 
 def validar_politica(bruto: dict) -> dict:
@@ -80,6 +89,20 @@ def _brl(v: float) -> str:
     return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
+def _conferir_data(valor, politica: dict, agora: datetime, versao) -> dict | None:
+    """Data de promessa ou retorno: depois de hoje e dentro do prazo máximo."""
+    try:
+        data = date.fromisoformat(str(valor))
+    except ValueError:
+        return _decisao(False, "R11_DATA", "data inválida", versao)
+    hoje = agora.astimezone(BRASILIA).date()
+    if data <= hoje:
+        return _decisao(False, "R11_DATA", "a data precisa ser depois de hoje", versao)
+    if data > hoje + timedelta(days=politica["prazo_max_dias"]):
+        return _decisao(False, "R11_DATA", f"data além de {politica['prazo_max_dias']} dias", versao)
+    return None
+
+
 def auditar(acao: dict, caso: dict, politica: dict | None, versao: int | None,
             agora: datetime, contatos_7d: int = 0, simulacao: dict | None = None) -> dict:
     """Decide se a ação pode ser executada.
@@ -97,7 +120,7 @@ def auditar(acao: dict, caso: dict, politica: dict | None, versao: int | None,
         return _decisao(True, "R9_SEGURANCA", "ação de segurança sempre permitida", versao)
     if tipo in LEITURA:
         return _decisao(True, "R0_LEITURA", "só consulta, não muda nada", versao)
-    if tipo not in FALA | ACORDO:
+    if tipo not in FALA | ACORDO | COMPROMISSO | REGISTRO:
         return _decisao(False, "R0_ACAO_DESCONHECIDA", f"ação não prevista: {tipo}", versao)
     if politica is None:
         return _decisao(False, "R0_SEM_POLITICA", "a empresa não tem política ativa", versao)
@@ -105,6 +128,20 @@ def auditar(acao: dict, caso: dict, politica: dict | None, versao: int | None,
     if not estado.pode_falar(caso.get("situacao", "")):
         return _decisao(False, "R1_SITUACAO",
                         f"o caso está em '{caso.get('situacao')}': o agente não fala com o devedor", versao)
+
+    if tipo in REGISTRO:
+        return _decisao(True, "OK", "registro do que aconteceu", versao)
+
+    if tipo in COMPROMISSO:
+        ruim = _conferir_data(params.get("data"), politica, agora, versao)
+        if ruim:
+            return ruim
+        if tipo == "remarcar_compromisso":
+            feitas = int((caso.get("dados") or {}).get("remarcacoes") or 0)
+            if feitas >= politica["remarcacoes_max"]:
+                return _decisao(False, "R12_REMARCACOES",
+                                f"já foram {feitas} remarcações (máximo {politica['remarcacoes_max']})", versao)
+        return _decisao(True, "OK", "data dentro da política", versao)
 
     if tipo in FALA:
         local = agora.astimezone(BRASILIA)
@@ -118,7 +155,9 @@ def auditar(acao: dict, caso: dict, politica: dict | None, versao: int | None,
                             f"já foram {contatos_7d} contatos em 7 dias (máximo {politica['contatos_semana_max']})", versao)
         return _decisao(True, "OK", "dentro do horário e da frequência", versao)
 
-    # Acordo: as condições passam pelas mesmas contas do simulador.
+    # Acordo: só depois de confirmar que é o titular, e com as contas do simulador.
+    if not (caso.get("dados") or {}).get("identidade_ok"):
+        return _decisao(False, "R10_IDENTIDADE", "identidade do devedor não confirmada", versao)
     try:
         cond = oferta.condicoes(params)
     except ValueError as e:
@@ -147,4 +186,7 @@ def auditar(acao: dict, caso: dict, politica: dict | None, versao: int | None,
             return _decisao(False, "R8_SIMULACAO", "simulação vencida", versao)
         if oferta.condicoes(simulacao.get("condicoes") or {}) != cond:
             return _decisao(False, "R8_SIMULACAO", "condições diferentes das simuladas", versao)
+        ruim = _conferir_data(params.get("data"), politica, agora, versao)
+        if ruim:
+            return ruim
     return _decisao(True, "OK", "dentro da política", versao)

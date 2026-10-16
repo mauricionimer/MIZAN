@@ -213,9 +213,16 @@ sua, com versão (`agente_politicas`). Está em `backend/agente/auditor.py`.
 | Entrada mínima (acordo parcelado) | 10% |
 | Horário de contato | 8h às 20h, segunda a sábado (Brasília) |
 | Contatos por semana com o mesmo devedor | 3 |
+| Prazo máximo para promessa ou retorno | 30 dias |
+| Remarcações pelo agente por caso | 2 |
 
 Sem política ativa, o Auditor só deixa passar parar contato, contestação e
 transferência para uma pessoa.
+
+Outras regras do Auditor: acordo só depois de confirmar a identidade (três
+primeiros dígitos do CPF, até 3 tentativas); aceite só de simulação do sistema,
+válida por 30 minutos e usada uma vez. Oferta parcelada do catálogo com entrada
+abaixo do mínimo é mostrada com a entrada ajustada ao mínimo.
 
 ## 9. LLMOps (cap. 9, 10, 11)
 

@@ -19,7 +19,7 @@ def checar(c, t, d=""):
 POL = auditor.validar_politica(auditor.POLITICA_DEMONSTRACAO)
 # Sexta 16/10/2026, 14h em Brasília = 17h UTC.
 SEXTA_14H = datetime(2026, 10, 16, 17, 0, tzinfo=timezone.utc)
-CASO = {"id": "c1", "situacao": "negociando", "dados": {"divida": 3000.0}}
+CASO = {"id": "c1", "situacao": "negociando", "dados": {"divida": 3000.0, "identidade_ok": True}}
 
 def aud(tipo, params=None, caso=CASO, agora=SEXTA_14H, **kw):
     return auditor.auditar({"tipo": tipo, "params": params or {}}, caso, POL, 1, agora, **kw)
@@ -78,31 +78,31 @@ checar(d["regra"] == "R4_DESCONTO" and d["versao_politica"] == 1, "31%: bloquead
 checar(aud("propor_acordo", {"n_parcelas": 13, "entrada_pct": 10})["regra"] == "R5_PARCELAS", "13 parcelas: bloqueado")
 checar(aud("propor_acordo", {"n_parcelas": 12, "entrada_pct": 10})["permitida"], "12x com 10% de entrada: pode")
 checar(aud("propor_acordo", {"n_parcelas": 12, "entrada_pct": 5})["regra"] == "R7_ENTRADA_MIN", "entrada de 5%: bloqueado")
-pouco = {**CASO, "dados": {"divida": 500.0}}
+pouco = {**CASO, "dados": {"divida": 500.0, "identidade_ok": True}}
 checar(aud("propor_acordo", {"n_parcelas": 12, "entrada_pct": 10}, caso=pouco)["regra"] == "R6_PARCELA_MIN",
        "parcela de R$ 37,50 abaixo de R$ 50: bloqueado")
 checar(aud("propor_acordo", {"n_parcelas": 0})["regra"] == "R4_CONDICOES", "condição impossível: bloqueado")
-checar(aud("propor_acordo", {"n_parcelas": 1}, caso={**CASO, "dados": {}})["regra"] == "R4_CONDICOES",
+checar(aud("propor_acordo", {"n_parcelas": 1}, caso={**CASO, "dados": {"identidade_ok": True}})["regra"] == "R4_CONDICOES",
        "caso sem valor de dívida: bloqueado")
 
 print("— aceite só de simulação do sistema —")
 cond = {"desconto_pct": 10, "n_parcelas": 6, "entrada_pct": 10}
 sim = {"id": "s1", "caso_id": "c1", "condicoes": cond, "valida_ate": SEXTA_14H + timedelta(minutes=30)}
-checar(aud("registrar_aceite", {**cond, "simulacao_id": "s1"}, simulacao=sim)["permitida"], "aceite da simulação válida")
-checar(aud("registrar_aceite", {**cond, "simulacao_id": "s1"})["regra"] == "R8_SIMULACAO", "sem simulação: bloqueado")
-checar(aud("registrar_aceite", {**cond, "simulacao_id": "s2"}, simulacao=sim)["regra"] == "R8_SIMULACAO",
+checar(aud("registrar_aceite", {**cond, "simulacao_id": "s1", "data": "2026-10-20"}, simulacao=sim)["permitida"], "aceite da simulação válida")
+checar(aud("registrar_aceite", {**cond, "simulacao_id": "s1", "data": "2026-10-20"})["regra"] == "R8_SIMULACAO", "sem simulação: bloqueado")
+checar(aud("registrar_aceite", {**cond, "simulacao_id": "s2", "data": "2026-10-20"}, simulacao=sim)["regra"] == "R8_SIMULACAO",
        "simulação com outro id: bloqueado")
-checar(aud("registrar_aceite", {**cond, "desconto_pct": 20, "simulacao_id": "s1"}, simulacao=sim)["regra"] == "R8_SIMULACAO",
+checar(aud("registrar_aceite", {**cond, "desconto_pct": 20, "simulacao_id": "s1", "data": "2026-10-20"}, simulacao=sim)["regra"] == "R8_SIMULACAO",
        "IA mudou o desconto depois de simular: bloqueado")
-checar(aud("registrar_aceite", {**cond, "simulacao_id": "s1"}, simulacao=sim,
+checar(aud("registrar_aceite", {**cond, "simulacao_id": "s1", "data": "2026-10-20"}, simulacao=sim,
            agora=SEXTA_14H + timedelta(minutes=31))["regra"] == "R8_SIMULACAO", "simulação vencida: bloqueado")
-checar(aud("registrar_aceite", {**cond, "simulacao_id": "s1"}, simulacao={**sim, "caso_id": "c9"})["regra"] == "R8_SIMULACAO",
+checar(aud("registrar_aceite", {**cond, "simulacao_id": "s1", "data": "2026-10-20"}, simulacao={**sim, "caso_id": "c9"})["regra"] == "R8_SIMULACAO",
        "simulação de outro devedor: bloqueado")
 
 print("— no orquestrador: regra e versão no rastreio —")
 repo = RepoMemoria()
 caso = repo.obter_ou_criar_caso("emp", "p1")
-repo.salvar_caso(caso["id"], {"situacao": "negociando", "dados": {"divida": 3000.0}})
+repo.salvar_caso(caso["id"], {"situacao": "negociando", "dados": {"divida": 3000.0, "identidade_ok": True}})
 repo.gravar_politica("emp", 1, auditor.POLITICA_DEMONSTRACAO)
 pol2 = {**copy.deepcopy(auditor.POLITICA_DEMONSTRACAO), "desconto_max_pct": 40.0}
 repo.gravar_politica("emp", 2, pol2)
@@ -122,7 +122,7 @@ checar(repo.obter_caso(caso["id"])["versao_politica"] == 2, "o caso guarda a ver
 
 repo = RepoMemoria()
 caso = repo.obter_ou_criar_caso("emp", "p1")
-repo.salvar_caso(caso["id"], {"situacao": "negociando", "dados": {"divida": 3000.0}})
+repo.salvar_caso(caso["id"], {"situacao": "negociando", "dados": {"divida": 3000.0, "identidade_ok": True}})
 repo.politicas.append({"empresa_id": "emp", "versao": 1, "regras": {"desconto_max_pct": 999}, "ativa": True})
 decisoes.clear()
 orq.registrar_evento(repo, "emp", caso["id"], "mensagem_devedor", "m1")
