@@ -1,0 +1,31 @@
+cpf,nome,produto,status,uf,valor_divida,renda_estimada,dias_em_atraso,despesas_mensais
+901.000.001-13,Maria das Dores Lima,consignado,inadimplente,MS,8500,1800,60,1636
+902.000.002-12,João Batista Rocha,veiculo,inadimplente,SP,8500,4200,540,3624
+903.000.003-29,Ana Clara Ferreira,veiculo,inadimplente,GO,450,4200,60,2682
+904.000.004-36,Pedro Henrique Alves,cartao,inadimplente,MT,450,7000,540,5864
+905.000.005-43,Juliana Costa Pires,veiculo,inadimplente,GO,3000,2200,240,1939
+906.000.006-51,Carlos Eduardo Nunes,cartao,inadimplente,GO,900,5500,180,3853
+907.000.000-92,Fernanda Ribeiro Gomes,consignado,inadimplente,GO,3000,2200,240,1675
+908.000.001-09,Lucas Martins Prado,veiculo,inadimplente,SP,8500,1800,540,1626
+909.000.002-14,Patrícia Souza Melo,veiculo,inadimplente,DF,8500,3500,180,3134
+910.000.003-67,Rafael Teixeira Dias,veiculo,inadimplente,MS,8500,4200,35,3366
+911.000.004-74,Camila Duarte Reis,pessoal,inadimplente,GO,8500,7000,60,5957
+912.000.005-82,Bruno Cardoso Lopes,veiculo,inadimplente,GO,6000,3500,120,3140
+913.000.006-99,Larissa Moura Castro,veiculo,inadimplente,MT,8500,1800,180,1432
+914.000.000-20,Thiago Barbosa Cruz,consignado,inadimplente,MS,8500,5500,540,4849
+915.000.001-37,Aline Pereira Vaz,veiculo,inadimplente,GO,2500,3500,180,2111
+916.000.002-44,Diego Santana Freitas,veiculo,inadimplente,MS,6000,2200,240,2029
+917.000.003-52,Renata Campos Leal,veiculo,inadimplente,MT,8500,2800,540,2471
+918.000.004-69,Marcelo Antunes Paiva,cartao,inadimplente,GO,3000,4200,540,3867
+919.000.005-76,Beatriz Oliveira Sá,veiculo,inadimplente,MS,2500,1800,540,1660
+920.000.006-27,Gustavo Mendes Rios,veiculo,inadimplente,MT,900,2200,180,2015
+921.000.000-68,Vanessa Carvalho Luz,cartao,inadimplente,GO,4200,2800,95,2120
+922.000.001-75,Rodrigo Farias Brito,cartao,inadimplente,GO,6000,1800,60,1464
+923.000.002-83,Débora Matos Faria,pessoal,inadimplente,GO,12000,2200,35,1898
+924.000.003-90,André Siqueira Neves,consignado,inadimplente,GO,450,2800,240,2331
+925.000.004-07,Priscila Lacerda Pinto,veiculo,inadimplente,GO,8500,4200,120,3215
+926.000.005-13,Felipe Moreira Cunha,consignado,inadimplente,GO,4200,2200,95,2039
+927.000.006-12,Tatiane Rezende Lobo,consignado,inadimplente,MS,4200,7000,365,6179
+928.000.000-53,Eduardo Fonseca Brandão,pessoal,inadimplente,DF,450,4200,60,3092
+929.000.001-60,Simone Araújo Toledo,cartao,inadimplente,GO,3000,1800,35,1096
+930.000.002-11,Leandro Queiroz Viana,consignado,inadimplente,GO,6000,3500,240,3219
