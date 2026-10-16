@@ -96,8 +96,8 @@ limite que o código impõe.
 | Tema | Pergunta da banca | Resposta no Mizan |
 |---|---|---|
 | Prompting | Como conduz a saída do modelo? | Instruções fixas + saída das ferramentas estruturada; o texto final é conferido (seção 4, item 4) |
-| RAG | De onde vêm os fatos? Como evita inventar? | Política, ofertas e alçada vêm do banco de dados; dúvidas sobre regras vêm da Central de Ajuda (busca local já existente e medida); valores só do simulador |
-| Function calling | Como decide usar uma ferramenta? E se nenhuma serve? | 14 ferramentas com esquema estrito; sem ferramenta adequada → transfere para humano |
+| RAG | De onde vêm os fatos? Como evita inventar? | Política, ofertas e alçada vêm do banco de dados; dúvidas sobre regras vêm da Central de Ajuda (busca local já existente e medida); dúvidas do devedor sobre direitos vêm da base de conhecimento com lei e súmula (`consultar_base`, fonte no rastreio); valores só do simulador; lei citada sem ter vindo da base é barrada na saída |
+| Function calling | Como decide usar uma ferramenta? E se nenhuma serve? | 15 ferramentas com esquema estrito; sem ferramenta adequada → transfere para humano; base sem resposta segura → diz que não sabe e oferece uma pessoa |
 | Orquestração | Etapas, o que cada uma recebe e entrega, onde fica o estado | Orquestrador em código: triagem → análise → resposta → ação, com contrato de entrada e saída por agente; estado de cada caso no Supabase (seção 3.0) |
 | Multiagentes | Por que mais de um? Quem resolve conflitos? | Entrada, ritmo e risco diferentes; o orquestrador resolve conflitos pela máquina de estados e pela prioridade; o Auditor tem a palavra final sobre a política |
 | Avaliação e segurança | Entrada inesperada, falha, como mede qualidade | Bateria de cenários com nota automática (seção 6); grupo sorteado mede o efeito em dinheiro (seção 3.1) |
