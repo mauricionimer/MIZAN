@@ -53,6 +53,10 @@ function Passos({ passos }) {
             <span className="h-2 w-2 shrink-0 translate-y-[-1px] rounded-full" style={{ background: COR_RES[p.resultado] || 'var(--ink-3)' }} />
             <span className="font-medium text-ink">{nomeNo(p.no)}</span>
             {p.regra && <span className="rounded bg-raise-2 px-1.5 py-px font-mono text-[11px] text-ink-2">{p.regra}{p.versao_politica ? ` · v${p.versao_politica}` : ''}</span>}
+            {p.detalhe?.fontes?.map((f) => (
+              <span key={f} className="rounded border border-line px-1.5 py-px text-[11px] text-ink" title="Fonte consultada na base de conhecimento">Fonte: {f}</span>
+            ))}
+            {p.detalhe?.certeza === false && <span style={{ color: 'var(--warning)' }}>sem resposta segura na base</span>}
             {p.resultado === 'bloqueado' && <span style={{ color: 'var(--warning)' }}>bloqueado</span>}
             {p.resultado === 'erro' && <span style={{ color: 'var(--danger)' }}>erro{p.detalhe?.erro ? `: ${p.detalhe.erro}` : ''}</span>}
             <span className="ml-auto tabular-nums text-ink-3">{p.duracao_ms} ms{p.tokens_entrada ? ` · ${p.tokens_entrada + p.tokens_saida} tokens` : ''}</span>

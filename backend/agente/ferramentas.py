@@ -1,4 +1,4 @@
-"""As 14 ferramentas do Negociador (docs/PLANO_AGENTE.md, 3.2).
+"""As 15 ferramentas do Negociador (docs/PLANO_AGENTE.md, 3.2).
 
 Toda chamada segue o mesmo caminho:
 
@@ -8,6 +8,8 @@ Toda chamada segue o mesmo caminho:
   valores da dívida (depois de confirmar a identidade), datas e situação.
 - Todo valor que a IA vai dizer sai de `simular_acordo`; o aceite só vale para
   uma simulação feita aqui (o Auditor confere).
+- Toda lei ou súmula que a IA vai citar sai de `consultar_base` (a base de
+  conhecimento do devedor, agente/conhecimento.py).
 - Erros de uso voltam como resultado ({"ok": false, "erro": ...}) para a IA
   corrigir; falha de verdade (banco fora) sobe e o orquestrador trata.
 """
@@ -15,12 +17,13 @@ import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
-from agente import auditor, estado
+from agente import auditor, conhecimento, estado
 from model import oferta
 
 VALIDADE_SIMULACAO = timedelta(minutes=30)
 MAX_SIMULACOES = 5
 MAX_TENTATIVAS_IDENTIDADE = 3
+MAX_FONTES_GUARDADAS = 10
 
 
 @dataclass
@@ -263,6 +266,23 @@ def _consultar_politica(ctx, fonte, dev, args):
             "aviso": "limites internos: não ofereça o máximo de saída"}
 
 
+def _consultar_base(ctx, fonte, dev, args):
+    """Busca na base do devedor. Não precisa de identidade: é informação geral."""
+    achado = conhecimento.consultar(args["pergunta"])
+    t = achado["trecho"]
+    if t is None:
+        return {"ok": True, "certeza": False,
+                "orientacao": "A base não tem resposta segura para isso. Diga que não tem essa informação "
+                              "e ofereça falar com uma pessoa da equipe. Não responda de memória.",
+                "_rastreio": {"certeza": False}}
+    # O trecho fica guardado no caso: numa mensagem seguinte o agente ainda
+    # pode citar a mesma fonte sem consultar de novo.
+    d = _dados(ctx)
+    d["base_consultada"] = ([i for i in d.get("base_consultada") or [] if i != t.id] + [t.id])[-MAX_FONTES_GUARDADAS:]
+    return {"ok": True, "certeza": True, "resposta": t.resposta, "fonte": t.fonte, "trecho_oficial": t.trecho,
+            "_rastreio": {"certeza": True, "trecho_id": t.id, "fontes": [t.fonte]}}
+
+
 def _abrir_contestacao(ctx, fonte, dev, args):
     if ctx.caso["situacao"] != "contestado":
         fonte.abrir_contestacao(ctx.caso["empresa_id"], ctx.caso["id"], args["motivo"])
@@ -341,6 +361,13 @@ FERRAMENTAS = {f.nome: f for f in (
     Ferramenta("registrar_contato", "Registra um contato sem acordo.",
                {"resultado": {"type": "string", "enum": ["contactado", "sem_resposta", "nao_quis"]},
                 "observacao": _TEXTO}, ("resultado",), "registrar_contato", _registrar_contato),
+    Ferramenta("consultar_base", "Base de conhecimento com lei e súmula para dúvidas do devedor: quanto tempo o nome "
+               "fica negativado, quando sai depois de pagar, comprovante, cobrança indevida, multa, pagamento "
+               "antecipado, dados pessoais, revisão de decisão automática, superendividamento. Devolve a resposta "
+               "com a fonte, ou certeza=false quando não sabe. Use antes de citar qualquer lei ou súmula.",
+               {"pergunta": {"type": "string", "maxLength": 300,
+                             "description": "A dúvida do devedor, em poucas palavras"}},
+               ("pergunta",), "consultar_base", _consultar_base),
     Ferramenta("consultar_politica", "Limites da empresa para negociar (uso interno, não divulgar de saída).",
                {}, (), "consultar_politica", _consultar_politica),
     Ferramenta("abrir_contestacao", "O devedor não reconhece a dívida: suspende a cobrança e abre contestação.",
@@ -395,5 +422,6 @@ def executar(ctx, fonte, nome: str, args) -> dict:
         return {"ok": False, "bloqueado": True, "regra": decisao["regra"], "motivo": decisao["motivo"]}
     with ctx.rastreio.span(f"ferramenta:{nome}", "ferramenta") as p:
         r = f.executar(ctx, fonte, dev, args)
-        p["detalhe"] = {"ok": bool(r.get("ok"))}
+        # `_rastreio` é só para o passo (fontes, ids); não volta para a IA.
+        p["detalhe"] = {"ok": bool(r.get("ok")), **r.pop("_rastreio", {})}
     return r

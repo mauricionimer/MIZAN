@@ -62,7 +62,7 @@ ACORDO = frozenset({"propor_acordo", "registrar_aceite"})
 COMPROMISSO = frozenset({"agendar_retorno", "remarcar_compromisso"})
 REGISTRO = frozenset({"registrar_contato", "marcar_promessa_quebrada"})
 LEITURA = frozenset({"consultar_caso", "verificar_identidade", "listar_ofertas", "simular_acordo",
-                     "consultar_politica"})
+                     "consultar_politica", "consultar_base"})
 
 
 def validar_politica(bruto: dict) -> dict:

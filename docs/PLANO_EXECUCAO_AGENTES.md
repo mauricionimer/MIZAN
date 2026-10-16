@@ -164,6 +164,16 @@ Redis (cache e limite compartilhados) e uma fila dedicada.
 - Dúvidas sobre regras usam a **busca da Central de Ajuda que já existe**
   (`ajuda_busca.py`, local, com medida de certeza). O acervo é pequeno (sete
   arquivos); o cap. 5.4.2 aceita busca exata abaixo de dez mil itens.
+- Dúvidas do **devedor** (nome negativado, baixa depois de pagar, comprovante,
+  cobrança indevida, multa, pagamento antecipado, dados pessoais, revisão de
+  decisão automática, superendividamento) usam a **base de conhecimento do
+  devedor** (`agente/base/devedor.md`, ferramenta `consultar_base`): cada trecho
+  é lei ou súmula com o texto literal e o endereço oficial (Planalto e STJ,
+  conferidos em 16/10/2026). Mesmo buscador e mesma regra de certeza da Central
+  de Ajuda. Medida em `test_agente_conhecimento.py` com perguntas escritas à
+  parte: 92% de acerto com certeza, nenhum trecho errado com certeza, nenhuma
+  resposta para pergunta fora da base (aí o agente diz que não sabe e oferece
+  uma pessoa). A fonte aparece no rastreio e na tela do Agente.
 - **Sem banco vetorial no protótipo.** Próximo passo, quando o acervo crescer:
   pgvector no próprio Supabase (cap. 5.3.3). Embeddings não rodam no servidor
   de 512 MB.
@@ -196,7 +206,9 @@ Redis (cache e limite compartilhados) e uma fila dedicada.
 - **Saída**: todo valor e número de parcelas no texto precisa vir de uma
   simulação válida (correção factual, cap. 8.7.1); filtro de tom que barra
   ameaça, constrangimento ou exposição ao ridículo (o Código de Defesa do
-  Consumidor, art. 42, proíbe isso na cobrança); nenhum segredo no prompt.
+  Consumidor, art. 42, proíbe isso na cobrança); nenhum segredo no prompt;
+  toda lei, artigo ou súmula citados precisam ter vindo da base de
+  conhecimento nesta conversa (o agente não inventa nem valor nem lei).
   Reprovou → uma nova tentativa → pessoa.
 - **Falha ou recusa do modelo** → pessoa, com resumo. Nada inventado.
 
@@ -284,7 +296,8 @@ versões da política.
 | `rastreio.py` | Ids de rastreio, *spans*, métricas |
 | `triagem.py` | Intenção e entidades com saída estruturada |
 | `memoria.py` | Briefing do caso e recuperação (fatos + Central de Ajuda) |
-| `ferramentas.py` | As 14 ferramentas sobre o que já existe |
+| `ferramentas.py` | As 15 ferramentas sobre o que já existe (a 15ª, `consultar_base`, é a base do devedor) |
+| `conhecimento.py` | Base de conhecimento do devedor (`agente/base/`): lei e súmula com fonte, busca local medida |
 | `auditor.py` | Política com versão, regra aplicada |
 | `negociador.py` | Ciclo de conversa com ferramentas |
 | `guardrails.py` | Conferência de valores e filtro de tom na saída |

@@ -1,4 +1,4 @@
-"""Agentes — as 14 ferramentas do Negociador, com devedor fictício e sem banco.
+"""Agentes — as 15 ferramentas do Negociador, com devedor fictício e sem banco.
 
     python test_agente_ferramentas.py
 """
@@ -42,8 +42,8 @@ def cenario(chamadas, situacao="em_contato", politica=True, agora=SEXTA_14H, dad
 
 print("— definições —")
 defs = fer.definicoes()
-checar(len(defs) == 14 and all({"name", "description", "input_schema"} <= set(d) for d in defs),
-       "14 ferramentas no formato da API")
+checar(len(defs) == 15 and all({"name", "description", "input_schema"} <= set(d) for d in defs),
+       "15 ferramentas no formato da API")
 acoes = {f.acao for f in fer.FERRAMENTAS.values()}
 conhecidas = auditor.SEGURANCA | auditor.FALA | auditor.ACORDO | auditor.COMPROMISSO | auditor.REGISTRO | auditor.LEITURA
 checar(acoes <= conhecidas, "toda ferramenta corresponde a uma ação que o Auditor conhece", str(acoes - conhecidas))

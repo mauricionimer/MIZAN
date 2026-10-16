@@ -7,6 +7,9 @@ Conferido em código antes de enviar:
    Defesa do Consumidor (art. 42) proíbe isso na cobrança. É uma primeira
    camada por palavras; a bateria de cenários mede o resto.
 3. Segredos: nada de CPF, identificadores internos ou instruções do sistema.
+4. Normas: lei, artigo ou súmula citados no texto precisam ter vindo da base
+   de conhecimento nesta conversa (ferramenta consultar_base). O agente não
+   inventa valor nem lei.
 
 Reprovou: uma nova tentativa; reprovou de novo, uma pessoa assume.
 """
@@ -18,6 +21,19 @@ TOLERANCIA = 0.01
 _DINHEIRO = re.compile(r"R\$\s*([\d.]+(?:,\d{1,2})?)|\b(\d{1,3}(?:\.\d{3})+,\d{2}|\d+,\d{2})\b")
 _PERCENTUAL = re.compile(r"(\d+(?:[.,]\d+)?)\s*%")
 _PARCELAS = re.compile(r"\b(\d{1,3})\s*(?:x\b|vezes\b|parcelas?\b|prestac)", re.I)
+
+# Citações de norma, no texto já sem acento e em minúsculas (_norm).
+_REF_NUMERO = [
+    ("art", re.compile(r"\bart(?:igo)?s?\.?\s*(\d{1,4}(?:-[a-z])?)\b")),
+    ("sumula", re.compile(r"\bsumulas?\s*(?:n[o.]?\s*|numero\s*)?(\d{1,4})\b")),
+    ("lei", re.compile(r"\blei\s*(?:n[o.]?\s*|numero\s*)?(\d{1,2}\.?\d{3})\b")),
+]
+_REF_NOME = [
+    ("cdc", re.compile(r"\bcdc\b|codigo de defesa do consumidor")),
+    ("lgpd", re.compile(r"\blgpd\b|lei geral de protecao de dados")),
+    ("codigo_civil", re.compile(r"codigo civil")),
+    ("stj", re.compile(r"\bstj\b|superior tribunal")),
+]
 
 _TOM = [
     r"\bprocess(ar|o|aremos)\b", r"\bjustica\b", r"\bpolicia\b", r"\bpres[oa]\b", r"\bprisao\b", r"\bcadeia\b",
@@ -41,6 +57,14 @@ def _num_br(s: str) -> float:
     return float(s.replace(".", "").replace(",", "."))
 
 
+def referencias_do_texto(texto: str) -> set:
+    """Normas citadas: {("art", "43"), ("sumula", "548"), ("lei", "8078"), ("norma", "cdc"), ...}."""
+    t = _norm(texto)
+    refs = {(tipo, n.replace(".", "")) for tipo, rx in _REF_NUMERO for n in rx.findall(t)}
+    refs |= {("norma", nome) for nome, rx in _REF_NOME if rx.search(t)}
+    return refs
+
+
 def valores_do_texto(texto: str) -> dict:
     dinheiro = [_num_br(a or b) for a, b in _DINHEIRO.findall(texto)]
     percentuais = [float(p.replace(",", ".")) for p in _PERCENTUAL.findall(texto)]
@@ -49,8 +73,8 @@ def valores_do_texto(texto: str) -> dict:
 
 
 def permitidos_de(resultados: list) -> dict:
-    """Valores que as ferramentas devolveram nesta conversa."""
-    dinheiro, percentuais, parcelas = set(), set(), {1}
+    """Valores e normas que as ferramentas devolveram nesta conversa."""
+    dinheiro, percentuais, parcelas, referencias = set(), set(), {1}, set()
     def andar(x, chave=""):
         if isinstance(x, dict):
             for k, v in x.items():
@@ -65,13 +89,17 @@ def permitidos_de(resultados: list) -> dict:
                 parcelas.add(int(x))
             else:
                 dinheiro.add(round(float(x), 2))
-        elif isinstance(x, str) and chave == "resumo":
+        elif isinstance(x, str) and chave in ("resumo", "resposta"):
             v = valores_do_texto(x)
             dinheiro.update(round(d, 2) for d in v["dinheiro"])
             percentuais.update(round(p, 2) for p in v["percentuais"])
             parcelas.update(v["parcelas"])
+            if chave == "resposta":
+                referencias.update(referencias_do_texto(x))
+        elif isinstance(x, str) and chave == "fonte":
+            referencias.update(referencias_do_texto(x))
     andar(resultados)
-    return {"dinheiro": dinheiro, "percentuais": percentuais, "parcelas": parcelas}
+    return {"dinheiro": dinheiro, "percentuais": percentuais, "parcelas": parcelas, "referencias": referencias}
 
 
 def conferir(texto: str, permitidos: dict) -> list:
@@ -87,6 +115,10 @@ def conferir(texto: str, permitidos: dict) -> list:
     for n in v["parcelas"]:
         if n not in permitidos["parcelas"]:
             motivos.append(f"{n} parcelas não veio de uma simulação")
+    soltas = referencias_do_texto(texto) - permitidos.get("referencias", set())
+    if soltas:
+        citadas = ", ".join(sorted(f"{a} {b}" for a, b in soltas))
+        motivos.append(f"cita norma que não veio da base de conhecimento ({citadas}): use consultar_base")
     t = _norm(texto)
     if any(re.search(p, t) for p in _TOM):
         motivos.append("tom de ameaça ou constrangimento")
