@@ -27,7 +27,7 @@ def _agora_iso() -> str:
 class FonteMemoria:
     def __init__(self, devedores=None, catalogo=None, nome_empresa="Banco Demonstração"):
         self._nome_empresa = nome_empresa
-        self.devedores = {d["id"]: d for d in (devedores or [])}   # predicao_id -> devedor
+        self._devedores = {d["id"]: d for d in (devedores or [])}   # predicao_id -> devedor
         self._catalogo = catalogo
         self.agenda: list = []
         self.ofertas: list = []
@@ -35,11 +35,14 @@ class FonteMemoria:
         self.contestacoes: list = []
 
     def devedor(self, empresa_id: str, predicao_id: str) -> dict | None:
-        d = self.devedores.get(predicao_id)
+        d = self._devedores.get(predicao_id)
         return copy.deepcopy(d) if d and d.get("empresa_id") == empresa_id else None
 
     def nome_empresa(self, empresa_id: str) -> str:
         return self._nome_empresa
+
+    def devedores(self, empresa_id: str, limite: int = 2000) -> list:
+        return [copy.deepcopy(d) for d in self._devedores.values() if d.get("empresa_id") == empresa_id][:limite]
 
     def catalogo(self, empresa_id: str) -> list:
         from model.oferta import catalogo_padrao
@@ -107,6 +110,17 @@ class FonteSupabase:
         cart = (self.db.table("carteiras").select("id").eq("id", d.get("carteira_id"))
                 .eq("empresa_id", empresa_id).limit(1).execute())
         return d if cart.data else None
+
+    def devedores(self, empresa_id: str, limite: int = 2000) -> list:
+        """Devedores da carteira mais recente da empresa, na ordem da fila."""
+        cart = (self.db.table("carteiras").select("id").eq("empresa_id", empresa_id)
+                .order("created_at", desc=True).limit(1).execute())
+        if not cart.data:
+            return []
+        res = (self.db.table("predicoes")
+               .select("id, nome, valor_divida, dias_em_atraso, score_recuperabilidade, probabilidade_pagamento, rank")
+               .eq("carteira_id", cart.data[0]["id"]).order("rank").limit(limite).execute())
+        return res.data or []
 
     def nome_empresa(self, empresa_id: str) -> str:
         res = (self.db.table("empresa_config").select("nome_exibicao")

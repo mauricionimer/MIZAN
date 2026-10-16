@@ -8326,6 +8326,30 @@ def agente_relogio(empresa_id: Optional[str] = None,
         raise HTTPException(status_code=409, detail=str(e))
 
 
+@app.get("/agente/plano")
+def agente_plano(empresa_id: Optional[str] = None,
+                 credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Plano do dia do Estrategista: os quatro grupos com o motivo e o grupo sorteado."""
+    from agente import api as agente_api
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") not in ("admin", "comando"):
+        raise HTTPException(status_code=403, detail="Acesso negado.")
+    return agente_api.plano_do_dia(_empresa_do_agente(payload, empresa_id))
+
+
+@app.post("/agente/plano")
+def agente_aplicar_plano(empresa_id: Optional[str] = None,
+                         credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    from agente import api as agente_api
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") not in ("admin", "comando"):
+        raise HTTPException(status_code=403, detail="Acesso negado.")
+    try:
+        return agente_api.aplicar_plano(_empresa_do_agente(payload, empresa_id))
+    except agente_api.AgenteDesligado as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+
 @app.get("/agente/central")
 def agente_central(empresa_id: Optional[str] = None,
                    credentials: HTTPAuthorizationCredentials = Security(bearer)):

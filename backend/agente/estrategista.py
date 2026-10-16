@@ -1,0 +1,133 @@
+"""Estrategista: quem cobrar e quem não cobrar (docs/PLANO_AGENTE.md, 3.1).
+
+Código, sem IA. Separa a carteira em quatro grupos, sempre com o motivo escrito,
+e sorteia o grupo de controle que segue sem o agente.
+
+| Grupo | Para quem | O que acontece |
+|---|---|---|
+| so_lembrete | Tende a pagar sozinho, ou já tem acordo andando | Só lembrete (Acompanhamento) |
+| contato | Paga se for procurado | Primeira mensagem pronta; o Negociador entra quando responder |
+| nao_adianta | Chance muito baixa agora, ou acordo quebrado há pouco | Aguarda revisão |
+| pessoa | Contestação, suspensão, caso com uma pessoa | Fica com a equipe |
+
+Os limiares de chance (70% e 5%) são escolha de projeto para a demonstração,
+não número medido: entram na política quando houver dado de um piloto.
+
+Grupo sorteado: um sorteio fixo por devedor (hash de empresa + devedor), então
+gerar o plano de novo não muda quem foi sorteado, e quem já tem caso mantém o
+sorteio de quando entrou. Comparar quanto entrou em cada grupo, por real de
+dívida, é o que prova o efeito do agente (e, com dado suficiente, mede quem só
+paga se for cobrado).
+"""
+import hashlib
+
+from agente import auditor, estado, ferramentas
+from agente.orquestrador import Grafo, registrar_evento
+
+LIMIAR_SO_LEMBRETE = 0.70
+LIMIAR_NAO_ADIANTA = 0.05
+
+GRUPOS = ("so_lembrete", "contato", "nao_adianta", "pessoa")
+
+
+def sorteado(empresa_id: str, predicao_id: str, percentual: float) -> bool:
+    h = hashlib.sha256(f"{empresa_id}:{predicao_id}:controle".encode()).hexdigest()
+    return int(h[:8], 16) % 10_000 < percentual * 100
+
+
+def chance(dev: dict) -> float | None:
+    p = dev.get("probabilidade_pagamento")
+    if p is not None:
+        return float(p)
+    s = dev.get("score_recuperabilidade")
+    return None if s is None else max(0.0, min(1.0, float(s) / 100))
+
+
+def classificar(dev: dict, caso: dict | None) -> tuple:
+    """(grupo, motivo) de um devedor."""
+    s = (caso or {}).get("situacao")
+    if s in ("contestado", "com_pessoa"):
+        return "pessoa", "contestou a dívida" if s == "contestado" else "o caso está com uma pessoa da equipe"
+    if s == "suspenso":
+        return "pessoa", "pediu para não ser contatado ou é pessoa errada"
+    if s == "quitado":
+        return "so_lembrete", "dívida quitada: nada a fazer"
+    if s == "quebrado":
+        return "nao_adianta", "acordo quebrado há pouco: aguarda revisão"
+    if s in ("acordo_ativo", "atrasado", "pagamento_em_conferencia"):
+        return "so_lembrete", "acordo em andamento: o Acompanhamento cuida das datas"
+    p = chance(dev)
+    if p is None:
+        return "contato", "sem chance estimada: procurar para entender a situação"
+    if p >= LIMIAR_SO_LEMBRETE:
+        return "so_lembrete", f"chance de {p:.0%} de pagar: tende a pagar sem negociação"
+    if p < LIMIAR_NAO_ADIANTA:
+        return "nao_adianta", f"chance de {p:.0%} agora: contato custaria mais do que tende a trazer"
+    return "contato", f"chance de {p:.0%}: paga se for procurado"
+
+
+def plano(repo, fonte, empresa_id: str, aplicar: bool = False, agora=None) -> dict:
+    """Plano do dia. Com aplicar=True, grava grupos e sorteio nos casos e põe a
+    primeira mensagem do grupo 'contato' na fila."""
+    achada = repo.politica_ativa(empresa_id)
+    pol = auditor.validar_politica(achada["regras"]) if achada else None
+    pct = pol["percentual_controle"] if pol else 0
+    saida = {g: [] for g in GRUPOS}
+    controle = []
+    for dev in fonte.devedores(empresa_id):
+        caso = repo.caso_de(empresa_id, dev["id"])
+        grupo, motivo = classificar(dev, caso)
+        no_controle = caso["grupo_controle"] if caso else sorteado(empresa_id, dev["id"], pct)
+        item = {"id": dev["id"], "nome": dev.get("nome"), "valor_divida": dev.get("valor_divida"),
+                "chance": chance(dev), "motivo": motivo, "situacao": (caso or {}).get("situacao", "novo")}
+        if no_controle:
+            controle.append({**item, "grupo": grupo})
+        else:
+            saida[grupo].append(item)
+        if aplicar and grupo != "pessoa":
+            c = caso or repo.obter_ou_criar_caso(empresa_id, dev["id"])
+            dados = dict(c.get("dados") or {})
+            dados["motivo_grupo"] = motivo
+            campos = {"grupo": grupo, "dados": dados, "grupo_controle": bool(no_controle)}
+            if c["situacao"] == "novo" and grupo == "so_lembrete" and not no_controle:
+                campos["situacao"] = estado.mudar("novo", "so_lembrete")
+            repo.salvar_caso(c["id"], campos)
+            if grupo == "contato" and not no_controle and c["situacao"] == "novo":
+                registrar_evento(repo, empresa_id, c["id"], "abordagem", f"abordagem:{dev['id']}", {}, origem="estrategista")
+    return {"grupos": saida, "controle": controle, "percentual_controle": pct,
+            "politica_versao": achada["versao"] if achada else None,
+            "contagem": {**{g: len(v) for g, v in saida.items()}, "controle": len(controle)}}
+
+
+def texto_abordagem(nome: str, empresa: str) -> str:
+    return (f"Olá, {nome}! Aqui é o assistente virtual de {empresa}. Temos condições para você regularizar "
+            "uma pendência com a gente. Posso te mostrar? Se preferir falar com uma pessoa, é só dizer.")
+
+
+def grafo_abordagem(fonte) -> Grafo:
+    """Primeira mensagem para quem está no grupo 'contato'. Pronta, sem IA."""
+    def abordar(ctx):
+        if ctx.caso.get("grupo_controle") or ctx.caso["situacao"] != "novo":
+            ctx.saida["pular"] = "sorteado ou já em atendimento"
+            return
+        dev = fonte.devedor(ctx.caso["empresa_id"], ctx.caso["predicao_id"])
+        if dev is None:
+            raise LookupError("devedor não encontrado nesta empresa")
+        # O caso 'novo' ainda não fala: a abordagem é a mudança para 'em contato',
+        # conferida pelo Auditor como uma mensagem iniciada pelo agente.
+        ctx.mudar_situacao("em_contato")
+        d = ctx.auditar({"tipo": "enviar_mensagem", "params": {}}, contatos_7d=0)
+        if not d["permitida"]:
+            ctx.caso["situacao"] = "novo"                   # volta: não houve contato
+            regras, _ = ctx.politica()
+            if d["regra"] == "R2_HORARIO" and regras:
+                from agente.acompanhamento import proximo_horario
+                ctx.saida["adiar_para"] = proximo_horario(regras, ctx.agora)
+            return
+        texto = texto_abordagem(ferramentas._primeiro_nome(dev.get("nome")), fonte.nome_empresa(ctx.caso["empresa_id"]))
+        ctx.repo.gravar_mensagem(ctx.caso["empresa_id"], ctx.caso["id"], "saida", texto, ctx.rastreio.trace_id,
+                                 criado_em=ctx.agora)
+
+    g = Grafo("abordagem", "abordar").no("abordar", abordar, agente="estrategista")
+    g.validar()
+    return g

@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from agente import auditor, llm, orquestrador as orq
 from agente.fonte import FonteSupabase
 from agente.acompanhamento import grafo_pagamento, grafo_vencimento, planejar
+from agente.estrategista import grafo_abordagem, plano as _plano
 from agente.grafos import grafo_mensagem
 from agente.repositorio import RepoSupabase
 
@@ -38,7 +39,7 @@ def _passo_publico(p: dict) -> dict:
 
 def grafos(fonte) -> dict:
     return {"mensagem_devedor": grafo_mensagem(fonte), "vencimento": grafo_vencimento(fonte),
-            "pagamento": grafo_pagamento(fonte)}
+            "pagamento": grafo_pagamento(fonte), "abordagem": grafo_abordagem(fonte)}
 
 
 def ver_caso(empresa_id: str, predicao_id: str, repo=None) -> dict:
@@ -180,3 +181,18 @@ def ciclo_agendado(agora: datetime | None = None) -> dict:
     criados = sum(len(planejar(repo, fonte, e, agora)) for e in repo.empresas_com_politica())
     feitos = orq.processar_fila(repo, grafos(fonte), fabrica_cliente(), limite=50, agora=agora)
     return {"ligado": True, "eventos_criados": criados, "processados": len(feitos)}
+
+
+def plano_do_dia(empresa_id: str) -> dict:
+    """Prévia do plano do Estrategista (não grava nada)."""
+    return _plano(fabrica_repo(), fabrica_fonte(), empresa_id, aplicar=False)
+
+
+def aplicar_plano(empresa_id: str, agora: datetime | None = None) -> dict:
+    """Grava grupos e sorteio, e envia a primeira mensagem do grupo 'contato'."""
+    _exigir_ligado()
+    agora = agora or datetime.now(timezone.utc)
+    repo, fonte = fabrica_repo(), fabrica_fonte()
+    r = _plano(repo, fonte, empresa_id, aplicar=True, agora=agora)
+    r["processados"] = len(orq.processar_fila(repo, grafos(fonte), fabrica_cliente(), limite=200, agora=agora))
+    return r

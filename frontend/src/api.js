@@ -1023,3 +1023,13 @@ export async function agenteRelogio(empresaId) {
   })
   return _jsonOuErroFila(res)
 }
+
+export async function agentePlano(empresaId) {
+  const res = await fetch(`${BASE}/agente/plano?${_qs({ empresa_id: empresaId })}`, { headers: { Authorization: `Bearer ${_getToken()}` } })
+  return _jsonOuErroFila(res)
+}
+
+export async function agenteAplicarPlano(empresaId) {
+  const res = await fetch(`${BASE}/agente/plano?${_qs({ empresa_id: empresaId })}`, { method: 'POST', headers: _authHeader(_getToken()) })
+  return _jsonOuErroFila(res)
+}

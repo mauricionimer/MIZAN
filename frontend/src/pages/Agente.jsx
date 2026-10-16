@@ -2,11 +2,11 @@
 // orquestração. Na demonstração, quem está na tela escreve como o devedor.
 // Regras em backend/agente/ (docs/PLANO_EXECUCAO_AGENTES.md).
 import { useEffect, useRef, useState } from 'react'
-import { Bot, Send, Search, Loader2, Activity, ShieldCheck, AlertTriangle, Power, UserRound, Coins, ListChecks, Landmark, Clock } from 'lucide-react'
+import { Bot, Send, Search, Loader2, Activity, ShieldCheck, AlertTriangle, Power, UserRound, Coins, ListChecks, Landmark, Clock, Shuffle, CalendarDays } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import ErroCarga from '../components/ErroCarga'
 import { useAuth } from '../context/AuthContext'
-import { agenteDevedores, agenteCaso, agenteSimularMensagem, agenteSimularPagamento, agenteCentral, agenteRelogio, listarEmpresas } from '../api'
+import { agenteDevedores, agenteCaso, agenteSimularMensagem, agenteSimularPagamento, agenteCentral, agenteRelogio, agentePlano, agenteAplicarPlano, listarEmpresas } from '../api'
 
 const fmtBRL = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0)
 const fmtUSD = (v) => `US$ ${Number(v || 0).toFixed(4)}`
@@ -281,6 +281,61 @@ function Central({ empresa }) {
   )
 }
 
+const GRUPO = {
+  contato:     { titulo: 'Precisa de contato', nota: 'Paga se for procurado: o agente manda a primeira mensagem e negocia.', cor: 'var(--accent-text, #60a5fa)' },
+  so_lembrete: { titulo: 'Só lembrete', nota: 'Tende a pagar sozinho, ou já tem acordo: só lembrete de data.', cor: 'var(--success)' },
+  nao_adianta: { titulo: 'Não adianta agora', nota: 'Chance muito baixa ou acordo quebrado há pouco: aguarda revisão.', cor: 'var(--ink-3)' },
+  pessoa:      { titulo: 'Com uma pessoa', nota: 'Contestação, suspensão ou caso com a equipe.', cor: 'var(--warning)' },
+}
+
+function Plano({ empresa }) {
+  const [p, setP] = useState(null)
+  const [erro, setErro] = useState(null)
+  const [ocupado, setOcupado] = useState(false)
+  const [aviso, setAviso] = useState('')
+  function carregar() { setErro(null); return agentePlano(empresa).then(setP).catch(setErro) }
+  useEffect(() => { carregar() }, [empresa])            // eslint-disable-line react-hooks/exhaustive-deps
+  async function aplicar() {
+    setOcupado(true); setErro(null)
+    try { const r = await agenteAplicarPlano(empresa); setAviso(`Plano aplicado: ${r.contagem.contato} na fila de contato, ${r.contagem.controle} no grupo sorteado.`); await carregar() }
+    catch (e) { setErro(e) } finally { setOcupado(false) }
+  }
+  if (!p) return erro ? <ErroCarga erro={erro} onTentar={carregar} /> : <div className="flex items-center gap-2 py-10 text-sm text-ink-2"><Loader2 className="h-4 w-4 animate-spin" /> Carregando…</div>
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <button onClick={aplicar} disabled={ocupado} className="btn-primary flex items-center gap-1.5 disabled:opacity-50">
+          {ocupado ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarDays className="h-4 w-4" />} Aplicar o plano
+        </button>
+        <span className="text-xs text-ink-2">{aviso || 'Grava os grupos e manda a primeira mensagem (pronta, sem IA) para quem precisa de contato, dentro do horário da política.'}</span>
+      </div>
+      <ErroCarga erro={erro} onTentar={carregar} />
+      <div className="rounded-xl border border-line bg-surface p-4">
+        <p className="flex items-center gap-2 text-sm font-semibold text-ink"><Shuffle className="h-4 w-4 text-blue-400" /> Grupo sorteado: {p.contagem.controle} devedores ({p.percentual_controle}% da carteira)</p>
+        <p className="mt-1 text-xs text-ink-2">Seguem no processo normal, sem o agente. Comparar quanto entrou em cada grupo, por real de dívida, mostra o efeito do agente na carteira da própria empresa. O sorteio é fixo por devedor.</p>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        {Object.entries(GRUPO).map(([g, c]) => (
+          <section key={g} className="rounded-xl border border-line bg-surface p-4" style={{ borderLeft: `3px solid ${c.cor}` }}>
+            <div className="flex items-baseline justify-between gap-2">
+              <h2 className="text-sm font-semibold text-ink">{c.titulo}</h2>
+              <span className="text-lg font-bold tabular-nums text-ink">{p.contagem[g]}</span>
+            </div>
+            <p className="mt-0.5 text-xs text-ink-2">{c.nota}</p>
+            <ul className="mt-3 space-y-1.5">
+              {p.grupos[g].slice(0, 6).map(it => (
+                <li key={it.id} className="text-xs"><span className="font-medium text-ink">{it.nome}</span> <span className="text-ink-2">· {fmtBRL(it.valor_divida)} · {it.motivo}</span></li>
+              ))}
+              {p.grupos[g].length > 6 && <li className="text-xs text-ink-3">e mais {p.grupos[g].length - 6}</li>}
+            </ul>
+          </section>
+        ))}
+      </div>
+      <p className="text-xs text-ink-3">Limiares de chance (70% e 5%) são escolha de projeto para a demonstração; entram na política quando houver dado de um piloto.</p>
+    </div>
+  )
+}
+
 export default function Agente() {
   const { token, isComando } = useAuth()
   const [aba, setAba] = useState('conversa')
@@ -306,8 +361,8 @@ export default function Agente() {
             </select>
           )}
         </div>
-        <div className="flex gap-1.5" role="tablist">
-          {[['conversa', 'Conversa', Bot], ['central', 'Central de orquestração', Activity]].map(([k, l, I]) => (
+        <div className="flex flex-wrap gap-1.5" role="tablist">
+          {[['conversa', 'Conversa', Bot], ['plano', 'Plano do dia', CalendarDays], ['central', 'Central de orquestração', Activity]].map(([k, l, I]) => (
             <button key={k} role="tab" aria-selected={aba === k} onClick={() => setAba(k)}
               className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium ${aba === k ? 'border-blue-500/30 bg-blue-500/15 text-blue-300' : 'border-line bg-raise-1 text-ink-2 hover:text-ink'}`}>
               <I className="h-4 w-4" /> {l}
@@ -316,7 +371,7 @@ export default function Agente() {
         </div>
         {isComando && !alvo ? (
           <div className="rounded-xl border border-line bg-surface p-6 text-sm text-ink-2">Escolha a empresa.</div>
-        ) : aba === 'conversa' ? <Conversa empresa={empresa} /> : <Central empresa={empresa} />}
+        ) : aba === 'conversa' ? <Conversa empresa={empresa} /> : aba === 'plano' ? <Plano empresa={empresa} /> : <Central empresa={empresa} />}
       </div>
     </AppShell>
   )
