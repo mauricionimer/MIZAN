@@ -272,6 +272,12 @@ def _processar(repo, grafos, ev, cliente, agora, dono) -> dict:
         })
         return {"evento_id": ev["id"], "trace_id": trace_id, "ok": False,
                 "erro": type(e).__name__, "situacao_evento": "falhou" if final else "pendente"}
+    adiar = ctx.saida.get("adiar_para")
+    if adiar and resultado["ok"]:
+        # O grafo pediu para esperar (ex.: fora do horário de contato): volta
+        # para a fila sem contar como falha. A chave do evento continua a mesma.
+        repo.atualizar_evento(ev["id"], {"situacao": "pendente", "disponivel_em": adiar})
+        return {"evento_id": ev["id"], "trace_id": trace_id, "situacao_evento": "adiado", **resultado}
     repo.atualizar_evento(ev["id"], {"situacao": "feito", "erro": resultado["erro"],
                                      "concluido_em": agora})
     return {"evento_id": ev["id"], "trace_id": trace_id, "situacao_evento": "feito", **resultado}

@@ -1009,3 +1009,17 @@ export async function agenteCentral(empresaId) {
   const res = await fetch(`${BASE}/agente/central?${_qs({ empresa_id: empresaId })}`, { headers: { Authorization: `Bearer ${_getToken()}` } })
   return _jsonOuErroFila(res)
 }
+
+export async function agenteSimularPagamento(predicaoId, valor, empresaId) {
+  const res = await fetch(`${BASE}/agente/casos/${encodeURIComponent(predicaoId)}/pagamento`, {
+    method: 'POST', headers: _authHeader(_getToken()), body: JSON.stringify({ valor, empresa_id: empresaId || null }),
+  })
+  return _jsonOuErroFila(res)
+}
+
+export async function agenteRelogio(empresaId) {
+  const res = await fetch(`${BASE}/agente/relogio?${_qs({ empresa_id: empresaId })}`, {
+    method: 'POST', headers: _authHeader(_getToken()),
+  })
+  return _jsonOuErroFila(res)
+}

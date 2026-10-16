@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 
 from agente import auditor, llm, orquestrador as orq
 from agente.fonte import FonteSupabase
+from agente.acompanhamento import grafo_pagamento, grafo_vencimento, planejar
 from agente.grafos import grafo_mensagem
 from agente.repositorio import RepoSupabase
 
@@ -33,6 +34,11 @@ def _passo_publico(p: dict) -> dict:
     return {k: p.get(k) for k in ("no", "agente", "resultado", "duracao_ms", "regra", "versao_politica",
                                   "modelo", "versao_prompt", "tokens_entrada", "tokens_saida", "custo_usd",
                                   "detalhe", "criado_em")}
+
+
+def grafos(fonte) -> dict:
+    return {"mensagem_devedor": grafo_mensagem(fonte), "vencimento": grafo_vencimento(fonte),
+            "pagamento": grafo_pagamento(fonte)}
 
 
 def ver_caso(empresa_id: str, predicao_id: str, repo=None) -> dict:
@@ -70,7 +76,7 @@ def simular_mensagem(empresa_id: str, predicao_id: str, texto: str, agora: datet
     caso = repo.obter_ou_criar_caso(empresa_id, predicao_id)
     ev, _ = orq.registrar_evento(repo, empresa_id, caso["id"], "mensagem_devedor", f"tela:{uuid.uuid4().hex}",
                                  {"texto": texto}, origem="tela")
-    orq.processar_fila(repo, {"mensagem_devedor": grafo_mensagem(fonte)}, fabrica_cliente(), limite=5,
+    orq.processar_fila(repo, grafos(fonte), fabrica_cliente(), limite=5,
                        agora=agora or datetime.now(timezone.utc))
     r = ver_caso(empresa_id, predicao_id, repo)
     final = repo.evento_por_chave(empresa_id, ev["chave"]) or {}
@@ -108,3 +114,69 @@ def central(empresa_id: str, agora: datetime | None = None) -> dict:
 
 def passos(empresa_id: str, trace_id: str) -> list:
     return [_passo_publico(p) for p in fabrica_repo().passos_do_trace(empresa_id, trace_id)]
+
+
+def _exigir_ligado():
+    if not ligado():
+        raise AgenteDesligado("O agente está desligado (MIZAN_AGENTE_ATIVO).")
+
+
+def rodar_relogio(empresa_id: str, agora: datetime | None = None) -> dict:
+    """Relógio de datas de uma empresa e processamento da fila (também por botão, na demo)."""
+    _exigir_ligado()
+    agora = agora or datetime.now(timezone.utc)
+    repo, fonte = fabrica_repo(), fabrica_fonte()
+    criados = planejar(repo, fonte, empresa_id, agora)
+    feitos = orq.processar_fila(repo, grafos(fonte), fabrica_cliente(), limite=50, agora=agora)
+    return {"eventos_criados": len(criados), "processados": len(feitos)}
+
+
+def avisar_pagamento(empresa_id: str, predicao_id: str, valor: float, promessas: list,
+                     agora: datetime | None = None, processar: bool = False, origem: str = "banco") -> bool:
+    """Pagamento confirmado: põe o evento na fila do caso, se o devedor estiver com o agente."""
+    repo = fabrica_repo()
+    caso = repo.caso_de(empresa_id, predicao_id)
+    if caso is None:
+        return False
+    agora = agora or datetime.now(timezone.utc)
+    orq.registrar_evento(repo, empresa_id, caso["id"], "pagamento", f"pagamento:{uuid.uuid4().hex}",
+                         {"valor": valor, "data": agora.date().isoformat(), "promessas": promessas}, origem=origem)
+    if processar:
+        orq.processar_fila(repo, grafos(fabrica_fonte()), fabrica_cliente(), limite=5, agora=agora)
+    return True
+
+
+def simular_pagamento(empresa_id: str, predicao_id: str, valor: float, agora: datetime | None = None) -> dict:
+    """Demonstração: o botão faz o papel do banco confirmando um pagamento.
+
+    Não grava pagamento em feedbacks (isso continua com a baixa de verdade): só
+    cumpre a promessa na agenda, como a baixa faria, e avisa o agente.
+    """
+    _exigir_ligado()
+    if not valor or valor <= 0:
+        raise ValueError("Informe o valor pago.")
+    fonte = fabrica_fonte()
+    dev = fonte.devedor(empresa_id, predicao_id)
+    if dev is None:
+        raise LookupError("Devedor não encontrado nas carteiras da empresa.")
+    agora = agora or datetime.now(timezone.utc)
+    promessas = [a for a in fonte.agenda_pendente(empresa_id, dev["id"]) if a.get("tipo") == "promessa"]
+    for a in promessas:
+        fonte.atualizar_agenda(empresa_id, dev["id"], a["id"], {"situacao": "cumprida", "resolvido_em": agora.isoformat(),
+                                                                 "resolvido_por": "pagamento simulado (demonstração)"})
+    if not avisar_pagamento(empresa_id, predicao_id, float(valor),
+                            [{"id": a["id"], "valor": a.get("valor"), "data": str(a.get("data"))[:10]} for a in promessas],
+                            agora, processar=True, origem="tela"):
+        raise LookupError("Este devedor ainda não tem conversa com o agente.")
+    return ver_caso(empresa_id, predicao_id)
+
+
+def ciclo_agendado(agora: datetime | None = None) -> dict:
+    """O que o agendador do servidor roda: relógio de cada empresa com política e a fila."""
+    if not ligado():
+        return {"ligado": False}
+    agora = agora or datetime.now(timezone.utc)
+    repo, fonte = fabrica_repo(), fabrica_fonte()
+    criados = sum(len(planejar(repo, fonte, e, agora)) for e in repo.empresas_com_politica())
+    feitos = orq.processar_fila(repo, grafos(fonte), fabrica_cliente(), limite=50, agora=agora)
+    return {"ligado": True, "eventos_criados": criados, "processados": len(feitos)}

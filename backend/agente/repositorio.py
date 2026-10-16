@@ -88,7 +88,8 @@ class RepoMemoria:
                     raise EventoDuplicado(evento["chave"])
             e = {"id": str(uuid.uuid4()), "situacao": "pendente", "tentativas": 0, "erro": None,
                  "trace_id": None, "concluido_em": None, "criado_em": agora_utc(),
-                 "disponivel_em": agora_utc(), **copy.deepcopy(evento)}
+                 # Sem data, pronto já: os testes rodam com relógio fixo no passado.
+                 "disponivel_em": datetime(2000, 1, 1, tzinfo=timezone.utc), **copy.deepcopy(evento)}
             self.eventos[e["id"]] = e
             return copy.deepcopy(e)
 
@@ -119,10 +120,10 @@ class RepoMemoria:
 
     # ── mensagens ──
     def gravar_mensagem(self, empresa_id: str, caso_id: str, direcao: str, texto: str,
-                        trace_id: str | None = None) -> None:
+                        trace_id: str | None = None, criado_em: datetime | None = None) -> None:
         with self._lock:
             self.mensagens.append({"empresa_id": empresa_id, "caso_id": caso_id, "direcao": direcao,
-                                   "texto": texto, "trace_id": trace_id, "criado_em": agora_utc()})
+                                   "texto": texto, "trace_id": trace_id, "criado_em": criado_em or agora_utc()})
 
     def ultimas_mensagens(self, empresa_id: str, caso_id: str, n: int = 20) -> list:
         ms = [copy.deepcopy(m) for m in self.mensagens if m["empresa_id"] == empresa_id and m["caso_id"] == caso_id]
@@ -145,6 +146,13 @@ class RepoMemoria:
 
     def situacoes_dos_casos(self, empresa_id: str) -> list:
         return [c["situacao"] for c in self.casos.values() if c["empresa_id"] == empresa_id]
+
+    def casos_da_empresa(self, empresa_id: str, situacoes=None) -> list:
+        return [copy.deepcopy(c) for c in self.casos.values() if c["empresa_id"] == empresa_id
+                and (situacoes is None or c["situacao"] in situacoes)]
+
+    def empresas_com_politica(self) -> list:
+        return sorted({p["empresa_id"] for p in self.politicas if p["ativa"]})
 
     # ── política ──
     def gravar_politica(self, empresa_id: str, versao: int, regras: dict, ativa: bool = True) -> None:
@@ -271,10 +279,12 @@ class RepoSupabase:
     # Retenção: apagar_em fica nulo por enquanto; a regra entra com o
     # model/retencao.py quando houver piloto (docs/PLANO_EXECUCAO_AGENTES.md, 7).
     def gravar_mensagem(self, empresa_id: str, caso_id: str, direcao: str, texto: str,
-                        trace_id: str | None = None) -> None:
-        self.db.table("agente_mensagens").insert({"empresa_id": empresa_id, "caso_id": caso_id,
-                                                  "direcao": direcao, "texto": texto,
-                                                  "trace_id": trace_id}).execute()
+                        trace_id: str | None = None, criado_em: datetime | None = None) -> None:
+        linha = {"empresa_id": empresa_id, "caso_id": caso_id, "direcao": direcao, "texto": texto,
+                 "trace_id": trace_id}
+        if criado_em is not None:
+            linha["criado_em"] = criado_em.isoformat()
+        self.db.table("agente_mensagens").insert(linha).execute()
 
     def ultimas_mensagens(self, empresa_id: str, caso_id: str, n: int = 20) -> list:
         res = (self.db.table("agente_mensagens").select("direcao, texto, criado_em")
@@ -303,6 +313,16 @@ class RepoSupabase:
         res = (self.db.table("agente_casos").select("situacao").eq("empresa_id", empresa_id)
                .limit(5000).execute())
         return [c["situacao"] for c in res.data or []]
+
+    def casos_da_empresa(self, empresa_id: str, situacoes=None) -> list:
+        q = self.db.table("agente_casos").select("*").eq("empresa_id", empresa_id)
+        if situacoes is not None:
+            q = q.in_("situacao", list(situacoes))
+        return [self._caso(c) for c in (q.limit(5000).execute().data or [])]
+
+    def empresas_com_politica(self) -> list:
+        res = self.db.table("agente_politicas").select("empresa_id").eq("ativa", True).limit(1000).execute()
+        return sorted({p["empresa_id"] for p in res.data or []})
 
     # ── política ──
     def politica_ativa(self, empresa_id: str) -> dict | None:

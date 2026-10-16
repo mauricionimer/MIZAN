@@ -104,7 +104,8 @@ def _briefing(ctx, devedor_nome: str) -> str:
          "identidade_confirmada": bool(d.get("identidade_ok")),
          "intencao_da_mensagem": (ctx.saida.get("triagem") or {}).get("intencao"),
          "acordo_vigente": d.get("acordo"),
-         "objetivo": ctx.saida.get("objetivo") or "entender a situação e chegar a um acordo que caiba no bolso"}
+         "objetivo": ctx.saida.get("objetivo") or d.get("objetivo")
+                     or "entender a situação e chegar a um acordo que caiba no bolso"}
     return "<briefing>" + json.dumps(b, ensure_ascii=False) + "</briefing>"
 
 

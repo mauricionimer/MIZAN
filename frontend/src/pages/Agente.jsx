@@ -2,11 +2,11 @@
 // orquestração. Na demonstração, quem está na tela escreve como o devedor.
 // Regras em backend/agente/ (docs/PLANO_EXECUCAO_AGENTES.md).
 import { useEffect, useRef, useState } from 'react'
-import { Bot, Send, Search, Loader2, Activity, ShieldCheck, AlertTriangle, Power, UserRound, Coins, ListChecks } from 'lucide-react'
+import { Bot, Send, Search, Loader2, Activity, ShieldCheck, AlertTriangle, Power, UserRound, Coins, ListChecks, Landmark, Clock } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import ErroCarga from '../components/ErroCarga'
 import { useAuth } from '../context/AuthContext'
-import { agenteDevedores, agenteCaso, agenteSimularMensagem, agenteCentral, listarEmpresas } from '../api'
+import { agenteDevedores, agenteCaso, agenteSimularMensagem, agenteSimularPagamento, agenteCentral, agenteRelogio, listarEmpresas } from '../api'
 
 const fmtBRL = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0)
 const fmtUSD = (v) => `US$ ${Number(v || 0).toFixed(4)}`
@@ -22,7 +22,7 @@ const COR_SIT = {
   acordo_ativo: 'var(--success)', quitado: 'var(--success)', contestado: 'var(--warning)', suspenso: 'var(--warning)',
   com_pessoa: 'var(--warning)', atrasado: 'var(--danger)', quebrado: 'var(--danger)',
 }
-const EVENTO = { mensagem_devedor: 'Mensagem do devedor', pagamento: 'Pagamento', vencimento: 'Vencimento',
+const EVENTO = { mensagem_devedor: 'Mensagem do devedor', pagamento: 'Pagamento', vencimento: 'Data (relógio)',
   relogio: 'Relógio', contestacao: 'Contestação', pedido_parar: 'Pedido para parar' }
 const SIT_EVENTO = { pendente: 'Na fila', processando: 'Em andamento', feito: 'Feito', falhou: 'Falhou' }
 const COR_RES = { ok: 'var(--success)', bloqueado: 'var(--warning)', erro: 'var(--danger)' }
@@ -30,6 +30,8 @@ const NOME_NO = {
   receber: 'Recebeu a mensagem', triagem: 'Triagem: entendeu a intenção', negociar: 'Negociador', enviar: 'Enviou a resposta',
   auditor: 'Auditor', guardrails: 'Travas do texto', resposta_fixa: 'Resposta fixa (sem IA)', suspender: 'Suspendeu a cobrança',
   contestar: 'Abriu contestação', transferir: 'Passou para uma pessoa', avisar_equipe: 'Avisou a equipe', erro: 'Nó de erro',
+  conferir: 'Acompanhamento: conferiu a data', decisao: 'Decisão do Acompanhamento', lembrar: 'Lembrete (mensagem pronta)',
+  cobrar_atraso: 'Procurou pelo atraso', encerrar: 'Sem resposta: passou para uma pessoa', registrar: 'Pagamento registrado',
 }
 const nomeNo = (n) => NOME_NO[n] || (n?.startsWith('ferramenta:') ? `Ferramenta: ${n.slice(11).replaceAll('_', ' ')}` : n)
 
@@ -70,7 +72,17 @@ function Conversa({ empresa }) {
   const [texto, setTexto] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState(null)
+  const [valorPago, setValorPago] = useState('')
   const fim = useRef(null)
+
+  async function pagar(e) {
+    e.preventDefault()
+    const v = Number(String(valorPago).replace(/\./g, '').replace(',', '.'))
+    if (!v || enviando) return
+    setEnviando(true); setErro(null)
+    try { setDados(await agenteSimularPagamento(escolhido.id, v, empresa)); setValorPago('') }
+    catch (err) { setErro(err) } finally { setEnviando(false) }
+  }
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -147,6 +159,14 @@ function Conversa({ empresa }) {
               <div ref={fim} />
             </div>
             <ErroCarga erro={erro} compacto className="mx-4 mb-2" />
+            {dados?.caso && (
+              <form onSubmit={pagar} className="flex flex-wrap items-center gap-2 border-t border-line px-3 pt-3 text-xs text-ink-2">
+                <Landmark className="h-4 w-4" /> Simular o banco confirmando um pagamento de R$
+                <input value={valorPago} onChange={e => setValorPago(e.target.value)} inputMode="decimal" placeholder="270,00" aria-label="Valor pago"
+                  className="w-24 rounded-md border border-line bg-surface-2 px-2 py-1 text-sm text-ink focus:outline-none" />
+                <button type="submit" disabled={enviando || !valorPago} className="rounded-md border border-line bg-raise-1 px-2.5 py-1 font-medium text-ink hover:bg-raise-2 disabled:opacity-50">Confirmar pagamento</button>
+              </form>
+            )}
             <form onSubmit={enviar} className="flex gap-2 border-t border-line p-3">
               <input value={texto} onChange={e => setTexto(e.target.value)} maxLength={2000} disabled={enviando}
                 placeholder="Escreva como o devedor…" aria-label="Mensagem do devedor"
@@ -187,6 +207,8 @@ function Central({ empresa }) {
   const [c, setC] = useState(null)
   const [erro, setErro] = useState(null)
   const [carregando, setCarregando] = useState(true)
+  const [rodando, setRodando] = useState(false)
+  const [avisoRelogio, setAvisoRelogio] = useState('')
   function carregar() {
     setCarregando(true); setErro(null)
     return agenteCentral(empresa).then(setC).catch(setErro).finally(() => setCarregando(false))
@@ -195,8 +217,19 @@ function Central({ empresa }) {
   if (carregando && !c) return <div className="flex items-center gap-2 py-10 text-sm text-ink-2"><Loader2 className="h-4 w-4 animate-spin" /> Carregando…</div>
   if (!c) return <ErroCarga erro={erro} onTentar={carregar} />
   const ev = c.eventos || {}
+  async function relogio() {
+    setRodando(true); setErro(null)
+    try { const r = await agenteRelogio(empresa); setAvisoRelogio(`${r.eventos_criados} evento(s) de data criados, ${r.processados} processado(s).`); await carregar() }
+    catch (e) { setErro(e) } finally { setRodando(false) }
+  }
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <button onClick={relogio} disabled={rodando} className="flex items-center gap-1.5 rounded-md border border-line bg-raise-1 px-3 py-1.5 text-sm font-medium text-ink hover:bg-raise-2 disabled:opacity-50">
+          {rodando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock className="h-4 w-4" />} Rodar o relógio agora
+        </button>
+        <span className="text-xs text-ink-2">{avisoRelogio || 'O servidor roda sozinho a cada 10 minutos: lembretes, atrasos e pagamentos.'}</span>
+      </div>
       <ErroCarga erro={erro} onTentar={carregar} />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Cartao icone={Power} rotulo="Agente" valor={c.ligado ? 'Ligado' : 'Desligado'} cor={c.ligado ? 'var(--success)' : 'var(--ink-3)'}
@@ -236,7 +269,7 @@ function Central({ empresa }) {
           <ul className="divide-y divide-line text-xs">
             {c.recentes.map((e, i) => (
               <li key={i} className="flex flex-wrap gap-x-3 py-1.5 text-ink-2">
-                <span className="w-40 text-ink">{EVENTO[e.tipo] || e.tipo}</span><span className="w-24">{SIT_EVENTO[e.situacao] || e.situacao}</span><span>{e.origem === 'tela' ? 'demonstração' : e.origem}</span>
+                <span className="w-40 text-ink">{EVENTO[e.tipo] || e.tipo}</span><span className="w-24">{SIT_EVENTO[e.situacao] || e.situacao}</span><span>{e.origem === 'tela' ? 'demonstração' : e.origem === 'relogio' ? 'relógio' : e.origem}</span>
                 {e.erro && <span style={{ color: 'var(--warning)' }}>{e.erro}</span>}
                 <span className="ml-auto tabular-nums">{fmtHora(e.criado_em)}</span>
               </li>

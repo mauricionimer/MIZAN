@@ -24,7 +24,8 @@ def grafo_mensagem(fonte) -> Grafo:
         ctx.saida["texto"] = texto
         if ctx.caso["situacao"] == "novo":
             ctx.mudar_situacao("em_contato")          # o devedor escreveu: a conversa começou
-        ctx.repo.gravar_mensagem(ctx.caso["empresa_id"], ctx.caso["id"], "entrada", texto, ctx.rastreio.trace_id)
+        ctx.repo.gravar_mensagem(ctx.caso["empresa_id"], ctx.caso["id"], "entrada", texto, ctx.rastreio.trace_id,
+                             criado_em=ctx.agora)
 
     def depois_de_receber(ctx):
         s = ctx.caso["situacao"]
@@ -74,7 +75,8 @@ def grafo_mensagem(fonte) -> Grafo:
             nome = ferramentas._primeiro_nome(dev.get("nome"))
             texto = (f"Olá{', ' + nome if nome else ''}! Aqui é o assistente virtual de "
                      f"{fonte.nome_empresa(ctx.caso['empresa_id'])}. " + texto)
-        ctx.repo.gravar_mensagem(ctx.caso["empresa_id"], ctx.caso["id"], "saida", texto, ctx.rastreio.trace_id)
+        ctx.repo.gravar_mensagem(ctx.caso["empresa_id"], ctx.caso["id"], "saida", texto, ctx.rastreio.trace_id,
+                             criado_em=ctx.agora)
         ctx.saida["enviada"] = texto
 
     def avisar_equipe(ctx):

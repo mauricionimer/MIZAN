@@ -193,6 +193,14 @@ async def lifespan(app: FastAPI):
         id="auto_sync_conexoes",
         replace_existing=True,
     )
+    # Agentes: relógio de datas e fila de eventos. Só age com MIZAN_AGENTE_ATIVO=1.
+    from agente.api import ciclo_agendado as _ciclo_agente
+    _scheduler.add_job(
+        _ciclo_agente,
+        IntervalTrigger(minutes=int(os.getenv("MIZAN_AGENTE_CICLO_MIN", 10))),
+        id="agente_ciclo",
+        replace_existing=True,
+    )
     _scheduler.start()
 
     garantir_admin()
@@ -1973,13 +1981,25 @@ def _criar_item_agenda(db, payload: dict, cpf: str, dados: "AgendaBase", contato
     return _com_nivel(dict(res.data[0]), hoje())
 
 
-def _cumprir_promessas(db, empresa_id: "str | None", cpf: str, quem: str = "pagamento confirmado") -> None:
+def _cumprir_promessas(db, empresa_id: "str | None", cpf: str, quem: str = "pagamento confirmado",
+                       valor: "float | None" = None) -> None:
     """Pagamento confirmado cumpre as promessas pendentes do devedor sozinho.
 
     Nunca derruba a baixa do pagamento: sem a tabela, ou com erro, só avisa no log.
+    Com o agente ligado, avisa o Acompanhamento (agradece, fecha o acordo à
+    vista, aponta o que falta num pagamento parcial).
     """
     if not empresa_id or not cpf:
         return
+    pendentes = []
+    try:
+        from agente import api as agente_api
+        if agente_api.ligado():
+            pendentes = (db.table("agenda").select("id, valor, data, predicao_id")
+                         .eq("empresa_id", empresa_id).eq("cpf", str(cpf)).eq("tipo", "promessa")
+                         .eq("situacao", "pendente").execute()).data or []
+    except Exception as e:
+        print(f"[Agente] promessas não lidas para o aviso: {type(e).__name__}")
     try:
         (db.table("agenda").update({"situacao": "cumprida", "resolvido_em": datetime.utcnow().isoformat(),
                                     "resolvido_por": quem})
@@ -1987,6 +2007,23 @@ def _cumprir_promessas(db, empresa_id: "str | None", cpf: str, quem: str = "paga
          .eq("situacao", "pendente").execute())
     except Exception as e:
         print(f"[Agenda] promessas de {str(cpf)[:3]}*** não marcadas: {type(e).__name__}")
+    _avisar_agente_pagamento(db, empresa_id, cpf, valor, pendentes)
+
+
+def _avisar_agente_pagamento(db, empresa_id: str, cpf: str, valor, pendentes: list) -> None:
+    """Põe o pagamento na fila do agente, se o devedor tem caso com ele. Nunca derruba a baixa."""
+    try:
+        from agente import api as agente_api
+        if not agente_api.ligado():
+            return
+        pred = _predicao_do_cpf(db, cpf, empresa_id, colunas="id")
+        if not pred:
+            return
+        promessas = [{"id": a["id"], "valor": a.get("valor"), "data": str(a.get("data"))[:10]}
+                     for a in pendentes if a.get("predicao_id") in (None, pred["id"])]
+        agente_api.avisar_pagamento(empresa_id, pred["id"], float(valor or 0), promessas)
+    except Exception as e:
+        print(f"[Agente] pagamento não avisado: {type(e).__name__}")
 
 
 @app.post("/agenda")
@@ -5505,7 +5542,7 @@ def receber_feedback(
         empresa_nome,
     )
     if payload.pagou:
-        _cumprir_promessas(db, empresa_nome, payload.cpf)
+        _cumprir_promessas(db, empresa_nome, payload.cpf, "pagamento confirmado", payload.valor_recuperado)
         if (payload.parcelas or 1) > 1:
             _abrir_acordo(db, empresa_nome, payload.cpf, feedback_id, pred_dict, payload.parcelas,
                           float(payload.valor_recuperado or 0), payload.data_pagamento, usuario_nome)
@@ -5639,7 +5676,7 @@ def confirmar_pagamento(
             )
         except Exception as _be:
             print(f"[Confirmar] Aviso — _fechar_loop_bandit falhou (não crítico): {_be}")
-        _cumprir_promessas(db, empresa_fb, cpf)
+        _cumprir_promessas(db, empresa_fb, cpf, "pagamento confirmado", body.valor_recuperado)
 
         # Write-back para banco externo da empresa (non-blocking, 8s timeout)
         writeback_info = None
@@ -5759,7 +5796,7 @@ def webhook_pagamento(body: WebhookPagamentoIn, request: Request):
         empresa,
     )
     if body.pagou:
-        _cumprir_promessas(db, empresa, body.cpf)
+        _cumprir_promessas(db, empresa, body.cpf, "pagamento confirmado", body.valor_recuperado)
 
     _cache_del_prefix(f"fb_status:{empresa}")
     _cache_del_prefix(f"pagamentos:{empresa}")
@@ -5903,7 +5940,7 @@ async def feedback_lote(
                     empresa,
                 )
                 if pagou:
-                    _cumprir_promessas(db, empresa, cpf)
+                    _cumprir_promessas(db, empresa, cpf, "pagamento confirmado", valor_recuperado)
 
                 detalhes.append({"linha": linha, "cpf": cpf, "ok": True, "feedback_id": feedback_id})
                 n_ok += 1
@@ -8249,6 +8286,44 @@ def agente_simular_mensagem(predicao_id: str, body: AgenteMensagemIn,
         raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
+
+
+class AgentePagamentoIn(BaseModel):
+    valor: float = Field(..., gt=0, le=100_000_000)
+    empresa_id: Optional[str] = None
+
+
+@app.post("/agente/casos/{predicao_id}/pagamento")
+def agente_simular_pagamento(predicao_id: str, body: AgentePagamentoIn,
+                             credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Demonstração: faz o papel do banco confirmando um pagamento."""
+    from agente import api as agente_api
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") not in ("admin", "comando"):
+        raise HTTPException(status_code=403, detail="Só administradores simulam pagamentos.")
+    emp = _empresa_do_agente(payload, body.empresa_id)
+    try:
+        return agente_api.simular_pagamento(emp, predicao_id, body.valor)
+    except agente_api.AgenteDesligado as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+
+@app.post("/agente/relogio")
+def agente_relogio(empresa_id: Optional[str] = None,
+                   credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Roda agora o relógio de datas da empresa (o agendador roda sozinho a cada poucos minutos)."""
+    from agente import api as agente_api
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") not in ("admin", "comando"):
+        raise HTTPException(status_code=403, detail="Acesso negado.")
+    try:
+        return agente_api.rodar_relogio(_empresa_do_agente(payload, empresa_id))
+    except agente_api.AgenteDesligado as e:
+        raise HTTPException(status_code=409, detail=str(e))
 
 
 @app.get("/agente/central")

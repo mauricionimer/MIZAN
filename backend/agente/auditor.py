@@ -29,6 +29,9 @@ POLITICA_DEMONSTRACAO = {
     "contatos_semana_max": 3,
     "prazo_max_dias": 30,             # data de promessa ou retorno até 30 dias à frente
     "remarcacoes_max": 2,             # vezes que o agente pode remarcar um compromisso
+    "prazo_confirmacao_dias": 2,      # dias úteis que o banco leva para confirmar um pagamento
+    "dias_sem_resposta": 3,           # dias úteis de espera da resposta depois de cobrar o atraso
+    "percentual_controle": 10,        # parte da carteira sorteada que segue sem o agente
 }
 
 # Horário de Brasília. Sem horário de verão desde 2019; fuso fixo evita
@@ -45,6 +48,9 @@ _LIMITES = {                          # campo: (mínimo, máximo)
     "contatos_semana_max": (0, 50),
     "prazo_max_dias": (1, 180),
     "remarcacoes_max": (0, 10),
+    "prazo_confirmacao_dias": (0, 15),
+    "dias_sem_resposta": (1, 30),
+    "percentual_controle": (0, 50),
 }
 
 # "Já paguei" também é segurança: suspende a cobrança enquanto o banco confere.
