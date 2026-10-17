@@ -1046,6 +1046,18 @@ export async function agenteSalvarPolitica(regras, empresaId) {
   return _jsonOuErroFila(res)
 }
 
+export async function agenteAgenda(empresaId) {
+  const res = await fetch(`${BASE}/agente/agenda?${_qs({ empresa_id: empresaId })}`, { headers: _authHeader(_getToken()) })
+  return _jsonOuErroFila(res)
+}
+
+export async function agenteAtribuir(itemId, operadorId, empresaId) {
+  const res = await fetch(`${BASE}/agente/agenda/${encodeURIComponent(itemId)}/atribuir`, {
+    method: 'POST', headers: _authHeader(_getToken()), body: JSON.stringify({ operador_id: operadorId, empresa_id: empresaId || null }),
+  })
+  return _jsonOuErroFila(res)
+}
+
 export async function agenteControle(predicaoId, acao, empresaId) {
   const res = await fetch(`${BASE}/agente/casos/${encodeURIComponent(predicaoId)}/controle`, {
     method: 'POST', headers: _authHeader(_getToken()), body: JSON.stringify({ acao, empresa_id: empresaId || null }),

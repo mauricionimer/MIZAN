@@ -2123,6 +2123,12 @@ def agenda_da_equipe(empresa_id: Optional[str] = None,
     saida = [{"id": u["id"], "nome": u.get("nome") or u.get("email"),
               **contar_niveis(por_op.get(u["id"], []), ref), "total": len(por_op.get(u["id"], []))} for u in ops]
     saida.sort(key=lambda o: (-o["alto"], -o["medio"], o["nome"] or ""))
+    # O que está com o agente (retornos dele, atendimentos esperando o
+    # administrador escolher quem atende) também aparece, em vez de sumir.
+    from agente.fonte import OPERADOR_AGENTE, OPERADOR_A_DEFINIR, NOME_AGENTE, NOME_A_DEFINIR
+    for oid, nome in ((OPERADOR_A_DEFINIR, NOME_A_DEFINIR), (OPERADOR_AGENTE, NOME_AGENTE)):
+        if por_op.get(oid):
+            saida.append({"id": oid, "nome": nome, **contar_niveis(por_op[oid], ref), "total": len(por_op[oid])})
     return {"ativo": True, "operadores": saida}
 
 
@@ -8385,6 +8391,39 @@ def agente_salvar_politica(body: AgentePoliticaIn, credentials: HTTPAuthorizatio
     _registrar_auditoria(acao="politica_agente_alterada", entidade="empresa", entidade_id=emp,
                          usuario_email=payload.get("email"), empresa_id=emp,
                          detalhes={"versao": r["versao"], "regras": r["regras"]}, usuario_id=payload.get("sub"))
+    return r
+
+
+class AgenteAtribuirIn(BaseModel):
+    operador_id: str = Field(..., min_length=1, max_length=80)
+    empresa_id: Optional[str] = None
+
+
+@app.get("/agente/agenda")
+def agente_agenda(empresa_id: Optional[str] = None, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Compromissos marcados pelos agentes (retornos, atendimentos, conferências)."""
+    from agente import api as agente_api
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") not in ("admin", "comando"):
+        raise HTTPException(status_code=403, detail="Acesso negado.")
+    return agente_api.agenda(_empresa_do_agente(payload, empresa_id))
+
+
+@app.post("/agente/agenda/{item_id}/atribuir")
+def agente_atribuir(item_id: str, body: AgenteAtribuirIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """O administrador escolhe o operador que atende um compromisso marcado pelo agente."""
+    from agente import api as agente_api
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Só o administrador escolhe quem atende.")
+    emp = _empresa_do_agente(payload, body.empresa_id)
+    try:
+        r = agente_api.atribuir(emp, item_id, body.operador_id)
+    except LookupError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    _registrar_auditoria(acao="agenda_atribuida", entidade="agenda", entidade_id=item_id,
+                         usuario_email=payload.get("email"), empresa_id=emp, usuario_id=payload.get("sub"),
+                         detalhes={"operador_id": r["operador"]["id"]})
     return r
 
 

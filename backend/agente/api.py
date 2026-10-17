@@ -36,10 +36,68 @@ def ligado() -> bool:
     return os.getenv("MIZAN_AGENTE_ATIVO", "").strip() == "1"
 
 
+# Quem fez cada passo, em português, para a tela mostrar os vários agentes.
+QUEM = {"triagem": "Triagem", "negociador": "Negociador", "auditor": "Auditor", "ferramenta": "Ferramenta",
+        "codigo": "Travas", "orquestrador": "Orquestrador", "estrategista": "Estrategista",
+        "acompanhamento": "Acompanhamento", "pessoa": "Equipe"}
+_INTENCAO = {"pagar_negociar": "quer negociar", "ja_paguei": "diz que já pagou", "contestar": "contesta a dívida",
+             "parar_contato": "pede para parar", "pessoa_errada": "pessoa errada", "pedir_pessoa": "pede uma pessoa",
+             "duvida": "tem uma dúvida", "outro": "conversa"}
+
+
+def _quem(p: dict) -> str:
+    no = p.get("no") or ""
+    if no.startswith("ferramenta:"):
+        return "Ferramenta"
+    if no in ("triagem", "negociar", "guardrails", "auditor"):
+        return {"negociar": "Negociador", "guardrails": "Travas"}.get(no, QUEM.get(no, no))
+    return QUEM.get(p.get("agente") or "", "Orquestrador")
+
+
+def _explicar(p: dict) -> str:
+    """Uma frase do que o passo fez. Só código e classificação: nunca o texto do devedor."""
+    no, d = p.get("no") or "", p.get("detalhe") or {}
+    if no == "triagem":
+        txt = f"leu a mensagem: {_INTENCAO.get(d.get('intencao'), d.get('intencao') or '?')}"
+        if d.get("sinais"):
+            txt += " · alerta: " + ", ".join(s.replace("_", " ") for s in d["sinais"])
+        return txt + (" (regra, sem IA)" if d.get("origem") == "regra" else "")
+    if no == "auditor":
+        acao = str(d.get("acao") or "").replace("_", " ")
+        if d.get("permitida"):
+            return f"aprovou: {acao}"
+        return f"bloqueou: {acao} — {d.get('motivo') or p.get('regra')}"
+    if no == "guardrails":
+        return "barrou a resposta e pediu outra" if d.get("reprovado") else "conferiu valores, leis e tom"
+    if no.startswith("ferramenta:"):
+        nome = no.split(":", 1)[1].replace("_", " ")
+        return f"{nome}: {'feito' if d.get('ok') else 'não feito'}"
+    if no == "negociar":
+        return "escreveu a resposta" if p.get("resultado") == "ok" else f"falhou ({d.get('erro') or p.get('resultado')})"
+    return {"receber": "recebeu o evento", "enviar": "enviou a mensagem", "transferir": "passou para a equipe",
+            "resposta_fixa": "mandou a resposta padrão", "avisar_equipe": "avisou a equipe (caso com pessoa)",
+            "abordar": "mandou a primeira mensagem"}.get(no, no.replace("_", " "))
+
+
 def _passo_publico(p: dict) -> dict:
-    return {k: p.get(k) for k in ("no", "agente", "resultado", "duracao_ms", "regra", "versao_politica",
-                                  "modelo", "versao_prompt", "tokens_entrada", "tokens_saida", "custo_usd",
-                                  "detalhe", "criado_em")}
+    saida = {k: p.get(k) for k in ("no", "agente", "resultado", "duracao_ms", "regra", "versao_politica",
+                                   "modelo", "versao_prompt", "tokens_entrada", "tokens_saida", "custo_usd",
+                                   "detalhe", "criado_em")}
+    saida["quem"], saida["explicacao"] = _quem(p), _explicar(p)
+    return saida
+
+
+def _por_que_calou(passos: list) -> str:
+    """A última rodada não mandou mensagem: o motivo, em uma frase."""
+    for p in passos:
+        if p.get("no") == "auditor" and not (p.get("detalhe") or {}).get("permitida", True):
+            return f"O Auditor bloqueou ({p.get('regra')}): {(p.get('detalhe') or {}).get('motivo') or 'fora da política'}."
+    for p in passos:
+        if p.get("resultado") == "erro":
+            return f"Falha em {_quem(p)} ({(p.get('detalhe') or {}).get('erro') or 'erro'}): o evento será tentado de novo."
+    if any(p.get("no") == "avisar_equipe" for p in passos):
+        return "O caso está com uma pessoa da equipe: o agente não responde."
+    return "O agente não mandou mensagem nesta rodada."
 
 
 def grafos(fonte) -> dict:
@@ -53,7 +111,11 @@ def ver_caso(empresa_id: str, predicao_id: str, repo=None) -> dict:
     if caso is None:
         return {"caso": None, "mensagens": [], "passos": []}
     msgs = repo.ultimas_mensagens(empresa_id, caso["id"], 50)
-    ultimo_trace = next((m.get("trace_id") for m in reversed(msgs) if m.get("trace_id")), None)
+    # A última rodada do caso, mesmo que não tenha virado mensagem (bloqueio,
+    # falha): é aí que a tela precisa explicar por que o agente ficou calado.
+    ev = next((e for e in repo.eventos_recentes(empresa_id, 300) if e.get("caso_id") == caso["id"] and e.get("trace_id")),
+              None)
+    ultimo_trace = (ev or {}).get("trace_id") or next((m.get("trace_id") for m in reversed(msgs) if m.get("trace_id")), None)
     passos = repo.passos_do_trace(empresa_id, ultimo_trace) if ultimo_trace else []
     d = caso.get("dados") or {}
     return {
@@ -64,6 +126,10 @@ def ver_caso(empresa_id: str, predicao_id: str, repo=None) -> dict:
                        "trace_id": m.get("trace_id")} for m in msgs],
         "trace_id": ultimo_trace,
         "passos": [_passo_publico(p) for p in passos],
+        # Rodada sem mensagem de saída: a tela explica o silêncio.
+        "silencio": (_por_que_calou(passos) if passos and not any(
+            m.get("trace_id") == ultimo_trace and m["direcao"] == "saida" for m in msgs) else None),
+        "atendimento": d.get("atendimento"),
     }
 
 
@@ -116,6 +182,45 @@ def central(empresa_id: str, agora: datetime | None = None) -> dict:
                      for e in eventos[:20]],
         "casos": dict(Counter(repo.situacoes_dos_casos(empresa_id))),
     }
+
+
+def agenda(empresa_id: str) -> dict:
+    """Compromissos pendentes dos devedores que estão com o agente, e os
+    operadores para o administrador atribuir atendimentos."""
+    from agente.fonte import OPERADORES_DO_AGENTE, OPERADOR_A_DEFINIR
+    repo, fonte = fabrica_repo(), fabrica_fonte()
+    casos = {c["predicao_id"]: c for c in repo.casos_da_empresa(empresa_id)}
+    itens = []
+    for a in fonte.agenda_dos_casos(empresa_id, list(casos)):
+        c = casos.get(a.get("predicao_id")) or {}
+        obs = a.get("observacao") or ""
+        tipo = ("atendimento" if obs.startswith("Atendimento com pessoa") else
+                "transferencia" if obs.startswith("Transferido") else
+                "conferencia" if "conferir" in obs.lower() else a.get("tipo"))
+        itens.append({"id": a["id"], "predicao_id": a.get("predicao_id"), "nome": a.get("nome"),
+                      "tipo": tipo, "data": a.get("data"), "hora": a.get("hora"), "valor": a.get("valor"),
+                      "observacao": obs, "operador_id": a.get("operador_id"), "operador_nome": a.get("operador_nome"),
+                      "a_definir": a.get("operador_id") == OPERADOR_A_DEFINIR,
+                      "do_agente": a.get("operador_id") in OPERADORES_DO_AGENTE,
+                      "situacao_caso": c.get("situacao")})
+    itens.sort(key=lambda i: (str(i["data"] or ""), i["hora"] or "99:99"))
+    return {"itens": itens, "operadores": fonte.operadores(empresa_id)}
+
+
+def atribuir(empresa_id: str, item_id: str, operador_id: str) -> dict:
+    """O administrador escolhe quem atende um compromisso que está com o agente."""
+    from agente.fonte import OPERADORES_DO_AGENTE
+    fonte = fabrica_fonte()
+    op = next((o for o in fonte.operadores(empresa_id) if o["id"] == operador_id), None)
+    if op is None:
+        raise LookupError("Operador não encontrado ou inativo nesta empresa.")
+    item = next((a for a in agenda(empresa_id)["itens"] if a["id"] == item_id), None)
+    if item is None or item["operador_id"] not in OPERADORES_DO_AGENTE:
+        raise LookupError("Compromisso não encontrado, já atribuído ou já resolvido.")
+    novo = fonte.atribuir_agenda(empresa_id, item_id, op["id"], op["nome"])
+    if not novo:
+        raise LookupError("Compromisso não encontrado, já atribuído ou já resolvido.")
+    return {"ok": True, "item_id": item_id, "operador": op}
 
 
 def passos(empresa_id: str, trace_id: str) -> list:

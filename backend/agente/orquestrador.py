@@ -127,7 +127,7 @@ class Contexto:
             d = auditor.auditar(acao, self.caso, regras, versao, self.agora,
                                 contatos_7d=contatos_7d, simulacao=simulacao)
             p["regra"], p["versao_politica"] = d["regra"], d["versao_politica"]
-            p["detalhe"] = {"acao": (acao or {}).get("tipo"), "permitida": d["permitida"]}
+            p["detalhe"] = {"acao": (acao or {}).get("tipo"), "permitida": d["permitida"], "motivo": d.get("motivo")}
             if not d["permitida"]:
                 p["resultado"] = "bloqueado"
         self.caso["versao_politica"] = versao

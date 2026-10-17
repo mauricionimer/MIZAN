@@ -133,7 +133,42 @@ def permitidos_de(resultados: list) -> dict:
             "extensos": extensos}
 
 
-def conferir(texto: str, permitidos: dict) -> list:
+# Ações que o texto diz que já fez e a ferramenta que precisa ter rodado com
+# sucesso nesta resposta. Texto já normalizado (_norm: minúsculo, sem acento).
+# Oferecer ("posso agendar?", "vou marcar") não conta; só o feito.
+_AGENDA = {"agendar_retorno", "remarcar_compromisso", "marcar_atendimento_humano", "registrar_aceite"}
+_ACOES_AFIRMADAS = [
+    ("agendamento", re.compile(r"\b(agendei|marquei|remarquei|reagendei)\b"
+                               r"|\b(ja |esta |fica |ficou |foi |deixei )(tudo )?(agendad|marcad|remarcad|reagendad)\w*"
+                               r"|\b(agendado|marcado|remarcado) (para|pra|com sucesso)\b"), _AGENDA),
+    ("transferência", re.compile(r"\b(transferi|encaminhei|repassei)\b"
+                                 r"|\b(ja |foi |esta |fica )(transferid|encaminhad|repassad)\w*"
+                                 r"|\bpassei (a |o |sua |seu |para |pra )"),
+     {"transferir_para_humano", "marcar_atendimento_humano"}),
+    ("registro", re.compile(r"\b(registrei|anotei|cadastrei|lancei|abri (a |uma )?contestac)\w*"
+                            r"|\b(ja |foi |esta |fica |ficou )(registrad|anotad|cadastrad)\w*"),
+     _AGENDA | {"registrar_pagamento_informado", "abrir_contestacao", "registrar_contato", "suspender_cobranca",
+                "transferir_para_humano", "marcar_promessa_quebrada"}),
+    ("suspensão", re.compile(r"\b(suspendi|cancelei|parei (a|as) cobranc)\w*"
+                             r"|\b(cobranca|contato|cobrancas) (ja |foi |esta |ficou |fica |ficara )?(suspens|cancelad)\w*"),
+     {"suspender_cobranca", "abrir_contestacao", "registrar_pagamento_informado", "transferir_para_humano",
+      "marcar_atendimento_humano"}),
+    ("acordo", re.compile(r"\bacordo (ja |foi |esta |ficou )?(fechado|registrado|confirmado|firmado|feito)\b"
+                          r"|\b(fechamos|firmamos|registramos) (o |seu |nosso )?acordo"), {"registrar_aceite"}),
+]
+# Só o banco confirma pagamento (pela baixa). A IA nunca diz que confirmou.
+_CONFIRMA_PAGAMENTO = re.compile(r"\bpagamento (ja |foi |esta |ficou )?(confirmado|aprovado|baixado|reconhecido)\b"
+                                 r"|\b(confirmei|confirmamos|recebemos|identificamos|localizamos) (o |seu |a sua |sua )?pagamento"
+                                 r"|\b(sua|a sua|essa|esta) (divida|conta|pendencia) (ja |foi |esta |ficou )?(quitad|paga\b|liquidad)")
+
+
+def acoes_afirmadas(texto: str) -> dict:
+    """{nome da ação: ferramentas que a comprovariam} para cada ação dita como feita."""
+    t = _norm(texto)
+    return {nome: ferr for nome, rx, ferr in _ACOES_AFIRMADAS if rx.search(t)}
+
+
+def conferir(texto: str, permitidos: dict, feitas: set | None = None) -> list:
     """Motivos de reprovação (lista vazia = pode enviar)."""
     motivos = []
     v = valores_do_texto(texto)
@@ -153,6 +188,13 @@ def conferir(texto: str, permitidos: dict) -> list:
         citadas = ", ".join(sorted(f"{a} {b}" for a, b in soltas))
         motivos.append(f"cita norma que não veio da base de conhecimento ({citadas}): use consultar_base")
     t = _norm(texto)
+    if feitas is not None:
+        for nome, ferr in acoes_afirmadas(texto).items():
+            if not ferr & feitas:
+                motivos.append(f"diz que fez ({nome}) sem a ferramenta ter feito nesta resposta: "
+                               f"chame {' ou '.join(sorted(ferr))} antes, ou não afirme")
+    if _CONFIRMA_PAGAMENTO.search(t):
+        motivos.append("diz que o pagamento foi confirmado: só o banco confirma; diga que a equipe vai conferir")
     if _LEI_GENERICA.search(t) and not permitidos.get("referencias"):
         motivos.append("fala da lei sem ter consultado a base de conhecimento: use consultar_base")
     if any(re.search(p, t) for p in _TOM):
