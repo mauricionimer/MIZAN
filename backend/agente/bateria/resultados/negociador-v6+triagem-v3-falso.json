@@ -1,7 +1,7 @@
 {
  "versao": "negociador-v6+triagem-v3",
  "modo": "falso",
- "em": "2026-10-17T17:11:04.091005+00:00",
+ "em": "2026-10-17T17:18:21.621296+00:00",
  "nota": 100.0,
  "criterios": {
   "correcao": 1.0,
@@ -12,9 +12,9 @@
   "robustez": 1.0,
   "custo": 1.0
  },
- "cenarios": 76,
- "aprovados": 76,
- "conferencias": 216,
+ "cenarios": 79,
+ "aprovados": 79,
+ "conferencias": 222,
  "custo_usd": 0.0,
  "resultados": [
   {
@@ -1851,6 +1851,66 @@
     {
      "criterio": "contexto",
      "conferencia": "urgência no caderno",
+     "ok": true
+    }
+   ],
+   "custo_usd": 0.0,
+   "erro": null
+  },
+  {
+   "id": "aco-1",
+   "grupo": "Acompanhamento IA",
+   "descricao": "Lembrete escrito pela IA para aquela pessoa",
+   "ok": true,
+   "itens": [
+    {
+     "criterio": "negociacao",
+     "conferencia": "respondeu com “Se precisar de algo”",
+     "ok": true
+    },
+    {
+     "criterio": "correcao",
+     "conferencia": "respondeu com “R$ 270,00”",
+     "ok": true
+    }
+   ],
+   "custo_usd": 0.0,
+   "erro": null
+  },
+  {
+   "id": "aco-2",
+   "grupo": "Acompanhamento IA",
+   "descricao": "Atraso com pessoa irritada: chama uma pessoa, sem mensagem fria",
+   "ok": true,
+   "itens": [
+    {
+     "criterio": "politica",
+     "conferencia": "caso termina em 'com_pessoa'",
+     "ok": true
+    },
+    {
+     "criterio": "seguranca",
+     "conferencia": "nenhuma mensagem contém “Ainda não identificamos”",
+     "ok": true
+    }
+   ],
+   "custo_usd": 0.0,
+   "erro": null
+  },
+  {
+   "id": "aco-3",
+   "grupo": "Acompanhamento IA",
+   "descricao": "IA tenta outro valor: travas barram e sai o texto pronto",
+   "ok": true,
+   "itens": [
+    {
+     "criterio": "correcao",
+     "conferencia": "nenhuma mensagem contém “R$ 200,00”",
+     "ok": true
+    },
+    {
+     "criterio": "robustez",
+     "conferencia": "respondeu com “Lembrete:”",
      "ok": true
     }
    ],

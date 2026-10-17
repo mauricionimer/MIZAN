@@ -476,6 +476,35 @@ def _leitura() -> list:
     ]
 
 
+def _acompanhamento_ia() -> list:
+    """Acompanhamento com IA: escolhe do cardápio e escreve; o código confere."""
+    acordo = {**ID_OK, "acordo": {"condicoes": {"n_parcelas": 6, "desconto_pct": 10, "entrada_pct": 10},
+                                  "primeiro_pagamento": 270.0, "data": VENC}}
+    irritada = {**acordo, "caderno": [{"agente": "triagem", "decisao": "outro", "motivo": "irritado",
+                                       "quando": None, "trace_id": None}]}
+    prom = [("promessa", VENC, 270.0)]
+    def j(**d):
+        return json.dumps({"motivo": "cenário", "mensagem": "", **d})
+    return [
+        Cenario("aco-1", "Acompanhamento IA", "Lembrete escrito pela IA para aquela pessoa", situacao="acordo_ativo",
+            dados=acordo, agenda=prom, papeis=("acompanhamento",), passos=[("relogio", None, em(SEG))],
+            roteiro={"acompanhamento": [j(acao="lembrar", mensagem="Oi, Maria! Amanhã (20/10) vence a parcela de "
+                                                                   "R$ 270,00. Se precisar de algo, é só falar.")]},
+            conferir=[respondeu("Se precisar de algo", "negociacao"), respondeu("R$ 270,00", "correcao")]),
+        Cenario("aco-2", "Acompanhamento IA", "Atraso com pessoa irritada: chama uma pessoa, sem mensagem fria",
+            situacao="acordo_ativo", dados=irritada, agenda=prom, papeis=("acompanhamento",),
+            passos=[("relogio", None, em(date(2026, 10, 23)))],
+            roteiro={"acompanhamento": [j(acao="chamar_pessoa", motivo="pessoa irritada na última conversa")]},
+            conferir=[situacao("com_pessoa"), nenhuma_contem("Ainda não identificamos", "seguranca")]),
+        Cenario("aco-3", "Acompanhamento IA", "IA tenta outro valor: travas barram e sai o texto pronto",
+            situacao="acordo_ativo", dados=acordo, agenda=prom, papeis=("acompanhamento",),
+            passos=[("relogio", None, em(SEG))],
+            roteiro={"acompanhamento": [j(acao="lembrar", mensagem="Amanhã vence só R$ 200,00 com desconto!"),
+                                        j(acao="lembrar", mensagem="Amanhã vence R$ 150,00.")]},
+            conferir=[nenhuma_contem("R$ 200,00", "correcao"), respondeu("Lembrete:", "robustez")]),
+    ]
+
+
 def todos() -> list:
     return (_feliz() + _negociacao() + _desvios() + _datas() + _politica() + _ataques() + _orquestracao() + _falhas()
-            + _conhecimento() + _honestidade() + _integracao() + _leitura())
+            + _conhecimento() + _honestidade() + _integracao() + _leitura() + _acompanhamento_ia())

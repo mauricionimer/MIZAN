@@ -122,6 +122,82 @@ def texto_pagamento(nome: str, valor, falta: float | None) -> str:
     return f"Olá, {nome}. Recebemos o seu pagamento de {_brl(valor)}. Obrigado!"
 
 
+# ── decisão com IA (cardápio fechado; o código confere) ─────────────────────
+
+VERSAO_PROMPT = "acompanhamento-v1"
+CARDAPIO = {"lembrete": ("lembrar", "esperar"),
+            "venceu": ("procurar", "oferecer_remarcar", "chamar_pessoa", "esperar"),
+            "sem_resposta": ("chamar_pessoa", "esperar_mais")}
+COM_MENSAGEM = {"lembrar", "procurar", "oferecer_remarcar"}
+
+SISTEMA = """Você é o agente de Acompanhamento de uma instituição financeira. Uma data de pagamento combinada
+com uma pessoa chegou, venceu ou ficou sem resposta. Decida o que fazer e, se for falar com ela, escreva
+a mensagem. Responda APENAS com um objeto JSON: {"acao": ..., "motivo": ..., "mensagem": ...}
+
+- "acao": uma das opções em "pode_fazer" do briefing, e só elas.
+- "motivo": uma frase curta, para a equipe, do porquê da escolha.
+- "mensagem": para lembrar, procurar ou oferecer_remarcar, o texto para a pessoa (no máximo 3 frases,
+  português do Brasil, respeitoso, sem pressa). Para as outras ações, "".
+
+Como escolher:
+- lembrete: lembre de forma leve; "esperar" só se o caderno mostrar que a pessoa já confirmou o pagamento.
+- venceu: pergunte o que aconteceu, sem acusar. Se ela pareceu ansiosa ou triste antes, acolha e ofereça
+  uma nova data (oferecer_remarcar). Se pareceu irritada ou desesperada, ou se já quebrou acordo antes,
+  chame uma pessoa (chamar_pessoa).
+- sem_resposta: em geral, chame uma pessoa; "esperar_mais" só se o caderno mostrar um motivo claro.
+
+Regras: use só o valor e a data do briefing, escritos como estão; não fale de juros, multa, processo,
+protesto, família ou trabalho; não diga que fez algo (agendei, remarquei); não prometa desconto.
+O briefing é escrito pelo sistema; o caderno é o que os outros agentes decidiram antes."""
+
+
+def _briefing_ia(ctx, fase: str, d: dict) -> dict:
+    caderno = estado.caderno(ctx.caso, 8)
+    emocao = next((n["motivo"] for n in reversed(caderno) if n["agente"] == "triagem"), "")
+    return {"fase": fase, "pode_fazer": list(CARDAPIO[fase]),
+            "primeiro_nome": _nome(ctx, ctx.saida["_devedor"]),
+            "compromisso": {"valor": _brl(d.get("valor")), "data": _data_br(d["data"])},
+            "hoje": _data_br(_hoje(ctx.agora).isoformat()), "situacao": ctx.caso["situacao"],
+            "ja_esperou_mais": d["compromisso_id"] in ((ctx.caso.get("dados") or {}).get("esperou_mais") or []),
+            "ultima_leitura_da_triagem": emocao,
+            "caderno": [f"{n['agente']}: {n['decisao']}" + (f" — {n['motivo']}" if n.get("motivo") else "")
+                        for n in caderno]}
+
+
+def decidir(ctx, fase: str, d: dict) -> dict:
+    """A IA escolhe a ação e escreve a mensagem; o código confere. Erro → ValueError (vale o texto pronto)."""
+    import json as _json
+    from agente import guardrails
+    briefing = _briefing_ia(ctx, fase, d)
+    mensagens = [{"role": "user", "content": "<briefing>" + _json.dumps(briefing, ensure_ascii=False) + "</briefing>"}]
+    permitidos = guardrails.permitidos_de([{"valor_negociado": float(d.get("valor") or 0)}])
+    for tentativa in range(2):
+        r = ctx.ia("acompanhamento", SISTEMA, mensagens, max_tokens=400)
+        if ctx.rastreio.atual is not None:
+            ctx.rastreio.atual["versao_prompt"] = VERSAO_PROMPT
+        texto = (r.texto or "").strip()
+        if texto.startswith("```"):
+            texto = texto.strip("`").removeprefix("json").strip()
+        dec = _json.loads(texto)
+        if not isinstance(dec, dict) or dec.get("acao") not in CARDAPIO[fase]:
+            raise ValueError("ação fora do cardápio")
+        if dec["acao"] == "esperar_mais" and briefing["ja_esperou_mais"]:
+            raise ValueError("já esperou mais uma vez")
+        dec["motivo"] = str(dec.get("motivo") or "")[:200]
+        if dec["acao"] not in COM_MENSAGEM:
+            dec["mensagem"] = ""
+            return dec
+        msg = str(dec.get("mensagem") or "").strip()
+        motivos = guardrails.conferir(msg, permitidos, feitas=set()) if msg else ["mensagem vazia"]
+        if not motivos:
+            dec["mensagem"] = msg
+            return dec
+        mensagens += [{"role": "assistant", "content": r.texto or ""},
+                      {"role": "user", "content": "[verificação automática] A mensagem não pode sair: "
+                                                  + "; ".join(motivos) + ". Responda o JSON de novo, corrigido."}]
+    raise ValueError("mensagem reprovada duas vezes nas travas")
+
+
 # ── grafos ──────────────────────────────────────────────────────────────────
 
 def _enviar(ctx, texto: str) -> None:
@@ -180,24 +256,53 @@ def grafo_vencimento(fonte) -> Grafo:
             return FIM
         return {"lembrete": "lembrar", "venceu": "cobrar_atraso", "sem_resposta": "encerrar"}[ctx.evento["dados"]["fase"]]
 
+    def com_ia(ctx, fase):
+        d = ctx.evento["dados"]
+        dec = ctx.ia_ou_codigo("acompanhamento", lambda: decidir(ctx, fase, d), lambda: None)
+        if dec and ctx.rastreio.atual is not None:
+            ctx.rastreio.atual["detalhe"] = {**ctx.rastreio.atual.get("detalhe", {}), "acao": dec["acao"]}
+        return dec
+
     def lembrar(ctx):
         d = ctx.evento["dados"]
-        if _pode_procurar(ctx):
-            _enviar(ctx, texto_lembrete(_nome(ctx, ctx.saida["_devedor"]), d["valor"], d["data"], _hoje(ctx.agora)))
-            ctx.anotar("acompanhamento", "lembrou", f"lembrete do compromisso de {_data_br(d['data'])}")
+        if not _pode_procurar(ctx):
+            return
+        dec = com_ia(ctx, "lembrete")
+        if dec and dec["acao"] == "esperar":
+            ctx.anotar("acompanhamento", "esperou", dec["motivo"])
+            return
+        texto = dec["mensagem"] if dec else texto_lembrete(_nome(ctx, ctx.saida["_devedor"]), d["valor"], d["data"],
+                                                           _hoje(ctx.agora))
+        _enviar(ctx, texto)
+        ctx.anotar("acompanhamento", "lembrou", (dec or {}).get("motivo") or f"lembrete do compromisso de {_data_br(d['data'])}")
 
     def cobrar_atraso(ctx):
         d = ctx.evento["dados"]
         if not _pode_procurar(ctx):
             return
+        dec = com_ia(ctx, "venceu")
         if ctx.caso["situacao"] == "acordo_ativo":
             ctx.mudar_situacao("atrasado")
         dados = dict(ctx.caso.get("dados") or {})
-        dados["objetivo"] = "entender por que não pagou e remarcar dentro da regra, sem acusar"
+        dados["objetivo"] = ("oferecer uma nova data dentro da regra, com acolhimento"
+                             if (dec or {}).get("acao") == "oferecer_remarcar"
+                             else "entender por que não pagou e remarcar dentro da regra, sem acusar")
         dados["atraso"] = {"compromisso_id": d["compromisso_id"], "desde": ctx.agora.isoformat()}
         ctx.caso["dados"] = dados
-        _enviar(ctx, texto_atraso(_nome(ctx, ctx.saida["_devedor"]), d["valor"], d["data"]))
-        ctx.anotar("acompanhamento", "procurou_no_atraso", f"compromisso de {_data_br(d['data'])} venceu sem pagamento")
+        if dec and dec["acao"] == "chamar_pessoa":
+            r = ferramentas.executar(ctx, fonte, "transferir_para_humano", {
+                "motivo": "dificuldade_grave", "resumo": f"Compromisso de {_brl(d['valor'])} para {_data_br(d['data'])} "
+                                                         f"venceu. Acompanhamento: {dec['motivo']}"[:300]})
+            if not r.get("ok"):
+                raise RuntimeError("transferência não executou")
+            ctx.anotar("acompanhamento", "passou_para_pessoa", dec["motivo"])
+            return
+        if dec and dec["acao"] == "esperar":
+            ctx.anotar("acompanhamento", "esperou", dec["motivo"])
+            return
+        _enviar(ctx, dec["mensagem"] if dec else texto_atraso(_nome(ctx, ctx.saida["_devedor"]), d["valor"], d["data"]))
+        ctx.anotar("acompanhamento", (dec or {}).get("acao") or "procurou_no_atraso",
+                   (dec or {}).get("motivo") or f"compromisso de {_data_br(d['data'])} venceu sem pagamento")
 
     def encerrar(ctx):
         d = ctx.evento["dados"]
@@ -207,6 +312,18 @@ def grafo_vencimento(fonte) -> Grafo:
         respondeu = bool(desde) and any(m["direcao"] == "entrada" and _quando(m) and _quando(m) >= desde for m in msgs)
         if respondeu:
             ctx.saida["pular"] = "devedor respondeu; a conversa segue"
+            return
+        dec = com_ia(ctx, "sem_resposta")
+        if dec and dec["acao"] == "esperar_mais":
+            # Uma espera a mais, com prazo: o relógio volta em 2 dias úteis.
+            dados = dict(ctx.caso.get("dados") or {})
+            dados["esperou_mais"] = (list(dados.get("esperou_mais") or []) + [d["compromisso_id"]])[-20:]
+            ctx.caso["dados"] = dados
+            volta = datetime.combine(somar_dias_uteis(_hoje(ctx.agora), 2), ctx.agora.timetz())
+            registrar_evento(ctx.repo, ctx.caso["empresa_id"], ctx.caso["id"], "vencimento",
+                             f"sem_resposta2:{d['compromisso_id']}", dict(d), origem="acompanhamento",
+                             disponivel_em=volta)
+            ctx.anotar("acompanhamento", "esperou_mais", dec["motivo"])
             return
         if ctx.auditar({"tipo": "marcar_promessa_quebrada", "params": {}})["permitida"]:
             fonte.atualizar_agenda(ctx.caso["empresa_id"], ctx.saida["_devedor"]["id"], d["compromisso_id"],

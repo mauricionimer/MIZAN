@@ -88,6 +88,7 @@ class Cenario:
     devedor: dict = field(default_factory=devedor)
     agenda: list = field(default_factory=list)    # [(tipo, data, valor)]
     controle: bool = False
+    papeis: tuple = ()                            # agentes novos com IA ligados neste cenário
 
 
 @dataclass
@@ -117,13 +118,29 @@ ID_OK = {"identidade_ok": True, "divida": 3000.0}
 
 
 def executar(c: Cenario, cliente=None) -> Resultado:
+    """Roda o cenário; `papeis` liga agentes novos (MIZAN_IA_PAPEIS) só durante ele."""
+    import os
+    if not c.papeis:
+        return _executar(c, cliente)
+    antes = os.environ.get("MIZAN_IA_PAPEIS")
+    os.environ["MIZAN_IA_PAPEIS"] = ",".join(("triagem", "negociador") + tuple(c.papeis))
+    try:
+        return _executar(c, cliente)
+    finally:
+        if antes is None:
+            os.environ.pop("MIZAN_IA_PAPEIS", None)
+        else:
+            os.environ["MIZAN_IA_PAPEIS"] = antes
+
+
+def _executar(c: Cenario, cliente=None) -> Resultado:
     repo, fonte = RepoMemoria(), FonteMemoria([c.devedor])
     caso = repo.obter_ou_criar_caso("emp", c.devedor["id"])
     repo.salvar_caso(caso["id"], {"situacao": c.situacao, "dados": dict(c.dados), "grupo_controle": c.controle})
     repo.gravar_politica("emp", 1, c.politica or auditor.POLITICA_DEMONSTRACAO)
     for tipo, data, valor in c.agenda:
         fonte.criar_agenda("emp", c.devedor, tipo, data, valor=valor)
-    cliente = cliente or ClienteFalso(list(c.roteiro))
+    cliente = cliente or ClienteFalso(dict(c.roteiro) if isinstance(c.roteiro, dict) else list(c.roteiro))
     g = grafos(fonte)
     erro = None
     n = 0
