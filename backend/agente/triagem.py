@@ -9,7 +9,8 @@ Duas camadas:
    de novo, passa o caso para uma pessoa.
 
 A mensagem do devedor é dado, nunca instrução: vai entre marcadores e o
-modelo é avisado disso.
+modelo é avisado disso. `como_dado` neutraliza os sinais < e > antes: sem isso,
+o devedor poderia fechar o marcador e escrever um <briefing> falso.
 """
 import json
 import re
@@ -27,23 +28,50 @@ SINAIS = ("manipulacao", "sofrimento_grave", "agressividade")
 SEGURANCA = ("parar_contato", "pessoa_errada", "contestar", "pedir_pessoa")
 
 
+def como_dado(texto: str) -> str:
+    """Texto de fora (devedor, nome do cadastro) pronto para ir entre marcadores.
+
+    Troca < e > por sinais parecidos: o texto continua legível para a IA, mas
+    não consegue abrir nem fechar <mensagem_do_devedor>, <briefing> ou outro
+    marcador do sistema.
+    """
+    return str(texto or "").replace("<", "‹").replace(">", "›")
+
+
 def _norm(texto: str) -> str:
     t = unicodedata.normalize("NFKD", texto or "").encode("ascii", "ignore").decode().lower()
     return re.sub(r"\s+", " ", t)
 
 
 _REGRAS = [
-    ("parar_contato", r"\b(pare|para) de (me )?(mandar|ligar|enviar|escrever|incomodar)|nao (me )?(mande|ligue|procure|escreva) mais"
-                      r"|nao quero (mais )?(receber|ser contatad)|me (tire|tira|remova|remove) (da|dessa|desta) lista|\bdescadastr"),
+    ("parar_contato", r"\b(pare|para|parar) de (me )?(mandar|ligar|enviar|escrever|incomodar|encher|perturbar|cobrar)"
+                      r"|nao (me )?(mande|ligue|procure|escreva|liga|manda|escreve|procura|chama) mais"
+                      r"|nao quero (mais )?(receber|ser contatad)|nao quero que (me )?(entrem|liguem|mandem|procurem)"
+                      r"|nao (quero|aceito) mais (contato|mensage|ligac)|me deix[ae] em paz|chega de (mensage|ligac|cobranc)"
+                      r"|bloque(ia|ie|ar) (o )?meu (numero|contato)|me (tire|tira|remova|remove) (da|dessa|desta) lista|\bdescadastr"),
     ("pessoa_errada", r"numero errado|pessoa errada|engano|nao conheco ess[ae] (pessoa|senhor|senhora)"
-                      r"|nao sou (ess[ae] pessoa|ess[ae] senhor|ess[ae] senhora)|ess[ae] numero nao e (d[oa]|mais d)"),
-    ("contestar", r"nao reconheco|desconheco (essa|esta|a) divida|nunca (fiz|contratei|tive)|nao devo nada|fraude|clonad"),
+                      r"|nao sou (ess[ae] pessoa|ess[ae] senhor|ess[ae] senhora)|ess[ae] numero nao e (d[oa]|mais d)"
+                      r"|^\W*nao sou eu\W*$|ess[ae] (telefone|numero|celular|whats\w*) nao e (d[oa]|del[ae]|meu)"
+                      r"|(erraram|errou) (de |a )?pessoa|nao conheco ninguem com esse nome"),
+    ("contestar", r"nao reconheco|desconheco (essa|esta|a) divida|nunca (fiz|contratei|tive)|nao devo nada|fraude|clonad"
+                  r"|(essa|esta|a) divida nao e (minha|meu)|nao e (minha|meu) (essa|esta)? ?divida|nao fiz (essa|esta) (compra|divida)"),
     ("pedir_pessoa", r"(falar|conversar) com (um|uma|algum|alguem|o|a)? ?(atendente|humano|pessoa|gerente|operador)"
-                     r"|quero (um|uma) (atendente|pessoa|humano)"),
+                     r"|quero (um|uma) (atendente|pessoa|humano)|(gente|pessoa) de verdade|\b(alguem|algum) humano"
+                     r"|me (passa|transfere|transfira|passe|encaminha) (pra|para) (um|uma|o|a|algum)? ?(atendente|humano|pessoa|operador)"),
 ]
-_MANIPULACAO = re.compile(r"ignore (as|todas|suas)|instruc[oa]|system prompt|prompt do sistema|voce agora e|"
-                          r"finja que|modo desenvolvedor|esqueca (as|tudo)|aprove (o|um) desconto de", re.I)
-_SOFRIMENTO = re.compile(r"(me matar|suicid|acabar com (a minha|minha) vida|nao aguento mais viver)")
+# Tentativas de mudar as regras pela conversa. Marcar não bloqueia nada (quem
+# bloqueia é o Auditor): avisa o Negociador e fica no rastreio.
+_MANIPULACAO = re.compile(
+    r"\b(ignor|desconsider|esquec)\w* (as |a |o |os |todas |todos |tudo |suas |seus |isso |o que |qualquer )"
+    r"|(suas|tuas|essas|as) instruc\w* (anterior|do sistema|originais|iniciais)|instruc\w* (do sistema|anteriores)|novas instruc"
+    r"|\bprompt\b|\bsystem\b|\bsistema:|\[(sistema|admin|system)\]|< ?/? ?(briefing|mensagem|sistema|system)"
+    r"|voce agora e|a partir de agora (voce|vc|tu)|finja (que|ser)|aja como|faca de conta|modo (desenvolvedor|dev|admin|deus|dan)"
+    r"|\bjailbreak|\bdan\b|(novas|nova) regras?|(revele|mostre|repita|imprima|liste|diga|copie) (suas|as|seu|o|a) (instruc|regras|prompt|configurac|politica|texto acima)"
+    r"|\bsou (o|a) (gerente|diretor|diretora|supervisor|supervisora|dono|dona|desenvolvedor|desenvolvedora|programador|programadora|admin|administrador|administradora)\b"
+    r"|desconto (esta |foi )?(liberado|autorizado|aprovado)|(autorizo|libero|aprovo) (o |um |esse |este )?desconto|aprove (o|um) desconto de")
+_SOFRIMENTO = re.compile(r"(me matar|suicid|me enforcar|acabar com (a minha|minha) vida|tirar (a )?minha (propria )?vida"
+                         r"|nao aguento mais viver|nao quero mais viver|(sem|nao vejo (mais )?)sentido (em |na )?(viver|vida)"
+                         r"|sumir (desse|deste|do) mundo|melhor (eu )?(morrer|estar mort))")
 
 
 def regras(texto: str) -> dict:
@@ -95,14 +123,14 @@ def _validar(bruto: str) -> dict:
 def classificar(ctx, texto: str) -> dict:
     """Contrato Triagem → Orquestrador. Grava o resultado em ctx.saida['triagem']."""
     texto = (texto or "")[:MAX_CARACTERES]
-    r = regras(texto)
+    r = regras(texto)                      # o texto cru: o < de um marcador forjado ainda está lá
     if r["intencao"] in SEGURANCA:
         # Regra de segurança acertou: não gasta IA e não deixa a IA desfazer.
         out = {"intencao": r["intencao"], "confianca": 1.0, "valores_citados": [], "datas_citadas": [],
                "sinais_de_risco": r["sinais"], "origem": "regra"}
     else:
         resp = ctx.ia("triagem", SISTEMA,
-                      [{"role": "user", "content": f"<mensagem_do_devedor>{texto}</mensagem_do_devedor>"}],
+                      [{"role": "user", "content": f"<mensagem_do_devedor>{como_dado(texto)}</mensagem_do_devedor>"}],
                       max_tokens=300)
         if ctx.rastreio.atual is not None:
             ctx.rastreio.atual["versao_prompt"] = VERSAO_PROMPT
