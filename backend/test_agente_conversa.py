@@ -86,7 +86,7 @@ checar("Consigo entrada" in hist and "quero negociar" in hist, "o histórico da 
 checar(m.fonte.agenda[0]["tipo"] == "promessa" and m.fonte.agenda[0]["valor"] == 270, "promessa na agenda")
 passos = [p for p in m.repo.passos if p["no"] in ("triagem", "negociar")]
 checar(all(p["modelo"] == "falso" and p["tokens_entrada"] > 0 for p in passos)
-       and {p["versao_prompt"] for p in passos} == {"triagem-v1", "negociador-v2"},
+       and {p["versao_prompt"] for p in passos} == {"triagem-v1", "negociador-v3"},
        "rastreio com modelo, tokens e versão do prompt")
 
 print("— travas de saída —")
