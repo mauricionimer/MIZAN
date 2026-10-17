@@ -130,6 +130,7 @@ def ver_caso(empresa_id: str, predicao_id: str, repo=None) -> dict:
         "silencio": (_por_que_calou(passos) if passos and not any(
             m.get("trace_id") == ultimo_trace and m["direcao"] == "saida" for m in msgs) else None),
         "atendimento": d.get("atendimento"),
+        "caderno": list(reversed(estado.caderno(caso))),
     }
 
 
@@ -336,7 +337,9 @@ def controle_do_gestor(empresa_id: str, predicao_id: str, acao: str, quem: str |
         raise CasoOcupado("O agente está processando este caso agora. Tente de novo em instantes.")
     try:
         situacao = caso["situacao"] if caso["situacao"] == nova else estado.mudar(caso["situacao"], nova, por="pessoa")
-        repo.salvar_caso(caso["id"], {"situacao": situacao}, dono=dono)
+        estado.anotar(caso, "equipe", "assumiu" if acao == "assumir" else "devolveu ao agente",
+                      "o agente para neste caso" if acao == "assumir" else "o agente volta a responder", quando=agora)
+        repo.salvar_caso(caso["id"], {"situacao": situacao, "dados": caso["dados"]}, dono=dono)
         rt = Rastreio(empresa_id, repo.gravar_passo, caso_id=caso["id"])
         with rt.span("controle_do_gestor", "pessoa") as p:
             p["detalhe"] = {"acao": acao, "de": caso["situacao"], "para": situacao}

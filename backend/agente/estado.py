@@ -67,5 +67,30 @@ def mudar(atual: str, nova: str, por: str = "agente") -> str:
     return nova
 
 
+# ── caderno do caso: como os agentes se passam o que decidiram ──────────────
+MAX_CADERNO = 15
+AGENTES_DO_CADERNO = ("estrategista", "triagem", "negociador", "acompanhamento", "supervisor", "cientista", "equipe")
+
+
+def anotar(caso: dict, agente: str, decisao: str, motivo: str = "", trace_id=None, quando=None) -> None:
+    """Uma linha no caderno do caso: quem decidiu o quê e por quê.
+
+    O próximo agente lê antes de agir. Nunca guarda texto do devedor: o motivo
+    passa pelo filtro de dado pessoal e tem no máximo 200 caracteres.
+    """
+    from agente.guardrails import limpar_nota
+    if agente not in AGENTES_DO_CADERNO:
+        raise ValueError(f"agente desconhecido no caderno: {agente}")
+    dados = dict(caso.get("dados") or {})
+    nota = {"agente": agente, "decisao": limpar_nota(decisao, 60), "motivo": limpar_nota(motivo, 200),
+            "quando": quando.isoformat() if hasattr(quando, "isoformat") else quando, "trace_id": trace_id}
+    dados["caderno"] = (list(dados.get("caderno") or []) + [nota])[-MAX_CADERNO:]
+    caso["dados"] = dados
+
+
+def caderno(caso: dict, n: int = MAX_CADERNO) -> list:
+    return list((caso.get("dados") or {}).get("caderno") or [])[-n:]
+
+
 def pode_falar(situacao: str) -> bool:
     return situacao in PODE_FALAR

@@ -142,6 +142,41 @@ class Contexto:
         self.rastreio.somar_ia(r)
         return r
 
+    def anotar(self, agente: str, decisao: str, motivo: str = "") -> None:
+        estado.anotar(self.caso, agente, decisao, motivo, trace_id=self.rastreio.trace_id, quando=self.agora)
+
+    def ia_ou_codigo(self, papel: str, gerar, reserva):
+        """Decisão de um agente com IA e caminho em código.
+
+        `gerar()` usa a IA; `reserva()` é o que o sistema faz sem ela. A reserva
+        vale quando o agente está desligado (MIZAN_IA_PAPEIS), a IA falha, o teto
+        do dia acaba ou a resposta não serve (gerar levanta ValueError). O passo
+        atual registra a origem e o motivo.
+        """
+        motivo = None
+        if not llm.ia_ligada(papel):
+            motivo = "desligado"
+        else:
+            try:
+                resultado = gerar()
+                self._marcar_origem("ia", None)
+                return resultado
+            except llm.TetoExcedido:
+                motivo = "teto do dia"
+            except (llm.SemRoteiro, llm.PrecoDesconhecido, ValueError, KeyError, TypeError) as e:
+                motivo = type(e).__name__
+            except Exception as e:                       # falha da IA (rede, cota): o código segue
+                motivo = type(e).__name__
+        self._marcar_origem("codigo", motivo)
+        return reserva()
+
+    def _marcar_origem(self, origem: str, motivo):
+        if self.rastreio.atual is not None:
+            extra = {"origem": origem}
+            if motivo:
+                extra["sem_ia"] = motivo
+            self.rastreio.atual["detalhe"] = {**self.rastreio.atual.get("detalhe", {}), **extra}
+
 
 def registrar_evento(repo, empresa_id: str, caso_id: str, tipo: str, chave: str,
                      dados: dict | None = None, origem: str = "sistema",

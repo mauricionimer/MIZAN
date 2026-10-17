@@ -162,6 +162,17 @@ _CONFIRMA_PAGAMENTO = re.compile(r"\bpagamento (ja |foi |esta |ficou )?(confirma
                                  r"|\b(sua|a sua|essa|esta) (divida|conta|pendencia) (ja |foi |esta |ficou )?(quitad|paga\b|liquidad)")
 
 
+# Sequência longa de dígitos (CPF, telefone, conta), com ou sem pontuação.
+_DIGITOS_LONGOS = re.compile(r"\d(?:[\d.\-/]*\d){7,}")
+
+
+def limpar_nota(texto, limite: int = 200) -> str:
+    """Texto para o caderno do caso: sem sequência longa de dígitos e curto."""
+    t = " ".join(str(texto or "").split())
+    t = _DIGITOS_LONGOS.sub("[removido]", t)
+    return t if len(t) <= limite else t[: limite - 1].rstrip() + "…"
+
+
 def acoes_afirmadas(texto: str) -> dict:
     """{nome da ação: ferramentas que a comprovariam} para cada ação dita como feita."""
     t = _norm(texto)

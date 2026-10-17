@@ -43,6 +43,22 @@ class PrecoDesconhecido(RuntimeError):
     pass
 
 
+class SemRoteiro(RuntimeError):
+    """Teste: o cliente falso não tem resposta preparada para este agente."""
+
+
+# Agentes que usam IA. Os de hoje (triagem e negociador) vêm ligados; os novos
+# só entram quando listados em MIZAN_IA_PAPEIS. Tirar um da lista o faz voltar
+# ao caminho em código, sem deploy.
+PAPEIS = ("triagem", "negociador", "acompanhamento", "estrategista", "supervisor", "cientista")
+PAPEIS_PADRAO = "triagem,negociador"
+
+
+def ia_ligada(papel: str) -> bool:
+    lista = os.getenv("MIZAN_IA_PAPEIS", PAPEIS_PADRAO)
+    return papel in {p.strip().lower() for p in lista.split(",") if p.strip()}
+
+
 MODELO_FALSO = "falso"
 
 
@@ -90,11 +106,17 @@ def conferir_teto(gasto_hoje: float) -> None:
 
 
 # Roteamento de modelos (cap. 9.3.4): tarefa simples no barato, conversa no maior.
-_VAR_MODELO = {"triagem": "MIZAN_MODELO_TRIAGEM", "negociador": "MIZAN_MODELO_NEGOCIADOR"}
+_VAR_MODELO = {p: f"MIZAN_MODELO_{p.upper()}" for p in PAPEIS}
 
 
 def modelo_para(papel: str) -> str:
-    return os.getenv(_VAR_MODELO.get(papel, ""), "") or MODELO_FALSO
+    """Modelo do agente; os agentes novos, sem variável própria, usam o da triagem."""
+    proprio = os.getenv(_VAR_MODELO.get(papel, ""), "")
+    if proprio:
+        return proprio
+    if papel not in ("triagem", "negociador"):
+        return os.getenv("MIZAN_MODELO_TRIAGEM", "") or MODELO_FALSO
+    return MODELO_FALSO
 
 
 def _estimar_tokens(texto: str) -> int:
@@ -107,17 +129,40 @@ class ClienteFalso:
 
     Cada item é uma Resposta, um texto, uma exceção (para testar falhas) ou uma
     função (sistema, mensagens) -> Resposta | str. Guarda as chamadas recebidas.
+
+    `roteiro` pode ser uma lista (uma fila só, como sempre: atende triagem e
+    negociador) ou um dicionário {papel: [respostas]}, uma fila por agente.
+    Agente novo sem resposta preparada levanta SemRoteiro: o agente usa o
+    caminho em código, e os roteiros antigos continuam alinhados.
     """
+    ANTIGOS = (None, "triagem", "negociador")
 
     def __init__(self, roteiro=None):
-        self.roteiro = list(roteiro or [])
+        if isinstance(roteiro, dict):
+            self.filas = {p: list(v) for p, v in roteiro.items()}
+            self.roteiro = None
+        else:
+            self.filas = None
+            self.roteiro = list(roteiro or [])
         self.chamadas: list = []
+
+    def _proximo(self, papel):
+        if self.filas is not None:
+            fila = self.filas.get(papel)
+            if fila:
+                return fila.pop(0)
+            if papel in self.ANTIGOS:
+                return ""
+            raise SemRoteiro(f"sem resposta preparada para {papel}")
+        if papel not in self.ANTIGOS:
+            raise SemRoteiro(f"sem resposta preparada para {papel}")
+        return self.roteiro.pop(0) if self.roteiro else ""
 
     def gerar(self, *, sistema: str, mensagens: list, modelo: str = MODELO_FALSO,
               ferramentas: list | None = None, max_tokens: int = 1024, papel: str | None = None) -> Resposta:
+        item = self._proximo(papel)
         self.chamadas.append({"sistema": sistema, "mensagens": copy.deepcopy(mensagens),
-                              "modelo": modelo, "ferramentas": ferramentas})
-        item = self.roteiro.pop(0) if self.roteiro else ""
+                              "modelo": modelo, "ferramentas": ferramentas, "papel": papel})
         if callable(item) and not isinstance(item, Resposta):
             item = item(sistema, mensagens)
         if isinstance(item, BaseException):

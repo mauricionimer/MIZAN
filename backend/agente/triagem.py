@@ -169,6 +169,10 @@ def classificar(ctx, texto: str) -> dict:
         out["sinais_de_risco"] = sorted(set(out["sinais_de_risco"]) | set(r["sinais"]))
         out["origem"] = "modelo"
     ctx.saida["triagem"] = out
+    if out["intencao"] in SEGURANCA or out["sinais_de_risco"]:
+        # Só o que muda o rumo do caso vai para o caderno.
+        motivo = ", ".join(out["sinais_de_risco"]) or ("regra de segurança" if out["origem"] == "regra" else "")
+        ctx.anotar("triagem", out["intencao"], motivo.replace("_", " "))
     if ctx.rastreio.atual is not None:
         # Só a classificação, nunca o texto do devedor.
         ctx.rastreio.atual["detalhe"] = {**ctx.rastreio.atual.get("detalhe", {}), "intencao": out["intencao"],

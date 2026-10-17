@@ -87,6 +87,12 @@ def plano(repo, fonte, empresa_id: str, aplicar: bool = False, agora=None) -> di
         if aplicar and grupo != "pessoa":
             c = caso or repo.obter_ou_criar_caso(empresa_id, dev["id"])
             dados = dict(c.get("dados") or {})
+            if c.get("grupo") != grupo or dados.get("motivo_grupo") != motivo:
+                # Só anota quando a decisão muda: o plano roda todo dia.
+                rascunho = {"dados": dados}
+                estado.anotar(rascunho, "estrategista", f"grupo:{grupo}" + (" (sorteado)" if no_controle else ""),
+                              motivo, quando=agora)
+                dados = rascunho["dados"]
             dados["motivo_grupo"] = motivo
             campos = {"grupo": grupo, "dados": dados, "grupo_controle": bool(no_controle)}
             if c["situacao"] == "novo" and grupo == "so_lembrete" and not no_controle:

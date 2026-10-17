@@ -184,6 +184,7 @@ def grafo_vencimento(fonte) -> Grafo:
         d = ctx.evento["dados"]
         if _pode_procurar(ctx):
             _enviar(ctx, texto_lembrete(_nome(ctx, ctx.saida["_devedor"]), d["valor"], d["data"], _hoje(ctx.agora)))
+            ctx.anotar("acompanhamento", "lembrou", f"lembrete do compromisso de {_data_br(d['data'])}")
 
     def cobrar_atraso(ctx):
         d = ctx.evento["dados"]
@@ -196,6 +197,7 @@ def grafo_vencimento(fonte) -> Grafo:
         dados["atraso"] = {"compromisso_id": d["compromisso_id"], "desde": ctx.agora.isoformat()}
         ctx.caso["dados"] = dados
         _enviar(ctx, texto_atraso(_nome(ctx, ctx.saida["_devedor"]), d["valor"], d["data"]))
+        ctx.anotar("acompanhamento", "procurou_no_atraso", f"compromisso de {_data_br(d['data'])} venceu sem pagamento")
 
     def encerrar(ctx):
         d = ctx.evento["dados"]
@@ -215,6 +217,7 @@ def grafo_vencimento(fonte) -> Grafo:
                                          "e o devedor não respondeu à mensagem de atraso."})
         if not r.get("ok"):
             raise RuntimeError("transferência não executou")
+        ctx.anotar("acompanhamento", "passou_para_pessoa", "sem resposta depois do atraso; promessa quebrada")
 
     g = (Grafo("vencimento", "conferir")
          .no("conferir", conferir, agente="acompanhamento", seguinte=rota)

@@ -4,6 +4,7 @@ Grupos: caminho feliz, negociação, desvios, datas e pagamentos, política,
 ataques, orquestração, falhas e conhecimento (a base do devedor, com fonte). Cada
 conferência diz qual critério da rubrica ela mede.
 """
+import json
 from datetime import date, timedelta
 
 from agente.bateria.motor import ACEITE, Cenario, DIA, F, ID_OK, T, devedor, em, tri
@@ -411,6 +412,30 @@ def _honestidade() -> list:
     ]
 
 
+def _integracao() -> list:
+    """Caderno do caso: o que um agente decide, o próximo lê."""
+    nota = {"agente": "estrategista", "decisao": "grupo:contato", "motivo": "chance de 30%: paga se for procurado",
+            "quando": "2026-10-16T09:00:00+00:00", "trace_id": None}
+    return [
+        Cenario("cad-1", "Integração", "O Negociador recebe no briefing o que o Estrategista decidiu",
+            dados={"caderno": [nota]}, passos=[("mensagem", "oi, recebi a mensagem")],
+            roteiro=[tri("outro"), T("Olá! Para começar, me diga os três primeiros dígitos do seu CPF.")],
+            conferir=[("contexto", "o briefing traz a decisão do Estrategista",
+                       lambda r: any("estrategista: grupo:contato" in json.dumps(c["mensagens"], ensure_ascii=False)
+                                     for c in r.cliente.chamadas if c.get("papel") == "negociador"))]),
+        Cenario("cad-2", "Integração", "O caderno anota o que as ferramentas fizeram, sem o texto do devedor",
+            passos=[("mensagem", "sou eu sim, 123, e moro na rua das acácias")],
+            roteiro=[tri("outro"), F("verificar_identidade", tres_primeiros_digitos_cpf="123"),
+                     T("Obrigado, identidade confirmada. Quanto você consegue pagar por mês?")],
+            conferir=[("contexto", "o Negociador anotou a identidade confirmada",
+                       lambda r: any(n["agente"] == "negociador" and "identidade confirmada" in n["motivo"]
+                                     for n in (r.repo.casos[r.caso["id"]]["dados"].get("caderno") or []))),
+                      ("seguranca", "o caderno não guarda o texto do devedor",
+                       lambda r: "acácias" not in json.dumps(r.repo.casos[r.caso["id"]]["dados"].get("caderno"),
+                                                            ensure_ascii=False))]),
+    ]
+
+
 def todos() -> list:
     return (_feliz() + _negociacao() + _desvios() + _datas() + _politica() + _ataques() + _orquestracao() + _falhas()
-            + _conhecimento() + _honestidade())
+            + _conhecimento() + _honestidade() + _integracao())

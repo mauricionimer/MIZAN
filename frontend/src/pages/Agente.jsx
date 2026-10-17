@@ -2,7 +2,7 @@
 // orquestração. Na demonstração, quem está na tela escreve como o devedor.
 // Regras em backend/agente/ (docs/PLANO_EXECUCAO_AGENTES.md).
 import { useEffect, useRef, useState } from 'react'
-import { Bot, Send, Search, Loader2, Activity, ShieldCheck, AlertTriangle, Power, UserRound, Coins, ListChecks, Landmark, Clock, Shuffle, CalendarDays, Scale, Hand, Undo2, CalendarClock, Users } from 'lucide-react'
+import { Bot, Send, Search, Loader2, Activity, ShieldCheck, AlertTriangle, Power, UserRound, Coins, ListChecks, Landmark, Clock, Shuffle, CalendarDays, Scale, Hand, Undo2, CalendarClock, Users, BookOpen } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import ErroCarga from '../components/ErroCarga'
 import { useAuth } from '../context/AuthContext'
@@ -46,7 +46,9 @@ const AGENTES = [
   ['Ferramenta', '#34d399', 'O que foi gravado de verdade: agenda, acordo, contestação, transferência.'],
   ['Acompanhamento', '#fb923c', 'Lembra as datas, confere pagamentos e procura no atraso. Código.'],
 ]
-const COR_AGENTE = Object.fromEntries(AGENTES.map(([n, c]) => [n, c]))
+const COR_AGENTE = { ...Object.fromEntries(AGENTES.map(([n, c]) => [n, c])), Supervisor: '#e879f9', Cientista: '#facc15', Equipe: '#e5e7eb' }
+const QUEM_CADERNO = { estrategista: 'Estrategista', triagem: 'Triagem', negociador: 'Negociador', acompanhamento: 'Acompanhamento',
+  supervisor: 'Supervisor', cientista: 'Cientista', equipe: 'Equipe' }
 const TIPO_AGENDA = { atendimento: 'Atendimento com pessoa', transferencia: 'Transferido', conferencia: 'Conferir pagamento',
   retorno: 'Retorno do agente', promessa: 'Promessa de pagamento' }
 
@@ -217,6 +219,25 @@ function Conversa({ empresa }) {
       <section className="rounded-xl border border-line bg-surface p-4">
         <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink"><ListChecks className="h-4 w-4 text-blue-400" /> Por que o agente fez isso</h2>
         <Passos passos={dados?.passos} />
+        {dados?.caderno?.length > 0 && (
+          <div className="mt-4 border-t border-line pt-3">
+            <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-ink"><BookOpen className="h-3.5 w-3.5 text-blue-400" /> Caderno do caso</h3>
+            <p className="mb-2 text-[11px] text-ink-3">O que cada agente decidiu; o próximo lê antes de agir.</p>
+            <ol className="space-y-1.5">
+              {dados.caderno.map((n, i) => {
+                const quem = QUEM_CADERNO[n.agente] || n.agente
+                return (
+                  <li key={i} className="text-xs">
+                    <span className="mr-1.5 rounded px-1.5 py-px text-[11px] font-semibold" style={{ color: COR_AGENTE[quem] || 'var(--ink-2)', background: 'color-mix(in srgb, currentColor 14%, transparent)' }}>{quem}</span>
+                    <span className="font-medium text-ink">{n.decisao}</span>
+                    {n.motivo && <span className="text-ink-2"> — {n.motivo}</span>}
+                    <span className="ml-1 text-[10px] text-ink-3">{fmtHora(n.quando)}</span>
+                  </li>
+                )
+              })}
+            </ol>
+          </div>
+        )}
         {dados?.atendimento && (
           <div className="mt-4 rounded-lg border border-line bg-surface-2 p-3 text-xs text-ink-2">
             <p className="flex items-center gap-1.5 font-semibold text-ink"><CalendarClock className="h-3.5 w-3.5" /> Atendimento com pessoa marcado</p>
