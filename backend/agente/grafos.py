@@ -8,6 +8,8 @@
 
 As decisões de segurança são código; só "negociar" usa a IA de conversa.
 """
+import re
+
 from agente import estado, ferramentas, negociador, triagem
 from agente.orquestrador import FIM, Grafo
 
@@ -73,8 +75,14 @@ def grafo_mensagem(fonte) -> Grafo:
             # Transparência: a primeira mensagem diz que é um assistente virtual.
             dev = ctx.saida.get("_devedor") or {}
             nome = ferramentas._primeiro_nome(dev.get("nome"))
-            texto = (f"Olá{', ' + nome if nome else ''}! Aqui é o assistente virtual de "
-                     f"{fonte.nome_empresa(ctx.caso['empresa_id'])}. " + texto)
+            apresentacao = f"Aqui é o assistente virtual de {fonte.nome_empresa(ctx.caso['empresa_id'])}."
+            # Se a resposta já começa com saudação, a apresentação entra depois dela
+            # (sem "Olá, Maria! ... Olá, Maria!").
+            ola = re.match(r"\s*((?:ol[áa]|oi|bom dia|boa tarde|boa noite)\b[^.!?\n]*[.!?])\s*", texto, re.I)
+            if ola:
+                texto = f"{ola.group(1)} {apresentacao} {texto[ola.end():]}".strip()
+            else:
+                texto = f"Olá{', ' + nome if nome else ''}! {apresentacao} " + texto
         ctx.repo.gravar_mensagem(ctx.caso["empresa_id"], ctx.caso["id"], "saida", texto, ctx.rastreio.trace_id,
                              criado_em=ctx.agora)
         ctx.saida["enviada"] = texto
