@@ -454,6 +454,7 @@ def executar(ctx, fonte, nome: str, args) -> dict:
     params, extra = dict(args), {}
     if nome == "registrar_aceite":
         params, extra["simulacao"] = _params_aceite(ctx, args)
+        extra["ironia"] = bool((ctx.saida.get("triagem") or {}).get("ironia"))
     decisao = ctx.auditar({"tipo": f.acao, "params": params}, **extra)
     if not decisao["permitida"]:
         return {"ok": False, "bloqueado": True, "regra": decisao["regra"], "motivo": decisao["motivo"]}

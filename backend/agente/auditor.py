@@ -128,7 +128,7 @@ def _conferir_hora(data_txt, hora, politica: dict, versao) -> dict | None:
 
 
 def auditar(acao: dict, caso: dict, politica: dict | None, versao: int | None,
-            agora: datetime, contatos_7d: int = 0, simulacao: dict | None = None) -> dict:
+            agora: datetime, contatos_7d: int = 0, simulacao: dict | None = None, ironia: bool = False) -> dict:
     """Decide se a ação pode ser executada.
 
     acao        : {"tipo": str, "params": dict}
@@ -188,6 +188,10 @@ def auditar(acao: dict, caso: dict, politica: dict | None, versao: int | None,
     # Acordo: só depois de confirmar que é o titular, e com as contas do simulador.
     if not (caso.get("dados") or {}).get("identidade_ok"):
         return _decisao(False, "R10_IDENTIDADE", "identidade do devedor não confirmada", versao)
+    if tipo == "registrar_aceite" and ironia:
+        # "Ah claro, aceito, com o dinheiro que eu não tenho": a Triagem viu ironia
+        # nesta mensagem. Aceite só com confirmação clara numa mensagem seguinte.
+        return _decisao(False, "R13_IRONIA", "a mensagem parece irônica: confirme o aceite antes de registrar", versao)
     try:
         cond = oferta.condicoes(params)
     except ValueError as e:

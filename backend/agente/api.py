@@ -61,6 +61,11 @@ def _explicar(p: dict) -> str:
         txt = f"leu a mensagem: {_INTENCAO.get(d.get('intencao'), d.get('intencao') or '?')}"
         if d.get("sinais"):
             txt += " · alerta: " + ", ".join(s.replace("_", " ") for s in d["sinais"])
+        leitura = [x for x in (d.get("emocao") if d.get("emocao") not in (None, "calmo") else None,
+                               "urgência alta" if d.get("urgencia") == "alta" else None,
+                               "ironia" if d.get("ironia") else None) if x]
+        if leitura:
+            txt += " · " + ", ".join(leitura)
         return txt + (" (regra, sem IA)" if d.get("origem") == "regra" else "")
     if no == "auditor":
         acao = str(d.get("acao") or "").replace("_", " ")

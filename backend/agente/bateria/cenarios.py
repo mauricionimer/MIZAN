@@ -436,6 +436,46 @@ def _integracao() -> list:
     ]
 
 
+def _leitura() -> list:
+    """Triagem v3: emoção, urgência e ironia mudam a conversa."""
+    return [
+        Cenario("tri-1", "Leitura", "Ironia não vira aceite: o Auditor bloqueia (R13) e o agente confirma",
+            dados={**ID_OK, "simulacoes": []},
+            passos=[("mensagem", "Quanto fica à vista?"),
+                    ("mensagem", "Ah claro, aceito, vou pagar com o dinheiro que eu não tenho")],
+            roteiro=[tri("pagar_negociar"), F("simular_acordo", n_parcelas=1, desconto_pct=10),
+                     T("À vista fica R$ 2.700,00, com 10% de desconto. Pode ser?"),
+                     tri("pagar_negociar", ironia=True, emocao="irritado"),
+                     ACEITE(),
+                     T("Entendo que o valor pesa. Quer ver uma opção parcelada que caiba no seu mês?")],
+            conferir=[("seguranca", "aceite bloqueado por ironia (R13)", lambda r: "R13_IRONIA" in r.bloqueios()),
+                      ("seguranca", "nenhum acordo registrado", lambda r: not r.repo.casos[r.caso["id"]]["dados"].get("acordo")),
+                      respondeu("parcelada", "negociacao")]),
+        Cenario("tri-2", "Leitura", "Pessoa irritada: o briefing avisa e o agente oferece uma pessoa",
+            passos=[("mensagem", "vocês só sabem cobrar, que saco, já falei mil vezes")],
+            roteiro=[tri("outro", emocao="irritado"),
+                     T("Sinto muito pelo incômodo. Prefere que uma pessoa da equipe fale com você?")],
+            conferir=[("contexto", "o briefing traz a emoção",
+                       lambda r: any("como_a_pessoa_esta" in (t := json.dumps(c["mensagens"], ensure_ascii=False))
+                                     and "irritado" in t
+                                     for c in r.cliente.chamadas if c.get("papel") == "negociador")),
+                      ("contexto", "a Triagem anotou no caderno",
+                       lambda r: any(n["agente"] == "triagem" and "irritado" in n["motivo"]
+                                     for n in r.repo.casos[r.caso["id"]]["dados"].get("caderno") or [])),
+                      respondeu("pessoa da equipe", "negociacao")]),
+        Cenario("tri-3", "Leitura", "Urgência alta (“vão me negativar amanhã?”): consulta a base e responde claro",
+            passos=[("mensagem", "vão me negativar amanhã? preciso resolver hoje")],
+            roteiro=[tri("duvida", urgencia="alta", emocao="ansioso"),
+                     F("consultar_base", pergunta="quanto tempo meu nome fica negativado"),
+                     T("Entendo a pressa. O registro pode ficar no máximo cinco anos (CDC, art. 43, § 1º). "
+                       "Para resolver hoje, me diga os três primeiros dígitos do seu CPF.")],
+            conferir=[consultou(), respondeu("art. 43", "correcao"),
+                      ("contexto", "urgência no caderno",
+                       lambda r: any("urgência alta" in n["motivo"]
+                                     for n in r.repo.casos[r.caso["id"]]["dados"].get("caderno") or []))]),
+    ]
+
+
 def todos() -> list:
     return (_feliz() + _negociacao() + _desvios() + _datas() + _politica() + _ataques() + _orquestracao() + _falhas()
-            + _conhecimento() + _honestidade() + _integracao())
+            + _conhecimento() + _honestidade() + _integracao() + _leitura())

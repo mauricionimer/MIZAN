@@ -120,12 +120,12 @@ class Contexto:
                 self.saida["_politica"] = (None, None)
         return self.saida["_politica"]
 
-    def auditar(self, acao: dict, contatos_7d: int = 0, simulacao: dict | None = None) -> dict:
+    def auditar(self, acao: dict, contatos_7d: int = 0, simulacao: dict | None = None, ironia: bool = False) -> dict:
         """Passa a ação pelo Auditor e registra a decisão como um passo do rastreio."""
         regras, versao = self.politica()
         with self.rastreio.span("auditor", "auditor") as p:
             d = auditor.auditar(acao, self.caso, regras, versao, self.agora,
-                                contatos_7d=contatos_7d, simulacao=simulacao)
+                                contatos_7d=contatos_7d, simulacao=simulacao, ironia=ironia)
             p["regra"], p["versao_politica"] = d["regra"], d["versao_politica"]
             p["detalhe"] = {"acao": (acao or {}).get("tipo"), "permitida": d["permitida"], "motivo": d.get("motivo")}
             if not d["permitida"]:

@@ -47,9 +47,10 @@ def devedor(**kw) -> dict:
 
 # ── atalhos para escrever roteiros ──────────────────────────────────────────
 
-def tri(intencao: str, *sinais) -> str:
+def tri(intencao: str, *sinais, **leitura) -> str:
+    """Resposta da Triagem simulada. `leitura`: emocao, urgencia, ironia, resumo."""
     return json.dumps({"intencao": intencao, "confianca": 0.9, "valores_citados": [], "datas_citadas": [],
-                       "sinais_de_risco": list(sinais)})
+                       "sinais_de_risco": list(sinais), **leitura})
 
 
 def F(nome: str, **args) -> Resposta:
