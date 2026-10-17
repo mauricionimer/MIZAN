@@ -68,6 +68,9 @@ class FonteMemoria:
         self.agenda.append(item)
         return copy.deepcopy(item)
 
+    def recomendacao_bandit(self, empresa_id: str, devedor: dict) -> dict | None:
+        return copy.deepcopy(getattr(self, "_bandit", None))
+
     def agenda_dos_casos(self, empresa_id: str, predicao_ids: list) -> list:
         ids = set(predicao_ids)
         return [copy.deepcopy(a) for a in self.agenda if a["empresa_id"] == empresa_id and a["predicao_id"] in ids
@@ -176,6 +179,17 @@ class FonteSupabase:
                  "situacao": "pendente"}
         res = self.db.table("agenda").insert({k: v for k, v in linha.items() if v is not None}).execute()
         return res.data[0]
+
+    def recomendacao_bandit(self, empresa_id: str, devedor: dict) -> dict | None:
+        """O que o bandit da empresa recomenda para o devedor (contexto completo da
+        predição, que nunca vai para a IA). Falhou: sem recomendação."""
+        try:
+            from model import bandit
+            linha = (self.db.table("predicoes").select("*").eq("id", devedor["id"]).limit(1).execute().data or [None])[0]
+            return bandit.recomendar(linha or devedor, empresa_id) if linha else None
+        except Exception as e:
+            print(f"[Agente] bandit indisponível: {type(e).__name__}")
+            return None
 
     def agenda_dos_casos(self, empresa_id: str, predicao_ids: list) -> list:
         """Compromissos pendentes dos devedores que estão com o agente."""

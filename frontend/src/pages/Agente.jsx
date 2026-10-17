@@ -47,6 +47,7 @@ const AGENTES = [
   ['Acompanhamento', '#fb923c', 'Lembra as datas, confere pagamentos e procura no atraso. Código.'],
 ]
 const COR_AGENTE = { ...Object.fromEntries(AGENTES.map(([n, c]) => [n, c])), Supervisor: '#e879f9', Cientista: '#facc15', Equipe: '#e5e7eb' }
+const OFERTA_NOME = { avista_10pct: '10% à vista', desconto_30pct: '30% à vista', parcelado_4x: 'até 4x', parcelado_12x: 'até 12x' }
 const QUEM_CADERNO = { estrategista: 'Estrategista', triagem: 'Triagem', negociador: 'Negociador', acompanhamento: 'Acompanhamento',
   supervisor: 'Supervisor', cientista: 'Cientista', equipe: 'Equipe' }
 const TIPO_AGENDA = { atendimento: 'Atendimento com pessoa', transferencia: 'Transferido', conferencia: 'Conferir pagamento',
@@ -463,7 +464,15 @@ function Plano({ empresa }) {
             <p className="mt-0.5 text-xs text-ink-2">{c.nota}</p>
             <ul className="mt-3 space-y-1.5">
               {p.grupos[g].slice(0, 6).map(it => (
-                <li key={it.id} className="text-xs"><span className="font-medium text-ink">{it.nome}</span> <span className="text-ink-2">· {fmtBRL(it.valor_divida)} · {it.motivo}</span></li>
+                <li key={it.id} className="text-xs"><span className="font-medium text-ink">{it.nome}</span> <span className="text-ink-2">· {fmtBRL(it.valor_divida)} · {it.motivo}</span>
+                  {it.estrategia?.raciocinio && (
+                    <p className="mt-0.5 pl-2 text-[11px] text-ink-2" style={{ borderLeft: `2px solid ${COR_AGENTE.Estrategista}` }}>
+                      <span className="font-semibold" style={{ color: COR_AGENTE.Estrategista }}>IA</span>
+                      {it.estrategia.oferta_inicial && <> · começa por {OFERTA_NOME[it.estrategia.oferta_inicial] || it.estrategia.oferta_inicial}</>}
+                      {it.estrategia.concorda_bandit === false && <> · discorda do bandit</>} · {it.estrategia.raciocinio}
+                    </p>
+                  )}
+                </li>
               ))}
               {p.grupos[g].length > 6 && <li className="text-xs text-ink-3">e mais {p.grupos[g].length - 6}</li>}
             </ul>

@@ -21,7 +21,10 @@ paga se for cobrado).
 """
 import hashlib
 
-from agente import auditor, estado, ferramentas
+from datetime import timedelta
+
+from agente import auditor, estado, estrategista_ia, ferramentas
+from agente.llm import ia_ligada
 from agente.orquestrador import Grafo, registrar_evento
 
 LIMIAR_SO_LEMBRETE = 0.70
@@ -74,12 +77,14 @@ def plano(repo, fonte, empresa_id: str, aplicar: bool = False, agora=None) -> di
     pct = pol["percentual_controle"] if pol else 0
     saida = {g: [] for g in GRUPOS}
     controle = []
+    com_ia = 0                          # abordagens que o Estrategista com IA analisa hoje
     for dev in fonte.devedores(empresa_id):
         caso = repo.caso_de(empresa_id, dev["id"])
         grupo, motivo = classificar(dev, caso)
         no_controle = caso["grupo_controle"] if caso else sorteado(empresa_id, dev["id"], pct)
         item = {"id": dev["id"], "nome": dev.get("nome"), "valor_divida": dev.get("valor_divida"),
-                "chance": chance(dev), "motivo": motivo, "situacao": (caso or {}).get("situacao", "novo")}
+                "chance": chance(dev), "motivo": motivo, "situacao": (caso or {}).get("situacao", "novo"),
+                "estrategia": ((caso or {}).get("dados") or {}).get("estrategia")}
         if no_controle:
             controle.append({**item, "grupo": grupo})
         else:
@@ -94,12 +99,20 @@ def plano(repo, fonte, empresa_id: str, aplicar: bool = False, agora=None) -> di
                               motivo, quando=agora)
                 dados = rascunho["dados"]
             dados["motivo_grupo"] = motivo
+            dados["chance"] = chance(dev)
             campos = {"grupo": grupo, "dados": dados, "grupo_controle": bool(no_controle)}
             if c["situacao"] == "novo" and grupo == "so_lembrete" and not no_controle:
                 campos["situacao"] = estado.mudar("novo", "so_lembrete")
             repo.salvar_caso(c["id"], campos)
             if grupo == "contato" and not no_controle and c["situacao"] == "novo":
-                registrar_evento(repo, empresa_id, c["id"], "abordagem", f"abordagem:{dev['id']}", {}, origem="estrategista")
+                # Os primeiros do dia passam pelo Estrategista com IA, em lotes
+                # (limite de chamadas por minuto): o lote seguinte sai no ciclo seguinte.
+                analisar = ia_ligada("estrategista") and com_ia < estrategista_ia.max_por_dia()
+                lote = com_ia // estrategista_ia.POR_LOTE
+                registrar_evento(repo, empresa_id, c["id"], "abordagem", f"abordagem:{dev['id']}", {"com_ia": analisar},
+                                 origem="estrategista",
+                                 disponivel_em=(agora + timedelta(minutes=10 * lote)) if (analisar and agora and lote) else None)
+                com_ia += analisar
     return {"grupos": saida, "controle": controle, "percentual_controle": pct,
             "politica_versao": achada["versao"] if achada else None,
             "contagem": {**{g: len(v) for g, v in saida.items()}, "controle": len(controle)}}
@@ -130,7 +143,36 @@ def grafo_abordagem(fonte) -> Grafo:
                 from agente.acompanhamento import proximo_horario
                 ctx.saida["adiar_para"] = proximo_horario(regras, ctx.agora)
             return
-        texto = texto_abordagem(ferramentas._primeiro_nome(dev.get("nome")), fonte.nome_empresa(ctx.caso["empresa_id"]))
+        nome, empresa = ferramentas._primeiro_nome(dev.get("nome")), fonte.nome_empresa(ctx.caso["empresa_id"])
+        dec = None
+        if (ctx.evento.get("dados") or {}).get("com_ia"):
+            rec = fonte.recomendacao_bandit(ctx.caso["empresa_id"], dev)
+            with ctx.rastreio.span("estrategia", "estrategista") as p:
+                dec = ctx.ia_ou_codigo("estrategista", lambda: estrategista_ia.decidir(ctx, dev, rec), lambda: None)
+                if dec:
+                    p["detalhe"] = {**p.get("detalhe", {}), "decisao": dec["decisao"], "tom": dec["tom"],
+                                    "oferta": dec["oferta_inicial"], "concorda_bandit": dec["concorda_bandit"],
+                                    "bandit": dec["bandit_oferta"]}
+        if dec and dec["decisao"] == "adiar":
+            ctx.caso["situacao"] = "novo"                       # não houve contato
+            volta = estrategista_ia.quando_adiar(ctx.agora, dec["adiar_dias"])
+            registrar_evento(ctx.repo, ctx.caso["empresa_id"], ctx.caso["id"], "abordagem",
+                             f"abordagem:{dev['id']}:adiada:{volta.date().isoformat()}", {"com_ia": False},
+                             origem="estrategista", disponivel_em=volta)
+            ctx.anotar("estrategista", f"adiou {dec['adiar_dias']} dia(s)", dec["raciocinio"])
+            ctx.saida["pular"] = "adiado pelo Estrategista"
+            return
+        if dec:
+            dados = dict(ctx.caso.get("dados") or {})
+            dados["estrategia"] = {k: dec[k] for k in ("tom", "oferta_inicial", "concorda_bandit", "bandit_oferta",
+                                                       "raciocinio")}
+            ctx.caso["dados"] = dados
+            ctx.anotar("estrategista", f"abordar ({dec['tom']}" + (f", {dec['oferta_inicial']}" if dec["oferta_inicial"] else "")
+                       + ")", dec["raciocinio"])
+            texto = (f"Olá, {nome}! Aqui é o assistente virtual de {empresa}. {dec['mensagem']} "
+                     "Se preferir falar com uma pessoa, é só dizer.")
+        else:
+            texto = texto_abordagem(nome, empresa)
         ctx.repo.gravar_mensagem(ctx.caso["empresa_id"], ctx.caso["id"], "saida", texto, ctx.rastreio.trace_id,
                                  criado_em=ctx.agora)
 
