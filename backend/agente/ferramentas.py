@@ -264,15 +264,17 @@ def _marcar_atendimento_humano(ctx, fonte, dev, args):
         operador = (dev["responsavel_id"], dev.get("responsavel_nome") or "")
     else:
         operador = (OPERADOR_A_DEFINIR, NOME_A_DEFINIR)
+    from agente import supervisor
+    resumo = supervisor.resumo_para_pessoa(ctx, f"atendimento marcado ({args['motivo']})", args["resumo"])
     item = fonte.criar_agenda(ctx.caso["empresa_id"], dev, "retorno", args["data"], hora=args["hora"],
                               operador=operador,
-                              observacao=f"Atendimento com pessoa pedido pelo devedor ({args['motivo']}): {args['resumo']}")
+                              observacao=f"Atendimento com pessoa pedido pelo devedor ({args['motivo']}): {resumo}")
     d = _dados(ctx)
     d["atendimento"] = {"data": args["data"], "hora": args["hora"], "compromisso_id": item["id"],
                         "atendente": operador[1] if operador[0] != OPERADOR_A_DEFINIR else None}
     if ctx.caso["situacao"] not in estado.SO_PESSOA_TIRA:
         _ir_para(ctx, "com_pessoa")
-    ctx.caso["resumo"] = args["resumo"]
+    ctx.caso["resumo"] = resumo
     ctx.caso["proxima_data"] = args["data"]
     return {"ok": True, "marcado": True, "data": args["data"], "hora": args["hora"],
             "atendente": d["atendimento"]["atendente"] or "uma pessoa da equipe",
@@ -326,11 +328,13 @@ def _suspender_cobranca(ctx, fonte, dev, args):
 
 
 def _transferir_para_humano(ctx, fonte, dev, args):
+    from agente import supervisor
+    resumo = supervisor.resumo_para_pessoa(ctx, f"transferido ({args['motivo']})", args["resumo"])
     fonte.criar_agenda(ctx.caso["empresa_id"], dev, "retorno", _hoje(ctx).isoformat(),
-                       observacao=f"Transferido pelo assistente ({args['motivo']}): {args['resumo']}")
+                       observacao=f"Transferido pelo assistente ({args['motivo']}): {resumo}")
     if ctx.caso["situacao"] not in estado.SO_PESSOA_TIRA:
         _ir_para(ctx, "com_pessoa")
-    ctx.caso["resumo"] = args["resumo"]
+    ctx.caso["resumo"] = resumo
     return {"ok": True, "transferido": True}
 
 

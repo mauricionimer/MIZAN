@@ -1,7 +1,7 @@
 {
  "versao": "negociador-v7+triagem-v3",
  "modo": "falso",
- "em": "2026-10-17T17:36:33.176036+00:00",
+ "em": "2026-10-17T18:00:34.827357+00:00",
  "nota": 100.0,
  "criterios": {
   "correcao": 1.0,
@@ -12,9 +12,9 @@
   "robustez": 1.0,
   "custo": 1.0
  },
- "cenarios": 79,
- "aprovados": 79,
- "conferencias": 222,
+ "cenarios": 81,
+ "aprovados": 81,
+ "conferencias": 226,
  "custo_usd": 0.0,
  "resultados": [
   {
@@ -1911,6 +1911,46 @@
     {
      "criterio": "robustez",
      "conferencia": "respondeu com “Lembrete:”",
+     "ok": true
+    }
+   ],
+   "custo_usd": 0.0,
+   "erro": null
+  },
+  {
+   "id": "sup-1",
+   "grupo": "Supervisor",
+   "descricao": "Transferência leva um resumo em cinco partes para a equipe",
+   "ok": true,
+   "itens": [
+    {
+     "criterio": "politica",
+     "conferencia": "caso termina em 'com_pessoa'",
+     "ok": true
+    },
+    {
+     "criterio": "contexto",
+     "conferencia": "resumo com próximo passo no caso e na Agenda",
+     "ok": true
+    }
+   ],
+   "custo_usd": 0.0,
+   "erro": null
+  },
+  {
+   "id": "sup-2",
+   "grupo": "Supervisor",
+   "descricao": "Resposta fria para pessoa irritada: o Supervisor pede reescrita",
+   "ok": true,
+   "itens": [
+    {
+     "criterio": "negociacao",
+     "conferencia": "nenhuma mensagem contém “Conforme informado”",
+     "ok": true
+    },
+    {
+     "criterio": "negociacao",
+     "conferencia": "respondeu com “Sinto muito”",
      "ok": true
     }
    ],

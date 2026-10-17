@@ -505,6 +505,33 @@ def _acompanhamento_ia() -> list:
     ]
 
 
+def _supervisor() -> list:
+    """Supervisor: resumo para a equipe e revisão de tom sob sinal."""
+    resumo = json.dumps({"situacao": "dívida em atraso, primeira conversa", "oferecido": "nada ainda",
+                         "o_que_quer": "falar com uma pessoa", "emocao": "irritado",
+                         "proximo_passo": "ligar hoje e ouvir antes de oferecer"})
+    return [
+        Cenario("sup-1", "Supervisor", "Transferência leva um resumo em cinco partes para a equipe",
+            dados=ID_OK, papeis=("supervisor",),
+            passos=[("mensagem", "isso é um absurdo, quero falar com alguém de verdade")],
+            roteiro={"triagem": [tri("outro", emocao="irritado")],
+                     "negociador": [F("transferir_para_humano", motivo="dificuldade_grave", resumo="quer uma pessoa")],
+                     "supervisor": [resumo]},
+            conferir=[situacao("com_pessoa"),
+                      ("contexto", "resumo com próximo passo no caso e na Agenda",
+                       lambda r: "Próximo passo" in (r.repo.casos[r.caso["id"]].get("resumo") or "")
+                       and any("Próximo passo" in (a.get("observacao") or "") for a in r.fonte.agenda))]),
+        Cenario("sup-2", "Supervisor", "Resposta fria para pessoa irritada: o Supervisor pede reescrita",
+            dados=ID_OK, papeis=("supervisor",),
+            passos=[("mensagem", "vocês só sabem cobrar, que saco")],
+            roteiro={"triagem": [tri("outro", emocao="irritado")],
+                     "negociador": [T("Conforme informado, o débito permanece em aberto."),
+                                    T("Sinto muito pelo incômodo. Quer que uma pessoa da equipe fale com você?")],
+                     "supervisor": [json.dumps({"aprovado": False, "problema": "fria com quem está irritado"})]},
+            conferir=[nenhuma_contem("Conforme informado", "negociacao"), respondeu("Sinto muito", "negociacao")]),
+    ]
+
+
 def todos() -> list:
     return (_feliz() + _negociacao() + _desvios() + _datas() + _politica() + _ataques() + _orquestracao() + _falhas()
-            + _conhecimento() + _honestidade() + _integracao() + _leitura() + _acompanhamento_ia())
+            + _conhecimento() + _honestidade() + _integracao() + _leitura() + _acompanhamento_ia() + _supervisor())

@@ -39,7 +39,7 @@ def ligado() -> bool:
 # Quem fez cada passo, em português, para a tela mostrar os vários agentes.
 QUEM = {"triagem": "Triagem", "negociador": "Negociador", "auditor": "Auditor", "ferramenta": "Ferramenta",
         "codigo": "Travas", "orquestrador": "Orquestrador", "estrategista": "Estrategista",
-        "acompanhamento": "Acompanhamento", "pessoa": "Equipe"}
+        "acompanhamento": "Acompanhamento", "supervisor": "Supervisor", "pessoa": "Equipe"}
 _INTENCAO = {"pagar_negociar": "quer negociar", "ja_paguei": "diz que já pagou", "contestar": "contesta a dívida",
              "parar_contato": "pede para parar", "pessoa_errada": "pessoa errada", "pedir_pessoa": "pede uma pessoa",
              "duvida": "tem uma dúvida", "outro": "conversa"}
@@ -57,6 +57,17 @@ def _quem(p: dict) -> str:
 def _explicar(p: dict) -> str:
     """Uma frase do que o passo fez. Só código e classificação: nunca o texto do devedor."""
     no, d = p.get("no") or "", p.get("detalhe") or {}
+    if no == "resumo":
+        return f"resumiu o caso para a equipe ({d.get('motivo') or 'passagem'})" + (" · texto de hoje" if d.get("origem") == "codigo" else "")
+    if no == "revisao":
+        return f"revisou o tom ({d.get('sinal')}): " + ("aprovado" if d.get("aprovado") else "pediu reescrita")
+    if no == "estrategia":
+        if d.get("origem") != "ia":
+            return "abordagem padrão (sem IA)"
+        txt = f"decidiu {d.get('decisao')} · tom {d.get('tom')}"
+        if d.get("oferta"):
+            txt += f" · começa por {d['oferta']}"
+        return txt + (" · discorda do bandit" if d.get("concorda_bandit") is False else "")
     if no == "triagem":
         txt = f"leu a mensagem: {_INTENCAO.get(d.get('intencao'), d.get('intencao') or '?')}"
         if d.get("sinais"):

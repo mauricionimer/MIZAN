@@ -38,13 +38,14 @@ const nomeNo = (n) => NOME_NO[n] || (n?.startsWith('ferramenta:') ? `Ferramenta:
 // Os agentes e o que cada um faz: a mesma cor no passo a passo e na legenda.
 const AGENTES = [
   ['Orquestrador', '#94a3b8', 'Recebe cada evento, põe na fila e chama o próximo agente. Código.'],
-  ['Estrategista', '#22d3ee', 'Decide quem cobrar e quem não, e manda a primeira mensagem. Código.'],
-  ['Triagem', '#a78bfa', 'Lê a mensagem e entende a intenção. Pedido de parar, pessoa ou sofrimento: regra, sem IA.'],
+  ['Estrategista', '#22d3ee', 'Quem cobrar e o sorteio: código. Como abordar (tom, oferta, adiar), com o bandit como conselheiro: IA, quando ligado.'],
+  ['Triagem', '#a78bfa', 'Lê intenção, emoção, urgência e ironia com IA. Pedido de parar, pessoa ou sofrimento: regra, sem IA.'],
   ['Negociador', '#60a5fa', 'Conversa, confirma a identidade, simula acordos e tira dúvidas com a lei. IA com 16 ferramentas.'],
   ['Travas', '#f472b6', 'Conferem o texto antes de sair: valor, lei, tom e se o que diz que fez foi mesmo feito.'],
   ['Auditor', '#f59e0b', 'Confere cada ação contra a política da empresa. A palavra final é dele, não da IA.'],
   ['Ferramenta', '#34d399', 'O que foi gravado de verdade: agenda, acordo, contestação, transferência.'],
-  ['Acompanhamento', '#fb923c', 'Lembra as datas, confere pagamentos e procura no atraso. Código.'],
+  ['Acompanhamento', '#fb923c', 'Em cada data decide lembrar, esperar, oferecer nova data ou chamar uma pessoa, e escreve a mensagem: IA, quando ligado. Reserva: texto pronto.'],
+  ['Supervisor', '#e879f9', 'Resume o caso para a equipe e revisa o tom em conversas delicadas: IA, quando ligado. Não libera nada.'],
 ]
 const COR_AGENTE = { ...Object.fromEntries(AGENTES.map(([n, c]) => [n, c])), Supervisor: '#e879f9', Cientista: '#facc15', Equipe: '#e5e7eb' }
 const OFERTA_NOME = { avista_10pct: '10% à vista', desconto_30pct: '30% à vista', parcelado_4x: 'até 4x', parcelado_12x: 'até 12x' }

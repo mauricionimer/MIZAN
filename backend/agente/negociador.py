@@ -15,7 +15,7 @@ precisa passar pelo Auditor e ficar no rastreio antes do próximo:
 import json
 from datetime import date
 
-from agente import auditor, conhecimento, estado, ferramentas, guardrails
+from agente import auditor, conhecimento, estado, ferramentas, guardrails, supervisor
 from agente.triagem import como_dado
 
 VERSAO_PROMPT = "negociador-v7"            # v5: caderno; v6: emoção, urgência e ironia            # v3: blindagem; v4: só afirma o que fez, oferece pessoa e marca atendimento
@@ -234,7 +234,7 @@ def _conversar(ctx, fonte, texto_devedor: str, notas: list) -> str | None:
     mensagens = historico + [{"role": "user", "content": [
         {"type": "text", "text": _briefing(ctx, nome)},
         {"type": "text", "text": f"{pendente}<mensagem_do_devedor>{como_dado(texto_devedor)}</mensagem_do_devedor>"}]}]
-    resultados, reprovacoes = [], 0
+    resultados, reprovacoes, revisado = [], 0, False
     feitas: set = set()                     # ferramentas que rodaram com sucesso nesta resposta
     defs = ferramentas.definicoes()
 
@@ -282,6 +282,17 @@ def _conversar(ctx, fonte, texto_devedor: str, notas: list) -> str | None:
                 "[verificação automática do sistema] A resposta não pode ser enviada: " + "; ".join(motivos)
                 + ". Reescreva usando só valores devolvidos pelas ferramentas, sem esses problemas."}]})
             continue
+        sinal = None if revisado else supervisor.sinal_de_revisao(ctx, reprovacoes)
+        if sinal:
+            # Conversa delicada: o Supervisor lê antes de sair. Uma reescrita no máximo;
+            # a nova versão passa de novo pelas travas, não pelo Supervisor.
+            revisado = True
+            problema = supervisor.revisar(ctx, texto, sinal)
+            if problema:
+                mensagens.append({"role": "user", "content": [{"type": "text", "text":
+                    "[revisão do supervisor] Reescreva a resposta corrigindo: " + problema
+                    + ". Mantenha os mesmos fatos e valores."}]})
+                continue
         if not ctx.auditar({"tipo": "responder_mensagem", "params": {}})["permitida"]:
             return None
         return texto
