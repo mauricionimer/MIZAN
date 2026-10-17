@@ -36,17 +36,24 @@ const NOME_NO = {
 const nomeNo = (n) => NOME_NO[n] || (n?.startsWith('ferramenta:') ? `Ferramenta: ${n.slice(11).replaceAll('_', ' ')}` : n)
 
 // Os agentes e o que cada um faz: a mesma cor no passo a passo e na legenda.
+// [nome, cor, o que faz, grupo]. Grupo: 'ia' (agente com IA), 'codigo' (agente
+// sem IA, de propósito) ou 'seguranca' (não é agente: aparece nos passos).
 const AGENTES = [
-  ['Orquestrador', '#94a3b8', 'Recebe cada evento, põe na fila e chama o próximo agente. Código.'],
-  ['Estrategista', '#22d3ee', 'Quem cobrar e o sorteio: código. Como abordar (tom, oferta, adiar), com o bandit como conselheiro: IA, quando ligado.'],
-  ['Triagem', '#a78bfa', 'Lê intenção, emoção, urgência e ironia com IA. Pedido de parar, pessoa ou sofrimento: regra, sem IA.'],
-  ['Negociador', '#60a5fa', 'Conversa, confirma a identidade, simula acordos e tira dúvidas com a lei. IA com 16 ferramentas.'],
-  ['Travas', '#f472b6', 'Conferem o texto antes de sair: valor, lei, tom e se o que diz que fez foi mesmo feito.'],
-  ['Auditor', '#f59e0b', 'Confere cada ação contra a política da empresa. A palavra final é dele, não da IA.'],
-  ['Ferramenta', '#34d399', 'O que foi gravado de verdade: agenda, acordo, contestação, transferência.'],
-  ['Acompanhamento', '#fb923c', 'Em cada data decide lembrar, esperar, oferecer nova data ou chamar uma pessoa, e escreve a mensagem: IA, quando ligado. Reserva: texto pronto.'],
-  ['Supervisor', '#e879f9', 'Resume o caso para a equipe e revisa o tom em conversas delicadas: IA, quando ligado. Não libera nada.'],
-  ['Cientista', '#facc15', 'Compara agente e grupo sorteado; contas e selo de evidência em código, a IA interpreta e propõe. Aba Laboratório.'],
+  ['Triagem', '#a78bfa', 'Lê intenção, emoção, urgência e ironia. Pedido de parar, pessoa ou sofrimento: regra, sem IA.', 'ia'],
+  ['Negociador', '#60a5fa', 'Conversa, confirma a identidade, simula acordos e tira dúvidas com a lei, usando 16 ferramentas.', 'ia'],
+  ['Estrategista', '#22d3ee', 'Decide como abordar cada devedor (tom, oferta, adiar), com o bandit como conselheiro. Quem cobrar e o sorteio ficam em código.', 'ia'],
+  ['Acompanhamento', '#fb923c', 'Em cada data decide lembrar, esperar, oferecer nova data ou chamar uma pessoa, e escreve a mensagem. Reserva: texto pronto.', 'ia'],
+  ['Supervisor', '#e879f9', 'Resume o caso para a equipe e revisa o tom em conversas delicadas. Não libera nada.', 'ia'],
+  ['Cientista', '#facc15', 'Compara agente e grupo sorteado e propõe o próximo passo. Contas e selo de evidência em código. Aba Laboratório.', 'ia'],
+  ['Orquestrador', '#94a3b8', 'Recebe cada evento, põe na fila e chama o próximo agente.', 'codigo'],
+  ['Auditor', '#f59e0b', 'Confere cada ação contra a política da empresa. A palavra final é dele: não pode ser IA, porque um devedor esperto poderia convencê-la.', 'codigo'],
+  ['Travas', '#f472b6', 'Conferem o texto antes de sair: valor, lei, tom e se o que diz que fez foi mesmo feito.', 'seguranca'],
+  ['Ferramenta', '#34d399', 'O que foi gravado de verdade: agenda, acordo, contestação, transferência.', 'seguranca'],
+]
+const GRUPOS_LEGENDA = [
+  ['ia', 'Agentes com IA', 'Decidem com IA. Cada um tem um caminho em código se a IA falhar e liga ou desliga sozinho.'],
+  ['codigo', 'Agentes sem IA (código, de propósito)', 'O que precisa ser exato e não pode ser convencido.'],
+  ['seguranca', 'Mecanismos de segurança (não são agentes)', 'Aparecem nos passos da conversa.'],
 ]
 const COR_AGENTE = { ...Object.fromEntries(AGENTES.map(([n, c]) => [n, c])), Supervisor: '#e879f9', Cientista: '#facc15', Equipe: '#e5e7eb' }
 const OFERTA_NOME = { avista_10pct: '10% à vista', desconto_30pct: '30% à vista', parcelado_4x: 'até 4x', parcelado_12x: 'até 12x' }
@@ -490,15 +497,20 @@ function Legenda() {
   return (
     <section className="rounded-xl border border-line bg-surface p-4">
       <h2 className="flex items-center gap-2 text-sm font-semibold text-ink"><Users className="h-4 w-4 text-blue-400" /> Os agentes e o que cada um faz</h2>
-      <ul className="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2">
-        {AGENTES.map(([nome, cor, papel]) => (
-          <li key={nome} className="flex items-baseline gap-2 text-xs text-ink-2">
-            <span className="shrink-0 rounded px-1.5 py-px text-[11px] font-semibold" style={{ color: cor, background: 'color-mix(in srgb, currentColor 14%, transparent)' }}>{nome}</span>
-            {papel}
-          </li>
-        ))}
-      </ul>
-      <p className="mt-3 text-xs text-ink-3">Na Conversa, cada passo de “Por que o agente fez isso” mostra qual agente agiu.</p>
+      {GRUPOS_LEGENDA.map(([g, titulo, nota]) => (
+        <div key={g} className="mt-4">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-2">{titulo} <span className="ml-1 font-normal normal-case tracking-normal text-ink-3">· {nota}</span></p>
+          <ul className="mt-2 grid gap-x-6 gap-y-2 sm:grid-cols-2">
+            {AGENTES.filter(x => x[3] === g).map(([nome, cor, papel]) => (
+              <li key={nome} className="flex items-baseline gap-2 text-xs text-ink-2">
+                <span className="shrink-0 rounded px-1.5 py-px text-[11px] font-semibold" style={{ color: cor, background: 'color-mix(in srgb, currentColor 14%, transparent)' }}>{nome}</span>
+                {papel}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+      <p className="mt-4 text-xs text-ink-3">Na Conversa, cada passo de “Por que o agente fez isso” mostra qual agente agiu.</p>
     </section>
   )
 }
