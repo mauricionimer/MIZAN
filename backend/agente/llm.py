@@ -181,6 +181,164 @@ class ClienteAnthropic:
         return r
 
 
+# --- Gemini (API do Google AI Studio) ----------------------------------------
+
+_PARADA_GEMINI = {"STOP": "fim", "MAX_TOKENS": "limite", "MALFORMED_FUNCTION_CALL": "limite",
+                  "UNEXPECTED_TOOL_CALL": "limite", "TOO_MANY_TOOL_CALLS": "limite"}
+# Bloqueios do próprio Google viram "recusa": o caso vai para uma pessoa.
+_RECUSA_GEMINI = {"SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "IMAGE_SAFETY", "LANGUAGE", "OTHER"}
+# Raciocínio por papel: classificar pede pouco; negociar, um pouco mais.
+_RACIOCINIO_GEMINI = {"triagem": "minimal", "negociador": "low"}
+_URL_GEMINI = "https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent"
+
+
+class ErroGemini(RuntimeError):
+    pass
+
+
+def _enviar_http(url: str, corpo: dict, chave: str, timeout: float) -> dict:
+    import time
+    import urllib.error
+    import urllib.request
+    dados = json.dumps(corpo).encode("utf-8")
+    for tentativa in range(3):
+        req = urllib.request.Request(url, data=dados, headers={"x-goog-api-key": chave,
+                                                               "Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return json.load(r)
+        except urllib.error.HTTPError as e:
+            erro = (json.loads(e.read() or b"{}").get("error") or {})
+            if e.code in (429, 500, 503) and tentativa < 2:
+                # O Google diz quanto esperar (RetryInfo, ex. "17s"); até 20 s, espera.
+                espera = 2.0 * (tentativa + 1)
+                for det in erro.get("details") or []:
+                    try:
+                        espera = max(espera, float(str(det.get("retryDelay", "0s")).rstrip("s")))
+                    except ValueError:
+                        pass
+                if espera <= 20:
+                    time.sleep(espera)
+                    continue
+            # A mensagem do Google nunca traz a chave. Em cota estourada, diz qual.
+            cotas = [f"{v.get('quotaId')}={v.get('quotaValue')}" for det in erro.get("details") or []
+                     for v in det.get("violations") or []]
+            esperas = [det["retryDelay"] for det in erro.get("details") or [] if det.get("retryDelay")]
+            raise ErroGemini(f"Gemini HTTP {e.code} {erro.get('status', '')} cotas={cotas} esperar={esperas}") from None
+    raise ErroGemini("Gemini sem resposta")
+
+
+def _para_gemini(mensagens: list) -> list:
+    """Histórico no formato do agente (blocos estilo Anthropic) -> `contents` do Gemini."""
+    conteudos = []
+    for m in mensagens:
+        papel = "model" if m["role"] == "assistant" else "user"
+        blocos = m["content"] if isinstance(m["content"], list) else [{"type": "text", "text": str(m["content"])}]
+        partes = []
+        for b in blocos:
+            tipo = b.get("type")
+            if tipo == "gemini":                    # resposta do Gemini como veio (com assinatura de raciocínio)
+                partes.extend(b["partes"])
+            elif tipo == "text":
+                if b.get("text"):
+                    partes.append({"text": b["text"]})
+            elif tipo == "tool_use":                # histórico vindo de outro cliente ou do falso
+                partes.append({"functionCall": {"name": b["name"], "args": b.get("input") or {}}})
+            elif tipo == "tool_result":
+                bruto = b.get("content")
+                try:
+                    resultado = json.loads(bruto) if isinstance(bruto, str) else bruto
+                except ValueError:
+                    resultado = bruto
+                resposta = {"name": _nome_da_chamada(b["tool_use_id"]), "response": {"resultado": resultado}}
+                if _id_gemini(b["tool_use_id"]):
+                    resposta["id"] = _id_gemini(b["tool_use_id"])
+                partes.append({"functionResponse": resposta})
+        if not partes:
+            continue
+        if conteudos and conteudos[-1]["role"] == papel:
+            conteudos[-1]["parts"].extend(partes)
+        else:
+            conteudos.append({"role": papel, "parts": partes})
+    return conteudos
+
+
+def _id_da_chamada(nome: str, n: int, id_gemini: str | None = None) -> str:
+    # O id leva o nome da ferramenta: o Gemini pede o nome de volta no resultado.
+    return f"{nome}__id:{id_gemini}" if id_gemini else f"{nome}__g{n}"
+
+
+def _nome_da_chamada(id_: str) -> str:
+    return id_.rsplit("__", 1)[0]
+
+
+def _id_gemini(id_: str) -> str | None:
+    sufixo = id_.rsplit("__", 1)[-1]
+    return sufixo[3:] if sufixo.startswith("id:") else None
+
+
+class ClienteGemini:
+    """API do Gemini (Google AI Studio), por HTTP direto, sem SDK. Chave em GEMINI_API_KEY.
+
+    O histórico do agente segue no formato de blocos já usado com a Anthropic;
+    a conversão é feita aqui. A resposta do modelo volta ao histórico como um
+    bloco "gemini" com as partes originais: modelos com raciocínio exigem a
+    assinatura de volta na chamada seguinte.
+    """
+
+    def __init__(self, chave: str | None = None, enviar=None, timeout: float = 60.0):
+        self.chave = chave if chave is not None else (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "")
+        self.enviar = enviar or _enviar_http
+        self.timeout = timeout
+        self._n = 0
+
+    def gerar(self, *, sistema: str, mensagens: list, modelo: str, ferramentas: list | None = None,
+              max_tokens: int = 1024, papel: str | None = None) -> Resposta:
+        if modelo == MODELO_FALSO:
+            raise PrecoDesconhecido("cliente real sem modelo configurado (MIZAN_MODELO_*)")
+        if not self.chave:
+            raise ErroGemini("GEMINI_API_KEY não configurada")
+        custo(modelo, 0, 0)                          # sem preço configurado, não chama
+        corpo = {"systemInstruction": {"parts": [{"text": sistema}]},
+                 "contents": _para_gemini(mensagens),
+                 # O raciocínio conta no limite de saída: folga para não cortar a resposta.
+                 "generationConfig": {"maxOutputTokens": max(4 * max_tokens, 4096)}}
+        if papel in _RACIOCINIO_GEMINI:
+            corpo["generationConfig"]["thinkingConfig"] = {"thinkingLevel": _RACIOCINIO_GEMINI[papel]}
+        if ferramentas:
+            corpo["tools"] = [{"functionDeclarations": [
+                {"name": f["name"], "description": f.get("description", ""),
+                 "parametersJsonSchema": f.get("input_schema") or {"type": "object", "properties": {}}}
+                for f in ferramentas]}]
+        d = self.enviar(_URL_GEMINI.format(modelo=modelo), corpo, self.chave, self.timeout)
+
+        u = d.get("usageMetadata") or {}
+        cache = int(u.get("cachedContentTokenCount") or 0)
+        entrada = int(u.get("promptTokenCount") or 0)
+        saida = int(u.get("candidatesTokenCount") or 0) + int(u.get("thoughtsTokenCount") or 0)
+        r = Resposta(modelo=modelo, tokens_entrada=entrada, tokens_saida=saida, tokens_cache_leitura=cache)
+        r.custo_usd = custo(modelo, entrada - cache, saida, 0, cache)
+
+        cand = (d.get("candidates") or [None])[0]
+        if (d.get("promptFeedback") or {}).get("blockReason") or not cand:
+            r.parada = "recusa"
+            return r
+        partes = (cand.get("content") or {}).get("parts") or []
+        r.texto = "".join(p.get("text", "") for p in partes if "text" in p and not p.get("thought"))
+        for p in partes:
+            if "functionCall" in p:
+                self._n += 1
+                fc = p["functionCall"]
+                r.ferramentas.append({"id": _id_da_chamada(fc["name"], self._n, fc.get("id")), "nome": fc["name"],
+                                      "args": dict(fc.get("args") or {})})
+        motivo = cand.get("finishReason") or "STOP"
+        r.parada = ("ferramenta" if r.ferramentas and motivo == "STOP"
+                    else "recusa" if motivo in _RECUSA_GEMINI else _PARADA_GEMINI.get(motivo, "limite"))
+        if partes:
+            r.bruto = [{"type": "gemini", "partes": partes}]
+        return r
+
+
 def cliente():
     """O cliente configurado em MIZAN_AGENTE_CLIENTE (padrão: falso)."""
     tipo = os.getenv("MIZAN_AGENTE_CLIENTE", "falso").strip().lower()
@@ -188,4 +346,6 @@ def cliente():
         return ClienteFalso()
     if tipo == "anthropic":
         return ClienteAnthropic()
+    if tipo == "gemini":
+        return ClienteGemini()
     raise NotImplementedError(f"cliente de IA {tipo!r} não existe")
