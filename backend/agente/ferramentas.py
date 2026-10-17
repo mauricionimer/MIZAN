@@ -1,4 +1,4 @@
-"""As 15 ferramentas do Negociador (docs/PLANO_AGENTE.md, 3.2).
+"""As 16 ferramentas do Negociador (docs/PLANO_AGENTE.md, 3.2).
 
 Toda chamada segue o mesmo caminho:
 
@@ -13,6 +13,7 @@ Toda chamada segue o mesmo caminho:
 - Erros de uso voltam como resultado ({"ok": false, "erro": ...}) para a IA
   corrigir; falha de verdade (banco fora) sobe e o orquestrador trata.
 """
+import re
 import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -65,6 +66,8 @@ def _validar(f: Ferramenta, args) -> str | None:
                 return f"{campo}: texto longo demais"
             if "enum" in regra and v not in regra["enum"]:
                 return f"{campo}: use {', '.join(regra['enum'])}"
+            if "pattern" in regra and not re.fullmatch(regra["pattern"], v):
+                return f"{campo}: {regra.get('description') or 'formato inválido'}"
             if regra.get("format") == "date":
                 try:
                     date.fromisoformat(v)
@@ -246,10 +249,35 @@ def _registrar_aceite(ctx, fonte, dev, args):
 
 
 def _agendar_retorno(ctx, fonte, dev, args):
-    item = fonte.criar_agenda(ctx.caso["empresa_id"], dev, "retorno", args["data"],
+    item = fonte.criar_agenda(ctx.caso["empresa_id"], dev, "retorno", args["data"], hora=args.get("hora"),
                               observacao=f"Retorno combinado pelo assistente: {args['motivo']}")
     ctx.caso["proxima_data"] = args["data"]
-    return {"ok": True, "compromisso_id": item["id"], "data": args["data"]}
+    return {"ok": True, "compromisso_id": item["id"], "data": args["data"], "hora": args.get("hora"),
+            "_rastreio": {"compromisso": "retorno", "data": args["data"], "hora": args.get("hora")}}
+
+
+def _marcar_atendimento_humano(ctx, fonte, dev, args):
+    """O devedor quer falar com uma pessoa num dia e horário: vai para a agenda de
+    quem cuida dele; sem responsável, para o administrador escolher o operador."""
+    from agente.fonte import NOME_A_DEFINIR, OPERADOR_A_DEFINIR
+    if dev.get("responsavel_id"):
+        operador = (dev["responsavel_id"], dev.get("responsavel_nome") or "")
+    else:
+        operador = (OPERADOR_A_DEFINIR, NOME_A_DEFINIR)
+    item = fonte.criar_agenda(ctx.caso["empresa_id"], dev, "retorno", args["data"], hora=args["hora"],
+                              operador=operador,
+                              observacao=f"Atendimento com pessoa pedido pelo devedor ({args['motivo']}): {args['resumo']}")
+    d = _dados(ctx)
+    d["atendimento"] = {"data": args["data"], "hora": args["hora"], "compromisso_id": item["id"],
+                        "atendente": operador[1] if operador[0] != OPERADOR_A_DEFINIR else None}
+    if ctx.caso["situacao"] not in estado.SO_PESSOA_TIRA:
+        _ir_para(ctx, "com_pessoa")
+    ctx.caso["resumo"] = args["resumo"]
+    ctx.caso["proxima_data"] = args["data"]
+    return {"ok": True, "marcado": True, "data": args["data"], "hora": args["hora"],
+            "atendente": d["atendimento"]["atendente"] or "uma pessoa da equipe",
+            "_rastreio": {"compromisso": "atendimento", "data": args["data"], "hora": args["hora"],
+                          "a_definir": operador[0] == OPERADOR_A_DEFINIR}}
 
 
 def _registrar_contato(ctx, fonte, dev, args):
@@ -336,6 +364,7 @@ def _marcar_promessa_quebrada(ctx, fonte, dev, args):
 
 _DATA = {"type": "string", "format": "date", "maxLength": 10, "description": "AAAA-MM-DD"}
 _TEXTO = {"type": "string", "maxLength": 300}
+_HORA = {"type": "string", "maxLength": 5, "pattern": r"([01]\d|2[0-3]):[0-5]\d", "description": "HH:MM, 24 horas"}
 
 FERRAMENTAS = {f.nome: f for f in (
     Ferramenta("consultar_caso", "Situação do caso. Valores e compromissos só depois de confirmar a identidade.",
@@ -356,8 +385,15 @@ FERRAMENTAS = {f.nome: f for f in (
                {"simulacao_id": {"type": "string", "maxLength": 40}, "data_primeiro_pagamento": _DATA},
                ("simulacao_id", "data_primeiro_pagamento"), "registrar_aceite", _registrar_aceite,
                exige_identidade=True),
-    Ferramenta("agendar_retorno", "Marca um retorno combinado com o devedor.",
-               {"data": _DATA, "motivo": _TEXTO}, ("data", "motivo"), "agendar_retorno", _agendar_retorno),
+    Ferramenta("agendar_retorno", "Marca na agenda um novo contato do assistente com o devedor, numa data (e hora, "
+               "se combinada). Só diga que agendou depois que esta ferramenta devolver ok.",
+               {"data": _DATA, "hora": _HORA, "motivo": _TEXTO}, ("data", "motivo"), "agendar_retorno", _agendar_retorno),
+    Ferramenta("marcar_atendimento_humano", "O devedor aceitou falar com uma pessoa da equipe num dia e horário: "
+               "marca o atendimento na agenda da equipe, com resumo, e a pessoa assume o caso. Pergunte o dia e a "
+               "hora antes. Para atendimento imediato, use transferir_para_humano.",
+               {"data": _DATA, "hora": _HORA,
+                "motivo": {"type": "string", "enum": ["pedido_do_devedor", "reuniao", "duvida", "dificuldade"]},
+                "resumo": _TEXTO}, ("data", "hora", "motivo", "resumo"), "marcar_atendimento", _marcar_atendimento_humano),
     Ferramenta("registrar_contato", "Registra um contato sem acordo.",
                {"resultado": {"type": "string", "enum": ["contactado", "sem_resposta", "nao_quis"]},
                 "observacao": _TEXTO}, ("resultado",), "registrar_contato", _registrar_contato),
@@ -383,7 +419,8 @@ FERRAMENTAS = {f.nome: f for f in (
                {"compromisso_id": {"type": "string", "maxLength": 40}, "data": _DATA, "motivo": _TEXTO},
                ("compromisso_id", "data", "motivo"), "remarcar_compromisso", _remarcar_compromisso,
                exige_identidade=True),
-    Ferramenta("registrar_pagamento_informado", "O devedor diz que já pagou: suspende a cobrança e pede conferência.",
+    Ferramenta("registrar_pagamento_informado", "O devedor diz que já pagou: anota o aviso, suspende a cobrança e pede "
+               "conferência à equipe. Não confirma pagamento: só o banco confirma.",
                {"data": _DATA, "valor": {"type": "number", "minimum": 0, "maximum": 100_000_000}},
                ("data",), "registrar_pagamento_informado", _registrar_pagamento_informado),
     Ferramenta("marcar_promessa_quebrada", "A promessa venceu sem pagamento e sem nova data.",

@@ -59,7 +59,7 @@ SEGURANCA = frozenset({"suspender_contato", "registrar_contestacao", "transferir
 FALA = frozenset({"enviar_mensagem"})          # o agente procura o devedor
 RESPOSTA = frozenset({"responder_mensagem"})   # o devedor escreveu e o agente responde
 ACORDO = frozenset({"propor_acordo", "registrar_aceite"})
-COMPROMISSO = frozenset({"agendar_retorno", "remarcar_compromisso"})
+COMPROMISSO = frozenset({"agendar_retorno", "remarcar_compromisso", "marcar_atendimento"})
 REGISTRO = frozenset({"registrar_contato", "marcar_promessa_quebrada"})
 LEITURA = frozenset({"consultar_caso", "verificar_identidade", "listar_ofertas", "simular_acordo",
                      "consultar_politica", "consultar_base"})
@@ -110,6 +110,23 @@ def _conferir_data(valor, politica: dict, agora: datetime, versao) -> dict | Non
     return None
 
 
+def _conferir_hora(data_txt, hora, politica: dict, versao) -> dict | None:
+    """Hora combinada: dentro da janela de contato, em dia de contato."""
+    if not hora:
+        return None
+    try:
+        h, m = (int(x) for x in str(hora).split(":"))
+        dia = date.fromisoformat(str(data_txt))
+    except ValueError:
+        return _decisao(False, "R2_HORARIO", "hora inválida", versao)
+    if dia.weekday() not in politica["dias_semana"]:
+        return _decisao(False, "R2_HORARIO", "dia da semana fora da política", versao)
+    if not (politica["hora_inicio"] <= h < politica["hora_fim"]) or not 0 <= m < 60:
+        return _decisao(False, "R2_HORARIO",
+                        f"fora do horário ({politica['hora_inicio']}h às {politica['hora_fim']}h)", versao)
+    return None
+
+
 def auditar(acao: dict, caso: dict, politica: dict | None, versao: int | None,
             agora: datetime, contatos_7d: int = 0, simulacao: dict | None = None) -> dict:
     """Decide se a ação pode ser executada.
@@ -145,7 +162,8 @@ def auditar(acao: dict, caso: dict, politica: dict | None, versao: int | None,
         return _decisao(True, "OK", "registro do que aconteceu", versao)
 
     if tipo in COMPROMISSO:
-        ruim = _conferir_data(params.get("data"), politica, agora, versao)
+        ruim = (_conferir_data(params.get("data"), politica, agora, versao)
+                or _conferir_hora(params.get("data"), params.get("hora"), politica, versao))
         if ruim:
             return ruim
         if tipo == "remarcar_compromisso":

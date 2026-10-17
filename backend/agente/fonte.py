@@ -18,6 +18,11 @@ from datetime import datetime, timezone
 
 OPERADOR_AGENTE = "agente-mizan"
 NOME_AGENTE = "Assistente virtual"
+# Atendimento com uma pessoa pedido pelo devedor sem responsável: fica na fila
+# do administrador, que escolhe o operador (aba Agenda do Agente).
+OPERADOR_A_DEFINIR = "a-definir"
+NOME_A_DEFINIR = "A definir pelo administrador"
+OPERADORES_DO_AGENTE = (OPERADOR_AGENTE, OPERADOR_A_DEFINIR)
 
 
 def _agora_iso() -> str:
@@ -53,12 +58,31 @@ class FonteMemoria:
                 and a["predicao_id"] == predicao_id and a["situacao"] == "pendente"]
 
     def criar_agenda(self, empresa_id: str, devedor: dict, tipo: str, data: str,
-                     valor=None, observacao: str = "") -> dict:
-        item = {"id": str(uuid.uuid4()), "empresa_id": empresa_id, "cpf": devedor["cpf"],
-                "predicao_id": devedor["id"], "operador_id": devedor.get("responsavel_id") or OPERADOR_AGENTE,
-                "tipo": tipo, "data": data, "valor": valor, "observacao": observacao, "situacao": "pendente"}
+                     valor=None, observacao: str = "", hora: str | None = None, operador: tuple | None = None) -> dict:
+        op_id, op_nome = operador or (devedor.get("responsavel_id") or OPERADOR_AGENTE,
+                                      devedor.get("responsavel_nome") or NOME_AGENTE)
+        item = {"id": str(uuid.uuid4()), "empresa_id": empresa_id, "cpf": devedor["cpf"], "nome": devedor.get("nome"),
+                "predicao_id": devedor["id"], "operador_id": op_id, "operador_nome": op_nome,
+                "tipo": tipo, "data": data, "hora": hora, "valor": valor, "observacao": observacao,
+                "situacao": "pendente"}
         self.agenda.append(item)
         return copy.deepcopy(item)
+
+    def agenda_dos_casos(self, empresa_id: str, predicao_ids: list) -> list:
+        ids = set(predicao_ids)
+        return [copy.deepcopy(a) for a in self.agenda if a["empresa_id"] == empresa_id and a["predicao_id"] in ids
+                and a["situacao"] == "pendente"]
+
+    def operadores(self, empresa_id: str) -> list:
+        return copy.deepcopy(getattr(self, "_operadores", []))
+
+    def atribuir_agenda(self, empresa_id: str, item_id: str, operador_id: str, operador_nome: str) -> dict | None:
+        for a in self.agenda:
+            if a["id"] == item_id and a["empresa_id"] == empresa_id and a["situacao"] == "pendente" \
+                    and a["operador_id"] in OPERADORES_DO_AGENTE:
+                a.update({"operador_id": operador_id, "operador_nome": operador_nome})
+                return copy.deepcopy(a)
+        return None
 
     def atualizar_agenda(self, empresa_id: str, predicao_id: str, item_id: str, campos: dict) -> bool:
         for a in self.agenda:
@@ -140,17 +164,42 @@ class FonteSupabase:
         return res.data or []
 
     def criar_agenda(self, empresa_id: str, devedor: dict, tipo: str, data: str,
-                     valor=None, observacao: str = "") -> dict:
+                     valor=None, observacao: str = "", hora: str | None = None, operador: tuple | None = None) -> dict:
+        # O compromisso fica na agenda de quem cuida do devedor; sem responsável,
+        # na do agente (aparece para o gestor). `operador` escolhe outro dono.
+        op_id, op_nome = operador or (devedor.get("responsavel_id") or OPERADOR_AGENTE,
+                                      devedor.get("responsavel_nome") or NOME_AGENTE)
         linha = {"empresa_id": empresa_id, "cpf": devedor["cpf"], "nome": devedor.get("nome"),
                  "carteira_id": devedor.get("carteira_id"), "predicao_id": devedor["id"],
-                 # O compromisso fica na agenda de quem cuida do devedor; sem
-                 # responsável, na do agente (aparece para a equipe).
-                 "operador_id": devedor.get("responsavel_id") or OPERADOR_AGENTE,
-                 "operador_nome": devedor.get("responsavel_nome") or NOME_AGENTE,
-                 "tipo": tipo, "data": data, "valor": valor, "observacao": observacao or None,
+                 "operador_id": op_id, "operador_nome": op_nome,
+                 "tipo": tipo, "data": data, "hora": hora, "valor": valor, "observacao": observacao or None,
                  "situacao": "pendente"}
         res = self.db.table("agenda").insert({k: v for k, v in linha.items() if v is not None}).execute()
         return res.data[0]
+
+    def agenda_dos_casos(self, empresa_id: str, predicao_ids: list) -> list:
+        """Compromissos pendentes dos devedores que estão com o agente."""
+        saida = []
+        for i in range(0, len(predicao_ids), 200):
+            res = (self.db.table("agenda").select("id, predicao_id, nome, operador_id, operador_nome, tipo, data, hora, "
+                                                  "valor, observacao, situacao")
+                   .eq("empresa_id", empresa_id).eq("situacao", "pendente")
+                   .in_("predicao_id", predicao_ids[i:i + 200]).order("data").limit(500).execute())
+            saida += res.data or []
+        return saida
+
+    def operadores(self, empresa_id: str) -> list:
+        res = (self.db.table("usuarios").select("id, nome, email, role, ativo")
+               .eq("empresa_id", empresa_id).limit(1000).execute())
+        return [{"id": u["id"], "nome": u.get("nome") or u.get("email") or ""} for u in res.data or []
+                if u.get("role") == "operador" and u.get("ativo", True)]
+
+    def atribuir_agenda(self, empresa_id: str, item_id: str, operador_id: str, operador_nome: str) -> dict | None:
+        # Só troca quem ainda está com o agente: dois cliques não sobrescrevem um ao outro.
+        res = (self.db.table("agenda").update({"operador_id": operador_id, "operador_nome": operador_nome})
+               .eq("id", item_id).eq("empresa_id", empresa_id).eq("situacao", "pendente")
+               .in_("operador_id", list(OPERADORES_DO_AGENTE)).execute())
+        return (res.data or [None])[0]
 
     def atualizar_agenda(self, empresa_id: str, predicao_id: str, item_id: str, campos: dict) -> bool:
         res = (self.db.table("agenda").update(campos).eq("id", item_id).eq("empresa_id", empresa_id)

@@ -2,11 +2,11 @@
 // orquestração. Na demonstração, quem está na tela escreve como o devedor.
 // Regras em backend/agente/ (docs/PLANO_EXECUCAO_AGENTES.md).
 import { useEffect, useRef, useState } from 'react'
-import { Bot, Send, Search, Loader2, Activity, ShieldCheck, AlertTriangle, Power, UserRound, Coins, ListChecks, Landmark, Clock, Shuffle, CalendarDays, Scale, Hand, Undo2 } from 'lucide-react'
+import { Bot, Send, Search, Loader2, Activity, ShieldCheck, AlertTriangle, Power, UserRound, Coins, ListChecks, Landmark, Clock, Shuffle, CalendarDays, Scale, Hand, Undo2, CalendarClock, Users } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import ErroCarga from '../components/ErroCarga'
 import { useAuth } from '../context/AuthContext'
-import { agenteDevedores, agenteCaso, agenteSimularMensagem, agenteSimularPagamento, agenteCentral, agenteRelogio, agentePlano, agenteAplicarPlano, agentePoliticas, agenteSalvarPolitica, agenteControle, listarEmpresas } from '../api'
+import { agenteDevedores, agenteCaso, agenteSimularMensagem, agenteSimularPagamento, agenteCentral, agenteRelogio, agentePlano, agenteAplicarPlano, agentePoliticas, agenteSalvarPolitica, agenteControle, agenteAgenda, agenteAtribuir, listarEmpresas } from '../api'
 
 const fmtBRL = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0)
 const fmtUSD = (v) => `US$ ${Number(v || 0).toFixed(4)}`
@@ -35,6 +35,21 @@ const NOME_NO = {
 }
 const nomeNo = (n) => NOME_NO[n] || (n?.startsWith('ferramenta:') ? `Ferramenta: ${n.slice(11).replaceAll('_', ' ')}` : n)
 
+// Os agentes e o que cada um faz: a mesma cor no passo a passo e na legenda.
+const AGENTES = [
+  ['Orquestrador', '#94a3b8', 'Recebe cada evento, põe na fila e chama o próximo agente. Código.'],
+  ['Estrategista', '#22d3ee', 'Decide quem cobrar e quem não, e manda a primeira mensagem. Código.'],
+  ['Triagem', '#a78bfa', 'Lê a mensagem e entende a intenção. Pedido de parar, pessoa ou sofrimento: regra, sem IA.'],
+  ['Negociador', '#60a5fa', 'Conversa, confirma a identidade, simula acordos e tira dúvidas com a lei. IA com 16 ferramentas.'],
+  ['Travas', '#f472b6', 'Conferem o texto antes de sair: valor, lei, tom e se o que diz que fez foi mesmo feito.'],
+  ['Auditor', '#f59e0b', 'Confere cada ação contra a política da empresa. A palavra final é dele, não da IA.'],
+  ['Ferramenta', '#34d399', 'O que foi gravado de verdade: agenda, acordo, contestação, transferência.'],
+  ['Acompanhamento', '#fb923c', 'Lembra as datas, confere pagamentos e procura no atraso. Código.'],
+]
+const COR_AGENTE = Object.fromEntries(AGENTES.map(([n, c]) => [n, c]))
+const TIPO_AGENDA = { atendimento: 'Atendimento com pessoa', transferencia: 'Transferido', conferencia: 'Conferir pagamento',
+  retorno: 'Retorno do agente', promessa: 'Promessa de pagamento' }
+
 function Selo({ situacao }) {
   if (!situacao) return null
   const cor = COR_SIT[situacao] || 'var(--ink-2)'
@@ -51,13 +66,14 @@ function Passos({ passos }) {
         {passos.map((p, i) => (
           <li key={i} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-lg px-2 py-1.5 text-xs hover:bg-raise-1">
             <span className="h-2 w-2 shrink-0 translate-y-[-1px] rounded-full" style={{ background: COR_RES[p.resultado] || 'var(--ink-3)' }} />
-            <span className="font-medium text-ink">{nomeNo(p.no)}</span>
+            {p.quem && <span className="rounded px-1.5 py-px text-[11px] font-semibold" style={{ color: COR_AGENTE[p.quem] || 'var(--ink-2)', background: 'color-mix(in srgb, currentColor 14%, transparent)' }}>{p.quem}</span>}
+            <span className="font-medium text-ink">{p.explicacao || nomeNo(p.no)}</span>
             {p.regra && <span className="rounded bg-raise-2 px-1.5 py-px font-mono text-[11px] text-ink-2">{p.regra}{p.versao_politica ? ` · v${p.versao_politica}` : ''}</span>}
             {p.detalhe?.fontes?.map((f) => (
               <span key={f} className="rounded border border-line px-1.5 py-px text-[11px] text-ink" title="Fonte consultada na base de conhecimento">Fonte: {f}</span>
             ))}
             {p.detalhe?.certeza === false && <span style={{ color: 'var(--warning)' }}>sem resposta segura na base</span>}
-            {p.resultado === 'bloqueado' && <span style={{ color: 'var(--warning)' }}>bloqueado</span>}
+            {p.resultado === 'bloqueado' && !p.explicacao && <span style={{ color: 'var(--warning)' }}>bloqueado</span>}
             {p.resultado === 'erro' && <span style={{ color: 'var(--danger)' }}>erro{p.detalhe?.erro ? `: ${p.detalhe.erro}` : ''}</span>}
             <span className="ml-auto tabular-nums text-ink-3">{p.duracao_ms} ms{p.tokens_entrada ? ` · ${p.tokens_entrada + p.tokens_saida} tokens` : ''}</span>
           </li>
@@ -167,6 +183,13 @@ function Conversa({ empresa }) {
                   </div>
                 </div>
               ))}
+              {!enviando && dados?.silencio && (
+                <div className="flex justify-center">
+                  <p className="flex max-w-[90%] items-start gap-1.5 rounded-lg border px-3 py-1.5 text-xs" style={{ color: 'var(--warning)', borderColor: 'var(--warning)' }}>
+                    <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" /> O agente não respondeu. {dados.silencio}
+                  </p>
+                </div>
+              )}
               {enviando && <div className="flex justify-end"><span className="flex items-center gap-2 rounded-2xl bg-raise-2 px-3 py-2 text-xs text-ink-2"><Loader2 className="h-3.5 w-3.5 animate-spin" /> o agente está respondendo…</span></div>}
               <div ref={fim} />
             </div>
@@ -194,6 +217,12 @@ function Conversa({ empresa }) {
       <section className="rounded-xl border border-line bg-surface p-4">
         <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink"><ListChecks className="h-4 w-4 text-blue-400" /> Por que o agente fez isso</h2>
         <Passos passos={dados?.passos} />
+        {dados?.atendimento && (
+          <div className="mt-4 rounded-lg border border-line bg-surface-2 p-3 text-xs text-ink-2">
+            <p className="flex items-center gap-1.5 font-semibold text-ink"><CalendarClock className="h-3.5 w-3.5" /> Atendimento com pessoa marcado</p>
+            <p className="mt-1">{fmtData(dados.atendimento.data)} às {dados.atendimento.hora} · {dados.atendimento.atendente || 'o administrador escolhe quem atende (aba Agenda)'}.</p>
+          </div>
+        )}
         {dados?.caso?.acordo && (
           <div className="mt-4 rounded-lg border border-line bg-surface-2 p-3 text-xs text-ink-2">
             <p className="font-semibold text-ink">Acordo registrado</p>
@@ -425,6 +454,92 @@ function Plano({ empresa }) {
   )
 }
 
+function Legenda() {
+  return (
+    <section className="rounded-xl border border-line bg-surface p-4">
+      <h2 className="flex items-center gap-2 text-sm font-semibold text-ink"><Users className="h-4 w-4 text-blue-400" /> Os agentes e o que cada um faz</h2>
+      <ul className="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2">
+        {AGENTES.map(([nome, cor, papel]) => (
+          <li key={nome} className="flex items-baseline gap-2 text-xs text-ink-2">
+            <span className="shrink-0 rounded px-1.5 py-px text-[11px] font-semibold" style={{ color: cor, background: 'color-mix(in srgb, currentColor 14%, transparent)' }}>{nome}</span>
+            {papel}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-3 text-xs text-ink-3">Na Conversa, cada passo de “Por que o agente fez isso” mostra qual agente agiu.</p>
+    </section>
+  )
+}
+
+function Agenda({ empresa }) {
+  const { isAdmin } = useAuth()
+  const [d, setD] = useState(null)
+  const [erro, setErro] = useState(null)
+  const [escolha, setEscolha] = useState({})
+  const [salvando, setSalvando] = useState('')
+  const [aviso, setAviso] = useState('')
+  function carregar() { setErro(null); return agenteAgenda(empresa).then(setD).catch(setErro) }
+  useEffect(() => { carregar() }, [empresa])            // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function atribuir(item) {
+    const op = escolha[item.id]
+    if (!op) return
+    setSalvando(item.id); setErro(null); setAviso('')
+    try {
+      const r = await agenteAtribuir(item.id, op, empresa)
+      setAviso(`${item.nome || 'Atendimento'}: agora com ${r.operador.nome}. Aparece na Agenda dele.`)
+      await carregar()
+    } catch (err) { setErro(err) } finally { setSalvando('') }
+  }
+
+  if (erro && !d) return <ErroCarga erro={erro} />
+  if (!d) return <div className="flex items-center gap-2 p-6 text-sm text-ink-2"><Loader2 className="h-4 w-4 animate-spin" /> carregando…</div>
+  const porDia = {}
+  for (const i of d.itens) (porDia[i.data] ||= []).push(i)
+  return (
+    <section className="rounded-xl border border-line bg-surface p-4">
+      <h2 className="flex items-center gap-2 text-sm font-semibold text-ink"><CalendarClock className="h-4 w-4 text-blue-400" /> Agenda dos agentes</h2>
+      <p className="mt-1 text-xs text-ink-2">Retornos, atendimentos com pessoa e conferências marcados pelos agentes. Atendimento de devedor sem responsável fica aqui até o administrador escolher quem atende.</p>
+      {aviso && <p className="mt-3 text-xs" style={{ color: 'var(--success)' }}>{aviso}</p>}
+      <ErroCarga erro={erro} compacto className="mt-3" />
+      {!d.itens.length && <p className="mt-6 text-center text-sm text-ink-2">Nada marcado pelos agentes ainda.</p>}
+      <div className="mt-4 space-y-4">
+        {Object.entries(porDia).map(([dia, itens]) => (
+          <div key={dia}>
+            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-2">{fmtData(dia)}</p>
+            <ul className="space-y-1.5">
+              {itens.map(i => (
+                <li key={i.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm">
+                  <span className="w-12 tabular-nums text-ink-2">{i.hora || '—'}</span>
+                  <span className="font-medium text-ink">{i.nome || 'Devedor'}</span>
+                  <span className="rounded border border-line px-1.5 py-px text-[11px] text-ink-2">{TIPO_AGENDA[i.tipo] || i.tipo}</span>
+                  <span className="min-w-0 flex-1 truncate text-xs text-ink-2" title={i.observacao}>{i.observacao}</span>
+                  {i.a_definir ? (
+                    isAdmin ? (
+                      <span className="flex items-center gap-1.5">
+                        <select value={escolha[i.id] || ''} onChange={e => setEscolha(s => ({ ...s, [i.id]: e.target.value }))} aria-label="Operador"
+                          className="rounded-md border border-line bg-surface px-2 py-1 text-xs text-ink focus:outline-none [color-scheme:dark]">
+                          <option value="">Quem atende?</option>
+                          {d.operadores.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
+                        </select>
+                        <button onClick={() => atribuir(i)} disabled={!escolha[i.id] || salvando === i.id}
+                          className="rounded-md border border-line bg-raise-1 px-2 py-1 text-xs font-medium text-ink hover:bg-raise-2 disabled:opacity-50">Atribuir</button>
+                      </span>
+                    ) : <span className="text-xs" style={{ color: 'var(--warning)' }}>esperando o administrador</span>
+                  ) : <span className="text-xs text-ink-2">{i.operador_nome}</span>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+      {isAdmin && !d.operadores.length && d.itens.some(i => i.a_definir) && (
+        <p className="mt-3 text-xs" style={{ color: 'var(--warning)' }}>Nenhum operador ativo nesta empresa: cadastre em Usuários para poder atribuir.</p>
+      )}
+    </section>
+  )
+}
+
 export default function Agente() {
   const { token, isComando } = useAuth()
   const [aba, setAba] = useState('conversa')
@@ -451,7 +566,7 @@ export default function Agente() {
           )}
         </div>
         <div className="flex flex-wrap gap-1.5" role="tablist">
-          {[['conversa', 'Conversa', Bot], ['plano', 'Plano do dia', CalendarDays], ['politica', 'Política', Scale], ['central', 'Central de orquestração', Activity]].map(([k, l, I]) => (
+          {[['conversa', 'Conversa', Bot], ['plano', 'Plano do dia', CalendarDays], ['agenda', 'Agenda', CalendarClock], ['politica', 'Política', Scale], ['central', 'Central de orquestração', Activity]].map(([k, l, I]) => (
             <button key={k} role="tab" aria-selected={aba === k} onClick={() => setAba(k)}
               className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium ${aba === k ? 'border-blue-500/30 bg-blue-500/15 text-blue-300' : 'border-line bg-raise-1 text-ink-2 hover:text-ink'}`}>
               <I className="h-4 w-4" /> {l}
@@ -460,7 +575,9 @@ export default function Agente() {
         </div>
         {isComando && !alvo ? (
           <div className="rounded-xl border border-line bg-surface p-6 text-sm text-ink-2">Escolha a empresa.</div>
-        ) : aba === 'conversa' ? <Conversa empresa={empresa} /> : aba === 'plano' ? <Plano empresa={empresa} /> : aba === 'politica' ? <Politica empresa={empresa} /> : <Central empresa={empresa} />}
+        ) : aba === 'conversa' ? <Conversa empresa={empresa} /> : aba === 'plano' ? <Plano empresa={empresa} />
+          : aba === 'agenda' ? <Agenda empresa={empresa} /> : aba === 'politica' ? <Politica empresa={empresa} />
+          : <><Legenda /><Central empresa={empresa} /></>}
       </div>
     </AppShell>
   )

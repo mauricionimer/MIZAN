@@ -210,14 +210,14 @@ def _enviar_http(url: str, corpo: dict, chave: str, timeout: float) -> dict:
         except urllib.error.HTTPError as e:
             erro = (json.loads(e.read() or b"{}").get("error") or {})
             if e.code in (429, 500, 503) and tentativa < 2:
-                # O Google diz quanto esperar (RetryInfo, ex. "17s"); até 20 s, espera.
+                # O Google diz quanto esperar (RetryInfo, ex. "17s"); até 30 s, espera.
                 espera = 2.0 * (tentativa + 1)
                 for det in erro.get("details") or []:
                     try:
                         espera = max(espera, float(str(det.get("retryDelay", "0s")).rstrip("s")))
                     except ValueError:
                         pass
-                if espera <= 20:
+                if espera <= 30:
                     time.sleep(espera)
                     continue
             # A mensagem do Google nunca traz a chave. Em cota estourada, diz qual.

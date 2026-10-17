@@ -13,11 +13,12 @@ precisa passar pelo Auditor e ficar no rastreio antes do próximo:
   a resposta ao devedor é uma mensagem fixa, escrita aqui, sem IA.
 """
 import json
+from datetime import date
 
 from agente import auditor, conhecimento, ferramentas, guardrails
 from agente.triagem import como_dado
 
-VERSAO_PROMPT = "negociador-v3"            # v2: base de conhecimento; v3: blindagem contra manipulação
+VERSAO_PROMPT = "negociador-v4"            # v3: blindagem; v4: só afirma o que fez, oferece pessoa e marca atendimento
 MAX_RODADAS = 8
 MAX_HISTORICO = 20
 
@@ -42,7 +43,15 @@ Como trabalhar:
 - Se a pessoa não reconhece a dívida, use abrir_contestacao. Se pedir para parar ou disser que é
   pessoa errada, use suspender_cobranca. Se pedir uma pessoa, estiver em dificuldade grave ou você
   não souber resolver, use transferir_para_humano com um resumo.
-- Se a pessoa disser que já pagou, pergunte a data e use registrar_pagamento_informado. Não acuse.
+- Se a pessoa disser que já pagou, pergunte a data e use registrar_pagamento_informado. Não acuse e não
+  confirme o pagamento: diga que anotou o aviso e que a equipe vai conferir. Só o banco confirma pagamento.
+- Só diga que fez algo (agendei, marquei, registrei, transferi, suspendi) depois que a ferramenta devolver
+  ok nesta resposta. Se a ferramenta não existe para o que a pessoa pediu, diga o que pode fazer.
+- Para combinar um novo contato seu com a pessoa, use agendar_retorno com data e, se ela disser, hora.
+- Ofereça falar com uma pessoa da equipe quando a pessoa pedir reunião, ligação ou conversa com alguém,
+  errar a confirmação de identidade duas vezes, recusar as propostas repetidamente ou parecer irritada.
+  Se ela aceitar, pergunte o dia e o horário e use marcar_atendimento_humano; se quiser agora, use
+  transferir_para_humano.
 - Para dúvidas sobre direitos, nome negativado, prazos, comprovante, multa, dados pessoais ou revisão de
   decisão, use consultar_base e responda só com o que ela trouxer, citando a fonte como veio (ex.: "CDC,
   art. 43"; tribunal como "STJ"). Se vier certeza=false, diga que não tem essa informação e ofereça uma
@@ -84,6 +93,12 @@ def mensagem_fixa(ctx) -> str | None:
     if s == "contestado":
         return FIXAS["contestado"]
     if s == "com_pessoa":
+        at = (ctx.caso.get("dados") or {}).get("atendimento")
+        if at and at.get("data") and at.get("hora"):
+            dia = date.fromisoformat(at["data"]).strftime("%d/%m")
+            quem = at.get("atendente") or "uma pessoa da nossa equipe"
+            return (f"Combinado: {quem} vai falar com você em {dia}, às {at['hora']}. "
+                    "Até lá, se precisar, é só escrever por aqui.")
         return FIXAS["com_pessoa"]
     return None
 
@@ -110,7 +125,9 @@ def _briefing(ctx, devedor_nome: str) -> str:
     d = ctx.caso.get("dados") or {}
     hoje = ctx.agora.astimezone(auditor.BRASILIA).date().isoformat()
     tri = ctx.saida.get("triagem") or {}
+    dia_semana = ("segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo")[date.fromisoformat(hoje).weekday()]
     b = {"primeiro_nome": como_dado(devedor_nome), "situacao": ctx.caso["situacao"], "hoje": hoje,
+         "hoje_e": dia_semana,
          "identidade_confirmada": bool(d.get("identidade_ok")),
          "intencao_da_mensagem": tri.get("intencao"),
          "sinais_de_risco": tri.get("sinais_de_risco") or [],
@@ -158,6 +175,7 @@ def conversar(ctx, fonte, texto_devedor: str) -> str | None:
         {"type": "text", "text": _briefing(ctx, nome)},
         {"type": "text", "text": f"{pendente}<mensagem_do_devedor>{como_dado(texto_devedor)}</mensagem_do_devedor>"}]}]
     resultados, reprovacoes = [], 0
+    feitas: set = set()                     # ferramentas que rodaram com sucesso nesta resposta
     defs = ferramentas.definicoes()
 
     for _ in range(MAX_RODADAS):
@@ -178,6 +196,8 @@ def conversar(ctx, fonte, texto_devedor: str) -> str | None:
             for f in r.ferramentas:
                 res = ferramentas.executar(ctx, fonte, f["nome"], f.get("args") or {})
                 resultados.append(res)
+                if res.get("ok"):
+                    feitas.add(f["nome"])
                 saidas.append({"type": "tool_result", "tool_use_id": f["id"],
                                "content": json.dumps(res, ensure_ascii=False), "is_error": not res.get("ok", False)})
             mensagens.append({"role": "user", "content": saidas})   # todos os resultados numa mensagem só
@@ -186,7 +206,7 @@ def conversar(ctx, fonte, texto_devedor: str) -> str | None:
             continue
 
         texto = (r.texto or "").strip()
-        motivos = guardrails.conferir(texto, _permitidos(ctx, resultados))
+        motivos = guardrails.conferir(texto, _permitidos(ctx, resultados), feitas=feitas)
         with ctx.rastreio.span("guardrails", "codigo") as p:
             p["detalhe"] = {"reprovado": bool(motivos), "n_motivos": len(motivos)}
             if motivos:
