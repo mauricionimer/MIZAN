@@ -71,6 +71,11 @@ class FonteMemoria:
     def recomendacao_bandit(self, empresa_id: str, devedor: dict) -> dict | None:
         return copy.deepcopy(getattr(self, "_bandit", None))
 
+    def pagamentos(self, empresa_id: str, predicao_ids: list) -> dict:
+        """{predicao_id: valor recebido} de quem pagou."""
+        pagos = getattr(self, "pagos", {})
+        return {p: pagos[p] for p in predicao_ids if p in pagos}
+
     def agenda_dos_casos(self, empresa_id: str, predicao_ids: list) -> list:
         ids = set(predicao_ids)
         return [copy.deepcopy(a) for a in self.agenda if a["empresa_id"] == empresa_id and a["predicao_id"] in ids
@@ -145,7 +150,7 @@ class FonteSupabase:
         if not cart.data:
             return []
         res = (self.db.table("predicoes")
-               .select("id, nome, valor_divida, dias_em_atraso, score_recuperabilidade, probabilidade_pagamento, rank")
+               .select("id, nome, valor_divida, dias_em_atraso, score_recuperabilidade, probabilidade_pagamento, rank, produto")
                .eq("carteira_id", cart.data[0]["id"]).order("rank").limit(limite).execute())
         return res.data or []
 
@@ -190,6 +195,17 @@ class FonteSupabase:
         except Exception as e:
             print(f"[Agente] bandit indisponível: {type(e).__name__}")
             return None
+
+    def pagamentos(self, empresa_id: str, predicao_ids: list) -> dict:
+        """{predicao_id: valor recebido} de quem pagou (feedbacks com pagou = true)."""
+        saida: dict = {}
+        ids = list(dict.fromkeys(predicao_ids))
+        for i in range(0, len(ids), 200):
+            res = (self.db.table("feedbacks").select("predicao_id, valor_recuperado")
+                   .in_("predicao_id", ids[i:i + 200]).eq("pagou", True).execute())
+            for f in res.data or []:
+                saida[f["predicao_id"]] = saida.get(f["predicao_id"], 0.0) + float(f.get("valor_recuperado") or 0)
+        return saida
 
     def agenda_dos_casos(self, empresa_id: str, predicao_ids: list) -> list:
         """Compromissos pendentes dos devedores que estão com o agente."""

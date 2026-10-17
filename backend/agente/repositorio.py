@@ -187,6 +187,35 @@ class RepoMemoria:
         with self._lock:
             self.passos.append({**copy.deepcopy(passo), "criado_em": agora_utc()})
 
+    # ── recomendações do Cientista ──
+    def gravar_recomendacao(self, empresa_id: str, rec: dict) -> dict:
+        with self._lock:
+            lista = getattr(self, "recomendacoes_", None)
+            if lista is None:
+                lista = self.recomendacoes_ = []
+            versao = max([r["versao"] for r in lista if r["empresa_id"] == empresa_id], default=0) + 1
+            linha = {**copy.deepcopy(rec), "id": str(uuid.uuid4()), "empresa_id": empresa_id, "versao": versao,
+                     "status": "proposta", "criado_em": agora_utc(), "decidido_por": None, "decidido_em": None}
+            lista.append(linha)
+            return copy.deepcopy(linha)
+
+    def recomendacoes(self, empresa_id: str, n: int = 10) -> list:
+        lista = [copy.deepcopy(r) for r in getattr(self, "recomendacoes_", []) if r["empresa_id"] == empresa_id]
+        return sorted(lista, key=lambda r: -r["versao"])[:n]
+
+    def decidir_recomendacao(self, empresa_id: str, rec_id: str, status: str, quem: str | None) -> dict | None:
+        """Só decide o que ainda está "proposta" (dois cliques não decidem duas vezes)."""
+        with self._lock:
+            for r in getattr(self, "recomendacoes_", []):
+                if r["empresa_id"] == empresa_id and r["id"] == rec_id and r["status"] == "proposta":
+                    r.update(status=status, decidido_por=quem, decidido_em=agora_utc())
+                    return copy.deepcopy(r)
+        return None
+
+    def recomendacao_aprovada(self, empresa_id: str) -> dict | None:
+        ok = [r for r in self.recomendacoes(empresa_id, 1000) if r["status"] == "aprovada"]
+        return ok[0] if ok else None
+
     def custo_do_dia(self, empresa_id: str, dia: date) -> float:
         return round(sum(float(p["custo_usd"]) for p in self.passos
                          if p["empresa_id"] == empresa_id and p["criado_em"].date() == dia), 6)
@@ -360,6 +389,32 @@ class RepoSupabase:
         (self.db.table("agente_politicas").update({"ativa": False}).eq("empresa_id", empresa_id)
          .neq("versao", versao).execute())
         return versao
+
+    # ── recomendações do Cientista (backend/sql/migracao_recomendacoes.sql) ──
+    def gravar_recomendacao(self, empresa_id: str, rec: dict) -> dict:
+        atual = self.recomendacoes(empresa_id, 1)
+        versao = (atual[0]["versao"] if atual else 0) + 1
+        res = self.db.table("agente_recomendacoes").insert({
+            "empresa_id": empresa_id, "versao": versao, "texto": rec["texto"], "selo": rec["selo"],
+            "origem": rec.get("origem") or "codigo", "relatorio": rec.get("relatorio") or {},
+            "resultados": rec.get("resultados") or {}, "status": "proposta"}).execute()
+        return res.data[0]
+
+    def recomendacoes(self, empresa_id: str, n: int = 10) -> list:
+        res = (self.db.table("agente_recomendacoes").select("*").eq("empresa_id", empresa_id)
+               .order("versao", desc=True).limit(n).execute())
+        return res.data or []
+
+    def decidir_recomendacao(self, empresa_id: str, rec_id: str, status: str, quem: str | None) -> dict | None:
+        res = (self.db.table("agente_recomendacoes")
+               .update({"status": status, "decidido_por": quem, "decidido_em": agora_utc().isoformat()})
+               .eq("empresa_id", empresa_id).eq("id", rec_id).eq("status", "proposta").execute())
+        return res.data[0] if res.data else None
+
+    def recomendacao_aprovada(self, empresa_id: str) -> dict | None:
+        res = (self.db.table("agente_recomendacoes").select("*").eq("empresa_id", empresa_id)
+               .eq("status", "aprovada").order("versao", desc=True).limit(1).execute())
+        return res.data[0] if res.data else None
 
     # ── passos ──
     def gravar_passo(self, passo: dict) -> None:

@@ -310,6 +310,59 @@ def ciclo_agendado(agora: datetime | None = None) -> dict:
     return {"ligado": True, "eventos_criados": criados, "processados": len(feitos)}
 
 
+# ── Laboratório (Agente Cientista) ───────────────────────────────────────────
+
+ERRO_TABELA = ("Falta a tabela das recomendações: rode backend/sql/migracao_recomendacoes.sql "
+               "no SQL Editor do Supabase.")
+
+
+def laboratorio(empresa_id: str) -> dict:
+    """Recomendações do Cientista, da mais nova para a mais antiga."""
+    try:
+        recs = fabrica_repo().recomendacoes(empresa_id, 10)
+    except Exception as e:
+        print(f"[Agente] laboratório: {type(e).__name__}")
+        return {"recomendacoes": [], "erro": ERRO_TABELA}
+    return {"recomendacoes": recs, "ia_ligada": llm.ia_ligada("cientista")}
+
+
+def analisar_laboratorio(empresa_id: str, agora: datetime | None = None) -> dict:
+    """Roda as ferramentas estatísticas e o Cientista; grava a recomendação como proposta."""
+    from agente import cientista
+    from agente.rastreio import Rastreio
+    agora = agora or datetime.now(timezone.utc)
+    repo, fonte = fabrica_repo(), fabrica_fonte()
+    obs = cientista.observacoes(repo, fonte, empresa_id)
+    try:
+        from model import bandit
+        stats = bandit.convergencia_stats(empresa_id)
+    except Exception as e:
+        print(f"[Agente] bandit indisponível no laboratório: {type(e).__name__}")
+        stats = []
+    rt = Rastreio(empresa_id, repo.gravar_passo)
+    ctx = orq.Contexto(caso={"id": None, "empresa_id": empresa_id, "situacao": "novo", "dados": {}},
+                       evento={"id": None, "tipo": "laboratorio", "dados": {}}, repo=repo, rastreio=rt,
+                       cliente=fabrica_cliente(), hoje=agora.date(), agora=agora)
+    r = cientista.analisar(ctx, obs, stats)
+    rel = r["relatorio"]
+    try:
+        return repo.gravar_recomendacao(empresa_id, {"texto": rel["recomendacao"], "selo": rel["selo"],
+                                                     "origem": r["origem"], "relatorio": rel,
+                                                     "resultados": r["resultados"]})
+    except Exception as e:
+        print(f"[Agente] gravar recomendação: {type(e).__name__}")
+        raise RuntimeError(ERRO_TABELA) from e
+
+
+def decidir_recomendacao(empresa_id: str, rec_id: str, status: str, quem: str | None) -> dict:
+    if status not in ("aprovada", "recusada"):
+        raise ValueError("Escolha aprovar ou recusar.")
+    r = fabrica_repo().decidir_recomendacao(empresa_id, rec_id, status, quem)
+    if r is None:
+        raise LookupError("Essa recomendação já foi decidida ou não existe.")
+    return r
+
+
 def plano_do_dia(empresa_id: str) -> dict:
     """Prévia do plano do Estrategista (não grava nada)."""
     return _plano(fabrica_repo(), fabrica_fonte(), empresa_id, aplicar=False)

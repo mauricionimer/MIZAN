@@ -8409,6 +8409,59 @@ def agente_agenda(empresa_id: Optional[str] = None, credentials: HTTPAuthorizati
     return agente_api.agenda(_empresa_do_agente(payload, empresa_id))
 
 
+class AgenteDecisaoIn(BaseModel):
+    status: str
+    empresa_id: Optional[str] = None
+
+
+@app.get("/agente/laboratorio")
+def agente_laboratorio(empresa_id: Optional[str] = None, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Recomendações do Agente Cientista."""
+    from agente import api as agente_api
+    emp = _empresa_do_agente(_usuario_autenticado(credentials), empresa_id)
+    return agente_api.laboratorio(emp)
+
+
+@app.post("/agente/laboratorio/analisar")
+def agente_laboratorio_analisar(empresa_id: Optional[str] = None,
+                                credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Roda a análise do Cientista e grava uma recomendação proposta (só administrador)."""
+    from agente import api as agente_api
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Só o administrador gera análises.")
+    emp = _empresa_do_agente(payload, empresa_id)
+    try:
+        r = agente_api.analisar_laboratorio(emp)
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    _registrar_auditoria(acao="recomendacao_gerada", entidade="agente_recomendacoes", entidade_id=str(r.get("id")),
+                         usuario_email=payload.get("email"), empresa_id=emp, usuario_id=payload.get("sub"),
+                         detalhes={"selo": r.get("selo"), "origem": r.get("origem")})
+    return r
+
+
+@app.post("/agente/laboratorio/{rec_id}/decidir")
+def agente_laboratorio_decidir(rec_id: str, body: AgenteDecisaoIn,
+                               credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """O administrador aprova ou recusa uma recomendação. Aprovada vira orientação do Estrategista."""
+    from agente import api as agente_api
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Só o administrador aprova recomendações.")
+    emp = _empresa_do_agente(payload, body.empresa_id)
+    try:
+        r = agente_api.decidir_recomendacao(emp, rec_id, body.status, payload.get("email"))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except LookupError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    _registrar_auditoria(acao=f"recomendacao_{body.status}", entidade="agente_recomendacoes", entidade_id=rec_id,
+                         usuario_email=payload.get("email"), empresa_id=emp, usuario_id=payload.get("sub"),
+                         detalhes={"selo": r.get("selo"), "versao": r.get("versao")})
+    return r
+
+
 @app.post("/agente/agenda/{item_id}/atribuir")
 def agente_atribuir(item_id: str, body: AgenteAtribuirIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """O administrador escolhe o operador que atende um compromisso marcado pelo agente."""

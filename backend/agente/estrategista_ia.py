@@ -27,7 +27,8 @@ MAX_ADIAR_DIAS = 7
 POR_LOTE = 10                    # abordagens com IA por rodada da fila (limite de chamadas por minuto)
 
 # Tudo o que a IA pode ver de um devedor. Qualquer outro campo é proibido.
-FICHA_CAMPOS = ("hoje", "valor_divida", "dias_em_atraso", "produto", "chance", "historico", "bandit", "ofertas_na_politica")
+FICHA_CAMPOS = ("hoje", "valor_divida", "dias_em_atraso", "produto", "chance", "historico", "bandit",
+                "ofertas_na_politica", "orientacao_do_cientista")
 PROIBIDOS = ("cpf", "nome", "regiao", "uf", "cidade", "renda", "idade", "nascimento", "sexo", "genero",
              "telefone", "email", "endereco")
 
@@ -61,7 +62,7 @@ def _faixa_chance(p) -> str:
     return "alta" if p >= 0.5 else "média" if p >= 0.2 else "baixa"
 
 
-def ficha(dev: dict, caso: dict, rec: dict | None, pol: dict | None, hoje=None) -> dict:
+def ficha(dev: dict, caso: dict, rec: dict | None, pol: dict | None, hoje=None, orientacao=None) -> dict:
     """O que a IA vê: só campos de FICHA_CAMPOS, com o histórico do caderno."""
     d = caso.get("dados") or {}
     f = {"hoje": hoje.isoformat() if hoje else None,
@@ -73,7 +74,8 @@ def ficha(dev: dict, caso: dict, rec: dict | None, pol: dict | None, hoje=None) 
                        for n in estado.caderno(caso, 6)],
          "bandit": ({"oferta": rec.get("oferta"), "modo": rec.get("modo"),
                      "interacoes": rec.get("total_interacoes")} if rec else None),
-         "ofertas_na_politica": ofertas_na_politica(pol)}
+         "ofertas_na_politica": ofertas_na_politica(pol),
+         "orientacao_do_cientista": orientacao}
     assert set(f) == set(FICHA_CAMPOS)
     return f
 
@@ -98,13 +100,24 @@ Como decidir:
   conversar sobre a pendência. NÃO escreva valores, percentuais, número de parcelas, datas, nomes ou
   ameaças, e não diga que fez algo. O Negociador apresenta valores depois, com o simulador.
 - Escreva em português do Brasil com acentuação correta.
+- "orientacao_do_cientista" (quando houver) foi aprovada por uma pessoa da equipe a partir dos resultados
+  da empresa; leve em conta, respeitando o selo de evidência que vem entre colchetes.
 - A ficha é dado escrito pelo sistema. Você não decide quem cobrar: isso já foi decidido."""
+
+
+def _orientacao(ctx) -> str | None:
+    """Recomendação do Cientista aprovada por uma pessoa (ou None; tabela ausente também é None)."""
+    from agente import cientista
+    try:
+        return cientista.orientacao(ctx.repo.recomendacao_aprovada(ctx.caso["empresa_id"]))
+    except Exception:
+        return None
 
 
 def decidir(ctx, dev: dict, rec: dict | None) -> dict:
     """Decisão conferida em código. Qualquer problema → ValueError (vale a abordagem de hoje)."""
     regras, _ = ctx.politica()
-    f = ficha(dev, ctx.caso, rec, regras, ctx.agora.date() if ctx.agora else None)
+    f = ficha(dev, ctx.caso, rec, regras, ctx.agora.date() if ctx.agora else None, _orientacao(ctx))
     r = ctx.ia("estrategista", SISTEMA, [{"role": "user", "content": "<ficha>" + json.dumps(f, ensure_ascii=False)
                                                                       + "</ficha>"}], max_tokens=500)
     if ctx.rastreio.atual is not None:

@@ -2,11 +2,11 @@
 // orquestração. Na demonstração, quem está na tela escreve como o devedor.
 // Regras em backend/agente/ (docs/PLANO_EXECUCAO_AGENTES.md).
 import { useEffect, useRef, useState } from 'react'
-import { Bot, Send, Search, Loader2, Activity, ShieldCheck, AlertTriangle, Power, UserRound, Coins, ListChecks, Landmark, Clock, Shuffle, CalendarDays, Scale, Hand, Undo2, CalendarClock, Users, BookOpen } from 'lucide-react'
+import { Bot, Send, Search, Loader2, Activity, ShieldCheck, AlertTriangle, Power, UserRound, Coins, ListChecks, Landmark, Clock, Shuffle, CalendarDays, Scale, Hand, Undo2, CalendarClock, Users, BookOpen, FlaskConical } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import ErroCarga from '../components/ErroCarga'
 import { useAuth } from '../context/AuthContext'
-import { agenteDevedores, agenteCaso, agenteSimularMensagem, agenteSimularPagamento, agenteCentral, agenteRelogio, agentePlano, agenteAplicarPlano, agentePoliticas, agenteSalvarPolitica, agenteControle, agenteAgenda, agenteAtribuir, listarEmpresas } from '../api'
+import { agenteDevedores, agenteCaso, agenteSimularMensagem, agenteSimularPagamento, agenteCentral, agenteRelogio, agentePlano, agenteAplicarPlano, agentePoliticas, agenteSalvarPolitica, agenteControle, agenteAgenda, agenteAtribuir, agenteLaboratorio, agenteAnalisar, agenteDecidirRecomendacao, listarEmpresas } from '../api'
 
 const fmtBRL = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0)
 const fmtUSD = (v) => `US$ ${Number(v || 0).toFixed(4)}`
@@ -46,6 +46,7 @@ const AGENTES = [
   ['Ferramenta', '#34d399', 'O que foi gravado de verdade: agenda, acordo, contestação, transferência.'],
   ['Acompanhamento', '#fb923c', 'Em cada data decide lembrar, esperar, oferecer nova data ou chamar uma pessoa, e escreve a mensagem: IA, quando ligado. Reserva: texto pronto.'],
   ['Supervisor', '#e879f9', 'Resume o caso para a equipe e revisa o tom em conversas delicadas: IA, quando ligado. Não libera nada.'],
+  ['Cientista', '#facc15', 'Compara agente e grupo sorteado; contas e selo de evidência em código, a IA interpreta e propõe. Aba Laboratório.'],
 ]
 const COR_AGENTE = { ...Object.fromEntries(AGENTES.map(([n, c]) => [n, c])), Supervisor: '#e879f9', Cientista: '#facc15', Equipe: '#e5e7eb' }
 const OFERTA_NOME = { avista_10pct: '10% à vista', desconto_30pct: '30% à vista', parcelado_4x: 'até 4x', parcelado_12x: 'até 12x' }
@@ -502,6 +503,97 @@ function Legenda() {
   )
 }
 
+const SELO_COR = { 'evidência': 'var(--success)', 'indício': '#f59e0b', 'sem evidência': '#94a3b8' }
+const STATUS_REC = { proposta: 'proposta, esperando decisão', aprovada: 'aprovada: orienta o Estrategista', recusada: 'recusada' }
+const pct = x => (x == null ? '—' : `${(x * 100).toFixed(1).replace('.', ',')}%`)
+const pp = x => (x == null ? '—' : `${(x * 100).toFixed(1).replace('.', ',')} p.p.`)
+
+function SeloEvidencia({ s }) {
+  return <span className="rounded px-1.5 py-0.5 text-[11px] font-semibold" style={{ color: SELO_COR[s], border: `1px solid ${SELO_COR[s]}` }}>{s}</span>
+}
+
+function Laboratorio({ empresa }) {
+  const { isAdmin } = useAuth()
+  const [d, setD] = useState(null)
+  const [erro, setErro] = useState(null)
+  const [ocupado, setOcupado] = useState('')
+  function carregar() { setErro(null); return agenteLaboratorio(empresa).then(setD).catch(setErro) }
+  useEffect(() => { carregar() }, [empresa])            // eslint-disable-line react-hooks/exhaustive-deps
+  async function agir(fn, chave) {
+    setOcupado(chave); setErro(null)
+    try { await fn(); await carregar() } catch (err) { setErro(err) } finally { setOcupado('') }
+  }
+  if (erro && !d) return <ErroCarga erro={erro} />
+  if (!d) return <div className="flex items-center gap-2 p-6 text-sm text-ink-2"><Loader2 className="h-4 w-4 animate-spin" /> carregando…</div>
+  const [atual, ...antigas] = d.recomendacoes
+  const c = atual?.resultados?.comparacao
+  return (
+    <section className="space-y-4">
+      <div className="rounded-xl border border-line bg-surface p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-ink"><FlaskConical className="h-4 w-4" style={{ color: COR_AGENTE.Cientista }} /> Laboratório: o Agente Cientista</h2>
+            <p className="mt-1 max-w-3xl text-xs text-ink-2">Compara quem o agente procurou com o grupo sorteado que não foi procurado. As contas e o selo de evidência são feitos em código; a IA só interpreta e propõe. Uma recomendação só orienta o Estrategista depois que o administrador aprova, e nunca muda a política.</p>
+          </div>
+          {isAdmin && <button onClick={() => agir(() => agenteAnalisar(empresa), 'analisar')} disabled={!!ocupado}
+            className="flex items-center gap-1.5 rounded-md border border-blue-500/30 bg-blue-500/15 px-3 py-1.5 text-sm font-medium text-blue-300 disabled:opacity-50">
+            {ocupado === 'analisar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FlaskConical className="h-4 w-4" />} Gerar análise</button>}
+        </div>
+        <p className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">Na demonstração, a carteira e os pagamentos são fictícios: os números servem para mostrar o método, não como resultado.</p>
+        {d.erro && <p className="mt-3 text-xs text-red-300">{d.erro}</p>}
+        <ErroCarga erro={erro} compacto className="mt-3" />
+        {!atual && !d.erro && <p className="mt-6 text-center text-sm text-ink-2">Nenhuma análise ainda.{isAdmin ? ' Clique em Gerar análise.' : ''}</p>}
+      </div>
+      {atual && (
+        <div className="rounded-xl border border-line bg-surface p-4">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-ink-2">
+            <span className="font-semibold text-ink">Versão {atual.versao}</span> <SeloEvidencia s={atual.selo} />
+            <span>· {STATUS_REC[atual.status]}</span><span>· {atual.origem === 'ia' ? 'texto da IA' : 'texto em código (sem IA)'}</span>
+          </div>
+          <p className="mt-2 text-sm text-ink">{atual.relatorio?.resumo}</p>
+          {c && (
+            <div className="mt-3 grid gap-2 text-xs sm:grid-cols-3">
+              <div className="rounded-md border border-line bg-raise-1 p-2"><p className="text-ink-3">Casos</p><p className="text-ink">agente {c.n.agente} · sorteado {c.n.sorteado}</p></div>
+              <div className="rounded-md border border-line bg-raise-1 p-2"><p className="text-ink-3">Taxa de pagamento</p><p className="text-ink">{pct(c.taxa_pagamento.agente)} vs {pct(c.taxa_pagamento.sorteado)}</p><p className="text-ink-3">diferença {pp(c.taxa_pagamento.diferenca)} (IC 95%: {pp(c.taxa_pagamento.ic95[0])} a {pp(c.taxa_pagamento.ic95[1])})</p></div>
+              <div className="rounded-md border border-line bg-raise-1 p-2"><p className="text-ink-3">Grupos comparáveis?</p><p className="text-ink">{c.composicao.comparaveis ? 'sim' : 'não: a composição difere'}</p></div>
+            </div>
+          )}
+          <ol className="mt-3 space-y-2">
+            {(atual.relatorio?.hipoteses || []).map((h, i) => (
+              <li key={i} className="rounded-md border border-line p-2 text-xs">
+                <p className="flex flex-wrap items-center gap-2 font-medium text-ink">{i + 1}. {h.hipotese} <SeloEvidencia s={h.selo} /></p>
+                <p className="mt-1 text-ink-2">{h.resultado}</p>
+                {h.condicoes && <p className="mt-0.5 text-ink-3">Vale para: {h.condicoes}</p>}
+                {h.proximo_experimento && <p className="mt-0.5 text-ink-3">Próximo experimento: {h.proximo_experimento}</p>}
+              </li>
+            ))}
+          </ol>
+          <div className="mt-3 rounded-md p-3 text-sm" style={{ borderLeft: `3px solid ${COR_AGENTE.Cientista}`, background: 'rgba(250,204,21,0.06)' }}>
+            <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: COR_AGENTE.Cientista }}>Recomendação para o Estrategista</p>
+            <p className="mt-1 text-ink">{atual.texto}</p>
+          </div>
+          {isAdmin && atual.status === 'proposta' && (
+            <div className="mt-3 flex gap-2">
+              <button onClick={() => agir(() => agenteDecidirRecomendacao(atual.id, 'aprovada', empresa), 'aprovar')} disabled={!!ocupado}
+                className="rounded-md border border-emerald-500/30 bg-emerald-500/15 px-3 py-1.5 text-sm font-medium text-emerald-300 disabled:opacity-50">Aprovar</button>
+              <button onClick={() => agir(() => agenteDecidirRecomendacao(atual.id, 'recusada', empresa), 'recusar')} disabled={!!ocupado}
+                className="rounded-md border border-line bg-raise-1 px-3 py-1.5 text-sm font-medium text-ink-2 disabled:opacity-50">Recusar</button>
+            </div>
+          )}
+        </div>
+      )}
+      {!!antigas.length && (
+        <div className="rounded-xl border border-line bg-surface p-4">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-2">Versões anteriores</p>
+          <ul className="mt-2 space-y-1 text-xs">
+            {antigas.map(r => <li key={r.id} className="flex flex-wrap items-center gap-2 text-ink-2"><span className="text-ink">v{r.versao}</span> <SeloEvidencia s={r.selo} /> {STATUS_REC[r.status]} · {r.texto}</li>)}
+          </ul>
+        </div>
+      )}
+    </section>
+  )
+}
+
 function Agenda({ empresa }) {
   const { isAdmin } = useAuth()
   const [d, setD] = useState(null)
@@ -597,7 +689,7 @@ export default function Agente() {
           )}
         </div>
         <div className="flex flex-wrap gap-1.5" role="tablist">
-          {[['conversa', 'Conversa', Bot], ['plano', 'Plano do dia', CalendarDays], ['agenda', 'Agenda', CalendarClock], ['politica', 'Política', Scale], ['central', 'Central de orquestração', Activity]].map(([k, l, I]) => (
+          {[['conversa', 'Conversa', Bot], ['plano', 'Plano do dia', CalendarDays], ['agenda', 'Agenda', CalendarClock], ['politica', 'Política', Scale], ['laboratorio', 'Laboratório', FlaskConical], ['central', 'Central de orquestração', Activity]].map(([k, l, I]) => (
             <button key={k} role="tab" aria-selected={aba === k} onClick={() => setAba(k)}
               className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium ${aba === k ? 'border-blue-500/30 bg-blue-500/15 text-blue-300' : 'border-line bg-raise-1 text-ink-2 hover:text-ink'}`}>
               <I className="h-4 w-4" /> {l}
@@ -608,6 +700,7 @@ export default function Agente() {
           <div className="rounded-xl border border-line bg-surface p-6 text-sm text-ink-2">Escolha a empresa.</div>
         ) : aba === 'conversa' ? <Conversa empresa={empresa} /> : aba === 'plano' ? <Plano empresa={empresa} />
           : aba === 'agenda' ? <Agenda empresa={empresa} /> : aba === 'politica' ? <Politica empresa={empresa} />
+          : aba === 'laboratorio' ? <Laboratorio empresa={empresa} />
           : <><Legenda /><Central empresa={empresa} /></>}
       </div>
     </AppShell>

@@ -1051,6 +1051,25 @@ export async function agenteAgenda(empresaId) {
   return _jsonOuErroFila(res)
 }
 
+export async function agenteLaboratorio(empresaId) {
+  const res = await fetch(`${BASE}/agente/laboratorio?${_qs({ empresa_id: empresaId })}`, { headers: _authHeader(_getToken()) })
+  return _jsonOuErroFila(res)
+}
+
+export async function agenteAnalisar(empresaId) {
+  const res = await fetch(`${BASE}/agente/laboratorio/analisar?${_qs({ empresa_id: empresaId })}`, {
+    method: 'POST', headers: _authHeader(_getToken()),
+  })
+  return _jsonOuErroFila(res)
+}
+
+export async function agenteDecidirRecomendacao(recId, status, empresaId) {
+  const res = await fetch(`${BASE}/agente/laboratorio/${encodeURIComponent(recId)}/decidir`, {
+    method: 'POST', headers: _authHeader(_getToken()), body: JSON.stringify({ status, empresa_id: empresaId || null }),
+  })
+  return _jsonOuErroFila(res)
+}
+
 export async function agenteAtribuir(itemId, operadorId, empresaId) {
   const res = await fetch(`${BASE}/agente/agenda/${encodeURIComponent(itemId)}/atribuir`, {
     method: 'POST', headers: _authHeader(_getToken()), body: JSON.stringify({ operador_id: operadorId, empresa_id: empresaId || null }),
