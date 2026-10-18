@@ -113,8 +113,9 @@ def rodar(chamadas, dados=None):
 
 pergunta = "se eu pagar quando meu nome sai do serasa"
 r, repo, caso = rodar([("consultar_base", {"pergunta": pergunta}), ("consultar_base", {"pergunta": "posso pagar com bitcoin?"})])
-checar(r[0]["ok"] and r[0]["certeza"] and "Súmula 548" in r[0]["fonte"] and r[0]["trecho_oficial"],
-       "sem identidade confirmada: responde com fonte e texto oficial (informação geral)")
+checar(r[0]["ok"] and r[0]["certeza"] and "Súmula 548" in r[0]["fonte"] and r[0]["resposta"],
+       "sem identidade confirmada: responde com fonte (informação geral)")
+checar("trecho_oficial" not in r[0], "o texto literal da lei não vai para a IA (ela só pode citar a resposta)")
 checar("_rastreio" not in r[0], "o que é do rastreio não vai para a IA")
 checar(r[1]["ok"] and r[1]["certeza"] is False and "pessoa" in r[1]["orientacao"], "sem certeza: orienta a oferecer uma pessoa")
 checar(caso["dados"].get("base_consultada") == ["nome-sai-depois-de-pagar"], "trecho consultado fica guardado no caso")

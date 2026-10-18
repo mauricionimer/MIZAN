@@ -86,7 +86,7 @@ checar("Consigo entrada" in hist and "quero negociar" in hist, "o histórico da 
 checar(m.fonte.agenda[0]["tipo"] == "promessa" and m.fonte.agenda[0]["valor"] == 270, "promessa na agenda")
 passos = [p for p in m.repo.passos if p["no"] in ("triagem", "negociar")]
 checar(all(p["modelo"] == "falso" and p["tokens_entrada"] > 0 for p in passos)
-       and {p["versao_prompt"] for p in passos} == {"triagem-v4", "negociador-v9"},
+       and {p["versao_prompt"] for p in passos} == {"triagem-v5", "negociador-v10"},
        "rastreio com modelo, tokens e versão do prompt")
 
 print("— travas de saída —")
@@ -181,9 +181,11 @@ perm = guardrails.permitidos_de([{"resumo": "entrada R$ 270,00 + 6x de R$ 405,00
 checar(guardrails.conferir("Entrada de R$ 270,00 e 6 parcelas de R$ 405,00 (10% de desconto), total 2.700,00.", perm) == [],
        "valores da simulação passam")
 checar(len(guardrails.conferir("Fica 12x de R$ 225,00 com 15% de desconto", perm)) == 3, "parcelas, valor e percentual fora")
-checar(guardrails.conferir("Seu CPF 123.456.789-00 está ok", perm) == ["dado interno ou pessoal no texto"], "CPF barrado")
+checar(guardrails.conferir("Seu CPF 123.456.789-00 está ok", perm) == ["dado interno ou pessoal no texto (número que parece CPF)"],
+       "CPF barrado")
 checar(guardrails.conferir("Pode pagar dia 20, combinado?", perm) == [], "data não é valor")
-checar("tom de ameaça ou constrangimento" in guardrails.conferir("Que vergonha, seus vizinhos vão saber", perm), "constrangimento barrado")
+checar(any(m.startswith("tom de ameaça ou constrangimento") for m in guardrails.conferir("Que vergonha, seus vizinhos vão saber", perm)),
+       "constrangimento barrado")
 
 print()
 print(f"{falhas} falha(s)")

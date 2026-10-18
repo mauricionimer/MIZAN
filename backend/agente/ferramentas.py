@@ -165,6 +165,8 @@ def _verificar_identidade(ctx, fonte, dev, args):
         return {"ok": False, "erro": "limite de tentativas: transfira para uma pessoa"}
     certos = "".join(ch for ch in str(dev.get("cpf") or "") if ch.isdigit())[:3]
     dados = "".join(ch for ch in args["tres_primeiros_digitos_cpf"] if ch.isdigit())
+    if len(dados) == 11:
+        dados = dados[:3]                    # a pessoa mandou o CPF inteiro: valem os 3 primeiros
     if len(certos) == 3 and dados == certos:
         d["identidade_ok"] = True
         d["divida"] = float(dev.get("valor_divida") or 0)
@@ -216,7 +218,7 @@ def _simular_acordo(ctx, fonte, dev, args):
         r["motivo"] = dec["motivo"]
     cabe = args.get("cabe_por_mes")
     if cabe is not None:
-        r["cabe_no_bolso"] = _primeiro_pagamento(cond, conta) <= cabe and (cond["n_parcelas"] == 1 or conta["parcela"] <= cabe)
+        r["cabe_no_bolso"] = oferta.cabe(cond, conta, cabe)
     return r
 
 
@@ -310,7 +312,9 @@ def _consultar_base(ctx, fonte, dev, args):
     # pode citar a mesma fonte sem consultar de novo.
     d = _dados(ctx)
     d["base_consultada"] = ([i for i in d.get("base_consultada") or [] if i != t.id] + [t.id])[-MAX_FONTES_GUARDADAS:]
-    return {"ok": True, "certeza": True, "resposta": t.resposta, "fonte": t.fonte, "trecho_oficial": t.trecho,
+    # Só a resposta e a fonte: o texto literal da lei (t.trecho) fica na base para
+    # conferência, mas a IA não recebe o que não pode citar.
+    return {"ok": True, "certeza": True, "resposta": t.resposta, "fonte": t.fonte,
             "_rastreio": {"certeza": True, "trecho_id": t.id, "fontes": [t.fonte]}}
 
 

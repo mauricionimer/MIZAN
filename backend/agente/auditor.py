@@ -96,15 +96,17 @@ def _brl(v: float) -> str:
     return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
-def _conferir_data(valor, politica: dict, agora: datetime, versao) -> dict | None:
-    """Data de promessa ou retorno: depois de hoje e dentro do prazo máximo."""
+def _conferir_data(valor, politica: dict, agora: datetime, versao, aceita_hoje: bool = False) -> dict | None:
+    """Data de promessa ou retorno: depois de hoje e dentro do prazo máximo.
+    No aceite do acordo, hoje também vale ("pago hoje no pix")."""
     try:
         data = date.fromisoformat(str(valor))
     except ValueError:
         return _decisao(False, "R11_DATA", "data inválida", versao)
     hoje = agora.astimezone(BRASILIA).date()
-    if data <= hoje:
-        return _decisao(False, "R11_DATA", "a data precisa ser depois de hoje", versao)
+    if data < hoje or (data == hoje and not aceita_hoje):
+        return _decisao(False, "R11_DATA", "a data precisa ser a partir de hoje" if aceita_hoje
+                        else "a data precisa ser depois de hoje", versao)
     if data > hoje + timedelta(days=politica["prazo_max_dias"]):
         return _decisao(False, "R11_DATA", f"data além de {politica['prazo_max_dias']} dias", versao)
     return None
@@ -220,7 +222,7 @@ def auditar(acao: dict, caso: dict, politica: dict | None, versao: int | None,
             return _decisao(False, "R8_SIMULACAO", "simulação vencida", versao)
         if oferta.condicoes(simulacao.get("condicoes") or {}) != cond:
             return _decisao(False, "R8_SIMULACAO", "condições diferentes das simuladas", versao)
-        ruim = _conferir_data(params.get("data"), politica, agora, versao)
+        ruim = _conferir_data(params.get("data"), politica, agora, versao, aceita_hoje=True)
         if ruim:
             return ruim
     return _decisao(True, "OK", "dentro da política", versao)
