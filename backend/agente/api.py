@@ -169,6 +169,7 @@ def simular_mensagem(empresa_id: str, predicao_id: str, texto: str, agora: datet
     caso = repo.obter_ou_criar_caso(empresa_id, predicao_id)
     ev, _ = orq.registrar_evento(repo, empresa_id, caso["id"], "mensagem_devedor", f"tela:{uuid.uuid4().hex}",
                                  {"texto": texto}, origem="tela")
+    # TODO junção: empresa_id=empresa_id
     orq.processar_fila(repo, grafos(fonte), fabrica_cliente(), limite=5,
                        agora=agora or datetime.now(timezone.utc))
     r = ver_caso(empresa_id, predicao_id, repo)
@@ -193,7 +194,7 @@ def central(empresa_id: str, agora: datetime | None = None) -> dict:
         "ligado": ligado(),
         "cliente": os.getenv("MIZAN_AGENTE_CLIENTE", "falso"),
         "modelos": {"triagem": llm.modelo_para("triagem"), "negociador": llm.modelo_para("negociador")},
-        "custo_hoje_usd": repo.custo_do_dia(empresa_id, agora.date()),
+        "custo_hoje_usd": repo.custo_do_dia(empresa_id, agora.astimezone(auditor.BRASILIA).date()),
         "teto_dia_usd": llm.teto_dia_usd(),
         "politica": {"versao": versao, "regras": regras},
         "eventos": dict(Counter(e["situacao"] for e in eventos)),
@@ -239,24 +240,35 @@ def passagens_da_fila(empresa_id: str, predicao_ids: list, agora: datetime | Non
     if not ids:
         return {}
     saida = {}
-    for c in fabrica_repo().casos_da_empresa(empresa_id):
-        if str(c.get("predicao_id")) in ids:
-            f = passagem.para_tela((c.get("dados") or {}).get("passagem"), agora)
-            if f:
-                saida[str(c["predicao_id"])] = f
+    for c in fabrica_repo().casos_por_predicoes(empresa_id, ids):
+        f = passagem.para_tela((c.get("dados") or {}).get("passagem"), agora)
+        if f:
+            saida[str(c["predicao_id"])] = f
     return saida
 
 
 def registrar_retorno_passagem(empresa_id: str, predicao_id: str, ajudou: bool, quem: str | None,
-                               comentario: str = "") -> dict:
-    """O atendente diz se o resumo da passagem ajudou (nota do Supervisor)."""
+                               comentario: str = "", agora: datetime | None = None) -> dict:
+    """O atendente diz se o resumo da passagem ajudou (nota do Supervisor).
+
+    Trava o caso como o agente faz: sem isso, o retorno e uma rodada do agente
+    gravando o mesmo caso ao mesmo tempo apagam um ao outro."""
     from agente import passagem
+    agora = agora or datetime.now(timezone.utc)
     repo = fabrica_repo()
     caso = repo.caso_de(empresa_id, predicao_id)
     if caso is None:
         raise LookupError("Caso não encontrado.")
-    retorno = passagem.registrar_retorno(caso, ajudou, quem, comentario)
-    repo.salvar_caso(caso["id"], {"dados": caso["dados"]})
+    dono = f"retorno:{quem or ''}"
+    if not repo.travar_caso(caso["id"], dono, agora + orq.DURACAO_TRAVA, agora):
+        raise CasoOcupado("O agente está processando este caso agora. Tente de novo em instantes.")
+    try:
+        caso = repo.obter_caso(caso["id"]) or caso             # relê já com a trava: dados atuais
+        retorno = passagem.registrar_retorno(caso, ajudou, quem, comentario, agora)
+        if not repo.salvar_caso(caso["id"], {"dados": caso["dados"]}, dono=dono):
+            raise CasoOcupado("O caso mudou de mãos durante a gravação. Tente de novo.")
+    finally:
+        repo.soltar_caso(caso["id"], dono)
     return retorno
 
 
@@ -302,7 +314,7 @@ def agentes(empresa_id: str, agora: datetime | None = None) -> dict:
                 "acordos": sum(1 for p in passos if p.get("no") == "ferramenta:registrar_aceite"
                                and (p.get("detalhe") or {}).get("ok")),
                 "bloqueios": sum(1 for p in passos if p.get("resultado") == "bloqueado"),
-                "custo_hoje_usd": repo.custo_do_dia(empresa_id, agora.date()),
+                "custo_hoje_usd": repo.custo_do_dia(empresa_id, agora.astimezone(auditor.BRASILIA).date()),
                 "teto_dia_usd": llm.teto_dia_usd()}}
 
 
@@ -325,16 +337,23 @@ def agente_perfil(empresa_id: str, nome: str, agora: datetime | None = None) -> 
                         for p in reversed(meus[-20:])]}
 
 
+def _agenda_do_agente(empresa_id: str, repo, fonte) -> list:
+    """Compromissos pendentes dos devedores que têm caso com o agente (só ids; sem ler os casos)."""
+    return fonte.agenda_dos_casos(empresa_id, repo.predicoes_dos_casos(empresa_id))
+
+
 def agenda(empresa_id: str) -> dict:
     """Compromissos pendentes dos devedores que estão com o agente, e os
     operadores para o administrador atribuir atendimentos."""
     from agente import passagem
     from agente.fonte import OPERADORES_DO_AGENTE, OPERADOR_A_DEFINIR
     repo, fonte = fabrica_repo(), fabrica_fonte()
-    casos = {c["predicao_id"]: c for c in repo.casos_da_empresa(empresa_id)}
+    pendentes = _agenda_do_agente(empresa_id, repo, fonte)
+    # Só os casos que aparecem na agenda, em lotes (não a carteira inteira).
+    casos = {str(c["predicao_id"]): c for c in repo.casos_por_predicoes(empresa_id, [a.get("predicao_id") for a in pendentes])}
     itens = []
-    for a in fonte.agenda_dos_casos(empresa_id, list(casos)):
-        c = casos.get(a.get("predicao_id")) or {}
+    for a in pendentes:
+        c = casos.get(str(a.get("predicao_id"))) or {}
         obs = a.get("observacao") or ""
         tipo = ("atendimento" if obs.startswith("Atendimento com pessoa") else
                 "transferencia" if obs.startswith("Transferido") else
@@ -355,11 +374,12 @@ def agenda(empresa_id: str) -> dict:
 def atribuir(empresa_id: str, item_id: str, operador_id: str) -> dict:
     """O administrador escolhe quem atende um compromisso que está com o agente."""
     from agente.fonte import OPERADORES_DO_AGENTE
-    fonte = fabrica_fonte()
+    repo, fonte = fabrica_repo(), fabrica_fonte()
     op = next((o for o in fonte.operadores(empresa_id) if o["id"] == operador_id), None)
     if op is None:
         raise LookupError("Operador não encontrado ou inativo nesta empresa.")
-    item = next((a for a in agenda(empresa_id)["itens"] if a["id"] == item_id), None)
+    # Confere o item na agenda do agente sem montar a tela inteira (fichas, casos).
+    item = next((a for a in _agenda_do_agente(empresa_id, repo, fonte) if a["id"] == item_id), None)
     if item is None or item["operador_id"] not in OPERADORES_DO_AGENTE:
         raise LookupError("Compromisso não encontrado, já atribuído ou já resolvido.")
     novo = fonte.atribuir_agenda(empresa_id, item_id, op["id"], op["nome"])
@@ -383,6 +403,7 @@ def rodar_relogio(empresa_id: str, agora: datetime | None = None) -> dict:
     agora = agora or datetime.now(timezone.utc)
     repo, fonte = fabrica_repo(), fabrica_fonte()
     criados = planejar(repo, fonte, empresa_id, agora)
+    # TODO junção: empresa_id=empresa_id
     feitos = orq.processar_fila(repo, grafos(fonte), fabrica_cliente(), limite=50, agora=agora)
     return {"eventos_criados": len(criados), "processados": len(feitos)}
 
@@ -396,8 +417,10 @@ def avisar_pagamento(empresa_id: str, predicao_id: str, valor: float, promessas:
         return False
     agora = agora or datetime.now(timezone.utc)
     orq.registrar_evento(repo, empresa_id, caso["id"], "pagamento", f"pagamento:{uuid.uuid4().hex}",
-                         {"valor": valor, "data": agora.date().isoformat(), "promessas": promessas}, origem=origem)
+                         {"valor": valor, "data": agora.astimezone(auditor.BRASILIA).date().isoformat(),
+                          "promessas": promessas}, origem=origem)
     if processar:
+        # TODO junção: empresa_id=empresa_id
         orq.processar_fila(repo, grafos(fabrica_fonte()), fabrica_cliente(), limite=5, agora=agora)
     return True
 
@@ -507,6 +530,7 @@ def aplicar_plano(empresa_id: str, agora: datetime | None = None) -> dict:
     agora = agora or datetime.now(timezone.utc)
     repo, fonte = fabrica_repo(), fabrica_fonte()
     r = _plano(repo, fonte, empresa_id, aplicar=True, agora=agora)
+    # TODO junção: empresa_id=empresa_id
     r["processados"] = len(orq.processar_fila(repo, grafos(fonte), fabrica_cliente(), limite=200, agora=agora))
     return r
 
