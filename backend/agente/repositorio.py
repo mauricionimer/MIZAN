@@ -274,6 +274,17 @@ class RepoMemoria:
                          if p["empresa_id"] == empresa_id
                          and p["criado_em"].astimezone(BRASILIA).date() == dia), 6)
 
+    # ── leitura em lote (telas e plano do dia) ──
+    def casos_por_predicoes(self, empresa_id: str, predicao_ids) -> list:
+        """Casos da empresa só destes devedores (uma consulta por lote, não uma por devedor)."""
+        ids = {str(p) for p in predicao_ids or [] if p}
+        return [copy.deepcopy(c) for c in self.casos.values()
+                if c["empresa_id"] == empresa_id and str(c["predicao_id"]) in ids]
+
+    def predicoes_dos_casos(self, empresa_id: str) -> list:
+        """Só os ids dos devedores que têm caso com o agente."""
+        return [c["predicao_id"] for c in self.casos.values() if c["empresa_id"] == empresa_id]
+
 
 class RepoSupabase:
     """Mesma interface, nas tabelas agente_*. Só o backend acessa (RLS ligado)."""
@@ -528,3 +539,29 @@ class RepoSupabase:
             if len(linhas) < PAGINA:
                 return round(total, 6)
             de += PAGINA
+
+    # ── leitura em lote (telas e plano do dia) ──
+    LOTE_IDS = 100                  # ids por consulta: a URL do in_() tem limite de tamanho
+    PAGINA = 1000                   # o PostgREST corta em ~1000 linhas sem .range
+
+    def casos_por_predicoes(self, empresa_id: str, predicao_ids) -> list:
+        """Casos da empresa só destes devedores, com in_() em lotes de 100."""
+        ids = list(dict.fromkeys(str(p) for p in predicao_ids or [] if p))
+        saida = []
+        for i in range(0, len(ids), self.LOTE_IDS):
+            res = (self.db.table("agente_casos").select("*").eq("empresa_id", empresa_id)
+                   .in_("predicao_id", ids[i:i + self.LOTE_IDS]).execute())
+            saida += [self._caso(c) for c in res.data or []]
+        return saida
+
+    def predicoes_dos_casos(self, empresa_id: str) -> list:
+        """Só os ids dos devedores que têm caso com o agente (paginado)."""
+        saida, inicio = [], 0
+        while True:
+            res = (self.db.table("agente_casos").select("predicao_id").eq("empresa_id", empresa_id)
+                   .order("predicao_id").range(inicio, inicio + self.PAGINA - 1).execute())
+            linhas = res.data or []
+            saida += [l["predicao_id"] for l in linhas]
+            if len(linhas) < self.PAGINA:
+                return saida
+            inicio += self.PAGINA

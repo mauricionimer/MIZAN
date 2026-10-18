@@ -60,7 +60,7 @@ checar(len(s) == 1 and "R$ 270,00" in s[0] and "amanhã (20/10)" in s[0] and s[0
 m.relogio(em(SEX + timedelta(days=3), 16))
 checar(len(m.saidas()) == 1, "o relógio rodando de novo no mesmo dia não repete o lembrete")
 m.relogio(em(SEX + timedelta(days=4)))
-checar(len(m.saidas()) == 2 and "vence hoje" in m.saidas()[1], "no dia: segundo lembrete")
+checar(len(m.saidas()) == 1, "no dia: não repete (um lembrete por compromisso e vencimento)", str(m.saidas()))
 
 m = Mundo(venc=SEX + timedelta(days=4))
 m.relogio(em(SEX + timedelta(days=3), 6))                   # segunda 6h: fora do horário

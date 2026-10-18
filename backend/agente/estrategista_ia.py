@@ -20,7 +20,7 @@ from datetime import timedelta
 
 from agente import estado, guardrails
 
-VERSAO_PROMPT = "estrategista-v1"            # bandit calibrado pesa mais
+VERSAO_PROMPT = "estrategista-v2"            # v2: bandit com nº de resultados; concorda_bandit em código
 FAMILIAS = ("avista_10pct", "parcelado_4x", "desconto_30pct", "parcelado_12x")
 TONS = ("direto", "acolhedor", "informativo")
 MAX_ADIAR_DIAS = 7
@@ -73,7 +73,9 @@ def ficha(dev: dict, caso: dict, rec: dict | None, pol: dict | None, hoje=None, 
          "historico": [f"{n['agente']}: {n['decisao']}" + (f" — {n['motivo']}" if n.get("motivo") else "")
                        for n in estado.caderno(caso, 6)],
          "bandit": ({"oferta": rec.get("oferta"), "modo": rec.get("modo"),
-                     "interacoes": rec.get("total_interacoes")} if rec else None),
+                     "interacoes": rec.get("total_interacoes"),
+                     "resultados_desta_oferta": rec.get("n_tentativas_acao"),
+                     "dentro_da_politica": rec.get("oferta") in ofertas_na_politica(pol)} if rec else None),
          "ofertas_na_politica": ofertas_na_politica(pol),
          "orientacao_do_cientista": orientacao}
     assert set(f) == set(FICHA_CAMPOS)
@@ -83,16 +85,18 @@ def ficha(dev: dict, caso: dict, rec: dict | None, pol: dict | None, hoje=None, 
 SISTEMA = """Você é o Estrategista de cobrança de uma instituição financeira. Recebe a ficha de UM devedor que
 o sistema já decidiu procurar e escolhe como começar. Responda APENAS com um objeto JSON:
 {"decisao": "abordar" ou "adiar", "adiar_dias": 0 a 7, "tom": "direto" | "acolhedor" | "informativo",
- "oferta_inicial": uma das "ofertas_na_politica" ou null, "concorda_bandit": true/false,
+ "oferta_inicial": uma das "ofertas_na_politica" ou null,
  "raciocinio": até 300 caracteres, para a equipe, "mensagem": 1 ou 2 frases para a pessoa}
 
 Como decidir:
-- "bandit" é a recomendação do modelo que aprende com os pagamentos reais da empresa.
-  Modo "calibrado": ele já viu centenas de casos; SIGA-O, a não ser que o histórico mostre algo que ele
-  não vê (ex.: a pessoa disse que não consegue pagar à vista).
-  Modo "aprendendo" ou sem bandit: use o seu julgamento (ex.: atraso longo e dívida alta pedem
-  parcelamento, não desconto à vista).
-  Diga no raciocínio se concorda e por quê, citando o que na ficha justifica.
+- "bandit" é a recomendação do modelo que aprende com os pagamentos registrados da empresa.
+  "resultados_desta_oferta" é quantas vezes a oferta recomendada já teve resultado registrado; "modo"
+  "calibrado" quer dizer só que são pelo menos 3. É um sinal, não prova: quanto mais resultados, mais
+  peso. Com poucos (ou modo "aprendendo"/sem bandit), use o seu julgamento (ex.: atraso longo e dívida
+  alta pedem parcelamento, não desconto à vista). Se "dentro_da_politica" for false, a oferta do
+  bandit não pode ser usada: escolha uma das "ofertas_na_politica".
+  O sistema compara a sua oferta com a do bandit; no raciocínio, diga por que seguiu ou não,
+  citando o que na ficha justifica.
 - Adie só com motivo claro no histórico (ex.: a pessoa pediu para falar depois); conte os dias a partir de "hoje".
 - Tom: acolhedor para atraso longo ou histórico difícil; direto para atraso curto; informativo quando
   não há histórico.
@@ -132,7 +136,9 @@ def decidir(ctx, dev: dict, rec: dict | None) -> dict:
     if oferta is not None and oferta not in f["ofertas_na_politica"]:
         raise ValueError("oferta fora do catálogo ou da política")
     saida = {"decisao": dec["decisao"], "tom": dec.get("tom") if dec.get("tom") in TONS else "informativo",
-             "oferta_inicial": oferta, "concorda_bandit": bool(dec.get("concorda_bandit")) if rec else None,
+             # Concordar com o bandit é fato, não opinião da IA: mesma oferta inicial.
+             "oferta_inicial": oferta,
+             "concorda_bandit": (oferta == rec.get("oferta")) if rec and dec["decisao"] == "abordar" else None,
              "bandit_oferta": (rec or {}).get("oferta"),
              "raciocinio": guardrails.limpar_nota(dec.get("raciocinio") or "", 300)}
     if saida["decisao"] == "adiar":
