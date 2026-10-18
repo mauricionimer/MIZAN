@@ -170,6 +170,22 @@ def test_aceite_com_pagamento_hoje_vale_so_no_aceite():
     assert "R11_DATA" in r.bloqueios()
 
 
+# ── (m) contas do acordo ────────────────────────────────────────────────────
+
+def test_total_pago_soma_as_parcelas_arredondadas_e_cabe():
+    from model import oferta
+    k = oferta.calcular(1000, 0, 0, 3)
+    assert k["parcela"] == 333.33 and k["total_pago"] == 999.99, k
+    k = oferta.calcular(15000, 0, 10, 7)
+    assert abs(k["total_pago"] - (k["entrada"] + k["parcela"] * 7)) < 0.001, k
+    cond = oferta.condicoes({"desconto_pct": 0, "entrada_pct": 10, "n_parcelas": 12})
+    conta = oferta.calcular(15000, **cond)                   # entrada 1.500, parcela 1.125
+    assert not oferta.cabe(cond, conta, 1200)                # a entrada passa do que cabe
+    assert oferta.cabe(cond, conta, 1500)
+    avista = oferta.condicoes({"n_parcelas": 1})
+    assert oferta.cabe(avista, oferta.calcular(900, **avista), 900)
+
+
 if __name__ == "__main__":
     import sys
     falhas = 0

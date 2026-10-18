@@ -53,7 +53,9 @@ def calcular(divida: float, desconto_pct: float = 0.0, entrada_pct: float = 0.0,
         entrada = negociado * float(entrada_pct) / 100
         saldo = negociado - entrada
         parcela = parcela_price(saldo, n, juros_mensal_pct)
-        total = entrada + parcela * n
+        # O total é o que a pessoa paga de verdade: a parcela já arredondada
+        # (R$ 333,33 × 3), não a conta com dízima.
+        total = round(entrada, 2) + round(parcela, 2) * n
     return {
         "valor_negociado": round(negociado, 2),
         "entrada": round(entrada, 2),
@@ -63,6 +65,17 @@ def calcular(divida: float, desconto_pct: float = 0.0, entrada_pct: float = 0.0,
         "juros_total": round(max(0.0, total - negociado), 2),
         "economia": round(max(0.0, divida - total), 2),
     }
+
+
+def cabe(cond: dict, conta: dict, valor) -> bool:
+    """O acordo cabe no que a pessoa disse que pode pagar por mês: nenhum
+    pagamento (entrada ou parcela; à vista, o valor único) passa desse valor."""
+    if valor is None:
+        return False
+    limite = float(valor) + 0.005
+    if int(cond.get("n_parcelas") or 1) <= 1:
+        return conta["parcela"] <= limite
+    return conta["entrada"] <= limite and conta["parcela"] <= limite
 
 
 def _num(v, campo):

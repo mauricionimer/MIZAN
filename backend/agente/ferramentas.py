@@ -218,7 +218,7 @@ def _simular_acordo(ctx, fonte, dev, args):
         r["motivo"] = dec["motivo"]
     cabe = args.get("cabe_por_mes")
     if cabe is not None:
-        r["cabe_no_bolso"] = _primeiro_pagamento(cond, conta) <= cabe and (cond["n_parcelas"] == 1 or conta["parcela"] <= cabe)
+        r["cabe_no_bolso"] = oferta.cabe(cond, conta, cabe)
     return r
 
 
