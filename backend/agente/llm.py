@@ -241,6 +241,14 @@ class ErroGemini(RuntimeError):
     pass
 
 
+class IaOcupada(ErroGemini):
+    """Cota ou sobrecarga momentânea (429/500/503). O evento espera e tenta de novo;
+    não é motivo para tirar o caso do agente."""
+    def __init__(self, msg: str, esperar_s: float = 60.0):
+        super().__init__(msg)
+        self.esperar_s = esperar_s
+
+
 def _enviar_http(url: str, corpo: dict, chave: str, timeout: float) -> dict:
     import time
     import urllib.error
@@ -269,6 +277,15 @@ def _enviar_http(url: str, corpo: dict, chave: str, timeout: float) -> dict:
             cotas = [f"{v.get('quotaId')}={v.get('quotaValue')}" for det in erro.get("details") or []
                      for v in det.get("violations") or []]
             esperas = [det["retryDelay"] for det in erro.get("details") or [] if det.get("retryDelay")]
+            if e.code in (429, 500, 503):
+                segundos = 60.0
+                for s in esperas:
+                    try:
+                        segundos = max(segundos, float(str(s).rstrip("s")))
+                    except ValueError:
+                        pass
+                raise IaOcupada(f"Gemini HTTP {e.code} {erro.get('status', '')} cotas={cotas} esperar={esperas}",
+                                esperar_s=segundos) from None
             raise ErroGemini(f"Gemini HTTP {e.code} {erro.get('status', '')} cotas={cotas} esperar={esperas}") from None
     raise ErroGemini("Gemini sem resposta")
 
@@ -377,6 +394,7 @@ class ClienteGemini:
                 r.ferramentas.append({"id": _id_da_chamada(fc["name"], self._n, fc.get("id")), "nome": fc["name"],
                                       "args": dict(fc.get("args") or {})})
         motivo = cand.get("finishReason") or "STOP"
+        r.motivo_parada = motivo                       # o que o Google disse (vai para o rastreio)
         r.parada = ("ferramenta" if r.ferramentas and motivo == "STOP"
                     else "recusa" if motivo in _RECUSA_GEMINI else _PARADA_GEMINI.get(motivo, "limite"))
         if partes:
