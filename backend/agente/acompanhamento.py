@@ -64,6 +64,12 @@ def proximo_horario(politica: dict, agora: datetime) -> datetime:
     return (local + timedelta(days=1)).astimezone(timezone.utc)
 
 
+def mesma_hora_em(agora: datetime, dias_uteis: int) -> datetime:
+    """Daqui a `dias_uteis` dias úteis, na mesma hora de Brasília (em UTC)."""
+    local = agora.astimezone(auditor.BRASILIA)
+    return datetime.combine(somar_dias_uteis(local.date(), dias_uteis), local.timetz()).astimezone(timezone.utc)
+
+
 # ── relógio ─────────────────────────────────────────────────────────────────
 
 def planejar(repo, fonte, empresa_id: str, agora: datetime) -> list:
@@ -87,7 +93,9 @@ def planejar(repo, fonte, empresa_id: str, agora: datetime) -> list:
             dados = {"compromisso_id": item["id"], "valor": item.get("valor"), "data": venc.isoformat()}
             fases = []
             if venc - hoje in (timedelta(days=1), timedelta(days=0)):
-                fases.append(("lembrete", f"lembrete:{item['id']}:{hoje.isoformat()}"))
+                # Um lembrete por compromisso e vencimento (não por dia): vencimento na
+                # segunda não gera o de domingo (adiado para segunda) e o de segunda.
+                fases.append(("lembrete", f"lembrete:{item['id']}:{venc.isoformat()}"))
             confirmacao = somar_dias_uteis(venc, pol["prazo_confirmacao_dias"])
             if hoje > confirmacao:
                 fases.append(("venceu", f"venceu:{item['id']}"))
@@ -124,11 +132,12 @@ def texto_pagamento(nome: str, valor, falta: float | None) -> str:
 
 # ── decisão com IA (cardápio fechado; o código confere) ─────────────────────
 
-VERSAO_PROMPT = "acompanhamento-v1"
+VERSAO_PROMPT = "acompanhamento-v2"          # v2: "esperar" no atraso uma vez só, com prazo
 CARDAPIO = {"lembrete": ("lembrar", "esperar"),
             "venceu": ("procurar", "oferecer_remarcar", "chamar_pessoa", "esperar"),
             "sem_resposta": ("chamar_pessoa", "esperar_mais")}
 COM_MENSAGEM = {"lembrar", "procurar", "oferecer_remarcar"}
+MAX_ADIAR_SEM_RESPOSTA = 5     # dias úteis esperando a cobrança do atraso antes de passar para a equipe
 
 SISTEMA = """Você é o agente de Acompanhamento de uma instituição financeira. Uma data de pagamento combinada
 com uma pessoa chegou, venceu ou ficou sem resposta. Decida o que fazer e, se for falar com ela, escreva
@@ -143,7 +152,8 @@ Como escolher:
 - lembrete: lembre de forma leve; "esperar" só se o caderno mostrar que a pessoa já confirmou o pagamento.
 - venceu: pergunte o que aconteceu, sem acusar. Se ela pareceu ansiosa ou triste antes, acolha e ofereça
   uma nova data (oferecer_remarcar). Se pareceu irritada ou desesperada, ou se já quebrou acordo antes,
-  chame uma pessoa (chamar_pessoa).
+  chame uma pessoa (chamar_pessoa). "esperar" adia a cobrança por 1 dia útil, uma vez só (ex.: o caderno
+  mostra que ela disse que paga amanhã); com "ja_esperou_no_atraso" verdadeiro, não espere de novo.
 - sem_resposta: em geral, chame uma pessoa; "esperar_mais" só se o caderno mostrar um motivo claro.
 
 Regras: use só o valor e a data do briefing, escritos como estão; não fale de juros, multa, processo,
@@ -159,6 +169,7 @@ def _briefing_ia(ctx, fase: str, d: dict) -> dict:
             "compromisso": {"valor": _brl(d.get("valor")), "data": _data_br(d["data"])},
             "hoje": _data_br(_hoje(ctx.agora).isoformat()), "situacao": ctx.caso["situacao"],
             "ja_esperou_mais": d["compromisso_id"] in ((ctx.caso.get("dados") or {}).get("esperou_mais") or []),
+            "ja_esperou_no_atraso": d["compromisso_id"] in ((ctx.caso.get("dados") or {}).get("esperou_atraso") or []),
             "ultima_leitura_da_triagem": emocao,
             "caderno": [f"{n['agente']}: {n['decisao']}" + (f" — {n['motivo']}" if n.get("motivo") else "")
                         for n in caderno]}
@@ -183,6 +194,8 @@ def decidir(ctx, fase: str, d: dict) -> dict:
             raise ValueError("ação fora do cardápio")
         if dec["acao"] == "esperar_mais" and briefing["ja_esperou_mais"]:
             raise ValueError("já esperou mais uma vez")
+        if fase == "venceu" and dec["acao"] == "esperar" and briefing["ja_esperou_no_atraso"]:
+            raise ValueError("já esperou uma vez no atraso")
         dec["motivo"] = str(dec.get("motivo") or "")[:200]
         if dec["acao"] not in COM_MENSAGEM:
             dec["mensagem"] = ""
@@ -281,6 +294,15 @@ def grafo_vencimento(fonte) -> Grafo:
         if not _pode_procurar(ctx):
             return
         dec = com_ia(ctx, "venceu")
+        if dec and dec["acao"] == "esperar":
+            # Espera de 1 dia útil, uma vez só, sem marcar o atraso como cobrado:
+            # o "sem resposta" conta a partir da cobrança de verdade.
+            dados = dict(ctx.caso.get("dados") or {})
+            dados["esperou_atraso"] = (list(dados.get("esperou_atraso") or []) + [d["compromisso_id"]])[-20:]
+            ctx.caso["dados"] = dados
+            ctx.saida["adiar_para"] = mesma_hora_em(ctx.agora, 1)
+            ctx.anotar("acompanhamento", "esperou", dec["motivo"])
+            return
         if ctx.caso["situacao"] == "acordo_ativo":
             ctx.mudar_situacao("atrasado")
         dados = dict(ctx.caso.get("dados") or {})
@@ -290,22 +312,50 @@ def grafo_vencimento(fonte) -> Grafo:
         dados["atraso"] = {"compromisso_id": d["compromisso_id"], "desde": ctx.agora.isoformat()}
         ctx.caso["dados"] = dados
         if dec and dec["acao"] == "chamar_pessoa":
+            # "falha" e não "dificuldade_grave": atraso comum não é sofrimento lido pela Triagem
+            # (dificuldade_grave soma +30 na fila da equipe).
             r = ferramentas.executar(ctx, fonte, "transferir_para_humano", {
-                "motivo": "dificuldade_grave", "resumo": f"Compromisso de {_brl(d['valor'])} para {_data_br(d['data'])} "
-                                                         f"venceu. Acompanhamento: {dec['motivo']}"[:300]})
+                "motivo": "falha", "resumo": f"Compromisso de {_brl(d['valor'])} para {_data_br(d['data'])} "
+                                             f"venceu. Acompanhamento: {dec['motivo']}"[:300]})
             if not r.get("ok"):
                 raise RuntimeError("transferência não executou")
             ctx.anotar("acompanhamento", "passou_para_pessoa", dec["motivo"])
-            return
-        if dec and dec["acao"] == "esperar":
-            ctx.anotar("acompanhamento", "esperou", dec["motivo"])
             return
         _enviar(ctx, dec["mensagem"] if dec else texto_atraso(_nome(ctx, ctx.saida["_devedor"]), d["valor"], d["data"]))
         ctx.anotar("acompanhamento", (dec or {}).get("acao") or "procurou_no_atraso",
                    (dec or {}).get("motivo") or f"compromisso de {_data_br(d['data'])} venceu sem pagamento")
 
+    def _ainda_nao(ctx, d) -> bool:
+        """O "sem resposta" só vale depois da cobrança do atraso e dos dias úteis de
+        espera. Antes disso (relógio parado, fila atrasada, "esperar"), reagenda."""
+        regras, _ = ctx.politica()
+        dados = dict(ctx.caso.get("dados") or {})
+        atraso = dados.get("atraso") or {}
+        desde = atraso.get("desde") if atraso.get("compromisso_id") == d["compromisso_id"] else None
+        if not desde:
+            vezes = dict(dados.get("sem_resposta_adiado") or {})
+            n = int(vezes.get(d["compromisso_id"]) or 0)
+            if n >= MAX_ADIAR_SEM_RESPOSTA:
+                return False                    # a cobrança nunca saiu: a equipe assume
+            vezes[d["compromisso_id"]] = n + 1
+            dados["sem_resposta_adiado"] = dict(list(vezes.items())[-20:])
+            ctx.caso["dados"] = dados
+            ctx.saida["adiar_para"] = mesma_hora_em(ctx.agora, 1)
+            ctx.saida["pular"] = "o atraso ainda não foi cobrado"
+            return True
+        prazo = somar_dias_uteis(datetime.fromisoformat(desde).astimezone(auditor.BRASILIA).date(),
+                                 (regras or {}).get("dias_sem_resposta", 3))
+        if _hoje(ctx.agora) < prazo:
+            hora = (regras or {}).get("hora_inicio", 8)
+            ctx.saida["adiar_para"] = datetime.combine(prazo, time(hora), auditor.BRASILIA).astimezone(timezone.utc)
+            ctx.saida["pular"] = "ainda no prazo de resposta"
+            return True
+        return False
+
     def encerrar(ctx):
         d = ctx.evento["dados"]
+        if _ainda_nao(ctx, d):
+            return
         desde = ((ctx.caso.get("dados") or {}).get("atraso") or {}).get("desde")
         desde = datetime.fromisoformat(desde) if desde else None
         msgs = ctx.repo.ultimas_mensagens(ctx.caso["empresa_id"], ctx.caso["id"], 50)
@@ -315,11 +365,11 @@ def grafo_vencimento(fonte) -> Grafo:
             return
         dec = com_ia(ctx, "sem_resposta")
         if dec and dec["acao"] == "esperar_mais":
-            # Uma espera a mais, com prazo: o relógio volta em 2 dias úteis.
+            # Uma espera a mais, com prazo: o relógio volta em 2 dias úteis, na mesma hora de Brasília.
             dados = dict(ctx.caso.get("dados") or {})
             dados["esperou_mais"] = (list(dados.get("esperou_mais") or []) + [d["compromisso_id"]])[-20:]
             ctx.caso["dados"] = dados
-            volta = datetime.combine(somar_dias_uteis(_hoje(ctx.agora), 2), ctx.agora.timetz())
+            volta = mesma_hora_em(ctx.agora, 2)
             registrar_evento(ctx.repo, ctx.caso["empresa_id"], ctx.caso["id"], "vencimento",
                              f"sem_resposta2:{d['compromisso_id']}", dict(d), origem="acompanhamento",
                              disponivel_em=volta)

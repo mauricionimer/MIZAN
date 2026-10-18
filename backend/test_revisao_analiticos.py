@@ -368,9 +368,94 @@ def t_estrategista_ia():
         os.environ.pop("MIZAN_ESTRATEGISTA_MAX", None)
 
 
+# ── 3. Acompanhamento ───────────────────────────────────────────────────────
+
+def _acomp(passos, roteiro=None, venc="2026-10-20"):
+    from agente.bateria.motor import ID_OK, Cenario, executar
+    acordo = {**ID_OK, "acordo": {"condicoes": {"n_parcelas": 6, "desconto_pct": 10, "entrada_pct": 10},
+                                  "primeiro_pagamento": 270.0, "data": venc}}
+    c = Cenario("t", "t", "t", passos=passos, conferir=[], situacao="acordo_ativo", dados=acordo,
+                agenda=[("promessa", venc, 270.0)])
+    if roteiro is not None:
+        com_papeis(("acompanhamento",))
+    try:
+        r = executar(c, ClienteFalso({"acompanhamento": list(roteiro or [])}))
+    finally:
+        sem_papeis()
+    if r.erro_inesperado:
+        raise RuntimeError(r.erro_inesperado)
+    return r
+
+
+def _ia_acomp(**d):
+    return json.dumps({"motivo": "teste", "mensagem": "", **d})
+
+
+def t_acompanhamento_relogio_parado():
+    # Vence 20/10; o relógio só volta em 03/11 (servidor dormiu): atraso e "sem resposta" na mesma rodada.
+    r = _acomp([("relogio", None, em(date(2026, 11, 3)))])
+    caso = r.repo.casos[r.caso["id"]]
+    prom = [a for a in r.fonte.agenda if a["tipo"] == "promessa"][0]
+    checar(caso["situacao"] == "atrasado" and len(r.saidas) == 1 and prom["situacao"] == "pendente",
+           "3. relógio parado: cobra o atraso e não quebra a promessa na mesma rodada",
+           f"{caso['situacao']} {len(r.saidas)} {prom['situacao']}")
+    r = _acomp([("relogio", None, em(date(2026, 11, 3))), ("relogio", None, em(date(2026, 11, 5)))])
+    checar(r.repo.casos[r.caso["id"]]["situacao"] == "atrasado", "3. antes dos dias úteis de espera, não passa para a equipe")
+    r = _acomp([("relogio", None, em(date(2026, 11, 3))), ("relogio", None, em(date(2026, 11, 6), 10))])
+    caso = r.repo.casos[r.caso["id"]]
+    prom = [a for a in r.fonte.agenda if a["tipo"] == "promessa"][0]
+    checar(caso["situacao"] == "com_pessoa" and prom["situacao"] == "quebrada",
+           "3. depois de 3 dias úteis da cobrança: promessa quebrada e equipe", caso["situacao"])
+
+
+def t_acompanhamento_lembrete_segunda():
+    # Vence segunda 26/10: o lembrete de domingo é adiado para segunda e o de segunda não repete.
+    r = _acomp([("relogio", None, em(date(2026, 10, 25), 10)), ("relogio", None, em(date(2026, 10, 26), 9))],
+               venc="2026-10-26")
+    checar(len(r.saidas) == 1, "3. vencimento na segunda: um lembrete só", str(r.saidas))
+    chaves = sorted(e["chave"].split(":")[0] + ":" + e["chave"].split(":")[-1] for e in r.repo.eventos.values())
+    checar(chaves == ["lembrete:2026-10-26"], "3. chave do lembrete é compromisso + vencimento (não o dia de hoje)", str(chaves))
+
+
+def t_acompanhamento_esperar_no_atraso():
+    sex = em(date(2026, 10, 23))
+    r = _acomp([("relogio", None, sex)], [_ia_acomp(acao="esperar", motivo="disse que paga segunda")])
+    caso = r.repo.casos[r.caso["id"]]
+    ev = next(e for e in r.repo.eventos.values() if e["chave"].startswith("venceu:"))
+    checar(caso["situacao"] == "acordo_ativo" and "atraso" not in caso["dados"] and not r.saidas,
+           "3. 'esperar' no atraso não grava atraso.desde nem muda a situação", str(caso["dados"].get("atraso")))
+    checar(ev["situacao"] == "pendente" and ev["disponivel_em"] == em(date(2026, 10, 26)),
+           "3. 'esperar' reagenda para o próximo dia útil, mesma hora", str(ev["disponivel_em"]))
+    r = _acomp([("relogio", None, sex), ("relogio", None, em(date(2026, 10, 26)))],
+               [_ia_acomp(acao="esperar", motivo="de novo"), _ia_acomp(acao="esperar", motivo="de novo")])
+    caso = r.repo.casos[r.caso["id"]]
+    checar(caso["situacao"] == "atrasado" and caso["dados"].get("atraso") and len(r.saidas) == 1
+           and "Aconteceu alguma coisa?" in r.saidas[0], "3. segunda espera não vale: cobra com o texto pronto")
+
+
+def t_acompanhamento_chamar_pessoa_motivo():
+    r = _acomp([("relogio", None, em(date(2026, 10, 23)))], [_ia_acomp(acao="chamar_pessoa", motivo="já quebrou antes")])
+    caso = r.repo.casos[r.caso["id"]]
+    checar(caso["situacao"] == "com_pessoa" and caso["dados"]["passagem"]["motivo"] == "falha",
+           "3. chamar_pessoa no atraso vai como 'falha', não 'dificuldade_grave'", caso["dados"].get("passagem", {}).get("motivo"))
+    from agente import acompanhamento
+    checar(acompanhamento.VERSAO_PROMPT == "acompanhamento-v2", "3. acompanhamento-v2")
+
+
+def t_acompanhamento_esperar_mais_brasilia():
+    noite = em(date(2026, 10, 28), 22)                        # 22h em Brasília = 01h UTC do dia 29
+    r = _acomp([("relogio", None, em(date(2026, 10, 23))), ("relogio", None, noite)],
+               [_ia_acomp(acao="procurar", mensagem="Oi, Maria. A parcela de 20/10 ficou pendente. Aconteceu algo?"),
+                _ia_acomp(acao="esperar_mais", motivo="disse que recebe dia 29")])
+    ev = next((e for e in r.repo.eventos.values() if e["chave"].startswith("sem_resposta2:")), None)
+    checar(ev is not None and ev["disponivel_em"] == em(date(2026, 10, 30), 22),
+           "3. esperar_mais volta em 2 dias úteis na mesma hora de Brasília", str(ev and ev["disponivel_em"]))
+
+
 TESTES = [t_grupo_entrada, t_selo_com_direcao, t_cientista_travas, t_cientista_segmentos_e_faixa,
           t_cientista_hipotese_passagens, t_passagem_cabe, t_supervisor, t_api_lotes, t_plano_sem_consulta_por_devedor,
-          t_custo_do_dia_brasilia, t_estrategista_ia]
+          t_custo_do_dia_brasilia, t_estrategista_ia, t_acompanhamento_relogio_parado, t_acompanhamento_lembrete_segunda,
+          t_acompanhamento_esperar_no_atraso, t_acompanhamento_chamar_pessoa_motivo, t_acompanhamento_esperar_mais_brasilia]
 
 if __name__ == "__main__":
     for t in TESTES:
