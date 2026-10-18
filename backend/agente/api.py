@@ -39,7 +39,7 @@ def ligado() -> bool:
 # Quem fez cada passo, em português, para a tela mostrar os vários agentes.
 QUEM = {"triagem": "Triagem", "negociador": "Negociador", "auditor": "Auditor", "ferramenta": "Ferramenta",
         "codigo": "Travas", "orquestrador": "Orquestrador", "estrategista": "Estrategista",
-        "acompanhamento": "Acompanhamento", "supervisor": "Supervisor", "pessoa": "Equipe"}
+        "acompanhamento": "Acompanhamento", "supervisor": "Supervisor", "cientista": "Cientista", "pessoa": "Equipe"}
 _INTENCAO = {"pagar_negociar": "quer negociar", "ja_paguei": "diz que já pagou", "contestar": "contesta a dívida",
              "parar_contato": "pede para parar", "pessoa_errada": "pessoa errada", "pedir_pessoa": "pede uma pessoa",
              "duvida": "tem uma dúvida", "outro": "conversa"}
@@ -49,6 +49,8 @@ def _quem(p: dict) -> str:
     no = p.get("no") or ""
     if no.startswith("ferramenta:"):
         return "Ferramenta"
+    if no in ("receber", "enviar", "resposta_fixa", "avisar_equipe", "transferir"):
+        return "Orquestrador"                     # passos do grafo, não das travas
     if no in ("triagem", "negociar", "guardrails", "auditor"):
         return {"negociar": "Negociador", "guardrails": "Travas"}.get(no, QUEM.get(no, no))
     return QUEM.get(p.get("agente") or "", "Orquestrador")
@@ -199,6 +201,31 @@ def central(empresa_id: str, agora: datetime | None = None) -> dict:
                      for e in eventos[:20]],
         "casos": dict(Counter(repo.situacoes_dos_casos(empresa_id))),
     }
+
+
+JANELA_ESTACAO_MIN = 15
+
+
+def estacao(empresa_id: str, agora: datetime | None = None) -> dict:
+    """Escritório dos agentes: o que cada um fez nos últimos minutos e a última
+    conversa inteira, para a tela reproduzir. Só passos (nunca texto do devedor)."""
+    from datetime import timedelta
+    agora = agora or datetime.now(timezone.utc)
+    repo = fabrica_repo()
+    recentes = repo.passos_recentes(empresa_id, agora - timedelta(minutes=JANELA_ESTACAO_MIN))
+    ultimo = []
+    for e in repo.eventos_recentes(empresa_id, 20):
+        if e.get("trace_id") and e.get("situacao") == "feito":
+            ultimo = repo.passos_do_trace(empresa_id, e["trace_id"])
+            if ultimo:
+                break
+
+    def publico(p):
+        return {**_passo_publico(p), "trace_id": p.get("trace_id")}
+    return {"agora": agora.isoformat(), "janela_min": JANELA_ESTACAO_MIN, "ligado": ligado(),
+            "ia": {papel: llm.ia_ligada(papel) for papel in llm.PAPEIS},
+            "passos": [publico(p) for p in recentes],
+            "ultima_conversa": [publico(p) for p in ultimo]}
 
 
 def agenda(empresa_id: str) -> dict:

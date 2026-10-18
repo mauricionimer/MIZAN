@@ -139,6 +139,10 @@ class RepoMemoria:
     def passos_do_trace(self, empresa_id: str, trace_id: str) -> list:
         return [copy.deepcopy(p) for p in self.passos if p["empresa_id"] == empresa_id and p["trace_id"] == trace_id]
 
+    def passos_recentes(self, empresa_id: str, desde: datetime, n: int = 300) -> list:
+        ps = [p for p in self.passos if p["empresa_id"] == empresa_id and p["criado_em"] >= desde]
+        return [copy.deepcopy(p) for p in sorted(ps, key=lambda p: p["criado_em"])[-n:]]
+
     def eventos_recentes(self, empresa_id: str, n: int = 500) -> list:
         evs = [e for e in self.eventos.values() if e["empresa_id"] == empresa_id]
         evs.sort(key=lambda e: e["criado_em"], reverse=True)
@@ -345,6 +349,12 @@ class RepoSupabase:
         res = (self.db.table("agente_passos").select("*").eq("empresa_id", empresa_id)
                .eq("trace_id", trace_id).order("criado_em").limit(200).execute())
         return res.data or []
+
+    def passos_recentes(self, empresa_id: str, desde: datetime, n: int = 300) -> list:
+        """Passos da empresa desde `desde` (índice empresa_id, criado_em)."""
+        res = (self.db.table("agente_passos").select("*").eq("empresa_id", empresa_id)
+               .gte("criado_em", desde.isoformat()).order("criado_em", desc=True).limit(n).execute())
+        return list(reversed(res.data or []))
 
     def eventos_recentes(self, empresa_id: str, n: int = 500) -> list:
         res = (self.db.table("agente_eventos")

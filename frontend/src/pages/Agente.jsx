@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Bot, Send, Search, Loader2, Activity, ShieldCheck, AlertTriangle, Power, UserRound, Coins, ListChecks, Landmark, Clock, Shuffle, CalendarDays, Scale, Hand, Undo2, CalendarClock, Users, BookOpen, FlaskConical } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import ErroCarga from '../components/ErroCarga'
+import EscritorioAgentes from '../components/EscritorioAgentes'
 import { useAuth } from '../context/AuthContext'
 import { agenteDevedores, agenteCaso, agenteSimularMensagem, agenteSimularPagamento, agenteCentral, agenteRelogio, agentePlano, agenteAplicarPlano, agentePoliticas, agenteSalvarPolitica, agenteControle, agenteAgenda, agenteAtribuir, agenteLaboratorio, agenteAnalisar, agenteDecidirRecomendacao, listarEmpresas } from '../api'
 
@@ -713,7 +714,7 @@ export default function Agente() {
         ) : aba === 'conversa' ? <Conversa empresa={empresa} /> : aba === 'plano' ? <Plano empresa={empresa} />
           : aba === 'agenda' ? <Agenda empresa={empresa} /> : aba === 'politica' ? <Politica empresa={empresa} />
           : aba === 'laboratorio' ? <Laboratorio empresa={empresa} />
-          : <><Legenda /><Central empresa={empresa} /></>}
+          : <><EscritorioAgentes empresa={empresa} cores={COR_AGENTE} /><Legenda /><Central empresa={empresa} /></>}
       </div>
     </AppShell>
   )

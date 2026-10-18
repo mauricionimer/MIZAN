@@ -1051,6 +1051,11 @@ export async function agenteAgenda(empresaId) {
   return _jsonOuErroFila(res)
 }
 
+export async function agenteEstacao(empresaId) {
+  const res = await fetch(`${BASE}/agente/estacao?${_qs({ empresa_id: empresaId })}`, { headers: _authHeader(_getToken()) })
+  return _jsonOuErroFila(res)
+}
+
 export async function agenteLaboratorio(empresaId) {
   const res = await fetch(`${BASE}/agente/laboratorio?${_qs({ empresa_id: empresaId })}`, { headers: _authHeader(_getToken()) })
   return _jsonOuErroFila(res)
