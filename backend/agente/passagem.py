@@ -116,11 +116,19 @@ def sugerir_proposta(caso: dict, regras: dict | None, versao=None, agora=None) -
                 "valor_negociado": round(conta["valor_negociado"], 2), "motivo": motivo, "cabe": cabe}
 
     if valor:
-        cabem = [v for v in novas if _mensal(*v) <= valor + 0.005]
-        if cabem:
-            # Das que cabem, a que mais recupera; empate: menos parcelas.
-            cond, conta = max(cabem, key=lambda v: (round(v[1]["valor_negociado"], 2), -v[0]["n_parcelas"]))
+        def cabe(v):                    # a parcela e a entrada cabem no que a pessoa disse
+            return _mensal(*v) <= valor + 0.005 and float(v[1].get("entrada") or 0) <= valor + 0.005
+
+        def mais_recupera(lista):       # a que mais recupera; empate: menos parcelas
+            return max(lista, key=lambda v: (round(v[1]["valor_negociado"], 2), -v[0]["n_parcelas"]))
+        cabem = [v for v in validas if cabe(v)]
+        cabem_novas = [v for v in cabem if (v[0]["n_parcelas"], v[0]["desconto_pct"]) not in ja]
+        if cabem_novas:
+            cond, conta = mais_recupera(cabem_novas)
             return item(cond, conta, f"cabe nos {_brl(valor)} que a pessoa disse e é a que mais recupera", True)
+        if cabem:
+            cond, conta = mais_recupera(cabem)
+            return item(cond, conta, f"cabe nos {_brl(valor)} que a pessoa disse, mas já foi oferecida", True)
         cond, conta = min(validas, key=lambda v: (_mensal(*v), -v[1]["valor_negociado"]))
         return item(cond, conta, f"nada cabe em {_brl(valor)}; esta é a menor parcela permitida", False)
     # Sem valor dito: o próximo degrau depois da última oferta (mais parcelas, mesmo desconto ou o menor acima).

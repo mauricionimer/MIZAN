@@ -148,8 +148,33 @@ def t_cientista_hipotese_passagens():
            str([h["metrica"] for h in hips]))
 
 
+# ── 4. passagem: "cabe" exige entrada e parcela no valor dito ───────────────
+
+def _caso_pass(divida, valores, simulacoes=None):
+    return {"id": "c1", "empresa_id": "emp", "situacao": "negociando",
+            "dados": {"divida": divida, "identidade_ok": True, "valores_ditos": valores, "simulacoes": simulacoes or []}}
+
+
+def t_passagem_cabe():
+    s = passagem.sugerir_proposta(_caso_pass(15000.0, [800.0]), REGRAS, 1, AGORA)
+    checar(s["cabe"] is False, "4. entrada de R$ 1.050 não cabe em R$ 800: não é 'cabe'", str(s))
+    s = passagem.sugerir_proposta(_caso_pass(3000.0, [300.0]), REGRAS, 1, AGORA)
+    validas = passagem._validas(_caso_pass(3000.0, []), REGRAS, 1, AGORA)
+    conta = next(v[1] for v in validas if v[0]["n_parcelas"] == s["n_parcelas"] and v[0]["desconto_pct"] == s["desconto_pct"])
+    checar(s["cabe"] is True and s["mensal"] <= 300 and conta["entrada"] <= 300, "4. 'cabe' com parcela e entrada <= valor dito")
+    # A única que cabe já foi oferecida: continua "cabe", com o aviso.
+    cabem = [v for v in validas if passagem._mensal(*v) <= 300 and v[1]["entrada"] <= 300]
+    sims = [{"condicoes": c, "conta": k} for c, k in cabem]
+    s = passagem.sugerir_proposta(_caso_pass(3000.0, [300.0], sims), REGRAS, 1, AGORA)
+    checar(s["cabe"] is True and "já foi oferecida" in s["motivo"], "4. 'cabe, mas já foi oferecida'", str(s))
+    f = passagem.montar_ficha(_caso_pass(3000.0, [300.0], sims), "pedido_do_devedor", None, REGRAS, 1, AGORA)
+    c = _caso_pass(3000.0, [300.0], sims)
+    passagem.guardar(c, f)
+    checar(passagem.sinais_da_equipe([c], AGORA)["nao_coube"] == 0, "4. já oferecida que cabe não conta como 'não coube'")
+
+
 TESTES = [t_grupo_entrada, t_selo_com_direcao, t_cientista_travas, t_cientista_segmentos_e_faixa,
-          t_cientista_hipotese_passagens]
+          t_cientista_hipotese_passagens, t_passagem_cabe]
 
 if __name__ == "__main__":
     for t in TESTES:

@@ -101,14 +101,14 @@ def test_retorno_do_atendente_e_nota():
 
 def test_sinais_da_semana_e_hipotese_do_cientista():
     casos = []
-    for i, v in enumerate([150, 200, 250, 900, None]):
+    for i, v in enumerate([150, 200, 250, 1100, None]):
         c = caso(15000.0, [v] if v else [])
         passagem.guardar(c, passagem.montar_ficha(c, "pedido_do_devedor", None, REGRAS, 1, AGORA - timedelta(days=i)))
         casos.append(c)
     velho = caso(15000.0, [100])
     passagem.guardar(velho, passagem.montar_ficha(velho, "duvida", None, REGRAS, 1, AGORA - timedelta(days=20)))
     s = passagem.sinais_da_equipe(casos + [velho], AGORA)
-    assert s["passagens"] == 5 and s["com_valor_dito"] == 4 and s["nao_coube"] == 3   # 900 cabe em 12x de 787,50
+    assert s["passagens"] == 5 and s["com_valor_dito"] == 4 and s["nao_coube"] == 3   # 1100 cabe: entrada R$ 1.050 + 12x de R$ 787,50
     assert s["valor_pedido_quando_nao_coube"] == 200.0
     hip = cientista._hipotese_passagens(s)
     assert hip and hip[0]["selo"] == "sem evidência" and "3 de 5" in hip[0]["resultado"]
