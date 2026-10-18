@@ -72,6 +72,7 @@ function useItens() {
       { id: 'painel', label: 'Equipe', rota: '/painel' },
       { id: 'acordos', label: 'Acordos', rota: '/acordos' },
       ...(!isComando ? [{ id: 'ia', label: 'Performance da IA', rota: '/ia' }] : []),
+      { id: 'laboratorio', label: 'Laboratório', rota: '/laboratorio' },
     ] },
     { id: 'config', label: 'Configurações', icon: SlidersHorizontal, rota: '/ofertas', abas: [
       { id: 'ofertas', label: 'Ofertas', rota: '/ofertas' },

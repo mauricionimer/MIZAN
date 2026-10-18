@@ -8520,6 +8520,31 @@ def agente_estacao(empresa_id: Optional[str] = None,
     return agente_api.estacao(_empresa_do_agente(payload, empresa_id))
 
 
+@app.get("/agente/agentes")
+def agente_agentes(empresa_id: Optional[str] = None,
+                   credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Resumo de 24 h de cada agente e os números do dia (área Agentes)."""
+    from agente import api as agente_api
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") not in ("admin", "comando"):
+        raise HTTPException(status_code=403, detail="Acesso negado.")
+    return agente_api.agentes(_empresa_do_agente(payload, empresa_id))
+
+
+@app.get("/agente/agentes/{nome}")
+def agente_perfil(nome: str, empresa_id: Optional[str] = None,
+                  credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Perfil de um agente: números de 24 h e últimas decisões."""
+    from agente import api as agente_api
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") not in ("admin", "comando"):
+        raise HTTPException(status_code=403, detail="Acesso negado.")
+    try:
+        return agente_api.agente_perfil(_empresa_do_agente(payload, empresa_id), nome)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
 @app.get("/agente/traces/{trace_id}")
 def agente_trace(trace_id: str, empresa_id: Optional[str] = None,
                  credentials: HTTPAuthorizationCredentials = Security(bearer)):

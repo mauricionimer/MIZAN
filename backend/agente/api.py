@@ -228,6 +228,60 @@ def estacao(empresa_id: str, agora: datetime | None = None) -> dict:
             "ultima_conversa": [publico(p) for p in ultimo]}
 
 
+# Agentes que aparecem na tela e o papel de IA de cada um (None = código).
+AGENTES_TELA = {"Orquestrador": None, "Triagem": "triagem", "Negociador": "negociador", "Estrategista": "estrategista",
+                "Acompanhamento": "acompanhamento", "Supervisor": "supervisor", "Cientista": "cientista",
+                "Auditor": None, "Travas": None, "Ferramenta": None}
+
+
+def _resumo_agente(nome: str, passos: list) -> dict:
+    meus = [p for p in passos if _quem(p) == nome]
+    duracoes = [int(p.get("duracao_ms") or 0) for p in meus if p.get("duracao_ms")]
+    com_ia = [p for p in meus if p.get("modelo")]
+    papel = AGENTES_TELA.get(nome)
+    return {"nome": nome, "papel": papel, "ia_ligada": llm.ia_ligada(papel) if papel else None,
+            "acoes": len(meus),
+            "bloqueios": sum(1 for p in meus if p.get("resultado") == "bloqueado"),
+            "erros": sum(1 for p in meus if p.get("resultado") == "erro"),
+            "sem_ia": sum(1 for p in meus if (p.get("detalhe") or {}).get("origem") == "codigo"),
+            "custo_usd": round(sum(float(p.get("custo_usd") or 0) for p in meus), 6),
+            "tempo_medio_ms": round(sum(duracoes) / len(duracoes)) if duracoes else None,
+            "modelo": com_ia[-1].get("modelo") if com_ia else (llm.modelo_para(papel) if papel and llm.ia_ligada(papel) else None),
+            "versao_prompt": next((p.get("versao_prompt") for p in reversed(meus) if p.get("versao_prompt")), None),
+            "ultimo_em": meus[-1].get("criado_em") if meus else None}
+
+
+def agentes(empresa_id: str, agora: datetime | None = None) -> dict:
+    """Resumo das últimas 24 h de cada agente e os números do dia, para a área Agentes."""
+    from datetime import timedelta
+    agora = agora or datetime.now(timezone.utc)
+    repo = fabrica_repo()
+    passos = repo.passos_recentes(empresa_id, agora - timedelta(hours=24), 5000)
+    return {"agora": agora.isoformat(), "ligado": ligado(),
+            "agentes": [_resumo_agente(n, passos) for n in AGENTES_TELA],
+            "numeros": {
+                "respostas": sum(1 for p in passos if p.get("no") == "negociar" and p.get("resultado") == "ok"),
+                "conversas": len({p.get("caso_id") for p in passos if p.get("no") == "triagem" and p.get("caso_id")}),
+                "acordos": sum(1 for p in passos if p.get("no") == "ferramenta:registrar_aceite"
+                               and (p.get("detalhe") or {}).get("ok")),
+                "bloqueios": sum(1 for p in passos if p.get("resultado") == "bloqueado"),
+                "custo_hoje_usd": repo.custo_do_dia(empresa_id, agora.date()),
+                "teto_dia_usd": llm.teto_dia_usd()}}
+
+
+def agente_perfil(empresa_id: str, nome: str, agora: datetime | None = None) -> dict:
+    """Perfil de um agente: resumo de 24 h e as últimas 20 decisões (sem texto do devedor)."""
+    from datetime import timedelta
+    if nome not in AGENTES_TELA:
+        raise LookupError("Agente não encontrado.")
+    agora = agora or datetime.now(timezone.utc)
+    passos = fabrica_repo().passos_recentes(empresa_id, agora - timedelta(hours=24), 5000)
+    meus = [p for p in passos if _quem(p) == nome]
+    return {**_resumo_agente(nome, passos),
+            "ultimas": [{**_passo_publico(p), "trace_id": p.get("trace_id"), "caso_id": p.get("caso_id")}
+                        for p in reversed(meus[-20:])]}
+
+
 def agenda(empresa_id: str) -> dict:
     """Compromissos pendentes dos devedores que estão com o agente, e os
     operadores para o administrador atribuir atendimentos."""

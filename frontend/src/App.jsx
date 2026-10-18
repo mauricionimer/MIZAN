@@ -94,6 +94,8 @@ const Ajuda = lazy(() => import('./pages/Ajuda'))
 const Premissas = lazy(() => import('./pages/Premissas'))
 const DuvidasComando = lazy(() => import('./pages/DuvidasComando'))
 const Agente = lazy(() => import('./pages/Agente'))
+const AgentePerfil = lazy(() => import('./pages/AgentePerfil'))
+const LaboratorioPagina = lazy(() => import('./pages/LaboratorioPagina'))
 
 function RotaProtegida({ children, roles }) {
   const { autenticado, usuario } = useAuth()
@@ -145,6 +147,8 @@ function RotasAnimadas() {
           <Route path="/painel" element={P(['operador', 'admin', 'comando'], <PainelOperador />)} />
           <Route path="/ofertas" element={P(['admin', 'comando'], <Ofertas />)} />
           <Route path="/agente" element={P(['admin', 'comando'], <Agente />)} />
+          <Route path="/agente/:nome" element={P(['admin', 'comando'], <AgentePerfil />)} />
+          <Route path="/laboratorio" element={P(['admin', 'comando'], <LaboratorioPagina />)} />
           <Route path="/acordos" element={P(['operador', 'admin', 'comando'], <Acordos />)} />
           <Route path="/resultados" element={P(['admin', 'comando'], <Resultados />)} />
           <Route path="/roteiros" element={<Navigate to="/feedback?secao=roteiros" replace />} />
