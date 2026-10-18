@@ -153,6 +153,23 @@ def test_acoes_ditas_com_outras_palavras():
     assert not guardrails.conferir("Posso pedir para a equipe te ligar?", perm, feitas=set())
 
 
+# ── (f) aceite com pagamento hoje ───────────────────────────────────────────
+
+def test_aceite_com_pagamento_hoje_vale_so_no_aceite():
+    from agente.bateria.motor import ACEITE, DIA
+    hoje = DIA.isoformat()
+    r = rodar([("mensagem", "Aceito à vista, pago hoje mesmo no pix")],
+              {"triagem": [tri("pagar_negociar")],
+               "negociador": [F("simular_acordo", n_parcelas=1, desconto_pct=10), ACEITE(hoje), T("Combinado!")]})
+    assert caso(r)["situacao"] == "acordo_ativo", caso(r)["situacao"]
+    assert "R11_DATA" not in r.bloqueios()
+    # retorno para hoje continua barrado (só o aceite aceita hoje)
+    r = rodar([("mensagem", "me chama mais tarde")],
+              {"triagem": [tri("outro")],
+               "negociador": [F("agendar_retorno", data=hoje, motivo="pediu"), T("Posso te chamar amanhã?")]})
+    assert "R11_DATA" in r.bloqueios()
+
+
 if __name__ == "__main__":
     import sys
     falhas = 0
