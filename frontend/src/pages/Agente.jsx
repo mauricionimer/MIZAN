@@ -3,11 +3,12 @@
 // Regras em backend/agente/ (docs/PLANO_EXECUCAO_AGENTES.md).
 import { useEffect, useRef, useState } from 'react'
 import { Bot, Send, Search, Loader2, Activity, ShieldCheck, AlertTriangle, Power, UserRound, Coins, ListChecks, Landmark, Clock, Shuffle, CalendarDays, Scale, Hand, Undo2, CalendarClock, Users, BookOpen, FlaskConical } from 'lucide-react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import ErroCarga from '../components/ErroCarga'
-import EscritorioAgentes from '../components/EscritorioAgentes'
+import EscritorioAgentes, { Retrato } from '../components/EscritorioAgentes'
 import { useAuth } from '../context/AuthContext'
-import { agenteDevedores, agenteCaso, agenteSimularMensagem, agenteSimularPagamento, agenteCentral, agenteRelogio, agentePlano, agenteAplicarPlano, agentePoliticas, agenteSalvarPolitica, agenteControle, agenteAgenda, agenteAtribuir, agenteLaboratorio, agenteAnalisar, agenteDecidirRecomendacao, listarEmpresas } from '../api'
+import { agenteDevedores, agenteCaso, agenteSimularMensagem, agenteSimularPagamento, agenteCentral, agenteRelogio, agentePlano, agenteAplicarPlano, agentePoliticas, agenteSalvarPolitica, agenteControle, agenteAgenda, agenteAtribuir, agenteLaboratorio, agenteAnalisar, agenteDecidirRecomendacao, agenteAgentes, listarEmpresas } from '../api'
 
 const fmtBRL = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0)
 const fmtUSD = (v) => `US$ ${Number(v || 0).toFixed(4)}`
@@ -51,12 +52,7 @@ const AGENTES = [
   ['Travas', '#f472b6', 'Conferem o texto antes de sair: valor, lei, tom e se o que diz que fez foi mesmo feito.', 'seguranca'],
   ['Ferramenta', '#34d399', 'O que foi gravado de verdade: agenda, acordo, contestação, transferência.', 'seguranca'],
 ]
-const GRUPOS_LEGENDA = [
-  ['ia', 'Agentes com IA', 'Decidem com IA. Cada um tem um caminho em código se a IA falhar e liga ou desliga sozinho.'],
-  ['codigo', 'Agentes sem IA (código, de propósito)', 'O que precisa ser exato e não pode ser convencido.'],
-  ['seguranca', 'Mecanismos de segurança (não são agentes)', 'Aparecem nos passos da conversa.'],
-]
-const COR_AGENTE = { ...Object.fromEntries(AGENTES.map(([n, c]) => [n, c])), Supervisor: '#e879f9', Cientista: '#facc15', Equipe: '#e5e7eb' }
+export const COR_AGENTE = { ...Object.fromEntries(AGENTES.map(([n, c]) => [n, c])), Supervisor: '#e879f9', Cientista: '#facc15', Equipe: '#e5e7eb' }
 const OFERTA_NOME = { avista_10pct: '10% à vista', desconto_30pct: '30% à vista', parcelado_4x: 'até 4x', parcelado_12x: 'até 12x' }
 const QUEM_CADERNO = { estrategista: 'Estrategista', triagem: 'Triagem', negociador: 'Negociador', acompanhamento: 'Acompanhamento',
   supervisor: 'Supervisor', cientista: 'Cientista', equipe: 'Equipe' }
@@ -494,27 +490,6 @@ function Plano({ empresa }) {
   )
 }
 
-function Legenda() {
-  return (
-    <section className="rounded-xl border border-line bg-surface p-4">
-      <h2 className="flex items-center gap-2 text-sm font-semibold text-ink"><Users className="h-4 w-4 text-blue-400" /> Os agentes e o que cada um faz</h2>
-      {GRUPOS_LEGENDA.map(([g, titulo, nota]) => (
-        <div key={g} className="mt-4">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-2">{titulo} <span className="ml-1 font-normal normal-case tracking-normal text-ink-3">· {nota}</span></p>
-          <ul className="mt-2 grid gap-x-6 gap-y-2 sm:grid-cols-2">
-            {AGENTES.filter(x => x[3] === g).map(([nome, cor, papel]) => (
-              <li key={nome} className="flex items-baseline gap-2 text-xs text-ink-2">
-                <span className="shrink-0 rounded px-1.5 py-px text-[11px] font-semibold" style={{ color: cor, background: 'color-mix(in srgb, currentColor 14%, transparent)' }}>{nome}</span>
-                {papel}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
-      <p className="mt-4 text-xs text-ink-3">Na Conversa, cada passo de “Por que o agente fez isso” mostra qual agente agiu.</p>
-    </section>
-  )
-}
 
 const SELO_COR = { 'evidência': 'var(--success)', 'indício': '#f59e0b', 'sem evidência': '#94a3b8' }
 const STATUS_REC = { proposta: 'proposta, esperando decisão', aprovada: 'aprovada: orienta o Estrategista', recusada: 'recusada' }
@@ -525,7 +500,7 @@ function SeloEvidencia({ s }) {
   return <span className="rounded px-1.5 py-0.5 text-[11px] font-semibold" style={{ color: SELO_COR[s], border: `1px solid ${SELO_COR[s]}` }}>{s}</span>
 }
 
-function Laboratorio({ empresa }) {
+export function Laboratorio({ empresa }) {
   const { isAdmin } = useAuth()
   const [d, setD] = useState(null)
   const [erro, setErro] = useState(null)
@@ -676,9 +651,80 @@ function Agenda({ empresa }) {
   )
 }
 
+const NOMES_AGENTES = ['Triagem', 'Negociador', 'Supervisor', 'Estrategista', 'Cientista', 'Acompanhamento', 'Orquestrador', 'Auditor']
+
+function Numero({ rotulo, valor, detalhe, barra }) {
+  return (
+    <div className="rounded-xl border border-line bg-surface p-4">
+      <p className="text-xs font-medium text-ink-2">{rotulo}</p>
+      <p className="mt-1 text-2xl font-bold tabular-nums text-ink">{valor}</p>
+      {barra != null && <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-raise-2"><div className="h-full rounded-full bg-blue-500" style={{ width: `${Math.min(100, barra * 100)}%` }} /></div>}
+      {detalhe && <p className="mt-1 text-xs text-ink-3">{detalhe}</p>}
+    </div>
+  )
+}
+
+function AoVivo({ empresa }) {
+  const navigate = useNavigate()
+  const { empresaConfig } = useAuth()
+  const [r, setR] = useState(null)
+  useEffect(() => {
+    let vivo = true
+    const carregar = () => agenteAgentes(empresa).then(x => vivo && setR(x)).catch(() => {})
+    carregar()
+    const t = setInterval(() => { if (!document.hidden) carregar() }, 15000)
+    return () => { vivo = false; clearInterval(t) }
+  }, [empresa])
+  const n = r?.numeros
+  const usd = v => `US$ ${Number(v || 0).toFixed(2).replace('.', ',')}`
+  const abrir = nome => navigate(`/agente/${encodeURIComponent(nome)}`)
+  const porNome = Object.fromEntries((r?.agentes || []).map(a => [a.nome, a]))
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Numero rotulo="Conversas (24 h)" valor={n ? n.conversas : '—'} detalhe={n ? `${n.respostas} respostas` : null} />
+        <Numero rotulo="Acordos (24 h)" valor={n ? n.acordos : '—'} />
+        <Numero rotulo="Bloqueios (24 h)" valor={n ? n.bloqueios : '—'} detalhe="Auditor e travas" />
+        <Numero rotulo="Gasto de IA hoje" valor={n ? usd(n.custo_hoje_usd) : '—'} detalhe={n ? `teto ${usd(n.teto_dia_usd)}` : null}
+          barra={n && n.teto_dia_usd ? n.custo_hoje_usd / n.teto_dia_usd : null} />
+      </div>
+      <EscritorioAgentes empresa={empresa} cores={COR_AGENTE} nomeEmpresa={empresaConfig?.nome_exibicao} resumos={r?.agentes} onPerfil={abrir} />
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {NOMES_AGENTES.map(nome => {
+          const a = porNome[nome]
+          const cor = COR_AGENTE[nome]
+          const estado = a?.papel ? (a.ia_ligada ? 'IA' : 'IA desligada') : 'Código'
+          return (
+            <button key={nome} onClick={() => abrir(nome)}
+              className="flex items-center gap-3 rounded-xl border border-line bg-surface p-3 text-left transition-colors hover:border-blue-500/40">
+              <div className="shrink-0 rounded-lg bg-raise-1 px-1 pt-1"><Retrato nome={nome} cor={cor} tamanho={30} /></div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold" style={{ color: cor }}>{nome}</p>
+                <p className="text-xs text-ink-2">{a ? `${a.acoes} ações` : '—'} · <span className="text-ink-3">{estado}</span></p>
+              </div>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function Regras({ empresa }) {
+  return (
+    <div className="space-y-5">
+      <Politica empresa={empresa} />
+      <Plano empresa={empresa} />
+      <Central empresa={empresa} />
+    </div>
+  )
+}
+
 export default function Agente() {
   const { token, isComando } = useAuth()
-  const [aba, setAba] = useState('conversa')
+  const [params, setParams] = useSearchParams()
+  const aba = params.get('aba') || 'aovivo'
+  const setAba = k => setParams(k === 'aovivo' ? {} : { aba: k }, { replace: true })
   const [empresas, setEmpresas] = useState([])
   const [alvo, setAlvo] = useState('')
   useEffect(() => {
@@ -688,11 +734,8 @@ export default function Agente() {
   return (
     <AppShell>
       <div className="mx-auto w-full max-w-7xl space-y-5">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight text-ink"><Bot className="h-5 w-5 text-blue-400" /> Agente</h1>
-            <p className="mt-1 text-sm text-ink-2">O Mizan decide, mede e prova; o agente executa dentro das regras da empresa. Na demonstração, você escreve como o devedor.</p>
-          </div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight text-ink"><Bot className="h-5 w-5 text-blue-400" /> Agentes</h1>
           {isComando && (
             <select value={alvo} onChange={e => setAlvo(e.target.value)} aria-label="Empresa"
               className="rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-sm text-ink focus:outline-none [color-scheme:dark]">
@@ -701,20 +744,20 @@ export default function Agente() {
             </select>
           )}
         </div>
-        <div className="flex flex-wrap gap-1.5" role="tablist">
-          {[['conversa', 'Conversa', Bot], ['plano', 'Plano do dia', CalendarDays], ['agenda', 'Agenda', CalendarClock], ['politica', 'Política', Scale], ['laboratorio', 'Laboratório', FlaskConical], ['central', 'Central de orquestração', Activity]].map(([k, l, I]) => (
+        <div className="flex flex-wrap gap-1 border-b border-line" role="tablist">
+          {[['aovivo', 'Ao vivo'], ['conversas', 'Conversas'], ['agenda', 'Agenda'], ['regras', 'Regras']].map(([k, l]) => (
             <button key={k} role="tab" aria-selected={aba === k} onClick={() => setAba(k)}
-              className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium ${aba === k ? 'border-blue-500/30 bg-blue-500/15 text-blue-300' : 'border-line bg-raise-1 text-ink-2 hover:text-ink'}`}>
-              <I className="h-4 w-4" /> {l}
+              className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${aba === k ? 'border-blue-500 text-ink' : 'border-transparent text-ink-2 hover:text-ink'}`}>
+              {l}
             </button>
           ))}
         </div>
         {isComando && !alvo ? (
           <div className="rounded-xl border border-line bg-surface p-6 text-sm text-ink-2">Escolha a empresa.</div>
-        ) : aba === 'conversa' ? <Conversa empresa={empresa} /> : aba === 'plano' ? <Plano empresa={empresa} />
-          : aba === 'agenda' ? <Agenda empresa={empresa} /> : aba === 'politica' ? <Politica empresa={empresa} />
-          : aba === 'laboratorio' ? <Laboratorio empresa={empresa} />
-          : <><EscritorioAgentes empresa={empresa} cores={COR_AGENTE} /><Legenda /><Central empresa={empresa} /></>}
+        ) : aba === 'conversas' ? <Conversa empresa={empresa} />
+          : aba === 'agenda' ? <Agenda empresa={empresa} />
+          : aba === 'regras' ? <Regras empresa={empresa} />
+          : <AoVivo empresa={empresa} />}
       </div>
     </AppShell>
   )

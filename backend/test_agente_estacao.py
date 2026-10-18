@@ -47,6 +47,24 @@ def test_janela_e_outra_empresa():
     assert outra["passos"] == [] and outra["ultima_conversa"] == []
 
 
+def test_resumo_e_perfil_dos_agentes():
+    r = montar()
+    agora = max(p["criado_em"] for p in r.repo.passos) + timedelta(seconds=1)
+    a = com(r.repo, lambda: agente_api.agentes("emp", agora=agora))
+    por = {x["nome"]: x for x in a["agentes"]}
+    assert set(por) == set(agente_api.AGENTES_TELA)
+    assert por["Triagem"]["acoes"] >= 1 and por["Triagem"]["ia_ligada"] is True and por["Auditor"]["ia_ligada"] is None
+    assert a["numeros"]["respostas"] == 1 and a["numeros"]["conversas"] == 1
+    p = com(r.repo, lambda: agente_api.agente_perfil("emp", "Negociador", agora=agora))
+    assert p["ultimas"] and p["ultimas"][0]["quem"] == "Negociador"
+    assert "123.456" not in json.dumps(p, ensure_ascii=False, default=str)
+    try:
+        com(r.repo, lambda: agente_api.agente_perfil("emp", "Hacker", agora=agora))
+        raise AssertionError("agente inexistente passou")
+    except LookupError:
+        pass
+
+
 if __name__ == "__main__":
     for nome, f in list(globals().items()):
         if nome.startswith("test_"):
