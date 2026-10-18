@@ -61,6 +61,28 @@ def test_simulacao_fora_da_politica_nao_pode_ser_citada():
     assert "80%" not in r.saidas[-1]
 
 
+def test_e_muito_caro_nao_e_sofrimento_grave():
+    r = rodar([("mensagem", "não consigo, é muito")],
+              {"triagem": [tri("pagar_negociar", "sofrimento_grave", emocao="ansioso")],
+               "negociador": [T("Entendo. Posso ver uma opção com mais parcelas para você?")]})
+    assert r.repo.casos[r.caso["id"]]["situacao"] != "com_pessoa"
+    assert "CVV" not in " ".join(r.saidas) and r.saidas[-1].endswith("mais parcelas para você?")
+
+
+def test_risco_a_vida_continua_indo_para_pessoa_com_cvv():
+    r = rodar([("mensagem", "não aguento mais viver com essa dívida")],
+              {"triagem": [tri("outro", emocao="calmo")], "negociador": []})
+    assert r.repo.casos[r.caso["id"]]["situacao"] == "com_pessoa" and "CVV" in r.saidas[-1]
+
+
+def test_chamada_de_ferramenta_escrita_como_texto_nao_sai():
+    r = rodar([("mensagem", "sim, sou eu")],
+              {"triagem": [tri("outro")],
+               "negociador": [T('<json>{"args": {}, "tool": "consultar_caso"}</json>'),
+                              T("Para sua segurança, me diga os três primeiros dígitos do seu CPF.")]})
+    assert "<json>" not in " ".join(r.saidas) and r.saidas[-1].endswith("dígitos do seu CPF.")
+
+
 class Ocupado(ClienteFalso):
     """Primeira chamada do negociador: cota estourada."""
     def __init__(self, roteiro):

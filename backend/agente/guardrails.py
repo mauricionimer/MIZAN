@@ -179,6 +179,10 @@ def acoes_afirmadas(texto: str) -> dict:
     return {nome: ferr for nome, rx, ferr in _ACOES_AFIRMADAS if rx.search(t)}
 
 
+# Chamada de ferramenta escrita como texto (o Gemini às vezes faz isso): nunca vai ao devedor.
+_CODIGO_NO_TEXTO = re.compile(r'</?json>|```|"(tool|args|name|function_?call|parameters)"\s*:|\{\s*"[a-z_]+"\s*:', re.IGNORECASE)
+
+
 def conferir(texto: str, permitidos: dict, feitas: set | None = None) -> list:
     """Motivos de reprovação (lista vazia = pode enviar)."""
     motivos = []
@@ -210,6 +214,8 @@ def conferir(texto: str, permitidos: dict, feitas: set | None = None) -> list:
         motivos.append("fala da lei sem ter consultado a base de conhecimento: use consultar_base")
     if any(re.search(p, t) for p in _TOM):
         motivos.append("tom de ameaça ou constrangimento")
+    if _CODIGO_NO_TEXTO.search(texto):
+        motivos.append("o texto tem código ou chamada de ferramenta: chame a ferramenta de verdade e escreva só a resposta")
     if any(re.search(p, t) for p in _SEGREDO):
         motivos.append("dado interno ou pessoal no texto")
     if not texto.strip():

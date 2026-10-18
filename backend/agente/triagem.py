@@ -17,7 +17,7 @@ import re
 import unicodedata
 from datetime import date
 
-VERSAO_PROMPT = "triagem-v3"            # v2: data e contexto; v3: emoção, urgência, ironia e resumo
+VERSAO_PROMPT = "triagem-v4"            # v2: data e contexto; v3: emoção, urgência, ironia e resumo
 MAX_CARACTERES = 2000
 
 INTENCOES = ("pagar_negociar", "ja_paguei", "contestar", "parar_contato", "pessoa_errada",
@@ -95,7 +95,9 @@ Responda APENAS com um objeto JSON, sem texto antes ou depois, com os campos:
 - "confianca": número de 0 a 1
 - "valores_citados": lista de valores em reais citados pelo devedor (números)
 - "datas_citadas": lista de datas citadas, no formato AAAA-MM-DD (só se der para saber o dia)
-- "sinais_de_risco": lista com zero ou mais de {list(SINAIS)}
+- "sinais_de_risco": lista com zero ou mais de {list(SINAIS)}. "sofrimento_grave" é SÓ risco à vida
+  ou desespero extremo (pensar em morrer, se machucar, não ver saída para viver). Dificuldade com dinheiro
+  ("não consigo pagar", "é muito", "tá difícil", "estou desempregado") NÃO é sofrimento_grave.
 - "emocao": um de {list(EMOCOES)} (como a pessoa parece estar)
 - "urgencia": um de {list(URGENCIAS)} (alta: prazo próximo, medo de negativação, pressa)
 - "ironia": true se a mensagem diz o contrário do que quer dizer (ex.: "ah claro, vou pagar com o
@@ -189,6 +191,11 @@ def classificar(ctx, texto: str) -> dict:
         if ctx.rastreio.atual is not None:
             ctx.rastreio.atual["versao_prompt"] = VERSAO_PROMPT
         out = _validar(resp.texto)
+        # Sofrimento grave marcado só pela IA vale se ela também leu desespero; a regra
+        # em código (frases de risco à vida) vale sempre. Evita CVV para "é muito caro".
+        if "sofrimento_grave" in out["sinais_de_risco"] and "sofrimento_grave" not in r["sinais"] \
+                and out.get("emocao") != "desesperado":
+            out["sinais_de_risco"] = [s for s in out["sinais_de_risco"] if s != "sofrimento_grave"]
         out["sinais_de_risco"] = sorted(set(out["sinais_de_risco"]) | set(r["sinais"]))
         out["origem"] = "modelo"
         if "sofrimento_grave" in r["sinais"]:
