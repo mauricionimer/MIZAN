@@ -46,58 +46,50 @@ export default function AppShell({ acoes, children }) {
   )
 }
 
+// Menu em áreas: poucos itens; cada área tem abas no topo da tela (AbasDaArea).
+// As telas são as mesmas de antes; muda só onde ficam e o nome.
 function useItens() {
   const { isAdmin, isComando } = useAuth()
   const { result } = useAnalysis()
   const avisos = useAvisosDeDuvida()
   const agenda = useAvisoAgenda()
   const gestor = isAdmin || isComando
-  const painel = { id: 'painel', label: gestor ? 'Painel da equipe' : 'Meu painel', icon: Gauge, rota: '/painel' }
-  // Retornos e promessas: o número é o que vence hoje/amanhã ou já venceu.
-  const itemAgenda = { id: 'agenda', label: 'Agenda', icon: CalendarClock, rota: '/agenda',
-    aviso: isComando ? 0 : agenda.alto + agenda.medio, corAviso: agenda.alto > 0 ? 'bg-red-600' : 'bg-amber-500',
+  const avisoAgenda = { aviso: isComando ? 0 : agenda.alto + agenda.medio, corAviso: agenda.alto > 0 ? 'bg-red-600' : 'bg-amber-500',
     tituloAviso: agenda.alto > 0 ? `compromissos (${agenda.alto} ${agenda.alto === 1 ? 'vencido' : 'vencidos'})` : 'compromissos para hoje ou amanhã' }
-  const ia = { id: 'ia', label: 'Performance da IA', icon: Brain, rota: '/ia' }
+  const carteira = { id: 'carteira', label: 'Carteira', icon: UploadCloud, vista: 'analise', abas: [
+    ...(result ? [{ id: 'dashboard', label: 'Painel da carteira', vista: 'dashboard' }] : []),
+    { id: 'analise', label: 'Análise', vista: 'analise' },
+    { id: 'pagamentos', label: 'Pagamentos', rota: '/feedback' },
+  ] }
+  const hoje = { id: 'hoje', label: 'Hoje', icon: CalendarClock, rota: '/agenda', ...avisoAgenda }
 
-  const grupos = [
-    {
-      // O que se faz no dia a dia. O operador tem só este grupo (com o painel e a IA dele aqui).
-      nome: 'Trabalho',
-      itens: [
-        ...(result ? [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, vista: 'dashboard' }] : []),
-        { id: 'analise', label: 'Análise de carteira', icon: UploadCloud, vista: 'analise' },
-        ...(gestor ? [] : [painel]),
-        { id: 'pagamentos', label: 'Pagamentos', icon: ClipboardList, rota: '/feedback' },
-        itemAgenda,
-        ...(gestor ? [] : [{ id: 'acordos', label: 'Meus acordos', icon: Handshake, rota: '/acordos' }]),
-        ...(gestor ? [] : [ia]),
-      ],
-    },
-    ...(gestor ? [
-      {
-        // Ler como a operação está indo.
-        nome: 'Acompanhar',
-        itens: [
-          painel,
-          { id: 'resultados', label: 'Resultados', icon: TrendingUp, rota: '/resultados' },
-          { id: 'acordos',    label: 'Acordos',    icon: Handshake,  rota: '/acordos' },
-          { id: 'agente',     label: 'Agente',     icon: Bot,        rota: '/agente' },
-          // O COMANDO vê a IA de cada empresa em Aprendizado e Performance IA.
-          ...(!isComando ? [ia] : []),
-        ],
-      },
-      {
-        // Mudar como a operação funciona.
-        nome: 'Configurar',
-        itens: [
-          { id: 'ofertas',   label: 'Ofertas',   icon: Tags,              rota: '/ofertas' },
-          { id: 'premissas', label: 'Premissas', icon: SlidersHorizontal, rota: '/premissas' },
-          { id: 'usuarios',  label: 'Usuários',  icon: Users,             rota: '/admin/usuarios' },
-          { id: 'auditoria', label: 'Auditoria', icon: ShieldCheck,       rota: '/auditoria' },
-          { id: 'backtest',  label: 'Backtest',  icon: FlaskConical,      rota: '/backtest' },
-        ],
-      },
-    ] : []),
+  const principais = gestor ? [
+    hoje,
+    carteira,
+    { id: 'agente', label: 'Agentes', icon: Bot, rota: '/agente', prefixo: '/agente' },
+    { id: 'resultados', label: 'Resultados', icon: TrendingUp, rota: '/resultados', abas: [
+      { id: 'resultados', label: 'Resultados', rota: '/resultados' },
+      { id: 'painel', label: 'Equipe', rota: '/painel' },
+      { id: 'acordos', label: 'Acordos', rota: '/acordos' },
+      ...(!isComando ? [{ id: 'ia', label: 'Performance da IA', rota: '/ia' }] : []),
+    ] },
+    { id: 'config', label: 'Configurações', icon: SlidersHorizontal, rota: '/ofertas', abas: [
+      { id: 'ofertas', label: 'Ofertas', rota: '/ofertas' },
+      { id: 'premissas', label: 'Política de cobrança', rota: '/premissas' },
+      { id: 'usuarios', label: 'Usuários', rota: '/admin/usuarios' },
+      { id: 'auditoria', label: 'Auditoria', rota: '/auditoria' },
+      { id: 'backtest', label: 'Simulação histórica', rota: '/backtest' },
+    ] },
+  ] : [
+    hoje,
+    carteira,
+    { id: 'acordos', label: 'Meus acordos', icon: Handshake, rota: '/acordos' },
+    { id: 'painel', label: 'Meu painel', icon: Gauge, rota: '/painel' },
+    { id: 'ia', label: 'Performance da IA', icon: Brain, rota: '/ia' },
+  ]
+
+  return [
+    { nome: '', itens: principais },
     ...(isComando ? [{
       nome: 'Plataforma',
       itens: [
@@ -119,7 +111,25 @@ function useItens() {
       ],
     },
   ]
-  return grupos
+}
+
+// Abas da área no topo da tela (ex.: Resultados · Equipe · Acordos).
+function AbasDaArea({ item, ativoExato, acionar }) {
+  if (!item?.abas || item.abas.length < 2) return null
+  return (
+    <div className="mb-6 flex flex-wrap gap-1 border-b border-line" role="tablist" aria-label={item.label}>
+      {item.abas.map(aba => {
+        const on = ativoExato(aba)
+        return (
+          <button key={aba.id} role="tab" aria-selected={on} onClick={() => acionar(aba)}
+            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+              on ? 'border-blue-500 text-ink' : 'border-transparent text-ink-2 hover:text-ink'}`}>
+            {aba.label}
+          </button>
+        )
+      })}
+    </div>
+  )
 }
 
 function Navegacao({ grupos, ativo, acionar, sair, idDestaque }) {
@@ -127,8 +137,8 @@ function Navegacao({ grupos, ativo, acionar, sair, idDestaque }) {
     <LayoutGroup id={idDestaque}>
       <nav className="flex flex-1 flex-col gap-5 overflow-y-auto px-3 py-4" aria-label="Navegação principal">
         {grupos.map(g => (
-          <div key={g.nome}>
-            <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-3">{g.nome}</p>
+          <div key={g.nome || 'principal'}>
+            {g.nome && <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-3">{g.nome}</p>}
             <div className="flex flex-col gap-0.5">
               {g.itens.map(it => {
                 const Icon = it.icon
@@ -223,7 +233,11 @@ export function ShellLayout() {
 
   // Na tela inicial, a vista (análise ou dashboard) é o que está na tela.
   const vistaAtual = (vista === 'dashboard' && !result) ? 'analise' : (vista ?? (result ? 'dashboard' : 'analise'))
-  const ativo = it => it.vista ? (pathname === '/' && vistaAtual === it.vista) : pathname === it.rota
+  const ativoExato = it => it.vista ? (pathname === '/' && vistaAtual === it.vista) : pathname === it.rota
+  // Item do menu fica aceso em qualquer aba da área dele.
+  const ativo = it => ativoExato(it) || (it.prefixo && pathname.startsWith(it.prefixo))
+    || (it.abas || []).some(ativoExato) || (it.vista && pathname === '/')
+  const areaAtual = grupos.flatMap(g => g.itens).find(ativo)
 
   function acionar(it) {
     setGaveta(false)
@@ -326,6 +340,7 @@ export function ShellLayout() {
             <AnimatePresence mode="wait" initial={false}>
               <motion.div key={chave} variants={variantes} initial="inicial" animate="entra" exit="sai"
                 transition={TRANSICAO}>
+                <AbasDaArea item={areaAtual} ativoExato={ativoExato} acionar={acionar} />
                 <ErroNaTela key={chave}><Suspense fallback={<Carregando />}>{outlet}</Suspense></ErroNaTela>
               </motion.div>
             </AnimatePresence>
