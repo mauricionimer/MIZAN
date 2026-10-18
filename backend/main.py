@@ -8509,6 +8509,17 @@ def agente_central(empresa_id: Optional[str] = None,
     return agente_api.central(_empresa_do_agente(payload, empresa_id))
 
 
+@app.get("/agente/estacao")
+def agente_estacao(empresa_id: Optional[str] = None,
+                   credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Escritório dos agentes (topo da Central): passos recentes e a última conversa."""
+    from agente import api as agente_api
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") not in ("admin", "comando"):
+        raise HTTPException(status_code=403, detail="Acesso negado.")
+    return agente_api.estacao(_empresa_do_agente(payload, empresa_id))
+
+
 @app.get("/agente/traces/{trace_id}")
 def agente_trace(trace_id: str, empresa_id: Optional[str] = None,
                  credentials: HTTPAuthorizationCredentials = Security(bearer)):
