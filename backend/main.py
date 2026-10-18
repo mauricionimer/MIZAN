@@ -1817,7 +1817,12 @@ def registrar_contato(body: ContatoIn, credentials: HTTPAuthorizationCredentials
     db = get_db()
 
     _emp = payload.get("empresa_id", "")
-    if not _emp and payload.get("role") != "comando":
+    # Contato é trabalho de fila de uma empresa (como a agenda). O COMANDO, sem
+    # empresa, gravava contato com empresa_id vazio: fora de todos os painéis, e
+    # o "pagou" procurava o CPF em todas as empresas.
+    if payload.get("role") == "comando":
+        raise HTTPException(status_code=403, detail="O COMANDO não registra contatos: é trabalho da equipe da empresa.")
+    if not _emp:
         raise HTTPException(status_code=403, detail="Acesso negado: usuário sem empresa definida.")
 
     if body.resultado == "pagou":
