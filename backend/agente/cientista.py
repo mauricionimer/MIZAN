@@ -19,17 +19,25 @@ import re
 
 from agente import ciencia, guardrails
 
-VERSAO_PROMPT = "cientista-v2"            # v2: sinais das passagens para a equipe
+VERSAO_PROMPT = "cientista-v3"            # v3: direção do resultado (agente pior pede rever a abordagem)
 MAX_HIPOTESES = 3
 METRICAS = ("taxa_pagamento", "recuperado_por_real")
 _CAUSAL = re.compile(r"\b(comprovad\w*|comprova\w*|prova(?:m|do|da)? que|caus(?:ou|a|aram|ando)|garant\w*|"
                      r"certeza|definitiv\w*|sem dúvida|demonstra\w*|evidência estatística|com evidência|"
-                     r"há evidência)\b", re.IGNORECASE)
+                     r"há evidência|aument(?:ou|aram)|elev(?:ou|aram)|efeito d[oa])\b", re.IGNORECASE)
+# "Não há dúvida", "não resta dúvida", "sem dúvida": a negação aqui afirma; não serve de ressalva.
+_DUVIDA = re.compile(r"\b(?:não\s+(?:há|resta|existe|tem)|sem|nenhuma)\s+(?:qualquer\s+|nenhuma\s+|mais\s+)?dúvidas?\b",
+                     re.IGNORECASE)
 _NEGACAO = re.compile(r"\b(sem|não|nem|falta\w*|ainda não|insuficiente)\b[^.;]{0,40}$", re.IGNORECASE)
-# Recomendação de oferta só pode se apoiar no bandit (que sugere, mas não prova).
-_OFERTA = re.compile(r"\b(\d+\s?x|parcel\w+|desconto|à vista|whatsapp|telefone|liga\w+|carta|e-mail)\b", re.IGNORECASE)
+# Recomendação de oferta só pode se apoiar no bandit (que sugere, mas não prova). Só nomes de
+# oferta ou de canal: "parcela dos devedores" ou "agente ligado" não são oferta.
+_OFERTA = re.compile(r"\b(avista_10pct|parcelado_4x|desconto_30pct|parcelado_12x|\d+\s?x|\d+\s?% de desconto|"
+                     r"desconto|à vista|parcelamento|parcelad[oa]s?|whatsapp|telefone|ligaç(?:ão|ões)|carta|e-mail)\b",
+                     re.IGNORECASE)
 _MILHAR = r"[1-9]\d{0,2}(?:\.\d{3})+(?:,\d+)?(?![\d.])"        # 3.000 / 12.500,00
 _NUMERO = re.compile(_MILHAR + r"|\d+(?:[.,]\d+)?")
+_MANTER = re.compile(r"\b(mant(?:er|enha|enham|ém)|continuar com) (?:a |o )?(?:mesma |atual )?(?:abordagem|estratégia)\b",
+                     re.IGNORECASE)
 
 
 # ── dados ────────────────────────────────────────────────────────────────────
@@ -102,8 +110,11 @@ def conferir(texto: str, permitidos: set, pode_causal: bool) -> list:
         if not any(abs(v - p) < 1e-6 for p in permitidos):
             motivos.append(f"o número {m} não está nos resultados")
     if not pode_causal:
+        if (duvida := _DUVIDA.search(texto)):
+            motivos.append(f"'{duvida.group(0)}' sem selo de evidência")
         for m in _CAUSAL.finditer(texto):
-            if not _NEGACAO.search(texto[:m.start()]):          # "ainda não há evidência" pode
+            antes = _DUVIDA.sub(" ", texto[:m.start()])           # "não há dúvida de que..." não é ressalva
+            if not _NEGACAO.search(antes):                       # "ainda não há evidência" pode
                 motivos.append(f"'{m.group(0)}' sem selo de evidência")
                 break
     return motivos
@@ -149,6 +160,9 @@ Regras:
   com "indício", diga que os grupos diferem em composição; só com "evidência" fale em efeito.
   Nunca escreva "comprovado", "causou", "garante" ou "certeza" sem selo "evidência".
 - Se os grupos não forem comparáveis, diga que uma melhora pode vir da composição da carteira.
+- Cada métrica tem "direcao", decidida pelo sistema: "melhor" (o agente está acima do sorteado), "pior"
+  (o agente está abaixo: o intervalo inteiro fica abaixo de zero) ou "incerto". Com "pior", NUNCA
+  recomende manter a abordagem: recomende revê-la (o que mudar e testar contra o sorteado).
 - "condicoes": onde o resultado vale (população, período, produto).
 - A recomendação é uma orientação de abordagem para o Estrategista; ela não muda a política nem os limites.
 - Português do Brasil, frases curtas, para um gestor que não é estatístico."""
@@ -182,6 +196,8 @@ def _relatorio_ia(ctx, resultados: dict) -> dict:
             metrica_rec = "bandit"            # fala de oferta ou canal: quem sustenta é o bandit
         rel["recomendacao_metrica"] = metrica_rec
         rel["selo"] = _selo_da_metrica(resultados, metrica_rec)              # selo da recomendação, do código
+        rel["direcao"] = (resultados["comparacao"][metrica_rec].get("direcao") if metrica_rec in METRICAS
+                          else ciencia.INCERTO)
         # Cada texto é conferido com o selo da sua métrica; o resumo, com o mais fraco.
         ev = ciencia.EVIDENCIA
         pares = [(rel["recomendacao"], rel["selo"] == ev),
@@ -189,6 +205,9 @@ def _relatorio_ia(ctx, resultados: dict) -> dict:
         pares += [(h[k], h["selo"] == ev) for h in rel["hipoteses"]
                   for k in ("hipotese", "resultado", "condicoes", "proximo_experimento")]
         motivos = sorted({m for t, pode in pares for m in conferir(t, permitidos, pode)})
+        if (resultados["comparacao"]["taxa_pagamento"].get("direcao") == ciencia.PIOR
+                and _MANTER.search(rel["recomendacao"])):
+            motivos.append("o agente está pior que o grupo sorteado: recomende rever a abordagem, não mantê-la")
         if not motivos and rel["recomendacao"]:
             return rel
         mensagens += [{"role": "assistant", "content": r.texto or ""},
@@ -210,16 +229,21 @@ def relatorio_codigo(resultados: dict) -> dict:
     c = resultados["comparacao"]
     t = c["taxa_pagamento"]
     n = c["n"]
-    if t["selo"] == ciencia.SEM_EVIDENCIA:
-        rec = (f"Manter a abordagem atual e o grupo sorteado até ter pelo menos {ciencia.N_MINIMO} casos por grupo "
-               "com resultado; ainda não há base para mudar.")
+    if t.get("direcao") == ciencia.PIOR:
+        rec = ("O grupo procurado pelo agente está pagando menos do que o grupo sorteado nesta carteira; "
+               "rever a abordagem (tom, momento e oferta inicial) e testar a mudança contra o sorteado.")
+    elif t["selo"] == ciencia.SEM_EVIDENCIA:
+        falta = (f"até ter pelo menos {ciencia.N_MINIMO} casos por grupo com resultado"
+                 if min(n["agente"], n["sorteado"]) < ciencia.N_MINIMO else
+                 "até a diferença sair do que o acaso explica")
+        rec = f"Manter a abordagem atual e o grupo sorteado {falta}; ainda não há base para mudar."
     elif t["selo"] == ciencia.INDICIO:
         rec = "Há indício de efeito, mas os grupos diferem em composição; manter o sorteio e reavaliar."
     else:
         rec = "O agente tem efeito na taxa de pagamento nesta carteira; manter a abordagem e testar a próxima variação."
     return {"resumo": f"Agente: {n['agente']} casos, pagamento {_pct(t['agente'])}. Sorteado: {n['sorteado']} casos, "
                       f"pagamento {_pct(t['sorteado'])}.",
-            "recomendacao": rec, "selo": t["selo"],
+            "recomendacao": rec, "selo": t["selo"], "direcao": t.get("direcao"),
             "hipoteses": [{"hipotese": "Procurar pelo agente aumenta a taxa de pagamento",
                            "metrica": "taxa_pagamento", "selo": t["selo"],
                            "resultado": f"Diferença de {_pp(t['diferenca'])} (intervalo de 95%: {_pp(t['ic95'][0])} a "
@@ -234,15 +258,17 @@ def _hipotese_passagens(s: dict | None) -> list:
     if not s or not s.get("passagens"):
         return []
     if s.get("nao_coube"):
+        titulo = "A política atual deixa de fora quem quer pagar, mas não alcança a menor parcela"
         res = (f"{s['nao_coube']} de {s['passagens']} transferências: a pessoa disse quanto podia pagar e nenhuma "
                f"condição coube (valor típico pedido {_brl(s['valor_pedido_quando_nao_coube'])}; menor parcela "
                f"possível {_brl(s['menor_parcela_possivel'])}).")
         exp = "Testar com o grupo sorteado uma condição de mais parcelas para quem não coube, com aprovação do administrador."
     else:
         motivo = next(iter(s.get("por_motivo") or {}), "—")
+        titulo = f"O motivo mais comum das transferências ({motivo}) mostra onde o agente mais precisa da equipe"
         res = f"{s['passagens']} transferências na semana; motivo mais comum: {motivo}."
         exp = "Acompanhar os motivos por mais uma semana antes de mudar a política."
-    return [{"hipotese": "A política atual deixa de fora quem quer pagar, mas não alcança a menor parcela",
+    return [{"hipotese": titulo,
              "metrica": "passagens", "selo": ciencia.SEM_EVIDENCIA, "resultado": res,
              "condicoes": f"Passagens para a equipe dos últimos {s.get('dias', 7)} dias.", "proximo_experimento": exp}]
 
@@ -259,8 +285,14 @@ def analisar(ctx, obs: list, stats_bandit: list | None, sinais: dict | None = No
     with ctx.rastreio.span("analise", "cientista") as p:
         rel = ctx.ia_ou_codigo("cientista", lambda: _relatorio_ia(ctx, resultados), lambda: relatorio_codigo(resultados))
         if resultados.get("passagens") and not any(h.get("metrica") == "passagens" for h in rel["hipoteses"]):
-            # O que a equipe ouviu sempre aparece, mesmo que a IA não tenha usado.
-            rel["hipoteses"] = rel["hipoteses"] + _hipotese_passagens(resultados["passagens"])
+            # O que a equipe ouviu sempre aparece, mesmo que a IA não tenha usado. Sem passar de
+            # MAX_HIPOTESES: sai a última que não sustenta a recomendação.
+            hips = list(rel["hipoteses"])
+            while len(hips) >= MAX_HIPOTESES:
+                fora = next((i for i in range(len(hips) - 1, 0, -1)
+                             if hips[i].get("metrica") != rel.get("recomendacao_metrica")), len(hips) - 1)
+                hips.pop(fora)
+            rel["hipoteses"] = hips + _hipotese_passagens(resultados["passagens"])
         p["detalhe"] = {**p.get("detalhe", {}), "selo": rel["selo"], "n": resultados["comparacao"]["n"]}
         origem = p["detalhe"].get("origem", "codigo")
     rel["recomendacao"] = guardrails.limpar_nota(rel["recomendacao"], 400)

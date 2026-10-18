@@ -17,7 +17,7 @@ import random
 N_MINIMO = 30              # por grupo, para qualquer conclusão
 SMD_COMPARAVEL = 0.1       # diferença padronizada aceita mesmo em amostra grande
 Z95 = 1.959964
-FAIXAS_ATRASO = ((0, 90, "até 90 dias"), (91, 180, "91 a 180 dias"), (181, 360, "181 a 360 dias"),
+FAIXAS_ATRASO = ((1, 90, "até 90 dias"), (91, 180, "91 a 180 dias"), (181, 360, "181 a 360 dias"),
                  (361, 10 ** 6, "mais de 360 dias"))
 
 SEM_EVIDENCIA, INDICIO, EVIDENCIA = "sem evidência", "indício", "evidência"
@@ -94,9 +94,20 @@ def composicao(obs: list) -> dict:
     return {"campos": campos, "comparaveis": comparavel, "limite_smd": limite}
 
 
+MELHOR, PIOR, INCERTO = "melhor", "pior", "incerto"
+
+
+def direcao(n_agente: int, n_sorteado: int, inf, sup) -> str:
+    """Para que lado o agente está: intervalo todo acima de zero, todo abaixo ou cruzando."""
+    if n_agente < N_MINIMO or n_sorteado < N_MINIMO or inf is None or sup is None:
+        return INCERTO
+    return MELHOR if inf > 0 else PIOR if sup < 0 else INCERTO
+
+
 def selo(n_agente: int, n_sorteado: int, inf, sup, comparaveis: bool) -> str:
-    """Decidido aqui, nunca pela IA."""
-    if n_agente < N_MINIMO or n_sorteado < N_MINIMO or inf is None or (inf <= 0 <= sup):
+    """Decidido aqui, nunca pela IA. Selo é só de melhora: agente pior não ganha
+    'evidência' (isso mandaria manter a abordagem); o lado fica em `direcao`."""
+    if direcao(n_agente, n_sorteado, inf, sup) != MELHOR:
         return SEM_EVIDENCIA
     return EVIDENCIA if comparaveis else INDICIO
 
@@ -114,10 +125,12 @@ def comparar_grupos(obs: list) -> dict:
         "n": {"agente": len(a), "sorteado": len(s)},
         "taxa_pagamento": {"agente": _r(wilson(ka, len(a))[0]), "sorteado": _r(wilson(ks, len(s))[0]),
                            "diferenca": _r(d), "ic95": [_r(inf), _r(sup)],
-                           "selo": selo(len(a), len(s), inf, sup, comp["comparaveis"])},
+                           "selo": selo(len(a), len(s), inf, sup, comp["comparaveis"]),
+                           "direcao": direcao(len(a), len(s), inf, sup)},
         "recuperado_por_real": {"agente": _r(_razao(a)), "sorteado": _r(_razao(s)), "diferenca": _r(r),
                                 "ic95": [_r(rinf), _r(rsup)],
-                                "selo": selo(len(a), len(s), rinf, rsup, comp["comparaveis"])},
+                                "selo": selo(len(a), len(s), rinf, rsup, comp["comparaveis"]),
+                                "direcao": direcao(len(a), len(s), rinf, rsup)},
         "quebra_de_acordo": {"acordos": len(acordos),
                              "taxa": _r(sum(o["quebrou"] for o in acordos) / len(acordos)) if acordos else None},
         "composicao": comp,
@@ -125,14 +138,20 @@ def comparar_grupos(obs: list) -> dict:
 
 
 def _faixa(dias) -> str:
+    d = int(dias or 0)
+    if d <= 0:
+        return "sem atraso"                    # ainda não venceu (dias zero ou negativos)
     for ini, fim, nome in FAIXAS_ATRASO:
-        if ini <= int(dias or 0) <= fim:
+        if ini <= d <= fim:
             return nome
     return FAIXAS_ATRASO[-1][2]
 
 
 def segmentos(obs: list) -> list:
-    """A mesma comparação por produto e por faixa de atraso, só com n mínimo nos dois grupos."""
+    """A mesma comparação por produto e por faixa de atraso, só com n mínimo nos dois grupos.
+
+    Selo no máximo "indício": com vários segmentos olhados ao mesmo tempo, algum
+    sai diferente por acaso; só a comparação geral pode dar "evidência"."""
     saida = []
     for nome, chave in (("produto", lambda o: o.get("produto") or "não informado"), ("atraso", lambda o: _faixa(o["dias"]))):
         grupos: dict = {}
@@ -144,7 +163,10 @@ def segmentos(obs: list) -> list:
             if na < N_MINIMO or ns < N_MINIMO:
                 continue
             c = comparar_grupos(lista)
-            saida.append({"segmento": f"{nome}: {valor}", "n": c["n"], "taxa_pagamento": c["taxa_pagamento"]})
+            taxa = dict(c["taxa_pagamento"])
+            if taxa["selo"] == EVIDENCIA:
+                taxa["selo"] = INDICIO
+            saida.append({"segmento": f"{nome}: {valor}", "n": c["n"], "taxa_pagamento": taxa})
     return saida
 
 
