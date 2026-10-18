@@ -312,7 +312,9 @@ def _consultar_base(ctx, fonte, dev, args):
     # pode citar a mesma fonte sem consultar de novo.
     d = _dados(ctx)
     d["base_consultada"] = ([i for i in d.get("base_consultada") or [] if i != t.id] + [t.id])[-MAX_FONTES_GUARDADAS:]
-    return {"ok": True, "certeza": True, "resposta": t.resposta, "fonte": t.fonte, "trecho_oficial": t.trecho,
+    # Só a resposta e a fonte: o texto literal da lei (t.trecho) fica na base para
+    # conferência, mas a IA não recebe o que não pode citar.
+    return {"ok": True, "certeza": True, "resposta": t.resposta, "fonte": t.fonte,
             "_rastreio": {"certeza": True, "trecho_id": t.id, "fontes": [t.fonte]}}
 
 
