@@ -186,6 +186,20 @@ def test_total_pago_soma_as_parcelas_arredondadas_e_cabe():
     assert oferta.cabe(avista, oferta.calcular(900, **avista), 900)
 
 
+# ── (k) primeiro degrau da estratégia no briefing ───────────────────────────
+
+def test_briefing_traduz_a_oferta_inicial_em_parametros():
+    from agente import negociador
+    est = {"tom": "acolhedor", "oferta_inicial": "parcelado_4x"}
+    r = rodar([("mensagem", "quero negociar")],
+              {"triagem": [tri("pagar_negociar")], "negociador": [T("Claro! Vamos ver.")]},
+              dados={**ID_OK, "estrategia": est})
+    partes = r.cliente.chamadas[-1]["mensagens"][-1]["content"]
+    texto = " ".join(p["text"] for p in partes if p.get("type") == "text")
+    assert '"primeiro_degrau": {"n_parcelas": 4, "desconto_pct": 0, "entrada_pct": 10.0}' in texto, texto
+    assert "PRIMEIRO degrau" in negociador.SISTEMA and "só transfira se ela aceitar" in negociador.SISTEMA
+
+
 if __name__ == "__main__":
     import sys
     falhas = 0
