@@ -695,8 +695,11 @@ class ConexaoDB(BaseModel):
 def _conexao_usavel(db, conexao_id: str, payload: dict) -> dict:
     """Linha da conexão salva, se ESTE usuário pode usá-la; senão 404/403.
 
-    comando usa qualquer uma; admin, as da própria empresa (ou que ele criou, ou
-    em que tem permissão); operador, só as que o admin liberou para ele.
+    comando usa qualquer uma; admin, as da própria empresa; operador, só as da
+    própria empresa que o admin liberou para ele. Antes valia também "foi ele
+    quem criou" (usuario_id): um admin movido da empresa A para a B seguia
+    usando, editando e sincronizando a conexão de A, e os devedores do banco de
+    A viravam carteira de B. A permissão também só vale dentro da empresa.
     """
     res = db.table("conexoes_db").select("*").eq("id", conexao_id).limit(1).execute()
     if not res.data:
@@ -705,7 +708,9 @@ def _conexao_usavel(db, conexao_id: str, payload: dict) -> dict:
     role, eid, uid = payload.get("role", "operador"), payload.get("empresa_id", ""), payload.get("sub")
     if role == "comando":
         return r
-    if role == "admin" and ((eid and r.get("empresa_id") == eid) or r.get("usuario_id") == uid):
+    if not eid or r.get("empresa_id") != eid:
+        raise HTTPException(status_code=403, detail="Sem permissão para usar esta conexão.")
+    if role == "admin":
         return r
     perm = (db.table("conexao_permissoes").select("id")
             .eq("conexao_id", conexao_id).eq("operador_id", uid).limit(1).execute())
@@ -715,16 +720,17 @@ def _conexao_usavel(db, conexao_id: str, payload: dict) -> dict:
 
 
 def _exigir_conexao_da_empresa(db, conexao_id: str, payload: dict) -> dict:
-    """Para gerir (editar, liberar a operadores): a conexão tem de ser da empresa
-    de quem gere. Usar uma conexão por permissão não dá o direito de geri-la."""
+    """Para gerir (editar, apagar, liberar a operadores): a conexão tem de ser da
+    empresa de quem gere. Usar uma conexão por permissão não dá o direito de
+    geri-la, e ter criado a conexão também não (ver _conexao_usavel)."""
     res = db.table("conexoes_db").select("id, empresa_id, usuario_id").eq("id", conexao_id).limit(1).execute()
     if not res.data:
         raise HTTPException(status_code=404, detail="Conexão não encontrada.")
     r = res.data[0]
     if payload.get("role") == "comando":
         return r
-    eid, uid = payload.get("empresa_id", ""), payload.get("sub")
-    if (eid and r.get("empresa_id") == eid) or r.get("usuario_id") == uid:
+    eid = payload.get("empresa_id", "")
+    if eid and r.get("empresa_id") == eid:
         return r
     raise HTTPException(status_code=403, detail="Acesso negado.")
 
@@ -1660,30 +1666,21 @@ def listar_conexoes(credentials: HTTPAuthorizationCredentials = Security(bearer)
         # Comando vê TODAS as conexões de todas as empresas
         r = db.table("conexoes_db").select("*").order("created_at", desc=True).execute()
         rows = r.data or []
+    elif not eid:
+        # Sem empresa (removido dela) não há conexão a ver. Antes o admin seguia
+        # vendo as que criou, mesmo depois de sair da empresa.
+        rows = []
     elif role == "admin":
-        # Admin vê conexões da sua empresa + as que criou + as que recebeu permissão explícita
-        seen: set = set()
-        if eid:
-            r1 = db.table("conexoes_db").select("*").eq("empresa_id", eid).order("created_at", desc=True).execute()
-            for r in (r1.data or []):
-                seen.add(r["id"]); rows.append(r)
-        r2 = db.table("conexoes_db").select("*").eq("usuario_id", uid).order("created_at", desc=True).execute()
-        for r in (r2.data or []):
-            if r["id"] not in seen:
-                seen.add(r["id"]); rows.append(r)
-        perm = db.table("conexao_permissoes").select("conexao_id").eq("operador_id", uid).execute()
-        ids_perm = [p["conexao_id"] for p in (perm.data or []) if p["conexao_id"] not in seen]
-        if ids_perm:
-            r3 = db.table("conexoes_db").select("*").in_("id", ids_perm).execute()
-            for r in (r3.data or []):
-                if r["id"] not in seen:
-                    seen.add(r["id"]); rows.append(r)
+        # Admin vê as conexões da sua empresa (só elas: ver _conexao_usavel)
+        r1 = db.table("conexoes_db").select("*").eq("empresa_id", eid).order("created_at", desc=True).execute()
+        rows = r1.data or []
     else:
-        # Operador vê apenas conexões com permissão explícita
+        # Operador vê as da sua empresa que o admin liberou para ele
         perm = db.table("conexao_permissoes").select("conexao_id").eq("operador_id", uid).execute()
         ids_permitidos = [p["conexao_id"] for p in (perm.data or [])]
         if ids_permitidos:
-            r = db.table("conexoes_db").select("*").in_("id", ids_permitidos).order("created_at", desc=True).execute()
+            r = (db.table("conexoes_db").select("*").in_("id", ids_permitidos).eq("empresa_id", eid)
+                 .order("created_at", desc=True).execute())
             rows = r.data or []
 
     rows.sort(key=lambda r: r.get("created_at", ""), reverse=True)
@@ -2882,15 +2879,11 @@ def atualizar_conexao(conexao_id: str, body: ConexaoUpdateIn, credentials: HTTPA
 def deletar_conexao(conexao_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     payload = _exigir_admin_ou_comando(credentials)
     db = get_db()
-    eid = payload.get("empresa_id", "")
-    uid = payload["sub"]
-    chk = db.table("conexoes_db").select("id, empresa_id, usuario_id").eq("id", conexao_id).execute()
+    chk = db.table("conexoes_db").select("id").eq("id", conexao_id).execute()
     if not chk.data:
         return {"ok": True}
-    r = chk.data[0]
-    # COMANDO gere as conexões de todas as empresas (como em _exigir_conexao_da_empresa)
-    if payload.get("role") != "comando" and not ((eid and r.get("empresa_id") == eid) or r.get("usuario_id") == uid):
-        raise HTTPException(status_code=403, detail="Acesso negado.")
+    # COMANDO gere as conexões de todas as empresas; os demais, só as da empresa.
+    _exigir_conexao_da_empresa(db, conexao_id, payload)
     db.table("conexoes_db").delete().eq("id", conexao_id).execute()
     return {"ok": True}
 
@@ -3594,29 +3587,16 @@ async def sincronizar_conexao(conexao_id: str, credentials: HTTPAuthorizationCre
     payload = _usuario_autenticado(credentials)
 
     db = get_db()
-    eid = payload.get("empresa_id", "")
     uid = payload["sub"]
-    role = payload.get("role", "operador")
-    res = db.table("conexoes_db").select("*").eq("id", conexao_id).execute()
-    if not res.data:
-        raise HTTPException(status_code=404, detail="Conexão não encontrada.")
-    r = res.data[0]
-
-    if role == "comando":
-        pass  # comando vê tudo
-    elif role == "admin":
-        tem_acesso = (eid and r.get("empresa_id") == eid) or r.get("usuario_id") == uid
-        if not tem_acesso:
-            perm = db.table("conexao_permissoes").select("id").eq("conexao_id", conexao_id).eq("operador_id", uid).execute()
-            tem_acesso = bool(perm.data)
-        if not tem_acesso:
-            raise HTTPException(status_code=403, detail="Acesso negado.")
-    else:
-        # Operador precisa de permissão explícita
-        perm = db.table("conexao_permissoes").select("id").eq("conexao_id", conexao_id).eq("operador_id", uid).execute()
-        if not perm.data:
-            raise HTTPException(status_code=403, detail="Sem permissão para sincronizar esta conexão.")
-
+    # Mesma regra de uso de _conexao_usavel (comando: todas; admin: as da
+    # empresa; operador: as da empresa liberadas para ele).
+    r = _conexao_usavel(db, conexao_id, payload)
+    # A carteira nasce na empresa DA CONEXÃO, não na de quem chama: antes um
+    # admin movido de empresa gravava os devedores do banco de A como carteira
+    # de B, e o comando (sem empresa) recebia 400.
+    eid = r.get("empresa_id") or ""
+    if not eid:
+        raise HTTPException(status_code=400, detail="Conexão sem empresa: peça ao COMANDO para vinculá-la.")
     uemail = payload.get("email", "")
 
     try:
@@ -3624,7 +3604,12 @@ async def sincronizar_conexao(conexao_id: str, credentials: HTTPAuthorizationCre
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=503, detail=f"Erro ao conectar no banco: {e}")
+        # O texto da exceção traz host, IP interno, porta e usuário do banco do
+        # cliente: vai para o log (mascarado), e o cliente recebe só o tipo e o código.
+        codigo = _erros.registrar({"path": "/conexoes/{conexao_id}/sincronizar", "method": "POST"}, e, 503)
+        raise HTTPException(status_code=503, detail=(
+            f"Não foi possível ler o banco da conexão ({type(e).__name__}). "
+            f"Teste a conexão na tela de conexões. Código: {codigo}"))
 
     n_dev = resultado.get("resumo", {}).get("total_devedores", 0)
     return {"ok": True, "n_devedores": n_dev, "carteira": resultado}
@@ -4294,7 +4279,7 @@ async def upload_csv(file: UploadFile = File(...),
         try:
             df = _read_csv_auto(contents)
         except Exception as e:
-            raise HTTPException(status_code=422, detail=f"Erro ao processar CSV: {e}")
+            raise HTTPException(status_code=422, detail=f"Erro ao processar CSV: {_erros.mascarar(e)}")
         return {
             "filename": file.filename,
             "rows": len(df),
