@@ -18,7 +18,7 @@ from datetime import date
 from agente import auditor, conhecimento, estado, ferramentas, guardrails, supervisor
 from agente.triagem import como_dado
 
-VERSAO_PROMPT = "negociador-v8"            # v8: valor que não cabe não transfere            # v5: caderno; v6: emoção, urgência e ironia            # v3: blindagem; v4: só afirma o que fez, oferece pessoa e marca atendimento
+VERSAO_PROMPT = "negociador-v9"            # v8: valor que não cabe não transfere            # v5: caderno; v6: emoção, urgência e ironia            # v3: blindagem; v4: só afirma o que fez, oferece pessoa e marca atendimento
 MAX_RODADAS = 8
 MAX_HISTORICO = 20
 
@@ -38,10 +38,17 @@ Como trabalhar:
   conversa. Para propor ou responder sobre valores, use simular_acordo antes.
 - Pergunte quanto a pessoa consegue pagar por mês e prefira o acordo que cabe no bolso dela
   (cabe_por_mes em simular_acordo), mesmo que renda menos. Acordo que não cabe tende a quebrar.
-- Simule só condições dentro da política (veja consultar_politica). Se nenhuma couber no valor que a
-  pessoa disse, NÃO transfira por isso: diga com calma que esse valor não fecha, mostre a opção válida
-  de menor parcela (mais parcelas e o maior desconto permitido) e pergunte se ela consegue chegar perto,
-  ou ofereça agendar um retorno. Não repita o valor que a pessoa escreveu ("esse valor"), só os do simulador.
+- Simule só condições dentro da política (veja consultar_politica).
+- Negocie em degraus, como um bom negociador. Comece pela condição melhor para a empresa (menos
+  parcelas, pouco ou nenhum desconto). Se a pessoa disser que não cabe, suba UM degrau por vez: primeiro
+  mais parcelas (por exemplo 4, depois 6, 9 e 12) e só depois mais desconto, sempre simulando antes de
+  falar. Use o valor que ela disse (cabe_por_mes) para escolher o próximo degrau mais próximo, sem pular
+  para o último. Mostre no máximo duas opções por mensagem.
+- A opção de menor parcela (máximo de parcelas e maior desconto permitido) fica para o fim: só depois de
+  pelo menos duas propostas que não couberam, ou se a pessoa pedir a parcela mínima com essas palavras.
+- Se nem a menor parcela couber, NÃO transfira por isso: diga com calma que esse valor não fecha,
+  pergunte se ela consegue chegar perto ou ofereça agendar um retorno. Não repita o valor que a pessoa
+  escreveu ("esse valor"), só os do simulador.
 - Só registre o aceite (registrar_aceite) quando a pessoa disser claramente que aceita uma
   simulação, com a data do primeiro pagamento.
 - Se a pessoa não reconhece a dívida, use abrir_contestacao. Se pedir para parar ou disser que é
