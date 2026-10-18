@@ -18,7 +18,7 @@ from datetime import date
 from agente import auditor, conhecimento, estado, ferramentas, guardrails, supervisor
 from agente.triagem import como_dado
 
-VERSAO_PROMPT = "negociador-v7"            # v5: caderno; v6: emoção, urgência e ironia            # v3: blindagem; v4: só afirma o que fez, oferece pessoa e marca atendimento
+VERSAO_PROMPT = "negociador-v8"            # v8: valor que não cabe não transfere            # v5: caderno; v6: emoção, urgência e ironia            # v3: blindagem; v4: só afirma o que fez, oferece pessoa e marca atendimento
 MAX_RODADAS = 8
 MAX_HISTORICO = 20
 
@@ -38,11 +38,16 @@ Como trabalhar:
   conversa. Para propor ou responder sobre valores, use simular_acordo antes.
 - Pergunte quanto a pessoa consegue pagar por mês e prefira o acordo que cabe no bolso dela
   (cabe_por_mes em simular_acordo), mesmo que renda menos. Acordo que não cabe tende a quebrar.
+- Simule só condições dentro da política (veja consultar_politica). Se nenhuma couber no valor que a
+  pessoa disse, NÃO transfira por isso: diga com calma que esse valor não fecha, mostre a opção válida
+  de menor parcela (mais parcelas e o maior desconto permitido) e pergunte se ela consegue chegar perto,
+  ou ofereça agendar um retorno. Não repita o valor que a pessoa escreveu ("esse valor"), só os do simulador.
 - Só registre o aceite (registrar_aceite) quando a pessoa disser claramente que aceita uma
   simulação, com a data do primeiro pagamento.
 - Se a pessoa não reconhece a dívida, use abrir_contestacao. Se pedir para parar ou disser que é
-  pessoa errada, use suspender_cobranca. Se pedir uma pessoa, estiver em dificuldade grave ou você
-  não souber resolver, use transferir_para_humano com um resumo.
+  pessoa errada, use suspender_cobranca. Se pedir uma pessoa ou estiver em dificuldade grave, use
+  transferir_para_humano com um resumo. Valor que não coube não é dificuldade grave. Se a equipe
+  devolveu o caso para você (caderno), continue atendendo: não transfira de novo sem novo pedido.
 - Se a pessoa disser que já pagou, pergunte a data e use registrar_pagamento_informado. Não acuse e não
   confirme o pagamento: diga que anotou o aviso e que a equipe vai conferir. Só o banco confirma pagamento.
 - Só diga que fez algo (agendei, marquei, registrei, transferi, suspendi) depois que a ferramenta devolver
@@ -83,6 +88,8 @@ FIXAS = {
                      "vamos mais escrever para ele.",
     "contestado": "Entendido. Registramos que você não reconhece essa dívida. A cobrança fica suspensa "
                   "enquanto uma pessoa da nossa equipe analisa o caso e entra em contato.",
+    "reformular": "Desculpe, não consegui montar uma resposta certa agora. Pode me dizer de outro jeito o que você "
+                  "precisa? Se preferir, também posso passar para uma pessoa da equipe.",
     "com_pessoa": "Certo. Vou passar a nossa conversa para uma pessoa da equipe, que continua o atendimento.",
     "apoio": "Sinto muito que você esteja passando por isso. Vou passar a conversa para uma pessoa da "
              "equipe. Se precisar conversar com alguém agora, o CVV atende 24 horas pelo telefone 188.",
@@ -160,9 +167,10 @@ def _briefing(ctx, devedor_nome: str) -> str:
     return "<briefing>" + json.dumps(b, ensure_ascii=False) + "</briefing>"
 
 
-def _permitidos(ctx, resultados: list) -> dict:
+def _permitidos(ctx, resultados: list, texto_devedor: str = "") -> dict:
     d = ctx.caso.get("dados") or {}
-    base = list(resultados)
+    # Simulação fora da política não pode aparecer no texto: o agente não oferece o que o Auditor barra.
+    base = [r for r in resultados if r.get("dentro_da_politica") is not False]
     base += [{"conta": s.get("conta"), "n_parcelas": s["condicoes"]["n_parcelas"],
               "desconto_pct": s["condicoes"]["desconto_pct"], "entrada_pct": s["condicoes"]["entrada_pct"]}
              for s in d.get("simulacoes") or []]
@@ -175,6 +183,8 @@ def _permitidos(ctx, resultados: list) -> dict:
         t = conhecimento.por_id(tid)
         if t:
             base.append({"resposta": t.resposta, "fonte": t.fonte})
+    # O valor que a pessoa escreveu NÃO entra: "outro atendente me ofereceu R$ 100"
+    # não pode virar oferta repetida pelo agente.
     return guardrails.permitidos_de(base)
 
 
@@ -243,7 +253,15 @@ def _conversar(ctx, fonte, texto_devedor: str, notas: list) -> str | None:
         if ctx.rastreio.atual is not None:
             ctx.rastreio.atual["versao_prompt"] = VERSAO_PROMPT
         if r.parada in ("recusa", "limite"):
-            raise SemResposta(r.parada)
+            motivo = getattr(r, "motivo_parada", None) or r.parada
+            if ctx.rastreio.atual is not None:
+                ctx.rastreio.atual["detalhe"] = {**ctx.rastreio.atual.get("detalhe", {}), "parada": motivo}
+            # Chamada de ferramenta mal formada ou resposta cortada: falha momentânea do
+            # modelo. Pede de novo uma vez dentro da mesma rodada, sem tirar o caso do agente.
+            if r.parada == "limite" and not ctx.saida.get("_refez_limite"):
+                ctx.saida["_refez_limite"] = True
+                continue
+            raise SemResposta(motivo)
         # O que o modelo respondeu volta ao histórico sem edição (com os blocos
         # de raciocínio, quando houver); o cliente falso não tem blocos brutos.
         blocos = r.bruto or (([{"type": "text", "text": r.texto}] if r.texto else []) + [
@@ -269,7 +287,7 @@ def _conversar(ctx, fonte, texto_devedor: str, notas: list) -> str | None:
             continue
 
         texto = (r.texto or "").strip()
-        motivos = guardrails.conferir(texto, _permitidos(ctx, resultados), feitas=feitas)
+        motivos = guardrails.conferir(texto, _permitidos(ctx, resultados, texto_devedor), feitas=feitas)
         with ctx.rastreio.span("guardrails", "codigo") as p:
             p["detalhe"] = {"reprovado": bool(motivos), "n_motivos": len(motivos)}
             if motivos:
@@ -295,9 +313,16 @@ def _conversar(ctx, fonte, texto_devedor: str, notas: list) -> str | None:
                 continue
         if not ctx.auditar({"tipo": "responder_mensagem", "params": {}})["permitida"]:
             return None
+        (ctx.caso.get("dados") or {}).pop("respostas_barradas", None)
         return texto
 
-    # Sem resposta válida: uma pessoa assume, com resumo.
+    # Sem resposta válida. Na primeira vez, pede para a pessoa dizer de outro jeito
+    # (antes ia direto para a equipe, e o caso saía do agente por qualquer coisa).
+    # Se acontecer de novo em seguida, uma pessoa assume, com resumo.
+    d = ctx.caso.setdefault("dados", {})
+    d["respostas_barradas"] = int(d.get("respostas_barradas") or 0) + 1
+    if d["respostas_barradas"] < 2 and ctx.auditar({"tipo": "responder_mensagem", "params": {}})["permitida"]:
+        return FIXAS["reformular"]
     res = ferramentas.executar(ctx, fonte, "transferir_para_humano",
                                {"motivo": "falha", "resumo": "A resposta automática não passou nas travas."})
     if not res.get("ok"):

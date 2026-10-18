@@ -86,7 +86,7 @@ checar("Consigo entrada" in hist and "quero negociar" in hist, "o histórico da 
 checar(m.fonte.agenda[0]["tipo"] == "promessa" and m.fonte.agenda[0]["valor"] == 270, "promessa na agenda")
 passos = [p for p in m.repo.passos if p["no"] in ("triagem", "negociar")]
 checar(all(p["modelo"] == "falso" and p["tokens_entrada"] > 0 for p in passos)
-       and {p["versao_prompt"] for p in passos} == {"triagem-v3", "negociador-v7"},
+       and {p["versao_prompt"] for p in passos} == {"triagem-v3", "negociador-v8"},
        "rastreio com modelo, tokens e versão do prompt")
 
 print("— travas de saída —")
@@ -107,8 +107,8 @@ m.escreve("E se eu não pagar?", [tri("duvida"),
                                  Resposta(texto="Aí vamos processar e sua família vai saber."),
                                  Resposta(texto="Se não pagar, a polícia vai até você.")])
 s = m.saidas()
-checar(m.c["situacao"] == "com_pessoa" and len(s) == 1 and "pessoa da equipe" in s[0] and "polícia" not in s[0],
-       "ameaça duas vezes: nada da IA sai; uma pessoa assume, com mensagem fixa")
+checar(m.c["situacao"] != "com_pessoa" and len(s) == 1 and "dizer de outro jeito" in s[0] and "polícia" not in s[0],
+       "ameaça duas vezes: nada da IA sai; mensagem fixa pede para reformular (o caso continua)")
 
 print("— segurança decidida em código, sem IA —")
 for texto, situacao, trecho in (("Pare de me mandar mensagem!", "suspenso", "não vamos mais entrar em contato"),
@@ -159,7 +159,7 @@ checar(m.c["situacao"] == "com_pessoa" and m.r["erro"] == "SemResposta" and "pes
        "recusa do modelo: pessoa assume e o devedor é avisado")
 m = Mundo()
 m.escreve("oi", [tri("pagar_negociar")] + [F("consultar_caso")] * 8)
-checar(m.c["situacao"] == "com_pessoa" and "pessoa da equipe" in m.saidas()[0], "laço de ferramentas: para em 8 rodadas")
+checar(m.c["situacao"] != "com_pessoa" and "dizer de outro jeito" in m.saidas()[0], "laço de ferramentas: para em 8 rodadas e pede para reformular")
 
 print("— Triagem —")
 checar(triagem.regras("PARE de me ligar")["intencao"] == "parar_contato", "regra: parar (maiúsculas e acento)")

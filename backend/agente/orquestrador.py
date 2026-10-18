@@ -48,6 +48,7 @@ DONO = f"{socket.gethostname()}:{os.getpid()}"
 
 # Erros em que tentar de novo não muda nada: vão direto para uma pessoa.
 _SEM_NOVA_TENTATIVA = (llm.TetoExcedido, llm.PrecoDesconhecido, estado.TransicaoProibida)
+MAX_ESPERAS_IA = 5                   # cota estourada: até 5 esperas por evento; depois, uma pessoa
 
 
 class LacoNoGrafo(RuntimeError):
@@ -206,6 +207,7 @@ def executar(grafo: Grafo, ctx: Contexto, dono: str = DONO) -> dict:
     atual = ckpt["proximo"] if ckpt.get("evento_id") == ctx.evento["id"] else grafo.inicio
     passos = 0
     erro = None
+    esperar_ia = None
     while atual != FIM:
         passos += 1
         if passos > MAX_PASSOS:
@@ -222,8 +224,13 @@ def executar(grafo: Grafo, ctx: Contexto, dono: str = DONO) -> dict:
             except _SEM_NOVA_TENTATIVA as e:
                 erro = type(e).__name__
                 break
+            except llm.IaOcupada as e:
+                esperar_ia = e.esperar_s
+                break
             except Exception as e:
                 erro = type(e).__name__
+        if esperar_ia is not None:
+            break
         if erro:
             break
         try:
@@ -236,6 +243,22 @@ def executar(grafo: Grafo, ctx: Contexto, dono: str = DONO) -> dict:
         ctx.caso["dados"] = dados
         _checkpoint(ctx, no.nome, dono)
 
+    if esperar_ia is not None:
+        # Cota da IA estourada: o evento volta para a fila e recomeça deste nó
+        # depois da espera, sem contar como falha e sem tirar o caso do agente.
+        dados = dict(ctx.caso.get("dados") or {})
+        esperas = dict(dados.get("_esperas_ia") or {})
+        n = int(esperas.get(str(ctx.evento["id"])) or 0) + 1
+        if n <= MAX_ESPERAS_IA:
+            dados["_esperas_ia"] = {str(ctx.evento["id"]): n}
+            dados["_checkpoint"] = {"evento_id": ctx.evento["id"], "proximo": atual}
+            ctx.caso["dados"] = dados
+            ctx.saida["adiar_para"] = (ctx.agora or datetime.now(timezone.utc)) + timedelta(seconds=max(30.0, esperar_ia))
+            with ctx.rastreio.span("aguardar_ia", "orquestrador") as p:
+                p["detalhe"] = {"esperar_s": round(esperar_ia), "vez": n}
+            _checkpoint(ctx, "aguardando IA", dono)
+            return {"ok": True, "erro": None, "situacao": ctx.caso["situacao"]}
+        erro = "IaOcupada"
     if erro:
         _transferir(ctx, erro)
         if grafo.ao_falhar:
