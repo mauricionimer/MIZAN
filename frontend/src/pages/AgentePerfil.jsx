@@ -39,6 +39,39 @@ function Numero({ rotulo, valor }) {
   )
 }
 
+const brl = (v) => v == null ? '—' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
+const MOTIVO = { pedido_do_devedor: 'pediu uma pessoa', dificuldade_grave: 'dificuldade grave', atendimento_marcado: 'atendimento marcado',
+  fora_da_politica: 'fora da política', duvida: 'dúvida', falha: 'falha' }
+
+// Supervisor: o que as passagens para a equipe dizem (30 dias). Tudo contado em código.
+function SinaisEquipe({ s }) {
+  if (!s.passagens) return (
+    <section className="mt-5 rounded-xl border border-line bg-surface p-4 text-sm text-ink-2">
+      <h2 className="text-sm font-semibold text-ink">Passagens para a equipe</h2>
+      <p className="mt-2">Nenhuma passagem nos últimos {s.dias} dias.</p>
+    </section>
+  )
+  const motivos = Object.entries(s.por_motivo || {})
+  return (
+    <section className="mt-5 rounded-xl border border-line bg-surface p-4">
+      <h2 className="text-sm font-semibold text-ink">Passagens para a equipe · {s.dias} dias</h2>
+      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Numero rotulo="Passagens" valor={s.passagens} />
+        <Numero rotulo="Resumo ajudou" valor={s.nota_supervisor != null ? `${Math.round(s.nota_supervisor * 100)}% (${s.retornos})` : '—'} />
+        <Numero rotulo="Disse quanto pode" valor={s.com_valor_dito} />
+        <Numero rotulo="Nada coube" valor={s.nao_coube} />
+      </div>
+      <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-ink-2">
+        {motivos.map(([m, n]) => <span key={m}>{MOTIVO[m] || m}: <b className="text-ink">{n}</b></span>)}
+        {s.valor_pedido_quando_nao_coube != null && (
+          <span>Quando nada coube, o valor típico pedido era <b className="text-ink">{brl(s.valor_pedido_quando_nao_coube)}</b>;
+            a menor parcela possível era <b className="text-ink">{brl(s.menor_parcela_possivel)}</b></span>
+        )}
+      </div>
+    </section>
+  )
+}
+
 export default function AgentePerfil() {
   const { nome } = useParams()
   const navigate = useNavigate()
@@ -92,17 +125,18 @@ export default function AgentePerfil() {
               <section className="rounded-xl border border-line bg-surface p-4">
                 <h2 className="text-sm font-semibold text-ink">Últimas decisões</h2>
                 <ol className="mt-3 divide-y divide-line">
-                  {d.ultimas.map((p, k) => (
+                  {(d.ultimas || []).map((p, k) => (
                     <li key={k} className="flex items-baseline justify-between gap-3 py-2 text-sm">
                       <span className="text-ink-2">{p.explicacao}
                         {p.resultado !== 'ok' && <span className={`ml-1 ${COR_RES[p.resultado] || ''}`}>· {p.regra || p.resultado}</span>}</span>
                       <span className="shrink-0 text-xs text-ink-3">{hora(p.criado_em)}</span>
                     </li>
                   ))}
-                  {!d.ultimas.length && <li className="py-2 text-sm text-ink-3">Nenhuma decisão nas últimas 24 h.</li>}
+                  {!(d.ultimas || []).length && <li className="py-2 text-sm text-ink-3">Nenhuma decisão nas últimas 24 h.</li>}
                 </ol>
               </section>
             </div>
+            {d.sinais_equipe && <SinaisEquipe s={d.sinais_equipe} />}
           </>
         )}
       </div>

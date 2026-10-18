@@ -201,6 +201,9 @@ def classificar(ctx, texto: str) -> dict:
         if "sofrimento_grave" in r["sinais"]:
             out["emocao"] = "desesperado"                 # a regra vence a leitura da IA
     ctx.saida["triagem"] = out
+    from agente import passagem
+    if getattr(ctx, "caso", None) is not None:
+        passagem.anotar_valores(ctx.caso, out.get("valores_citados"))
     fora_do_normal = (out["emocao"] in ("irritado", "desesperado") or out["urgencia"] == "alta" or out["ironia"])
     if out["intencao"] in SEGURANCA or out["sinais_de_risco"] or fora_do_normal:
         # Só o que muda o rumo do caso vai para o caderno.

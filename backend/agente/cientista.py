@@ -19,7 +19,7 @@ import re
 
 from agente import ciencia, guardrails
 
-VERSAO_PROMPT = "cientista-v1"
+VERSAO_PROMPT = "cientista-v2"            # v2: sinais das passagens para a equipe
 MAX_HIPOTESES = 3
 METRICAS = ("taxa_pagamento", "recuperado_por_real")
 _CAUSAL = re.compile(r"\b(comprovad\w*|comprova\w*|prova(?:m|do|da)? que|caus(?:ou|a|aram|ando)|garant\w*|"
@@ -114,7 +114,7 @@ def _selo_da_metrica(resultados: dict, metrica: str) -> str:
         for s in resultados["segmentos"]:
             if s["segmento"] == nome:
                 return s["taxa_pagamento"]["selo"]
-    if metrica == "bandit":
+    if metrica in ("bandit", "passagens"):
         return ciencia.SEM_EVIDENCIA           # o bandit sugere; prova é a comparação com o sorteado
     raise ValueError(f"métrica desconhecida: {metrica}")
 
@@ -131,7 +131,11 @@ qual oferta funciona) acumulou. Responda APENAS com um objeto JSON:
 
 Regras:
 - No máximo 3 hipóteses. A primeira é a que sustenta a recomendação.
-- "metrica": "taxa_pagamento", "recuperado_por_real", "segmento:<nome exato do segmento>" ou "bandit".
+- "metrica": "taxa_pagamento", "recuperado_por_real", "segmento:<nome exato do segmento>", "bandit" ou
+  "passagens" (o que a equipe ouviu nas transferências da semana: motivos, valor que as pessoas dizem
+  conseguir pagar, quantas não couberam em nenhuma condição). Use "passagens" para propor um teste de
+  política (ex.: mais parcelas) quando muitas não couberam; é sinal, nunca prova.
+  Se <resultados> tiver "passagens" com "nao_coube" maior que zero, inclua uma hipótese com essa métrica.
 - Use SOMENTE números que aparecem nos resultados (pode escrever taxas como porcentagem: 0.123 → 12.3%).
   Não calcule números novos. Diferença entre duas taxas se escreve em pontos percentuais (ex.: 29.0 p.p.).
 - Cada texto respeita o selo da SUA métrica. O bandit nunca tem selo "evidência": ele sugere, mas só a
@@ -170,7 +174,7 @@ def _relatorio_ia(ctx, resultados: dict) -> dict:
         metrica_rec = str(d.get("recomendacao_metrica") or rel["hipoteses"][0]["metrica"])
         if metrica_rec not in [h["metrica"] for h in rel["hipoteses"]]:
             raise ValueError("recomendação apoiada numa métrica que não está nas hipóteses")
-        if metrica_rec != "bandit" and _OFERTA.search(rel["recomendacao"]):
+        if metrica_rec not in ("bandit", "passagens") and _OFERTA.search(rel["recomendacao"]):
             metrica_rec = "bandit"            # fala de oferta ou canal: quem sustenta é o bandit
         rel["recomendacao_metrica"] = metrica_rec
         rel["selo"] = _selo_da_metrica(resultados, metrica_rec)              # selo da recomendação, do código
@@ -217,14 +221,42 @@ def relatorio_codigo(resultados: dict) -> dict:
                            "resultado": f"Diferença de {_pp(t['diferenca'])} (intervalo de 95%: {_pp(t['ic95'][0])} a "
                                         f"{_pp(t['ic95'][1])}).",
                            "condicoes": "Casos do grupo contato desta empresa.",
-                           "proximo_experimento": "Continuar o sorteio do grupo de comparação."}]}
+                           "proximo_experimento": "Continuar o sorteio do grupo de comparação."}]
+            + _hipotese_passagens(resultados.get("passagens"))}
 
 
-def analisar(ctx, obs: list, stats_bandit: list | None) -> dict:
+def _hipotese_passagens(s: dict | None) -> list:
+    """O que a equipe ouviu nas transferências vira hipótese de política (em código)."""
+    if not s or not s.get("passagens"):
+        return []
+    if s.get("nao_coube"):
+        res = (f"{s['nao_coube']} de {s['passagens']} transferências: a pessoa disse quanto podia pagar e nenhuma "
+               f"condição coube (valor típico pedido {_brl(s['valor_pedido_quando_nao_coube'])}; menor parcela "
+               f"possível {_brl(s['menor_parcela_possivel'])}).")
+        exp = "Testar com o grupo sorteado uma condição de mais parcelas para quem não coube, com aprovação do administrador."
+    else:
+        motivo = next(iter(s.get("por_motivo") or {}), "—")
+        res = f"{s['passagens']} transferências na semana; motivo mais comum: {motivo}."
+        exp = "Acompanhar os motivos por mais uma semana antes de mudar a política."
+    return [{"hipotese": "A política atual deixa de fora quem quer pagar, mas não alcança a menor parcela",
+             "metrica": "passagens", "selo": ciencia.SEM_EVIDENCIA, "resultado": res,
+             "condicoes": f"Passagens para a equipe dos últimos {s.get('dias', 7)} dias.", "proximo_experimento": exp}]
+
+
+def _brl(v) -> str:
+    return "sem dado" if v is None else f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def analisar(ctx, obs: list, stats_bandit: list | None, sinais: dict | None = None) -> dict:
     """Relatório completo: resultados de código + texto da IA (ou de código)."""
     resultados = ciencia.analisar(obs, stats_bandit)
+    if sinais and sinais.get("passagens"):
+        resultados["passagens"] = sinais
     with ctx.rastreio.span("analise", "cientista") as p:
         rel = ctx.ia_ou_codigo("cientista", lambda: _relatorio_ia(ctx, resultados), lambda: relatorio_codigo(resultados))
+        if resultados.get("passagens") and not any(h.get("metrica") == "passagens" for h in rel["hipoteses"]):
+            # O que a equipe ouviu sempre aparece, mesmo que a IA não tenha usado.
+            rel["hipoteses"] = rel["hipoteses"] + _hipotese_passagens(resultados["passagens"])
         p["detalhe"] = {**p.get("detalhe", {}), "selo": rel["selo"], "n": resultados["comparacao"]["n"]}
         origem = p["detalhe"].get("origem", "codigo")
     rel["recomendacao"] = guardrails.limpar_nota(rel["recomendacao"], 400)

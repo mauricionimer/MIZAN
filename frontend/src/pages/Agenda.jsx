@@ -7,6 +7,7 @@ import AppShell from '../components/AppShell'
 import DicaAjuda from '../components/DicaAjuda'
 import ErroCarga from '../components/ErroCarga'
 import AvisoDesfazer from '../components/AvisoDesfazer'
+import FichaPassagem, { SeloPrioridade } from '../components/FichaPassagem'
 import { useAuth } from '../context/AuthContext'
 import { useAnalysis } from '../context/AnalysisContext'
 import { listarAgenda, listarEquipeAgenda, mudarAgenda, buscarPaginaRanking, listarEmpresas, carregarCarteira } from '../api'
@@ -70,8 +71,11 @@ function Item({ item, mostrarOperador, onAcao, onAbrir, carteiraAberta, soLeitur
       <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <span className="text-sm font-medium" style={{ color: cfg.cor }}>{quando(item.data, item.hora)}</span>
         {promessa && item.valor > 0 && <span className="text-sm font-semibold tabular-nums text-ink">{fmtBRL(item.valor)}</span>}
+        <SeloPrioridade passagem={item.passagem} />
       </div>
-      {item.observacao && <p className="mt-1.5 text-xs leading-relaxed text-ink-2">{item.observacao}</p>}
+      {item.passagem
+        ? <FichaPassagem passagem={item.passagem} predicaoId={item.predicao_id} />
+        : item.observacao && <p className="mt-1.5 text-xs leading-relaxed text-ink-2">{item.observacao}</p>}
 
       {soLeitura ? null : remarcando
         ? <Remarcar item={item} onCancelar={() => setRemarcando(false)} onSalvar={(data, hora) => agir('remarcar', { data, hora })} />

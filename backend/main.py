@@ -2073,9 +2073,52 @@ def listar_agenda(escopo: str = "minha", situacao: str = "pendente", cpf: Option
         raise
     ref = hoje()
     itens = [_com_nivel(dict(l), ref) for l in linhas]
+    _com_passagem(emp, itens, situacao)
     if situacao != "resolvidos_hoje":
-        itens.sort(key=lambda i: (str(i.get("data") or ""), i.get("hora") or "99:99"))
+        # No mesmo dia, a fila da equipe vem por prioridade (pessoa irritada e com pressa antes).
+        itens.sort(key=lambda i: (str(i.get("data") or ""), -((i.get("passagem") or {}).get("prioridade") or 0),
+                                  i.get("hora") or "99:99"))
     return {"ativo": True, "hoje": ref.isoformat(), "itens": itens}
+
+
+def _com_passagem(empresa_id, itens: list, situacao: str) -> None:
+    """Junta a ficha da passagem do agente aos compromissos pendentes. Nunca derruba a agenda."""
+    if situacao != "pendente" or not itens:
+        return
+    try:
+        from agente import api as agente_api
+        if not agente_api.ligado():
+            return
+        fichas = agente_api.passagens_da_fila(empresa_id, [i.get("predicao_id") for i in itens])
+        for i in itens:
+            f = fichas.get(str(i.get("predicao_id")))
+            if f and (i.get("observacao") or "").startswith(("Transferido", "Atendimento com pessoa")):
+                i["passagem"] = f
+    except Exception as e:
+        print(f"[Agenda] ficha da passagem indisponível: {type(e).__name__}")
+
+
+class PassagemRetornoIn(BaseModel):
+    ajudou: bool
+    comentario: Optional[str] = Field(None, max_length=200)
+    empresa_id: Optional[str] = None
+
+
+@app.post("/agente/passagem/{predicao_id}/retorno")
+def agente_retorno_passagem(predicao_id: str, body: PassagemRetornoIn,
+                            credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Quem atendeu diz se o resumo do Supervisor ajudou."""
+    from agente import api as agente_api
+    payload = _usuario_autenticado(credentials)
+    emp = _empresa_da_agenda(payload, body.empresa_id)
+    try:
+        r = agente_api.registrar_retorno_passagem(emp, predicao_id, body.ajudou, payload.get("email"), body.comentario or "")
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    _registrar_auditoria(acao="passagem_retorno", entidade="agente_casos", entidade_id=predicao_id,
+                         usuario_email=payload.get("email"), empresa_id=emp, usuario_id=payload.get("sub"),
+                         detalhes={"ajudou": body.ajudou})
+    return r
 
 
 @app.get("/agenda/resumo")
