@@ -35,8 +35,12 @@ _NUMERO = re.compile(_MILHAR + r"|\d+(?:[.,]\d+)?")
 # ── dados ────────────────────────────────────────────────────────────────────
 
 def observacoes(repo, fonte, empresa_id: str) -> list:
-    """Casos do grupo "contato" (procurados pelo agente ou sorteados para comparação)."""
-    casos = [c for c in repo.casos_da_empresa(empresa_id) if c.get("grupo") == "contato"]
+    """Casos que entraram no grupo "contato" (procurados pelo agente ou sorteados para comparação).
+
+    Vale o grupo de entrada (`dados.grupo_entrada`): o plano diário muda o grupo
+    de quem fechou acordo ou quebrou, e esses casos não podem sumir da conta."""
+    casos = [c for c in repo.casos_da_empresa(empresa_id)
+             if ((c.get("dados") or {}).get("grupo_entrada") or c.get("grupo")) == "contato"]
     if not casos:
         return []
     devs = {d["id"]: d for d in fonte.devedores(empresa_id)}

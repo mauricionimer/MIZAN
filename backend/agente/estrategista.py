@@ -100,6 +100,9 @@ def plano(repo, fonte, empresa_id: str, aplicar: bool = False, agora=None) -> di
                 dados = rascunho["dados"]
             dados["motivo_grupo"] = motivo
             dados["chance"] = chance(dev)
+            # O grupo de entrada não muda depois: quem fechou acordo vira "só lembrete",
+            # mas continua contando para o Cientista como caso que o agente procurou.
+            dados.setdefault("grupo_entrada", c.get("grupo") or grupo)
             campos = {"grupo": grupo, "dados": dados, "grupo_controle": bool(no_controle)}
             if c["situacao"] == "novo" and grupo == "so_lembrete" and not no_controle:
                 campos["situacao"] = estado.mudar("novo", "so_lembrete")
