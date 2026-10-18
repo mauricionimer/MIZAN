@@ -1393,7 +1393,12 @@ class AlterarSenhaIn(BaseModel):
 
 @app.post("/auth/login")
 def auth_login(body: LoginIn, request: Request):
-    chave = f"{request.client.host}:{body.email}"
+    # E-mail normalizado como o buscar_usuario faz: antes "CMD@x.com" e
+    # "cmd@x.com" eram o mesmo usuário com cotas separadas (força bruta livre).
+    # IP real (primeiro do X-Forwarded-For): sem ele todos chegam com o IP do
+    # proxy, e 5 senhas erradas de um estranho trancavam o dono da conta.
+    _email = (body.email or "").strip().lower()
+    chave = f"{_limite.ip_da_requisicao(request)}:{_email}"
     _checar_rate_limit(chave)
     usuario = buscar_usuario(body.email)
     senha_ok = bool(usuario and usuario.get("ativo") and verificar_senha(body.senha, usuario.get("senha_hash", "")))
@@ -1632,12 +1637,12 @@ def auth_esqueci_senha(body: EsqueciSenhaIn, background_tasks: BackgroundTasks):
                                         "global": not _ok_geral}))
         return {"ok": True, "mensagem": "Se o e-mail estiver cadastrado, você receberá as instruções em breve."}
 
-    token = criar_reset_token(body.email)
+    token = criar_reset_token(_email)
     if token:
-        usuario = buscar_usuario(body.email)
+        usuario = buscar_usuario(_email)
         nome = usuario.get("nome", "usuário") if usuario else "usuário"
         link = f"{FRONTEND_URL}/redefinir-senha?token={token}"
-        background_tasks.add_task(email_redefinir_senha, body.email, nome, link)
+        background_tasks.add_task(email_redefinir_senha, _email, nome, link)
     return {"ok": True, "mensagem": "Se o e-mail estiver cadastrado, você receberá as instruções em breve."}
 
 @app.get("/conexoes")

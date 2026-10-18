@@ -103,18 +103,40 @@ def _empresa_do_email(email: str) -> str:
     return email.split('@')[1] if '@' in email else 'mizan_default'
 
 
+def _senha_do_primeiro_admin() -> tuple:
+    """(senha, de_onde). Em produção nunca é uma senha conhecida.
+
+    Antes, banco novo (ou limpo) ganhava um COMANDO com a senha fixa
+    'mizan123', escrita no código e impressa no log. Agora, com SUPABASE_URL
+    definido (produção), vale ADMIN_SENHA do ambiente, se for forte; sem ela,
+    uma senha aleatória que ninguém vê: o acesso sai pelo "esqueci a senha".
+    Só sem SUPABASE_URL (máquina de desenvolvimento) fica a senha de sempre.
+    """
+    if not os.getenv("SUPABASE_URL"):
+        return "mizan123", "padrao_dev"
+    do_ambiente = os.getenv("ADMIN_SENHA", "")
+    if do_ambiente:
+        try:
+            validar_forca_senha(do_ambiente)
+            return do_ambiente, "ambiente"
+        except ValueError:
+            print("[Auth] ADMIN_SENHA fraca: ignorada; criada senha aleatória.")
+    return secrets.token_urlsafe(24), "aleatoria"
+
+
 def garantir_admin():
     """Cria o admin padrão se a tabela estiver vazia. Chamado no startup."""
     try:
         db = _db()
         res = db.table("usuarios").select("id").limit(1).execute()
         if not res.data:
-            email = os.getenv("ADMIN_EMAIL", "admin@mizan.com")
+            email = os.getenv("ADMIN_EMAIL", "admin@mizan.com").strip().lower()
+            senha, origem = _senha_do_primeiro_admin()
             admin = {
                 "id":         secrets.token_hex(8),
                 "email":      email,
                 "nome":       "Administrador",
-                "senha_hash": hash_senha("mizan123"),
+                "senha_hash": hash_senha(senha),
                 "role":       "comando",
                 "ativo":      True,
                 "empresa_id": "",
@@ -122,8 +144,15 @@ def garantir_admin():
             db.table("usuarios").insert(admin).execute()
             print("\n[Auth] *** Primeiro acesso — usuário padrão criado ***")
             print(f"[Auth]     E-mail: {email}")
-            print("[Auth]     Senha:  mizan123")
-            print("[Auth]     Troque a senha após o primeiro login.\n")
+            if origem == "padrao_dev":
+                print("[Auth]     Senha:  mizan123 (só em desenvolvimento)")
+                print("[Auth]     Troque a senha após o primeiro login.\n")
+            elif origem == "ambiente":
+                print("[Auth]     Senha:  a de ADMIN_SENHA.\n")
+            else:
+                # A senha não vai para o log: o log do Render fica guardado.
+                print("[Auth]     Senha aleatória (não exibida). Use \"esqueci a senha\" "
+                      "ou defina ADMIN_SENHA antes do primeiro deploy.\n")
     except Exception as e:
         print(f"[Auth] Aviso: não foi possível verificar admin padrão: {e}")
 
@@ -176,6 +205,8 @@ def alterar_senha(email: str, senha_atual: str, nova_senha: str) -> bool:
 
 def criar_reset_token(email: str) -> str | None:
     """Gera token de reset de senha válido por 1 hora. Retorna None se e-mail não existe."""
+    # E-mail gravado em minúsculo: "Ana@X.com" achava ninguém e o link nunca saía.
+    email = (email or "").strip().lower()
     db = _db()
     if not db.table("usuarios").select("id").eq("email", email).execute().data:
         return None
