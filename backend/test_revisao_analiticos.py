@@ -222,8 +222,155 @@ def t_supervisor():
     checar(p["detalhe"].get("aprovado") is True and "aprovado" in api._explicar(p), "5. com IA continua 'aprovado'")
 
 
+# ── 8 e 9. api: leitura em lote, retorno com trava, dia de Brasília ─────────
+
+class RepoContado(RepoMemoria):
+    """RepoMemoria que conta as leituras da carteira inteira."""
+    def __init__(self):
+        super().__init__()
+        self.leituras = {"casos_da_empresa": 0, "caso_de": 0, "casos_por_predicoes": 0}
+
+    def casos_da_empresa(self, *a, **k):
+        self.leituras["casos_da_empresa"] += 1
+        return super().casos_da_empresa(*a, **k)
+
+    def caso_de(self, *a, **k):
+        self.leituras["caso_de"] += 1
+        return super().caso_de(*a, **k)
+
+    def casos_por_predicoes(self, *a, **k):
+        self.leituras["casos_por_predicoes"] += 1
+        return super().casos_por_predicoes(*a, **k)
+
+
+def t_api_lotes():
+    repo, fonte = RepoContado(), FonteMemoria([devedor(id=f"p{i}") for i in range(5)])
+    for i in range(5):
+        repo.obter_ou_criar_caso("emp", f"p{i}")
+    c = repo.caso_de("emp", "p1")
+    repo.salvar_caso(c["id"], {"dados": {"passagem": {"quando": AGORA.isoformat(), "motivo": "falha", "emocao": "calmo",
+                                                      "urgencia": "baixa"}}})
+    fonte.criar_agenda("emp", devedor(id="p1"), "retorno", "2026-10-20",
+                       observacao="Transferido pelo assistente (falha): resumo", operador=("a-definir", "A definir"))
+    fonte._operadores = [{"id": "op9", "nome": "Ana"}]
+    antes = api.fabrica_repo, api.fabrica_fonte
+    api.fabrica_repo, api.fabrica_fonte = (lambda: repo), (lambda: fonte)
+    try:
+        repo.leituras = dict.fromkeys(repo.leituras, 0)
+        f = api.passagens_da_fila("emp", ["p1", "p3"], AGORA)
+        a = api.agenda("emp")
+        item = a["itens"][0]
+        r = api.atribuir("emp", item["id"], "op9")
+        checar(set(f) == {"p1"} and a["itens"][0]["passagem"] and r["ok"], "8. fila, agenda e atribuir funcionam em lote")
+        checar(repo.leituras["casos_da_empresa"] == 0 and repo.leituras["casos_por_predicoes"] == 2,
+               "8. sem ler a carteira inteira de casos", str(repo.leituras))
+        # Retorno do atendente: trava o caso e grava com dono.
+        rr = api.registrar_retorno_passagem("emp", "p1", True, "ana@x", "ajudou", agora=AGORA)
+        c = repo.caso_de("emp", "p1")
+        checar(rr["ajudou"] and c["dados"]["passagem"]["retorno"]["por"] == "ana@x" and c["trava_dono"] is None,
+               "8. retorno grava e solta a trava")
+        repo.travar_caso(c["id"], "agente", AGORA + timedelta(minutes=5), AGORA)
+        try:
+            api.registrar_retorno_passagem("emp", "p1", False, "ana@x", agora=AGORA)
+            checar(False, "8. caso travado pelo agente: retorno espera (CasoOcupado)")
+        except api.CasoOcupado:
+            checar(repo.caso_de("emp", "p1")["dados"]["passagem"]["retorno"]["ajudou"] is True,
+                   "8. caso travado pelo agente: retorno espera (CasoOcupado)")
+    finally:
+        api.fabrica_repo, api.fabrica_fonte = antes
+
+
+def t_plano_sem_consulta_por_devedor():
+    repo, fonte = RepoContado(), FonteMemoria([devedor(id=f"p{i}") for i in range(30)])
+    repo.gravar_politica("emp", 1, {**REGRAS, "percentual_controle": 0})
+    estrategista.plano(repo, fonte, "emp", aplicar=False)
+    estrategista.plano(repo, fonte, "emp", aplicar=True, agora=em(DIA))
+    checar(repo.leituras["caso_de"] == 0 and repo.leituras["casos_por_predicoes"] <= 2,
+           "8. plano não faz uma consulta por devedor", str(repo.leituras))
+
+
+def t_custo_do_dia_brasilia():
+    repo = RepoMemoria()
+    dias = []
+    repo.custo_do_dia = lambda emp, dia: dias.append(dia) or 0.0
+    antes = api.fabrica_repo
+    api.fabrica_repo = lambda: repo
+    try:
+        noite = datetime(2026, 10, 20, 1, 30, tzinfo=timezone.utc)          # 22h30 do dia 19 em Brasília
+        api.central("emp", noite)
+        api.agentes("emp", noite)
+    finally:
+        api.fabrica_repo = antes
+    checar(dias == [date(2026, 10, 19)] * 2, "9. custo do dia usa o dia de Brasília", str(dias))
+    import inspect
+    fonte_api = inspect.getsource(api)
+    checar(fonte_api.count("# TODO junção: empresa_id=empresa_id") == 4, "9. as 4 chamadas de processar_fila marcadas para a junção")
+
+
+# ── 6. Estrategista com IA ──────────────────────────────────────────────────
+
+BANDIT = {"oferta": "desconto_30pct", "modo": "calibrado", "total_interacoes": 12, "canal": "whatsapp",
+          "n_tentativas_acao": 4}
+
+
+def _dec_est(**d):
+    base = {"decisao": "abordar", "tom": "acolhedor", "oferta_inicial": "parcelado_12x", "concorda_bandit": True,
+            "raciocinio": "sigo o modelo", "mensagem": "Temos condições para regularizar a sua pendência. Podemos conversar?"}
+    return json.dumps({**base, **d})
+
+
+def _mundo_est(ids, bandit=None, politica=None):
+    repo, fonte = RepoMemoria(), FonteMemoria([devedor(id=i, probabilidade_pagamento=0.3) for i in ids])
+    fonte._bandit = dict(bandit or BANDIT)
+    repo.gravar_politica("emp", 1, {**REGRAS, "percentual_controle": 0, **(politica or {})})
+    return repo, fonte
+
+
+def t_estrategista_ia():
+    from agente import estrategista_ia
+    com_papeis(("estrategista",))
+    # concorda_bandit é conta do código, não palavra da IA
+    repo, fonte = _mundo_est(["p0"])
+    estrategista.plano(repo, fonte, "emp", aplicar=True, agora=em(DIA))
+    cli = ClienteFalso({"estrategista": [_dec_est()]})
+    orq.processar_fila(repo, api.grafos(fonte), cli, limite=50, agora=em(DIA))
+    est = repo.caso_de("emp", "p0")["dados"]["estrategia"]
+    checar(est["oferta_inicial"] == "parcelado_12x" and est["concorda_bandit"] is False,
+           "6. IA diz que concorda, mas a oferta é outra: concorda_bandit False", str(est))
+    ficha = json.loads(cli.chamadas[0]["mensagens"][0]["content"].removeprefix("<ficha>").removesuffix("</ficha>"))
+    checar(ficha["bandit"]["resultados_desta_oferta"] == 4 and ficha["bandit"]["dentro_da_politica"] is True,
+           "6. ficha traz nº de resultados da oferta e se ela cabe na política", str(ficha["bandit"]))
+    checar("centenas" not in estrategista_ia.SISTEMA and "pelo menos 3" in estrategista_ia.SISTEMA
+           and estrategista_ia.VERSAO_PROMPT == "estrategista-v2", "6. prompt honesto sobre 'calibrado' (estrategista-v2)")
+    # bandit com oferta fora da política
+    repo, fonte = _mundo_est(["p0"], politica={"desconto_max_pct": 20.0})
+    estrategista.plano(repo, fonte, "emp", aplicar=True, agora=em(DIA))
+    cli = ClienteFalso({"estrategista": [_dec_est()]})
+    orq.processar_fila(repo, api.grafos(fonte), cli, limite=50, agora=em(DIA))
+    ficha = json.loads(cli.chamadas[0]["mensagens"][0]["content"].removeprefix("<ficha>").removesuffix("</ficha>"))
+    checar(ficha["bandit"]["dentro_da_politica"] is False, "6. oferta do bandit fora da política aparece como tal")
+    # limite por dia, não por chamada do plano
+    os.environ["MIZAN_ESTRATEGISTA_MAX"] = "1"
+    try:
+        repo, fonte = _mundo_est(["q0"])
+        estrategista.plano(repo, fonte, "emp", aplicar=True, agora=em(DIA))
+        orq.processar_fila(repo, api.grafos(fonte), ClienteFalso({"estrategista": [_dec_est(), _dec_est()]}),
+                           limite=50, agora=em(DIA))
+        fonte._devedores["q1"] = devedor(id="q1", probabilidade_pagamento=0.3)
+        estrategista.plano(repo, fonte, "emp", aplicar=True, agora=em(DIA) + timedelta(hours=2))
+        com_ia = {e["chave"]: e["dados"].get("com_ia") for e in repo.eventos.values()}
+        checar(com_ia == {"abordagem:q0": True, "abordagem:q1": False}, "6. limite diário vale para o dia, não por chamada",
+               str(com_ia))
+        fonte._devedores["q2"] = devedor(id="q2", probabilidade_pagamento=0.3)
+        estrategista.plano(repo, fonte, "emp", aplicar=True, agora=em(DIA + timedelta(days=3)))     # outro dia
+        checar(repo.evento_por_chave("emp", "abordagem:q2")["dados"]["com_ia"] is True, "6. no dia seguinte o limite recomeça")
+    finally:
+        os.environ.pop("MIZAN_ESTRATEGISTA_MAX", None)
+
+
 TESTES = [t_grupo_entrada, t_selo_com_direcao, t_cientista_travas, t_cientista_segmentos_e_faixa,
-          t_cientista_hipotese_passagens, t_passagem_cabe, t_supervisor]
+          t_cientista_hipotese_passagens, t_passagem_cabe, t_supervisor, t_api_lotes, t_plano_sem_consulta_por_devedor,
+          t_custo_do_dia_brasilia, t_estrategista_ia]
 
 if __name__ == "__main__":
     for t in TESTES:

@@ -21,7 +21,7 @@ paga se for cobrado).
 """
 import hashlib
 
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 from agente import auditor, estado, estrategista_ia, ferramentas
 from agente.llm import ia_ligada
@@ -77,9 +77,16 @@ def plano(repo, fonte, empresa_id: str, aplicar: bool = False, agora=None) -> di
     pct = pol["percentual_controle"] if pol else 0
     saida = {g: [] for g in GRUPOS}
     controle = []
-    com_ia = 0                          # abordagens que o Estrategista com IA analisa hoje
-    for dev in fonte.devedores(empresa_id):
-        caso = repo.caso_de(empresa_id, dev["id"])
+    devedores = list(fonte.devedores(empresa_id))
+    # Os casos de uma vez, em lotes (não uma consulta por devedor).
+    casos = {str(c["predicao_id"]): c for c in repo.casos_por_predicoes(empresa_id, [d["id"] for d in devedores])}
+    # Limite da IA por dia de Brasília (não por chamada do plano): conta quem já
+    # passou pela IA hoje, anotado no caso.
+    hoje = (agora or datetime.now(timezone.utc)).astimezone(auditor.BRASILIA).date().isoformat()
+    com_ia = sum(1 for c in casos.values() if (c.get("dados") or {}).get("abordagem_ia_em") == hoje)
+    novos_ia = 0                        # desta chamada: só eles entram nos lotes de 10 minutos
+    for dev in devedores:
+        caso = casos.get(str(dev["id"]))
         grupo, motivo = classificar(dev, caso)
         no_controle = caso["grupo_controle"] if caso else sorteado(empresa_id, dev["id"], pct)
         item = {"id": dev["id"], "nome": dev.get("nome"), "valor_divida": dev.get("valor_divida"),
@@ -111,11 +118,15 @@ def plano(repo, fonte, empresa_id: str, aplicar: bool = False, agora=None) -> di
                 # Os primeiros do dia passam pelo Estrategista com IA, em lotes
                 # (limite de chamadas por minuto): o lote seguinte sai no ciclo seguinte.
                 analisar = ia_ligada("estrategista") and com_ia < estrategista_ia.max_por_dia()
-                lote = com_ia // estrategista_ia.POR_LOTE
-                registrar_evento(repo, empresa_id, c["id"], "abordagem", f"abordagem:{dev['id']}", {"com_ia": analisar},
-                                 origem="estrategista",
-                                 disponivel_em=(agora + timedelta(minutes=10 * lote)) if (analisar and agora and lote) else None)
-                com_ia += analisar
+                lote = novos_ia // estrategista_ia.POR_LOTE
+                _, novo = registrar_evento(repo, empresa_id, c["id"], "abordagem", f"abordagem:{dev['id']}",
+                                           {"com_ia": analisar}, origem="estrategista",
+                                           disponivel_em=(agora + timedelta(minutes=10 * lote)) if (analisar and agora and lote) else None)
+                if analisar and novo:
+                    com_ia += 1
+                    novos_ia += 1
+                    dados["abordagem_ia_em"] = hoje
+                    repo.salvar_caso(c["id"], {"dados": dados})
     return {"grupos": saida, "controle": controle, "percentual_controle": pct,
             "politica_versao": achada["versao"] if achada else None,
             "contagem": {**{g: len(v) for g, v in saida.items()}, "controle": len(controle)}}
