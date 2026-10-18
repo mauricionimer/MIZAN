@@ -36,7 +36,8 @@ class Resposta:
 
 
 class TetoExcedido(RuntimeError):
-    """O gasto do dia da empresa chegou ao teto: o caso vai para uma pessoa."""
+    """O gasto do dia da empresa chegou ao teto: o evento espera a virada do dia
+    (meia-noite de Brasília); o caso continua com o agente."""
 
 
 class PrecoDesconhecido(RuntimeError):
@@ -186,6 +187,25 @@ _PARADA = {"end_turn": "fim", "stop_sequence": "fim", "tool_use": "ferramenta",
 _ESFORCO = {"triagem": "low"}
 
 
+def _erros_momentaneos_anthropic() -> tuple:
+    """Erros da Anthropic que passam sozinhos. Import tolerante: sem o SDK (ou numa
+    versão sem alguma classe), a tupla fica menor e nada quebra."""
+    try:
+        import anthropic
+    except ImportError:
+        return ()
+    nomes = ("RateLimitError", "InternalServerError", "APIConnectionError", "APITimeoutError")
+    return tuple(c for c in (getattr(anthropic, n, None) for n in nomes) if isinstance(c, type))
+
+
+def _espera_anthropic(e) -> float:
+    """Segundos pedidos pelo cabeçalho retry-after, se houver; senão, 60."""
+    try:
+        return max(30.0, float(e.response.headers.get("retry-after")))
+    except (AttributeError, TypeError, ValueError):
+        return 60.0
+
+
 class ClienteAnthropic:
     """API oficial da Anthropic (SDK `anthropic`). A chave vem de ANTHROPIC_API_KEY.
 
@@ -209,7 +229,11 @@ class ClienteAnthropic:
             pedido["tools"] = ferramentas
         if papel in _ESFORCO:
             pedido["output_config"] = {"effort": _ESFORCO[papel]}
-        msg = self.sdk.messages.create(**pedido)
+        try:
+            msg = self.sdk.messages.create(**pedido)
+        except _erros_momentaneos_anthropic() as e:
+            # Cota, sobrecarga ou rede: o evento espera e tenta de novo (nunca vira transferência).
+            raise IaOcupada(f"Anthropic {type(e).__name__}", esperar_s=_espera_anthropic(e)) from None
         texto = "".join(b.text for b in msg.content if b.type == "text")
         chamadas = [{"id": b.id, "nome": b.name, "args": dict(b.input or {})}
                     for b in msg.content if b.type == "tool_use"]
@@ -242,52 +266,82 @@ class ErroGemini(RuntimeError):
 
 
 class IaOcupada(ErroGemini):
-    """Cota ou sobrecarga momentânea (429/500/503). O evento espera e tenta de novo;
-    não é motivo para tirar o caso do agente."""
+    """Falha momentânea da IA: cota, sobrecarga (429/5xx), rede ou tempo esgotado,
+    no Gemini ou na Anthropic. O evento espera e tenta de novo; não é motivo para
+    tirar o caso do agente."""
     def __init__(self, msg: str, esperar_s: float = 60.0):
         super().__init__(msg)
         self.esperar_s = esperar_s
 
 
+# Status que passam sozinhos: cota (429), erro do servidor e proxy (500/502/503/504).
+_HTTP_MOMENTANEO = (429, 500, 502, 503, 504)
+
+
+def _ler_json(bruto: bytes) -> dict | None:
+    """Corpo em JSON, ou None se veio outra coisa (página HTML de proxy, corpo cortado)."""
+    try:
+        d = json.loads(bruto or b"{}")
+    except ValueError:
+        return None
+    return d if isinstance(d, dict) else None
+
+
 def _enviar_http(url: str, corpo: dict, chave: str, timeout: float) -> dict:
+    """POST no Gemini com até 3 tentativas.
+
+    Falha momentânea (cota, servidor, proxy, rede, tempo esgotado ou corpo que não
+    é JSON) vira IaOcupada: o orquestrador adia o evento em vez de passar o caso
+    para uma pessoa. Só erro do pedido (400, 403...) vira ErroGemini.
+    """
+    import http.client
     import time
     import urllib.error
     import urllib.request
     dados = json.dumps(corpo).encode("utf-8")
+    motivo = "sem resposta"
     for tentativa in range(3):
         req = urllib.request.Request(url, data=dados, headers={"x-goog-api-key": chave,
                                                                "Content-Type": "application/json"})
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r:
-                return json.load(r)
+                d = _ler_json(r.read())
+            if d is not None:
+                return d
+            motivo = "resposta que não é JSON"
         except urllib.error.HTTPError as e:
-            erro = (json.loads(e.read() or b"{}").get("error") or {})
-            if e.code in (429, 500, 503) and tentativa < 2:
-                # O Google diz quanto esperar (RetryInfo, ex. "17s"); até 30 s, espera.
-                espera = 2.0 * (tentativa + 1)
-                for det in erro.get("details") or []:
-                    try:
-                        espera = max(espera, float(str(det.get("retryDelay", "0s")).rstrip("s")))
-                    except ValueError:
-                        pass
-                if espera <= 30:
-                    time.sleep(espera)
-                    continue
+            try:
+                bruto = e.read()
+            except Exception:                        # corpo do erro ilegível: segue sem ele
+                bruto = b""
+            erro = ((_ler_json(bruto) or {}).get("error") or {})
+            if not isinstance(erro, dict):
+                erro = {}
+            detalhes = [d for d in (erro.get("details") or []) if isinstance(d, dict)]
             # A mensagem do Google nunca traz a chave. Em cota estourada, diz qual.
-            cotas = [f"{v.get('quotaId')}={v.get('quotaValue')}" for det in erro.get("details") or []
+            cotas = [f"{v.get('quotaId')}={v.get('quotaValue')}" for det in detalhes
                      for v in det.get("violations") or []]
-            esperas = [det["retryDelay"] for det in erro.get("details") or [] if det.get("retryDelay")]
-            if e.code in (429, 500, 503):
-                segundos = 60.0
-                for s in esperas:
-                    try:
-                        segundos = max(segundos, float(str(s).rstrip("s")))
-                    except ValueError:
-                        pass
-                raise IaOcupada(f"Gemini HTTP {e.code} {erro.get('status', '')} cotas={cotas} esperar={esperas}",
-                                esperar_s=segundos) from None
-            raise ErroGemini(f"Gemini HTTP {e.code} {erro.get('status', '')} cotas={cotas} esperar={esperas}") from None
-    raise ErroGemini("Gemini sem resposta")
+            esperas = [det["retryDelay"] for det in detalhes if det.get("retryDelay")]
+            if e.code not in _HTTP_MOMENTANEO:
+                raise ErroGemini(f"Gemini HTTP {e.code} {erro.get('status', '')} cotas={cotas} esperar={esperas}") from None
+            pedido = 0.0
+            for s in esperas:
+                try:
+                    pedido = max(pedido, float(str(s).rstrip("s")))
+                except ValueError:
+                    pass
+            if tentativa < 2 and pedido <= 30:
+                # O Google diz quanto esperar (RetryInfo, ex. "17s"); até 30 s, espera aqui.
+                time.sleep(max(pedido, 2.0 * (tentativa + 1)))
+                continue
+            raise IaOcupada(f"Gemini HTTP {e.code} {erro.get('status', '')} cotas={cotas} esperar={esperas}",
+                            esperar_s=max(60.0, pedido)) from None
+        except (urllib.error.URLError, TimeoutError, ConnectionError, http.client.HTTPException, OSError) as e:
+            # Rede: DNS, conexão recusada ou derrubada (RemoteDisconnected), tempo esgotado.
+            motivo = type(e).__name__
+        if tentativa < 2:
+            time.sleep(2.0 * (tentativa + 1))
+    raise IaOcupada(f"Gemini indisponível: {motivo}", esperar_s=60.0)
 
 
 def _para_gemini(mensagens: list) -> list:
