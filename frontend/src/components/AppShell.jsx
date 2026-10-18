@@ -283,21 +283,17 @@ export function ShellLayout() {
     <ShellCtx.Provider value={{ slotAcoes }}>
       <div className="flex min-h-screen bg-surface-2 font-sans text-ink">
 
-        {/* ───── Menu fixo (telas médias para cima) ───── */}
-        <aside className="panel-surface fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r md:flex">
-          {cabecaDoMenu}
-          <Navegacao grupos={grupos} ativo={ativo} acionar={acionar} sair={sair} idDestaque="lateral" />
-        </aside>
+        {/* Menu em gaveta em todas as telas: abre pelo botão ☰ e não ocupa espaço. */}
 
         {/* ───── Gaveta (celular) ───── */}
         <AnimatePresence>
           {gaveta && (
             <>
-              <motion.div key="fundo" className="fixed inset-0 z-40 bg-black/50 md:hidden"
+              <motion.div key="fundo" className="fixed inset-0 z-40 bg-black/50"
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}
                 onClick={() => setGaveta(false)} aria-hidden="true" />
               <motion.aside ref={caixaGaveta} key="gaveta" role="dialog" aria-modal="true" aria-label="Menu"
-                className="panel-surface fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r md:hidden"
+                className="panel-surface fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r"
                 initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }}
                 transition={reduzir ? { duration: 0 } : { type: 'spring', stiffness: 420, damping: 42 }}>
                 <div className="flex items-center justify-between pr-3">
@@ -312,11 +308,11 @@ export function ShellLayout() {
         </AnimatePresence>
 
         {/* ───── Coluna principal ───── */}
-        <div className="flex min-w-0 flex-1 flex-col md:pl-60">
+        <div className="flex min-w-0 flex-1 flex-col">
           <header className="navbar-glass sticky top-0 z-20 flex h-16 items-center justify-between gap-3 px-4 md:px-8">
             <div className="flex min-w-0 items-center gap-2 text-sm">
               <button onClick={() => setGaveta(true)} aria-label="Abrir menu" aria-expanded={gaveta}
-                className="-ml-1 rounded-lg p-2 text-ink-2 hover:bg-raise-2 md:hidden"><Menu className="h-5 w-5" /></button>
+                className="-ml-1 rounded-lg p-2 text-ink-2 hover:bg-raise-2"><Menu className="h-5 w-5" /></button>
               {/* Sem o nome da tela aqui: o menu já marca onde a pessoa está, e cada
                   tela tem o próprio título. */}
               <span className="truncate font-semibold text-ink">{nomeEmpresa}</span>
