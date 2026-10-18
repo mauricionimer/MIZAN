@@ -1,9 +1,10 @@
 """Grafo de uma mensagem do devedor (docs/PLANO_EXECUCAO_AGENTES.md, 4.3).
 
     receber ─► (caso com pessoa/suspenso/contestado/quitado) ─► avisar equipe ─► FIM
-           └─► triagem ─┬─ parar / pessoa errada ─► suspender ─┐
-                        ├─ contestar ──────────────► contestar ─┤
-                        ├─ pedir pessoa / sofrimento ► transferir┼─► resposta fixa ─► enviar ─► FIM
+           └─► triagem ─┬─ sofrimento grave ───────► transferir ─┐  (suspende ou contesta antes, se pediu)
+                        ├─ parar / pessoa errada ─► suspender ──┤
+                        ├─ contestar ──────────────► contestar ──┤
+                        ├─ pedir pessoa ───────────► transferir ─┼─► resposta fixa ─► enviar ─► FIM
                         └─ o resto ─────────────────► negociar ──────────────────────► enviar ─► FIM
 
 As decisões de segurança são código; só "negociar" usa a IA de conversa.
@@ -38,11 +39,15 @@ def grafo_mensagem(fonte) -> Grafo:
 
     def rota(ctx):
         t = ctx.saida["triagem"]
+        # Risco à vida vem antes de tudo: mesmo com "me deixa em paz", a equipe
+        # precisa ficar sabendo (o nó transferir também suspende ou contesta).
+        if "sofrimento_grave" in t["sinais_de_risco"]:
+            return "transferir"
         if t["intencao"] in ("parar_contato", "pessoa_errada"):
             return "suspender"
         if t["intencao"] == "contestar":
             return "contestar"
-        if t["intencao"] == "pedir_pessoa" or "sofrimento_grave" in t["sinais_de_risco"]:
+        if t["intencao"] == "pedir_pessoa":
             return "transferir"
         return "negociar"
 
@@ -54,11 +59,22 @@ def grafo_mensagem(fonte) -> Grafo:
         _executar_seguro(ctx, fonte, "abrir_contestacao", {"motivo": "Devedor não reconhece a dívida."})
 
     def transferir(ctx):
-        grave = "sofrimento_grave" in ctx.saida["triagem"]["sinais_de_risco"]
+        t = ctx.saida["triagem"]
+        grave = "sofrimento_grave" in t["sinais_de_risco"]
+        resumo = "O devedor pediu para falar com uma pessoa."
+        if grave:
+            # O pedido de parar (ou a contestação) vale junto: a cobrança para,
+            # e a equipe recebe o retorno prioritário para acolher, não para cobrar.
+            resumo = "Sinais de sofrimento grave na mensagem: atender com prioridade."
+            if t["intencao"] in ("parar_contato", "pessoa_errada"):
+                suspender(ctx)
+                resumo += (" Diz que não é a pessoa procurada" if t["intencao"] == "pessoa_errada"
+                           else " Pediu para não ser mais cobrada") + ": não cobrar, só acolher."
+            elif t["intencao"] == "contestar":
+                contestar(ctx)
+                resumo += " A pessoa não reconhece a dívida (contestação aberta)."
         _executar_seguro(ctx, fonte, "transferir_para_humano", {
-            "motivo": "dificuldade_grave" if grave else "pedido_do_devedor",
-            "resumo": "Sinais de sofrimento grave na mensagem: atender com prioridade." if grave
-                      else "O devedor pediu para falar com uma pessoa."})
+            "motivo": "dificuldade_grave" if grave else "pedido_do_devedor", "resumo": resumo})
 
     def resposta_fixa(ctx):
         ctx.saida["resposta"] = negociador.mensagem_fixa(ctx)

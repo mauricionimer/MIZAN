@@ -100,6 +100,10 @@ FIXAS = {
     "com_pessoa": "Certo. Vou passar a nossa conversa para uma pessoa da equipe, que continua o atendimento.",
     "apoio": "Sinto muito que você esteja passando por isso. Vou passar a conversa para uma pessoa da "
              "equipe. Se precisar conversar com alguém agora, o CVV atende 24 horas pelo telefone 188.",
+    "apoio_sem_contato": "Sinto muito que você esteja passando por isso. Registramos seu pedido e não vamos mais "
+                         "cobrar você por aqui. Se precisar conversar com alguém agora, o CVV atende 24 horas "
+                         "pelo telefone 188.",
+    "cvv": "Se precisar conversar com alguém agora, o CVV atende 24 horas pelo telefone 188.",
 }
 
 
@@ -108,6 +112,12 @@ def mensagem_fixa(ctx) -> str | None:
     s = ctx.caso["situacao"]
     tri = ctx.saida.get("triagem") or {}
     if "sofrimento_grave" in tri.get("sinais_de_risco", []):
+        # Quem pediu para parar (ou não reconhece a dívida) não ouve promessa de
+        # contato: a equipe recebe o aviso, mas a mensagem só acolhe e indica o CVV.
+        if s == "suspenso":
+            return FIXAS["apoio_sem_contato"]
+        if s == "contestado":
+            return FIXAS["contestado"] + " " + FIXAS["cvv"]
         return FIXAS["apoio"]
     if s == "suspenso":
         motivo = ((ctx.caso.get("dados") or {}).get("suspensao") or {}).get("motivo")
