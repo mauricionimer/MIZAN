@@ -187,7 +187,16 @@ def _briefing(ctx, devedor_nome: str) -> str:
 def _permitidos(ctx, resultados: list, texto_devedor: str = "") -> dict:
     d = ctx.caso.get("dados") or {}
     # Simulação fora da política não pode aparecer no texto: o agente não oferece o que o Auditor barra.
-    base = [r for r in resultados if r.get("dentro_da_politica") is not False]
+    # Limites da política (consultar_politica) nunca viram valor citável; do caso só valem a
+    # dívida e os compromissos (dias de atraso não é valor).
+    base = []
+    for r in resultados:
+        nome = r.get("_ferramenta")
+        if r.get("dentro_da_politica") is False or nome == "consultar_politica":
+            continue
+        if nome == "consultar_caso":
+            r = {k: r[k] for k in ("valor_divida", "compromissos") if k in r}
+        base.append(r)
     base += [{"conta": s.get("conta"), "n_parcelas": s["condicoes"]["n_parcelas"],
               "desconto_pct": s["condicoes"]["desconto_pct"], "entrada_pct": s["condicoes"]["entrada_pct"]}
              for s in d.get("simulacoes") or []]
@@ -290,7 +299,7 @@ def _conversar(ctx, fonte, texto_devedor: str, notas: list) -> str | None:
             saidas = []
             for f in r.ferramentas:
                 res = ferramentas.executar(ctx, fonte, f["nome"], f.get("args") or {})
-                resultados.append(res)
+                resultados.append({**res, "_ferramenta": f["nome"]})     # o nome decide o que vira valor citável
                 if res.get("ok"):
                     feitas.add(f["nome"])
                     t = _nota(f["nome"], f.get("args") or {}, res)

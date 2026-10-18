@@ -110,6 +110,49 @@ def test_triagem_tolera_forma():
         pass
 
 
+# ── (b), (c), (h), (i), (j) travas de saída ─────────────────────────────────
+
+def test_limites_da_politica_e_dias_de_atraso_nao_viram_valor():
+    from agente import auditor, guardrails
+    pol = {"ok": True, "versao": 1, "regras": auditor.POLITICA_DEMONSTRACAO, "aviso": "x"}
+    caso_ = {"ok": True, "valor_divida": 15000.0, "dias_em_atraso": 95,
+             "compromissos": [{"id": "a1", "tipo": "promessa", "data": "2026-10-20", "valor": 270.0}]}
+    perm = guardrails.permitidos_de([pol, caso_])
+    assert guardrails.conferir("Consigo te dar até 30% de desconto.", perm)
+    assert guardrails.conferir("A parcela mínima é R$ 50,00.", perm)
+    assert guardrails.conferir("Fica R$ 95,00 por mês.", perm)
+    assert not guardrails.conferir("Sua dívida é de R$ 15.000,00 e a promessa de R$ 270,00 vence dia 20/10.", perm)
+
+
+def test_negociador_nao_cita_limite_da_politica():
+    r = rodar([("mensagem", "qual o máximo de desconto?")],
+              {"triagem": [tri("pagar_negociar")],
+               "negociador": [F("consultar_politica"), T("Consigo te dar até 30% de desconto."),
+                              T("Consigo te dar até 30% de desconto."), ]})
+    assert not any("30%" in s for s in r.saidas), r.saidas
+    assert "dizer de outro jeito" in r.saidas[-1]
+
+
+def test_reprovacao_diz_o_termo():
+    from agente import guardrails
+    perm = guardrails.permitidos_de([])
+    m = guardrails.conferir("Se não pagar, vamos processar você.", perm)
+    assert any("processar" in x for x in m), m
+    m = guardrails.conferir("Seu CPF é 123.456.789-00.", perm)
+    assert m and not any("456" in x for x in m), m            # diz o tipo, nunca repete o dado
+
+
+def test_acoes_ditas_com_outras_palavras():
+    from agente import guardrails
+    perm = guardrails.permitidos_de([])
+    for t in ["Combinado, te chamo dia 20 às 10h.", "Pronto, sua cobrança está pausada.",
+              "Já avisei a equipe, vão te ligar amanhã.", "Seu acordo está aprovado!",
+              "Pagamento recebido, obrigado!", "Sua dívida está zerada.", "Anotado! A equipe confere."]:
+        assert guardrails.conferir(t, perm, feitas=set()), t
+    assert not guardrails.conferir("Pronto, sua cobrança está pausada.", perm, feitas={"suspender_cobranca"})
+    assert not guardrails.conferir("Posso pedir para a equipe te ligar?", perm, feitas=set())
+
+
 if __name__ == "__main__":
     import sys
     falhas = 0

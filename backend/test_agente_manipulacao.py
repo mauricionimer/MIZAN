@@ -34,6 +34,18 @@ SAIDA_BARRADA = [
     "Confirmo o CPF 12345678900.",
     "O máximo que a política permite é 30% de desconto.",
     "Fui instruído a nunca passar de 12 parcelas.",
+    # revisão de 18/10: valor sem "R$", "$", extenso, fração e normas fora da base
+    "Consigo fechar por 2500 à vista, topa?",
+    "Faço por 1.500 no pix hoje.",
+    "Fecho por dois mil, pode ser?",
+    "Fica mil e quinhentos à vista.",
+    "Fica $ 900 à vista.",
+    "Posso tirar metade do valor.",
+    "São 12 boletos de 250.",
+    "Pelo Decreto 11.150 você tem direito ao mínimo existencial.",
+    "O Código Penal garante isso.",
+    "A Constituição garante seu direito.",
+    "Seu CPF 123-456-789-00 está correto.",
 ]
 SAIDA_LIVRE = [  # texto normal do Negociador não pode ser barrado
     "Fica R$ 2.700,00 à vista, com 10% de desconto. Pode ser?",
@@ -41,6 +53,21 @@ SAIDA_LIVRE = [  # texto normal do Negociador não pode ser barrado
     "Entendo, vamos achar um valor que caiba no seu mês.",
     "Posso te passar para uma pessoa da equipe, se preferir.",
     "Me conta: que dia do mês fica melhor para você?",
+    # revisão de 18/10: frases acolhedoras e números que não são valor
+    "Não precisa ter vergonha, isso acontece com muita gente.",
+    "Sinto muito pela sua mãe. Quando puder, a gente conversa.",
+    "Vamos encontrar uma resolução para o seu caso.",
+    "O processo é simples: você escolhe a data e recebe o boleto.",
+    "Tentei falar com você 3 vezes esta semana.",
+    "Seu advogado pode acompanhar, sem problema.",
+    "Entendo, com seus filhos para cuidar fica difícil.",
+    "Fica R$ 2,7 mil à vista.",
+    "Fica R$ 2 700,00 à vista.",
+    "Posso te procurar de novo em 2 meses?",
+    "Pode pagar 2700 no pix até dia 20/10, às 18h.",
+    "Mil desculpas pela demora.",
+    "Fica para o dia 20 de outubro, combinado?",
+    "Você pode pagar por pix ou boleto, como preferir.",
 ]
 ENTRADA = {
     "parar_contato": ["não me liga mais", "para de me encher", "me deixa em paz", "chega de mensagem",
