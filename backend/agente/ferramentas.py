@@ -165,6 +165,8 @@ def _verificar_identidade(ctx, fonte, dev, args):
         return {"ok": False, "erro": "limite de tentativas: transfira para uma pessoa"}
     certos = "".join(ch for ch in str(dev.get("cpf") or "") if ch.isdigit())[:3]
     dados = "".join(ch for ch in args["tres_primeiros_digitos_cpf"] if ch.isdigit())
+    if len(dados) == 11:
+        dados = dados[:3]                    # a pessoa mandou o CPF inteiro: valem os 3 primeiros
     if len(certos) == 3 and dados == certos:
         d["identidade_ok"] = True
         d["divida"] = float(dev.get("valor_divida") or 0)

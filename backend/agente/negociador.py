@@ -16,7 +16,7 @@ import json
 from datetime import date
 
 from agente import auditor, conhecimento, estado, ferramentas, guardrails, supervisor
-from agente.triagem import como_dado
+from agente.triagem import como_dado, mascarar
 
 VERSAO_PROMPT = "negociador-v9"            # v8: valor que não cabe não transfere            # v5: caderno; v6: emoção, urgência e ironia            # v3: blindagem; v4: só afirma o que fez, oferece pessoa e marca atendimento
 MAX_RODADAS = 8
@@ -140,7 +140,7 @@ def _historico(ctx) -> list:
     msgs = []
     for m in ctx.repo.ultimas_mensagens(ctx.caso["empresa_id"], ctx.caso["id"], MAX_HISTORICO + 1)[:-1]:
         papel = "user" if m["direcao"] == "entrada" else "assistant"
-        texto = (f"<mensagem_do_devedor>{como_dado(m['texto'])}</mensagem_do_devedor>" if papel == "user" else m["texto"])
+        texto = (f"<mensagem_do_devedor>{como_dado(mascarar(m['texto']))}</mensagem_do_devedor>" if papel == "user" else m["texto"])
         if msgs and msgs[-1]["role"] == papel:
             msgs[-1]["content"][0]["text"] += "\n" + texto
         else:
@@ -260,7 +260,7 @@ def _conversar(ctx, fonte, texto_devedor: str, notas: list) -> str | None:
     historico, pendente = _historico(ctx)
     mensagens = historico + [{"role": "user", "content": [
         {"type": "text", "text": _briefing(ctx, nome)},
-        {"type": "text", "text": f"{pendente}<mensagem_do_devedor>{como_dado(texto_devedor)}</mensagem_do_devedor>"}]}]
+        {"type": "text", "text": f"{pendente}<mensagem_do_devedor>{como_dado(mascarar(texto_devedor))}</mensagem_do_devedor>"}]}]
     resultados, reprovacoes, revisado = [], 0, False
     feitas: set = set()                     # ferramentas que rodaram com sucesso nesta resposta
     defs = ferramentas.definicoes()
