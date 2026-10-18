@@ -19,6 +19,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Security, BackgroundTasks, Request
+from fastapi import Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field, field_validator
@@ -3645,21 +3646,39 @@ def health():
 
 
 @app.get("/carteiras")
-def listar_carteiras(credentials: HTTPAuthorizationCredentials = Security(bearer)):
+def listar_carteiras(response: Response,
+                     credentials: HTTPAuthorizationCredentials = Security(bearer),
+                     empresa_id: Optional[str] = None,
+                     limite: int = Query(50, ge=1, le=200),
+                     offset: int = Query(0, ge=0)):
+    """Carteiras da empresa de quem chama, das mais novas para as mais antigas.
+
+    Antes, quem estava SEM empresa ("remover da empresa" grava empresa_id
+    vazio) caía no filtro por usuario_id e seguia listando as carteiras que
+    subiu na empresa antiga. Agora só o comando atua sem empresa: escolhe uma
+    com ?empresa_id= ou, sem ela, vê as que ele mesmo analisou.
+
+    `limite`/`offset` paginam (antes cortava em 50 sem aviso); o total vem no
+    cabeçalho X-Total-Count, para a lista continuar sendo uma lista.
+    """
     payload = _usuario_autenticado(credentials)
     usuario_id = payload.get("sub")
-    empresa_id = payload.get("empresa_id", "")
-    try:
-        db = get_db()
-        q = db.table("carteiras").select("id, nome_arquivo, created_at, total_devedores, valor_face, valor_esperado, score_medio")
-        if empresa_id:
-            q = q.eq("empresa_id", empresa_id)
-        elif usuario_id:
-            q = q.eq("usuario_id", usuario_id)
-        res = q.order("created_at", desc=True).limit(50).execute()
-        return res.data
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {e}")
+    role = payload.get("role")
+    emp = payload.get("empresa_id", "")
+    if role == "comando":
+        emp = (empresa_id or "").strip()
+    elif not emp:
+        raise HTTPException(status_code=403, detail="Acesso negado: usuário sem empresa definida.")
+    db = get_db()
+    q = db.table("carteiras").select(
+        "id, nome_arquivo, created_at, total_devedores, valor_face, valor_esperado, score_medio",
+        count="exact")
+    q = q.eq("empresa_id", emp) if emp else q.eq("usuario_id", usuario_id)
+    res = q.order("created_at", desc=True).range(offset, offset + limite - 1).execute()
+    total = getattr(res, "count", None)
+    if isinstance(total, int):
+        response.headers["X-Total-Count"] = str(total)
+    return res.data or []
 
 
 # Os mesmos cortes de frontend/src/utils/prioridade.js. Prioridade é posição na
@@ -4181,18 +4200,16 @@ def carregar_carteira(carteira_id: str, incluir_ranking: bool = True,
     isso em silêncio quebraria o cliente do outro lado.
     """
     payload = _usuario_autenticado(credentials)
-    empresa_id = payload.get("empresa_id", "")
-    usuario_id = payload.get("sub")
     db = get_db()
 
-    q = db.table("carteiras").select("*").eq("id", carteira_id)
-    if empresa_id:
-        q = q.eq("empresa_id", empresa_id)
-    elif usuario_id:
-        q = q.eq("usuario_id", usuario_id)
-    cart_res = q.execute()
+    # Mesma regra das outras rotas de carteira. Antes, quem estava sem empresa
+    # caía no filtro por usuario_id: um usuário removido da empresa seguia
+    # abrindo a carteira que subiu (CPF, renda), e o comando não abria nenhuma.
+    _exige_carteira_da_empresa(db, carteira_id, payload)
+    cart_res = db.table("carteiras").select("*").eq("id", carteira_id).limit(1).execute()
     if not cart_res.data:
         raise HTTPException(status_code=404, detail="Carteira não encontrada.")
+    empresa_id = cart_res.data[0].get("empresa_id") or payload.get("empresa_id", "")
 
     predicoes = _todas_as_linhas(
         lambda: db.table("predicoes").select("*").eq("carteira_id", carteira_id).order("rank"))
