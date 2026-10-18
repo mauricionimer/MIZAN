@@ -213,7 +213,7 @@ def texto_para_agenda(ficha: dict, resumo_ia: str) -> str:
     partes = [resumo_ia]
     if ficha.get("valor_dito"):
         partes.append(f"Disse que consegue: {_brl(ficha['valor_dito'])}")
-    if ficha.get("tentado"):
+    if ficha.get("tentado") and "Oferecido: " not in (resumo_ia or ""):      # o resumo do Supervisor já traz
         partes.append("Já oferecido: " + "; ".join(t["resumo"] for t in ficha["tentado"][-3:]))
     if ficha.get("sugestao"):
         partes.append(f"Sugestão: {ficha['sugestao']['resumo']} ({ficha['sugestao']['motivo']})")

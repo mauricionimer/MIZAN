@@ -62,6 +62,8 @@ def _explicar(p: dict) -> str:
     if no == "resumo":
         return f"resumiu o caso para a equipe ({d.get('motivo') or 'passagem'})" + (" · texto de hoje" if d.get("origem") == "codigo" else "")
     if no == "revisao":
+        if d.get("origem") == "codigo" or d.get("aprovado") is None:
+            return f"não revisou (sem IA) · sinal: {d.get('sinal')}"
         return f"revisou o tom ({d.get('sinal')}): " + ("aprovado" if d.get("aprovado") else "pediu reescrita")
     if no == "estrategia":
         if d.get("origem") != "ia":

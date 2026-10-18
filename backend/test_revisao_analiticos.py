@@ -173,8 +173,57 @@ def t_passagem_cabe():
     checar(passagem.sinais_da_equipe([c], AGORA)["nao_coube"] == 0, "4. já oferecida que cabe não conta como 'não coube'")
 
 
+# ── 5. Supervisor: "Oferecido" do código, números conferidos, sem IA não aprova ──
+
+def _resumo_ia(**d):
+    base = {"situacao": "Quer negociar.", "o_que_quer": "Parcelar.", "emocao": "Calmo.",
+            "proximo_passo": "Oferecer a sugestão do sistema.", "emocao_nivel": "calmo", "urgencia": "baixa"}
+    return json.dumps({**base, **d})
+
+
+def _ctx_sup(cliente, dados=None):
+    from agente.rastreio import Rastreio
+    repo = RepoMemoria()
+    repo.gravar_politica("emp", 1, REGRAS)
+    caso = repo.obter_ou_criar_caso("emp", "p9")
+    caso["situacao"] = "negociando"
+    caso["dados"] = dados or {"divida": 3000.0, "identidade_ok": True}
+    return orq.Contexto(caso=caso, evento={"id": None, "tipo": "mensagem_devedor", "dados": {}}, repo=repo,
+                        rastreio=Rastreio("emp", repo.gravar_passo), cliente=cliente, hoje=AGORA.date(), agora=AGORA)
+
+
+def t_supervisor():
+    from agente import supervisor
+    com_papeis(("supervisor",))
+    # A IA diz que ofereceu 24x (nada foi simulado): "Oferecido" é do código.
+    ctx = _ctx_sup(ClienteFalso({"supervisor": [_resumo_ia(oferecido="Já ofereci 24x de R$ 50,00.")]}))
+    txt = supervisor.resumo_para_pessoa(ctx, "transferido (pedido_do_devedor)", "Pediu pessoa.", "pedido_do_devedor")
+    checar("Oferecido: nada ainda" in txt and "24x" not in txt, "5. 'Oferecido' montado em código", txt)
+    # Próximo passo com número inventado: vale a reserva.
+    ctx = _ctx_sup(ClienteFalso({"supervisor": [_resumo_ia(proximo_passo="Fechar 24x de R$ 50,00.")]}))
+    txt = supervisor.resumo_para_pessoa(ctx, "transferido (pedido_do_devedor)", "Pediu pessoa.", "pedido_do_devedor")
+    checar(txt.startswith("Pediu pessoa.") and "24x" not in txt, "5. número fora de tentado/sugestão: reserva", txt)
+    # Próximo passo com os números da sugestão: passa.
+    sug = passagem.sugerir_proposta({"dados": {"divida": 3000.0}}, REGRAS, 1, AGORA)
+    ctx = _ctx_sup(ClienteFalso({"supervisor": [_resumo_ia(proximo_passo=f"Oferecer {sug['resumo']}.")]}))
+    txt = supervisor.resumo_para_pessoa(ctx, "transferido (pedido_do_devedor)", "Pediu pessoa.", "pedido_do_devedor")
+    checar("Próximo passo: Oferecer" in txt, "5. números da sugestão passam", txt)
+    # Revisão sem IA não é "aprovado".
+    sem_papeis()
+    ctx = _ctx_sup(ClienteFalso({}))
+    checar(supervisor.revisar(ctx, "Pague logo.", "irritado") is None, "5. sem IA a revisão não pede reescrita")
+    p = ctx.repo.passos[-1]
+    checar(p["no"] == "revisao" and p["detalhe"].get("aprovado") is None, "5. sem IA não grava 'aprovado'", str(p["detalhe"]))
+    checar(api._explicar(p).startswith("não revisou (sem IA)"), "5. tela mostra 'não revisou (sem IA)'", api._explicar(p))
+    com_papeis(("supervisor",))
+    ctx = _ctx_sup(ClienteFalso({"supervisor": [json.dumps({"aprovado": True, "problema": ""})]}))
+    supervisor.revisar(ctx, "Entendo, vamos ver juntos.", "irritado")
+    p = ctx.repo.passos[-1]
+    checar(p["detalhe"].get("aprovado") is True and "aprovado" in api._explicar(p), "5. com IA continua 'aprovado'")
+
+
 TESTES = [t_grupo_entrada, t_selo_com_direcao, t_cientista_travas, t_cientista_segmentos_e_faixa,
-          t_cientista_hipotese_passagens, t_passagem_cabe]
+          t_cientista_hipotese_passagens, t_passagem_cabe, t_supervisor]
 
 if __name__ == "__main__":
     for t in TESTES:
