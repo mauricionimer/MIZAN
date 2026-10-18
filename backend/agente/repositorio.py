@@ -13,9 +13,28 @@ import threading
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
+# "Hoje" do negócio é o de Brasília (o servidor roda em UTC). Igual a auditor.BRASILIA.
+BRASILIA = timezone(timedelta(hours=-3))
+
+# Evento sem data marcada fica pronto já. O valor vai explícito no insert: com o
+# DEFAULT NOW() do banco, quem calculou `agora` antes de registrar não via o evento.
+PRONTO_JA = datetime(2000, 1, 1, tzinfo=timezone.utc)
+
+# Evento "processando" guarda em disponivel_em até quando a reserva vale. Passou
+# disso (o processo morreu no meio), volta para a fila. Prazo folgado: um turno com
+# IA real pode passar de 5 minutos; a trava do caso impede dois ao mesmo tempo.
+RESERVA_EVENTO = timedelta(minutes=15)
+
+PAGINA = 1000                     # o PostgREST corta em max-rows (1000 no Supabase)
+
 
 def agora_utc() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def inicio_do_dia_brasilia(dia: date) -> datetime:
+    """Meia-noite de Brasília do dia, em UTC."""
+    return datetime(dia.year, dia.month, dia.day, tzinfo=BRASILIA).astimezone(timezone.utc)
 
 
 def _dt(v):
@@ -88,8 +107,8 @@ class RepoMemoria:
                     raise EventoDuplicado(evento["chave"])
             e = {"id": str(uuid.uuid4()), "situacao": "pendente", "tentativas": 0, "erro": None,
                  "trace_id": None, "concluido_em": None, "criado_em": agora_utc(),
-                 # Sem data, pronto já: os testes rodam com relógio fixo no passado.
-                 "disponivel_em": datetime(2000, 1, 1, tzinfo=timezone.utc), **copy.deepcopy(evento)}
+                 # Sem data, pronto já (o mesmo que registrar_evento manda ao banco).
+                 "disponivel_em": PRONTO_JA, **copy.deepcopy(evento)}
             self.eventos[e["id"]] = e
             return copy.deepcopy(e)
 
@@ -99,9 +118,10 @@ class RepoMemoria:
                 return copy.deepcopy(e)
         return None
 
-    def candidatos(self, agora: datetime, limite: int = 10) -> list:
+    def candidatos(self, agora: datetime, limite: int = 10, empresa_id: str | None = None) -> list:
         prontos = [e for e in self.eventos.values()
-                   if e["situacao"] == "pendente" and e["disponivel_em"] <= agora]
+                   if e["situacao"] == "pendente" and e["disponivel_em"] <= agora
+                   and (empresa_id is None or e["empresa_id"] == empresa_id)]
         prontos.sort(key=lambda e: (-e["prioridade"], e["criado_em"]))
         return [copy.deepcopy(e) for e in prontos[:limite]]
 
@@ -111,7 +131,31 @@ class RepoMemoria:
             if not e or e["situacao"] != "pendente":
                 return False
             e["situacao"] = "processando"
+            e["disponivel_em"] = agora_utc() + RESERVA_EVENTO      # até quando a reserva vale
             return True
+
+    def devolver_evento(self, evento_id: str, disponivel_em) -> None:
+        """Devolve à fila um evento reservado que não deu para processar agora."""
+        with self._lock:
+            e = self.eventos.get(evento_id)
+            if e and e["situacao"] == "processando":
+                e["situacao"], e["disponivel_em"] = "pendente", _dt(disponivel_em) or PRONTO_JA
+
+    def devolver_presos(self, agora: datetime, max_falhas: int, empresa_id: str | None = None) -> int:
+        """Eventos "processando" com a reserva vencida (o processo caiu): voltam
+        para a fila contando uma falha; na última, viram "falhou"."""
+        n = 0
+        with self._lock:
+            for e in self.eventos.values():
+                if (e["situacao"] == "processando" and e["disponivel_em"] < agora
+                        and (empresa_id is None or e["empresa_id"] == empresa_id)):
+                    falhas = int(e.get("tentativas") or 0) + 1
+                    final = falhas >= max_falhas
+                    e.update(situacao="falhou" if final else "pendente", tentativas=falhas,
+                             erro="ReservaVencida", disponivel_em=agora,
+                             concluido_em=agora if final else None)
+                    n += 1
+        return n
 
     def atualizar_evento(self, evento_id: str, campos: dict) -> None:
         with self._lock:
@@ -122,6 +166,10 @@ class RepoMemoria:
     def gravar_mensagem(self, empresa_id: str, caso_id: str, direcao: str, texto: str,
                         trace_id: str | None = None, criado_em: datetime | None = None) -> None:
         with self._lock:
+            if direcao == "entrada" and trace_id and any(
+                    m["caso_id"] == caso_id and m["direcao"] == "entrada" and m["trace_id"] == trace_id
+                    for m in self.mensagens):
+                return                       # o mesmo evento rodou de novo: a mensagem já está lá
             self.mensagens.append({"empresa_id": empresa_id, "caso_id": caso_id, "direcao": direcao,
                                    "texto": texto, "trace_id": trace_id, "criado_em": criado_em or agora_utc()})
 
@@ -221,8 +269,10 @@ class RepoMemoria:
         return ok[0] if ok else None
 
     def custo_do_dia(self, empresa_id: str, dia: date) -> float:
+        """Gasto do dia de Brasília (o teto vira à meia-noite daqui, não às 21h)."""
         return round(sum(float(p["custo_usd"]) for p in self.passos
-                         if p["empresa_id"] == empresa_id and p["criado_em"].date() == dia), 6)
+                         if p["empresa_id"] == empresa_id
+                         and p["criado_em"].astimezone(BRASILIA).date() == dia), 6)
 
 
 class RepoSupabase:
@@ -306,17 +356,42 @@ class RepoSupabase:
                .eq("empresa_id", empresa_id).eq("chave", chave).limit(1).execute())
         return res.data[0] if res.data else None
 
-    def candidatos(self, agora: datetime, limite: int = 10) -> list:
-        res = (self.db.table("agente_eventos").select("*")
-               .eq("situacao", "pendente").lte("disponivel_em", agora.isoformat())
-               .order("prioridade", desc=True).order("criado_em")
-               .limit(limite).execute())
+    def candidatos(self, agora: datetime, limite: int = 10, empresa_id: str | None = None) -> list:
+        q = (self.db.table("agente_eventos").select("*")
+             .eq("situacao", "pendente").lte("disponivel_em", agora.isoformat()))
+        if empresa_id is not None:
+            q = q.eq("empresa_id", empresa_id)
+        res = q.order("prioridade", desc=True).order("criado_em").limit(limite).execute()
         return res.data or []
 
     def reservar_evento(self, evento_id: str) -> bool:
-        res = (self.db.table("agente_eventos").update({"situacao": "processando"})
+        ate = (agora_utc() + RESERVA_EVENTO).isoformat()
+        res = (self.db.table("agente_eventos").update({"situacao": "processando", "disponivel_em": ate})
                .eq("id", evento_id).eq("situacao", "pendente").execute())
         return bool(res.data)
+
+    def devolver_evento(self, evento_id: str, disponivel_em) -> None:
+        (self.db.table("agente_eventos")
+         .update({"situacao": "pendente", "disponivel_em": self._iso(disponivel_em or PRONTO_JA)})
+         .eq("id", evento_id).eq("situacao", "processando").execute())
+
+    def devolver_presos(self, agora: datetime, max_falhas: int, empresa_id: str | None = None) -> int:
+        q = (self.db.table("agente_eventos").select("id, tentativas, disponivel_em")
+             .eq("situacao", "processando").lt("disponivel_em", agora.isoformat()))
+        if empresa_id is not None:
+            q = q.eq("empresa_id", empresa_id)
+        n = 0
+        for e in q.limit(50).execute().data or []:
+            falhas = int(e.get("tentativas") or 0) + 1
+            final = falhas >= max_falhas
+            # Condicional: se outro processo já devolveu (ou terminou), não mexe.
+            res = (self.db.table("agente_eventos").update({
+                "situacao": "falhou" if final else "pendente", "tentativas": falhas, "erro": "ReservaVencida",
+                "disponivel_em": agora.isoformat(), "concluido_em": agora.isoformat() if final else None})
+                .eq("id", e["id"]).eq("situacao", "processando").lt("disponivel_em", agora.isoformat())
+                .execute())
+            n += 1 if res.data else 0
+        return n
 
     def atualizar_evento(self, evento_id: str, campos: dict) -> None:
         dados = {k: self._iso(v) for k, v in campos.items()}
@@ -327,6 +402,11 @@ class RepoSupabase:
     # model/retencao.py quando houver piloto (docs/PLANO_EXECUCAO_AGENTES.md, 7).
     def gravar_mensagem(self, empresa_id: str, caso_id: str, direcao: str, texto: str,
                         trace_id: str | None = None, criado_em: datetime | None = None) -> None:
+        if direcao == "entrada" and trace_id:
+            ja = (self.db.table("agente_mensagens").select("id").eq("caso_id", caso_id)
+                  .eq("direcao", "entrada").eq("trace_id", trace_id).limit(1).execute())
+            if ja.data:
+                return                       # o mesmo evento rodou de novo: a mensagem já está lá
         linha = {"empresa_id": empresa_id, "caso_id": caso_id, "direcao": direcao, "texto": texto,
                  "trace_id": trace_id}
         if criado_em is not None:
@@ -334,7 +414,7 @@ class RepoSupabase:
         self.db.table("agente_mensagens").insert(linha).execute()
 
     def ultimas_mensagens(self, empresa_id: str, caso_id: str, n: int = 20) -> list:
-        res = (self.db.table("agente_mensagens").select("direcao, texto, criado_em")
+        res = (self.db.table("agente_mensagens").select("direcao, texto, trace_id, criado_em")
                .eq("empresa_id", empresa_id).eq("caso_id", caso_id)
                .order("criado_em", desc=True).limit(n).execute())
         return list(reversed(res.data or []))
@@ -431,11 +511,20 @@ class RepoSupabase:
         self.db.table("agente_passos").insert(passo).execute()
 
     def custo_do_dia(self, empresa_id: str, dia: date) -> float:
-        inicio = datetime(dia.year, dia.month, dia.day, tzinfo=timezone.utc)
-        res = (self.db.table("agente_passos").select("custo_usd")
-               .eq("empresa_id", empresa_id)
-               .gte("criado_em", inicio.isoformat())
-               .lt("criado_em", (inicio + timedelta(days=1)).isoformat())
-               .gt("custo_usd", 0)
-               .execute())
-        return round(sum(float(l.get("custo_usd") or 0) for l in (res.data or [])), 6)
+        """Gasto do dia de Brasília, somado em páginas (sem .range o PostgREST para
+        em 1000 linhas e o teto nunca dispararia)."""
+        inicio = inicio_do_dia_brasilia(dia)
+        total, de = 0.0, 0
+        while True:
+            res = (self.db.table("agente_passos").select("custo_usd")
+                   .eq("empresa_id", empresa_id)
+                   .gte("criado_em", inicio.isoformat())
+                   .lt("criado_em", (inicio + timedelta(days=1)).isoformat())
+                   .gt("custo_usd", 0)
+                   .order("criado_em").range(de, de + PAGINA - 1)
+                   .execute())
+            linhas = res.data or []
+            total += sum(float(l.get("custo_usd") or 0) for l in linhas)
+            if len(linhas) < PAGINA:
+                return round(total, 6)
+            de += PAGINA

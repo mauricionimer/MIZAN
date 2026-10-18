@@ -5,27 +5,35 @@ Código, não IA. É dono do estado do caso e decide quem age e quando:
 - Fila de eventos com prioridade: pedido para parar e contestação passam na
   frente de mensagem, que passa na frente de pagamento, datas e relógio.
 - Idempotência: cada evento tem uma chave; o mesmo evento duas vezes vira um só.
-- Um por vez por caso: trava com prazo no próprio caso.
+- Um por vez por caso: trava com prazo no próprio caso, no relógio real, com um
+  dono por execução e renovada a cada checkpoint.
 - Grafo: nós (funções) ligados por arestas fixas ou condicionais, como no
   LangGraph, sem a dependência.
-- Checkpoint: depois de cada nó o estado é gravado; se o processo cair, o mesmo
-  evento recomeça do nó seguinte ao último concluído.
+- Checkpoint por evento: depois de cada nó o estado é gravado, com o que os nós
+  seguintes precisam do rascunho (texto, triagem, resposta); se o processo cair
+  ou a IA pedir espera, o mesmo evento recomeça do nó seguinte ao último
+  concluído, com o rascunho de volta. Outro evento do caso não apaga esse.
+- Espera sem tirar o caso do agente: IA ocupada (cota, rede) adia o evento;
+  teto de gasto do dia adia até a meia-noite de Brasília.
 - Nó de erro: nó que falha tenta mais uma vez; falhou de novo, o caso vai para
   uma pessoa com o motivo registrado.
 - Evento que quebra fora do grafo (banco fora do ar, por exemplo) volta para a
-  fila; na segunda falha vira "falhou" e aparece na Central.
+  fila; na segunda falha vira "falhou" e aparece na Central. Evento preso em
+  "processando" (o processo morreu) volta sozinho quando a reserva vence.
 
 Os nós precisam ser seguros para rodar de novo: uma ação com efeito fora do
 Mizan (enviar mensagem) usa a sua própria chave de idempotência.
 """
+import json
 import os
 import socket
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
 from agente import auditor, estado, llm
 from agente.rastreio import Rastreio, novo_trace_id
-from agente.repositorio import EventoDuplicado
+from agente.repositorio import PRONTO_JA, EventoDuplicado
 
 FIM = "FIM"
 
@@ -44,11 +52,30 @@ MAX_PASSOS = 30                     # um grafo que passa disso está em laço
 DURACAO_TRAVA = timedelta(minutes=5)
 ESPERA_NOVA_TENTATIVA = timedelta(minutes=1)
 
+# Máquina e processo. Cada execução ganha um sufixo próprio (novo_dono): a thread
+# do agendador e a da rota rodam no mesmo processo e não podem dividir a trava.
 DONO = f"{socket.gethostname()}:{os.getpid()}"
 
 # Erros em que tentar de novo não muda nada: vão direto para uma pessoa.
-_SEM_NOVA_TENTATIVA = (llm.TetoExcedido, llm.PrecoDesconhecido, estado.TransicaoProibida)
+_SEM_NOVA_TENTATIVA = (llm.PrecoDesconhecido, estado.TransicaoProibida)
 MAX_ESPERAS_IA = 5                   # cota estourada: até 5 esperas por evento; depois, uma pessoa
+MAX_CHECKPOINTS = 10                 # eventos do caso com checkpoint guardado ao mesmo tempo
+
+
+def novo_dono() -> str:
+    return f"{DONO}:{uuid.uuid4().hex[:12]}"
+
+
+def agora_real() -> datetime:
+    """Relógio de verdade, para a trava. O `agora` do evento pode ser o da demo
+    ou o de um teste; a trava protege processos reais e usa o relógio real."""
+    return datetime.now(timezone.utc)
+
+
+def proxima_meia_noite(agora: datetime) -> datetime:
+    """Meia-noite de Brasília seguinte a `agora` (quando o teto do dia zera)."""
+    amanha = agora.astimezone(auditor.BRASILIA).date() + timedelta(days=1)
+    return datetime(amanha.year, amanha.month, amanha.day, tzinfo=auditor.BRASILIA)
 
 
 class LacoNoGrafo(RuntimeError):
@@ -181,12 +208,16 @@ class Contexto:
 
 def registrar_evento(repo, empresa_id: str, caso_id: str, tipo: str, chave: str,
                      dados: dict | None = None, origem: str = "sistema",
-                     disponivel_em: datetime | None = None) -> tuple:
-    """Põe um evento na fila. Devolve (evento, novo); repetido devolve o que já existe."""
+                     disponivel_em: datetime | None = None, agora: datetime | None = None) -> tuple:
+    """Põe um evento na fila. Devolve (evento, novo); repetido devolve o que já existe.
+
+    A data em que fica pronto vai sempre explícita, do app: `disponivel_em`, ou o
+    `agora` de quem registra, ou "pronto já". Nunca o DEFAULT NOW() do banco, que
+    fica depois do `agora` que o chamador calculou e passa para processar_fila.
+    """
     evento = {"empresa_id": empresa_id, "caso_id": caso_id, "tipo": tipo, "chave": chave,
-              "origem": origem, "prioridade": PRIORIDADE.get(tipo, 50), "dados": dados or {}}
-    if disponivel_em is not None:
-        evento["disponivel_em"] = disponivel_em
+              "origem": origem, "prioridade": PRIORIDADE.get(tipo, 50), "dados": dados or {},
+              "disponivel_em": disponivel_em or agora or PRONTO_JA}
     try:
         return repo.inserir_evento(evento), True
     except EventoDuplicado:
@@ -201,13 +232,78 @@ def _transferir(ctx: Contexto, motivo: str) -> None:
             ctx.mudar_situacao("com_pessoa")
 
 
+def _ler_checkpoint(caso: dict, evento_id) -> dict | None:
+    """Checkpoint deste evento: {"proximo": nó, "saida": rascunho}, ou None."""
+    dados = caso.get("dados") or {}
+    ck = (dados.get("_checkpoints") or {}).get(str(evento_id))
+    if ck:
+        return ck
+    antigo = dados.get("_checkpoint") or {}          # formato antigo: um só por caso
+    if antigo.get("evento_id") == evento_id:
+        return {"proximo": antigo.get("proximo"), "saida": {}}
+    return None
+
+
+def _rascunho_para_guardar(saida: dict) -> dict:
+    """O que os nós seguintes precisam de ctx.saida (texto, triagem, resposta...).
+
+    Fica de fora o que começa com "_" (cache que se refaz, como a política e o
+    devedor, que tem dado pessoal), o pedido de adiamento e o que não vira JSON.
+    """
+    guardar = {}
+    for k, v in saida.items():
+        if k.startswith("_") or k == "adiar_para":
+            continue
+        try:
+            json.dumps(v)
+        except (TypeError, ValueError):
+            continue
+        guardar[k] = v
+    return guardar
+
+
+def _marcar_checkpoint(ctx: "Contexto", proximo: str) -> None:
+    eid = str(ctx.evento["id"])
+    dados = dict(ctx.caso.get("dados") or {})
+    cks = {k: v for k, v in (dados.get("_checkpoints") or {}).items() if k != eid}
+    while len(cks) >= MAX_CHECKPOINTS:              # sobra de evento que nunca voltou
+        cks.pop(min(cks, key=lambda k: str(cks[k].get("em") or "")))
+    cks[eid] = {"proximo": proximo, "saida": _rascunho_para_guardar(ctx.saida),
+                "em": (ctx.agora or agora_real()).isoformat()}
+    dados["_checkpoints"] = cks
+    if (dados.get("_checkpoint") or {}).get("evento_id") == ctx.evento["id"]:
+        dados.pop("_checkpoint")
+    ctx.caso["dados"] = dados
+
+
+def _limpar_checkpoint(ctx: "Contexto") -> None:
+    """Evento terminou: some o checkpoint e a contagem de esperas dele (só dele)."""
+    eid = str(ctx.evento["id"])
+    dados = dict(ctx.caso.get("dados") or {})
+    for chave in ("_checkpoints", "_esperas_ia"):
+        resto = {k: v for k, v in (dados.get(chave) or {}).items() if k != eid}
+        if resto:
+            dados[chave] = resto
+        else:
+            dados.pop(chave, None)
+    if (dados.get("_checkpoint") or {}).get("evento_id") == ctx.evento["id"]:
+        dados.pop("_checkpoint")
+    ctx.caso["dados"] = dados
+
+
 def executar(grafo: Grafo, ctx: Contexto, dono: str = DONO) -> dict:
     """Roda o grafo para o evento do contexto, com checkpoint a cada nó."""
-    ckpt = (ctx.caso.get("dados") or {}).get("_checkpoint") or {}
-    atual = ckpt["proximo"] if ckpt.get("evento_id") == ctx.evento["id"] else grafo.inicio
+    ck = _ler_checkpoint(ctx.caso, ctx.evento["id"])
+    if ck and (ck.get("proximo") == FIM or ck.get("proximo") in grafo.nos):
+        atual = ck["proximo"]
+        # O rascunho volta: sem ele o negociador da retomada receberia mensagem vazia.
+        ctx.saida.update({k: v for k, v in (ck.get("saida") or {}).items() if k not in ctx.saida})
+    else:
+        atual = grafo.inicio
     passos = 0
     erro = None
     esperar_ia = None
+    teto = False
     while atual != FIM:
         passos += 1
         if passos > MAX_PASSOS:
@@ -224,12 +320,15 @@ def executar(grafo: Grafo, ctx: Contexto, dono: str = DONO) -> dict:
             except _SEM_NOVA_TENTATIVA as e:
                 erro = type(e).__name__
                 break
+            except llm.TetoExcedido:
+                teto = True
+                break
             except llm.IaOcupada as e:
                 esperar_ia = e.esperar_s
                 break
             except Exception as e:
                 erro = type(e).__name__
-        if esperar_ia is not None:
+        if esperar_ia is not None or teto:
             break
         if erro:
             break
@@ -238,22 +337,32 @@ def executar(grafo: Grafo, ctx: Contexto, dono: str = DONO) -> dict:
         except Exception as e:                       # aresta para nó que não existe
             erro = type(e).__name__
             break
-        dados = dict(ctx.caso.get("dados") or {})
-        dados["_checkpoint"] = {"evento_id": ctx.evento["id"], "proximo": atual}
-        ctx.caso["dados"] = dados
+        _marcar_checkpoint(ctx, atual)
         _checkpoint(ctx, no.nome, dono)
 
+    agora = ctx.agora or agora_real()
+    if teto:
+        # Gasto do dia no teto: espera o dia virar em Brasília, sem passar o caso
+        # para uma pessoa (não é culpa do devedor nem do caso).
+        _marcar_checkpoint(ctx, atual)
+        ctx.saida["adiar_para"] = proxima_meia_noite(agora)
+        with ctx.rastreio.span("aguardar_teto", "orquestrador") as p:
+            p["detalhe"] = {"ate": ctx.saida["adiar_para"].isoformat()}
+        _checkpoint(ctx, "aguardando teto do dia", dono)
+        return {"ok": True, "erro": None, "situacao": ctx.caso["situacao"]}
     if esperar_ia is not None:
         # Cota da IA estourada: o evento volta para a fila e recomeça deste nó
         # depois da espera, sem contar como falha e sem tirar o caso do agente.
         dados = dict(ctx.caso.get("dados") or {})
         esperas = dict(dados.get("_esperas_ia") or {})
-        n = int(esperas.get(str(ctx.evento["id"])) or 0) + 1
+        eid = str(ctx.evento["id"])
+        n = int(esperas.get(eid) or 0) + 1
         if n <= MAX_ESPERAS_IA:
-            dados["_esperas_ia"] = {str(ctx.evento["id"]): n}
-            dados["_checkpoint"] = {"evento_id": ctx.evento["id"], "proximo": atual}
+            esperas[eid] = n                         # por evento: um não zera a conta do outro
+            dados["_esperas_ia"] = esperas
             ctx.caso["dados"] = dados
-            ctx.saida["adiar_para"] = (ctx.agora or datetime.now(timezone.utc)) + timedelta(seconds=max(30.0, esperar_ia))
+            _marcar_checkpoint(ctx, atual)
+            ctx.saida["adiar_para"] = agora + timedelta(seconds=max(30.0, esperar_ia))
             with ctx.rastreio.span("aguardar_ia", "orquestrador") as p:
                 p["detalhe"] = {"esperar_s": round(esperar_ia), "vez": n}
             _checkpoint(ctx, "aguardando IA", dono)
@@ -266,9 +375,7 @@ def executar(grafo: Grafo, ctx: Contexto, dono: str = DONO) -> dict:
                 grafo.ao_falhar(ctx)
             except Exception as e:                   # o aviso não pode derrubar a transferência
                 print(f"[Agente] aviso de falha não enviado: {type(e).__name__}")
-    dados = dict(ctx.caso.get("dados") or {})
-    dados.pop("_checkpoint", None)
-    ctx.caso["dados"] = dados
+    _limpar_checkpoint(ctx)
     _checkpoint(ctx, "erro" if erro else ctx.caso.get("ultimo_passo"), dono)
     return {"ok": erro is None, "erro": erro, "situacao": ctx.caso["situacao"]}
 
@@ -278,23 +385,28 @@ def _checkpoint(ctx: Contexto, ultimo: str | None, dono: str) -> None:
     campos = {k: ctx.caso.get(k) for k in ("situacao", "ultimo_passo", "dados", "grupo",
                                            "grupo_controle", "proxima_data", "tentativas",
                                            "versao_politica", "resumo")}
+    # Renova a trava: um turno longo (várias chamadas à IA) não a deixa vencer no meio.
+    campos["trava_ate"] = agora_real() + DURACAO_TRAVA
     if not ctx.repo.salvar_caso(ctx.caso["id"], campos, dono=dono):
         raise RuntimeError("trava do caso perdida durante o processamento")
 
 
 def processar_proximo(repo, grafos: dict, cliente=None, agora: datetime | None = None,
-                      dono: str = DONO) -> dict | None:
+                      dono: str | None = None, empresa_id: str | None = None) -> dict | None:
     """Pega o evento pronto de maior prioridade cujo caso está livre e processa.
 
-    Devolve um resumo, ou None se não havia nada a fazer.
+    Com `empresa_id`, só eventos dessa empresa (a rota de uma empresa não processa
+    a fila das outras). Devolve um resumo, ou None se não havia nada a fazer.
     """
-    agora = agora or datetime.now(timezone.utc)
-    for ev in repo.candidatos(agora):
+    agora = agora or agora_real()
+    dono = dono or novo_dono()
+    for ev in repo.candidatos(agora, empresa_id=empresa_id):
         if not repo.reservar_evento(ev["id"]):
             continue                                    # outro processo pegou
-        if not repo.travar_caso(ev["caso_id"], dono, agora + DURACAO_TRAVA, agora):
-            # Caso ocupado com outro evento: devolve e tenta o próximo.
-            repo.atualizar_evento(ev["id"], {"situacao": "pendente"})
+        real = agora_real()
+        if not repo.travar_caso(ev["caso_id"], dono, real + DURACAO_TRAVA, real):
+            # Caso ocupado com outro evento: devolve como estava e tenta o próximo.
+            repo.devolver_evento(ev["id"], ev.get("disponivel_em"))
             continue
         try:
             return _processar(repo, grafos, ev, cliente or llm.cliente(), agora, dono)
@@ -305,8 +417,9 @@ def processar_proximo(repo, grafos: dict, cliente=None, agora: datetime | None =
 
 def _processar(repo, grafos, ev, cliente, agora, dono) -> dict:
     trace_id = ev.get("trace_id") or novo_trace_id()
-    repo.atualizar_evento(ev["id"], {"trace_id": trace_id})
     try:
+        # Dentro do try: banco fora do ar aqui também devolve o evento à fila.
+        repo.atualizar_evento(ev["id"], {"trace_id": trace_id})
         grafo = grafos.get(ev["tipo"])
         if grafo is None:
             raise LookupError(f"sem grafo para o evento {ev['tipo']}")
@@ -315,8 +428,9 @@ def _processar(repo, grafos, ev, cliente, agora, dono) -> dict:
             raise LookupError("caso não encontrado")
         rastreio = Rastreio(ev["empresa_id"], repo.gravar_passo, caso_id=caso["id"],
                             evento_id=ev["id"], trace_id=trace_id)
+        # "Hoje" do negócio é o de Brasília: às 21h o dia ainda não virou.
         ctx = Contexto(caso=caso, evento=ev, repo=repo, rastreio=rastreio,
-                       cliente=cliente, hoje=agora.date(), agora=agora)
+                       cliente=cliente, hoje=agora.astimezone(auditor.BRASILIA).date(), agora=agora)
         resultado = executar(grafo, ctx, dono)
     except Exception as e:
         # Falha fora do grafo: volta para a fila; na segunda vira "falhou".
@@ -342,11 +456,19 @@ def _processar(repo, grafos, ev, cliente, agora, dono) -> dict:
 
 
 def processar_fila(repo, grafos: dict, cliente=None, limite: int = 20,
-                   agora: datetime | None = None, dono: str = DONO) -> list:
-    """Processa até `limite` eventos prontos. Para o agendador chamar."""
+                   agora: datetime | None = None, dono: str | None = None,
+                   empresa_id: str | None = None) -> list:
+    """Processa até `limite` eventos prontos. Para o agendador chamar.
+
+    Antes, devolve à fila o que ficou preso em "processando" com a reserva vencida.
+    """
+    try:
+        repo.devolver_presos(agora_real(), MAX_FALHAS_EVENTO, empresa_id=empresa_id)
+    except Exception as e:                               # não pode travar a fila
+        print(f"[Agente] não devolveu eventos presos: {type(e).__name__}")
     feitos = []
     for _ in range(limite):
-        r = processar_proximo(repo, grafos, cliente, agora, dono)
+        r = processar_proximo(repo, grafos, cliente, agora, dono, empresa_id=empresa_id)
         if r is None:
             break
         feitos.append(r)

@@ -114,8 +114,9 @@ chamou = {"ia": False}
 def usa_ia(ctx):
     ctx.ia("negociador", "s", [{"conteudo": "oi"}]); chamou["ia"] = True
 repo, c, e, r = com_no(usa_ia)
-checar(r["erro"] == "TetoExcedido" and not chamou["ia"] and c["situacao"] == "com_pessoa",
-       "teto de custo atingido: não chama a IA, vai para uma pessoa")
+checar(r["ok"] and not chamou["ia"] and c["situacao"] == "em_contato" and e["situacao"] == "pendente"
+       and e["disponivel_em"] == orq.proxima_meia_noite(AGORA),
+       "teto de custo atingido: não chama a IA, espera a meia-noite de Brasília sem ir para uma pessoa")
 os.environ.pop("MIZAN_AGENTE_TETO_DIA_USD")
 repo, c, e, r = com_no(usa_ia)
 checar(r["ok"] and repo.passos[0]["tokens_entrada"] > 0 and repo.passos[0]["modelo"] == "falso",
@@ -141,10 +142,13 @@ checar(ok, "validar() acha aresta quebrada antes de rodar")
 print("— trava por caso —")
 repo = RepoMemoria(); caso = novo(repo); log = []
 orq.registrar_evento(repo, "emp", caso["id"], "mensagem_devedor", "m1")
-repo.travar_caso(caso["id"], "outro-processo", AGORA + timedelta(minutes=3), AGORA)
+# A trava usa o relógio real (orq.agora_real), não o `agora` do evento.
+real = orq.agora_real()
+repo.travar_caso(caso["id"], "outro-processo", real + timedelta(minutes=3), real)
 r = orq.processar_proximo(repo, {"mensagem_devedor": grafo_simples(log)}, ClienteFalso(), AGORA)
 checar(r is None and log == [] and list(repo.eventos.values())[0]["situacao"] == "pendente",
        "caso ocupado: o evento espera na fila")
+repo.casos[caso["id"]]["trava_ate"] = orq.agora_real() - timedelta(seconds=1)     # o outro processo morreu
 r = orq.processar_proximo(repo, {"mensagem_devedor": grafo_simples(log)}, ClienteFalso(), AGORA + timedelta(minutes=4))
 checar(r is not None and r["ok"], "trava vencida (processo morreu): outro assume")
 
