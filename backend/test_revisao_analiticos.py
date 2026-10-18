@@ -304,7 +304,8 @@ def t_custo_do_dia_brasilia():
     checar(dias == [date(2026, 10, 19)] * 2, "9. custo do dia usa o dia de Brasília", str(dias))
     import inspect
     fonte_api = inspect.getsource(api)
-    checar(fonte_api.count("# TODO junção: empresa_id=empresa_id") == 4, "9. as 4 chamadas de processar_fila marcadas para a junção")
+    checar(fonte_api.count("empresa_id=empresa_id)") >= 4 and "TODO junção" not in fonte_api,
+           "9. as 4 chamadas de processar_fila só processam a fila da própria empresa")
 
 
 # ── 6. Estrategista com IA ──────────────────────────────────────────────────
