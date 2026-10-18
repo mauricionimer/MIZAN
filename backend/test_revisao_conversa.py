@@ -200,6 +200,29 @@ def test_briefing_traduz_a_oferta_inicial_em_parametros():
     assert "PRIMEIRO degrau" in negociador.SISTEMA and "só transfira se ela aceitar" in negociador.SISTEMA
 
 
+def test_primeiro_degrau_a_vista_sem_entrada_e_familia_desconhecida_sem_degrau():
+    from agente import negociador
+
+    class Ctx:                                            # só o que _estrategia usa
+        def politica(self):
+            return {"entrada_min_pct": 10}, 1
+    ctx = Ctx()
+    b = negociador._estrategia(ctx, {"tom": "firme", "oferta_inicial": "desconto_30pct"})
+    assert b["primeiro_degrau"] == {"n_parcelas": 1, "desconto_pct": 30}, b     # à vista não leva entrada
+    b = negociador._estrategia(ctx, {"tom": "firme", "oferta_inicial": "parcelado_12x"})
+    assert b["primeiro_degrau"] == {"n_parcelas": 12, "desconto_pct": 0, "entrada_pct": 10.0}, b
+    b = negociador._estrategia(ctx, {"tom": "firme", "oferta_inicial": "inventada_99pct"})
+    assert "primeiro_degrau" not in b, b                  # família fora da tabela não vira parâmetro
+    assert negociador._estrategia(ctx, {"tom": "firme", "oferta_inicial": None}).get("primeiro_degrau") is None
+    assert negociador._estrategia(ctx, None) is None
+    # sem estratégia no caso, o briefing não inventa degrau
+    r = rodar([("mensagem", "quero negociar")],
+              {"triagem": [tri("pagar_negociar")], "negociador": [T("Claro! Vamos ver.")]})
+    partes = r.cliente.chamadas[-1]["mensagens"][-1]["content"]
+    texto = " ".join(p["text"] for p in partes if p.get("type") == "text")
+    assert "primeiro_degrau" not in texto, texto
+
+
 if __name__ == "__main__":
     import sys
     falhas = 0
