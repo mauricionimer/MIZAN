@@ -37,7 +37,7 @@ def test_resumo_invalido_fica_o_de_hoje():
     r = rodar({"triagem": [tri("outro")],
                "negociador": [F("transferir_para_humano", motivo="dificuldade_grave", resumo="quer uma pessoa")],
                "supervisor": [json.dumps({"situacao": "só isso"})]})
-    assert r.repo.casos[r.caso["id"]]["resumo"] == "quer uma pessoa"
+    assert r.repo.casos[r.caso["id"]]["resumo"].startswith("quer uma pessoa | Sugestão:")
 
 
 def test_sem_sinal_nao_revisa():

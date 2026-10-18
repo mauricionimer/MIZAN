@@ -81,6 +81,10 @@ def test_chamada_de_ferramenta_escrita_como_texto_nao_sai():
                "negociador": [T('<json>{"args": {}, "tool": "consultar_caso"}</json>'),
                               T("Para sua segurança, me diga os três primeiros dígitos do seu CPF.")]})
     assert "<json>" not in " ".join(r.saidas) and r.saidas[-1].endswith("dígitos do seu CPF.")
+    from agente import guardrails as g
+    for vazado in ('<tools>["verificar_identidade"]</tools>Olá!', '<tool_call>x</tool_call>', '```json {}```'):
+        assert any("código" in m for m in g.conferir(vazado, g.permitidos_de([]), set())), vazado
+    assert not g.conferir("Posso simular com mais parcelas. Qual prefere?", g.permitidos_de([]), set())
 
 
 class Ocupado(ClienteFalso):

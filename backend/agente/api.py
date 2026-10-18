@@ -228,6 +228,41 @@ def estacao(empresa_id: str, agora: datetime | None = None) -> dict:
             "ultima_conversa": [publico(p) for p in ultimo]}
 
 
+# ── Passagem para a equipe (docs/PLANO_PASSAGEM_EQUIPE.md) ───────────────────
+
+def passagens_da_fila(empresa_id: str, predicao_ids: list, agora: datetime | None = None) -> dict:
+    """{predicao_id: ficha} dos casos com passagem para a equipe, com a prioridade de agora."""
+    from agente import passagem
+    ids = {str(p) for p in predicao_ids if p}
+    if not ids:
+        return {}
+    saida = {}
+    for c in fabrica_repo().casos_da_empresa(empresa_id):
+        if str(c.get("predicao_id")) in ids:
+            f = passagem.para_tela((c.get("dados") or {}).get("passagem"), agora)
+            if f:
+                saida[str(c["predicao_id"])] = f
+    return saida
+
+
+def registrar_retorno_passagem(empresa_id: str, predicao_id: str, ajudou: bool, quem: str | None,
+                               comentario: str = "") -> dict:
+    """O atendente diz se o resumo da passagem ajudou (nota do Supervisor)."""
+    from agente import passagem
+    repo = fabrica_repo()
+    caso = repo.caso_de(empresa_id, predicao_id)
+    if caso is None:
+        raise LookupError("Caso não encontrado.")
+    retorno = passagem.registrar_retorno(caso, ajudou, quem, comentario)
+    repo.salvar_caso(caso["id"], {"dados": caso["dados"]})
+    return retorno
+
+
+def sinais_equipe(empresa_id: str, agora: datetime | None = None, dias: int = 7) -> dict:
+    from agente import passagem
+    return passagem.sinais_da_equipe(fabrica_repo().casos_da_empresa(empresa_id), agora, dias)
+
+
 # Agentes que aparecem na tela e o papel de IA de cada um (None = código).
 AGENTES_TELA = {"Orquestrador": None, "Triagem": "triagem", "Negociador": "negociador", "Estrategista": "estrategista",
                 "Acompanhamento": "acompanhamento", "Supervisor": "supervisor", "Cientista": "cientista",
@@ -277,7 +312,13 @@ def agente_perfil(empresa_id: str, nome: str, agora: datetime | None = None) -> 
     agora = agora or datetime.now(timezone.utc)
     passos = fabrica_repo().passos_recentes(empresa_id, agora - timedelta(hours=24), 5000)
     meus = [p for p in passos if _quem(p) == nome]
-    return {**_resumo_agente(nome, passos),
+    extra = {}
+    if nome == "Supervisor":
+        try:
+            extra["sinais_equipe"] = sinais_equipe(empresa_id, agora, 30)
+        except Exception as e:
+            print(f"[Agente] sinais da equipe: {type(e).__name__}")
+    return {**_resumo_agente(nome, passos), **extra,
             "ultimas": [{**_passo_publico(p), "trace_id": p.get("trace_id"), "caso_id": p.get("caso_id")}
                         for p in reversed(meus[-20:])]}
 
@@ -285,6 +326,7 @@ def agente_perfil(empresa_id: str, nome: str, agora: datetime | None = None) -> 
 def agenda(empresa_id: str) -> dict:
     """Compromissos pendentes dos devedores que estão com o agente, e os
     operadores para o administrador atribuir atendimentos."""
+    from agente import passagem
     from agente.fonte import OPERADORES_DO_AGENTE, OPERADOR_A_DEFINIR
     repo, fonte = fabrica_repo(), fabrica_fonte()
     casos = {c["predicao_id"]: c for c in repo.casos_da_empresa(empresa_id)}
@@ -300,8 +342,11 @@ def agenda(empresa_id: str) -> dict:
                       "observacao": obs, "operador_id": a.get("operador_id"), "operador_nome": a.get("operador_nome"),
                       "a_definir": a.get("operador_id") == OPERADOR_A_DEFINIR,
                       "do_agente": a.get("operador_id") in OPERADORES_DO_AGENTE,
-                      "situacao_caso": c.get("situacao")})
-    itens.sort(key=lambda i: (str(i["data"] or ""), i["hora"] or "99:99"))
+                      "situacao_caso": c.get("situacao"),
+                      "passagem": passagem.para_tela((c.get("dados") or {}).get("passagem"))
+                      if tipo in ("atendimento", "transferencia") else None})
+    # No mesmo dia, a fila vem por prioridade da passagem (docs/PLANO_PASSAGEM_EQUIPE.md).
+    itens.sort(key=lambda i: (str(i["data"] or ""), -((i["passagem"] or {}).get("prioridade") or 0), i["hora"] or "99:99"))
     return {"itens": itens, "operadores": fonte.operadores(empresa_id)}
 
 
@@ -424,7 +469,12 @@ def analisar_laboratorio(empresa_id: str, agora: datetime | None = None) -> dict
     ctx = orq.Contexto(caso={"id": None, "empresa_id": empresa_id, "situacao": "novo", "dados": {}},
                        evento={"id": None, "tipo": "laboratorio", "dados": {}}, repo=repo, rastreio=rt,
                        cliente=fabrica_cliente(), hoje=agora.date(), agora=agora)
-    r = cientista.analisar(ctx, obs, stats)
+    try:
+        sinais = sinais_equipe(empresa_id, agora)
+    except Exception as e:
+        print(f"[Agente] sinais da equipe: {type(e).__name__}")
+        sinais = None
+    r = cientista.analisar(ctx, obs, stats, sinais)
     rel = r["relatorio"]
     try:
         return repo.gravar_recomendacao(empresa_id, {"texto": rel["recomendacao"], "selo": rel["selo"],

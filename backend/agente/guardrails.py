@@ -180,7 +180,7 @@ def acoes_afirmadas(texto: str) -> dict:
 
 
 # Chamada de ferramenta escrita como texto (o Gemini às vezes faz isso): nunca vai ao devedor.
-_CODIGO_NO_TEXTO = re.compile(r'</?json>|```|"(tool|args|name|function_?call|parameters)"\s*:|\{\s*"[a-z_]+"\s*:', re.IGNORECASE)
+_CODIGO_NO_TEXTO = re.compile(r'</?[a-z_]{2,20}>|```|"(tool|args|name|function_?call|parameters)"\s*:|\{\s*"[a-z_]+"\s*:', re.IGNORECASE)
 
 
 def conferir(texto: str, permitidos: dict, feitas: set | None = None) -> list:

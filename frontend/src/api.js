@@ -1051,6 +1051,14 @@ export async function agenteAgenda(empresaId) {
   return _jsonOuErroFila(res)
 }
 
+export async function agentePassagemRetorno(predicaoId, ajudou, comentario, empresaId) {
+  const res = await fetch(`${BASE}/agente/passagem/${encodeURIComponent(predicaoId)}/retorno`, {
+    method: 'POST', headers: _authHeader(_getToken()),
+    body: JSON.stringify({ ajudou, comentario: comentario || undefined, empresa_id: empresaId || undefined }),
+  })
+  return _jsonOuErroFila(res)
+}
+
 export async function agenteAgentes(empresaId) {
   const res = await fetch(`${BASE}/agente/agentes?${_qs({ empresa_id: empresaId })}`, { headers: _authHeader(_getToken()) })
   return _jsonOuErroFila(res)

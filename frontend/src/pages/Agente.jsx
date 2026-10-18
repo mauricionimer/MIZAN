@@ -7,6 +7,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import ErroCarga from '../components/ErroCarga'
 import EscritorioAgentes, { Retrato } from '../components/EscritorioAgentes'
+import FichaPassagem, { SeloPrioridade } from '../components/FichaPassagem'
 import { useAuth } from '../context/AuthContext'
 import { agenteDevedores, agenteCaso, agenteSimularMensagem, agenteSimularPagamento, agenteCentral, agenteRelogio, agentePlano, agenteAplicarPlano, agentePoliticas, agenteSalvarPolitica, agenteControle, agenteAgenda, agenteAtribuir, agenteLaboratorio, agenteAnalisar, agenteDecidirRecomendacao, agenteAgentes, listarEmpresas } from '../api'
 
@@ -620,11 +621,14 @@ function Agenda({ empresa }) {
             <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-2">{fmtData(dia)}</p>
             <ul className="space-y-1.5">
               {itens.map(i => (
-                <li key={i.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm">
+                <li key={i.id} className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm">
+                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <span className="w-12 tabular-nums text-ink-2">{i.hora || '—'}</span>
                   <span className="font-medium text-ink">{i.nome || 'Devedor'}</span>
                   <span className="rounded border border-line px-1.5 py-px text-[11px] text-ink-2">{TIPO_AGENDA[i.tipo] || i.tipo}</span>
-                  <span className="min-w-0 flex-1 truncate text-xs text-ink-2" title={i.observacao}>{i.observacao}</span>
+                  <SeloPrioridade passagem={i.passagem} />
+                  {i.passagem ? <span className="flex-1" />
+                    : <span className="min-w-0 flex-1 truncate text-xs text-ink-2" title={i.observacao}>{i.observacao}</span>}
                   {i.a_definir ? (
                     isAdmin ? (
                       <span className="flex items-center gap-1.5">
@@ -638,6 +642,8 @@ function Agenda({ empresa }) {
                       </span>
                     ) : <span className="text-xs" style={{ color: 'var(--warning)' }}>esperando o administrador</span>
                   ) : <span className="text-xs text-ink-2">{i.operador_nome}</span>}
+                 </div>
+                 {i.passagem && <FichaPassagem passagem={i.passagem} predicaoId={i.predicao_id} empresaId={empresa} />}
                 </li>
               ))}
             </ul>
