@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import ErroCarga from '../components/ErroCarga'
+import StatCard from '../components/StatCard'
 import { Retrato, MESAS, TIMES } from '../components/EscritorioAgentes'
 import { COR_AGENTE } from './Agente'
 import { agentePerfil } from '../api'
@@ -31,12 +32,7 @@ const hora = s => (s ? new Date(s).toLocaleString('pt-BR', { day: '2-digit', mon
 const COR_RES = { ok: 'text-emerald-300', bloqueado: 'text-red-300', erro: 'text-red-300' }
 
 function Numero({ rotulo, valor }) {
-  return (
-    <div className="rounded-xl border border-line bg-surface p-4">
-      <p className="text-xs font-medium text-ink-2">{rotulo}</p>
-      <p className="mt-1 text-2xl font-bold tabular-nums text-ink">{valor}</p>
-    </div>
-  )
+  return <StatCard label={rotulo} value={valor} />
 }
 
 const brl = (v) => v == null ? '—' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)

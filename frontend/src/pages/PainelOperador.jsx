@@ -1,12 +1,12 @@
 // F3 — "Meu painel" (operador) e "Painel da equipe" (admin, COMANDO).
 // Só contagens do que foi registrado; nada estimado (backend/painel.py).
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ChevronLeft, Gauge, PhoneOutgoing, Handshake, Banknote, Target, Loader2, Info, ArrowRight } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import DicaAjuda from '../components/DicaAjuda'
 import ErroCarga from '../components/ErroCarga'
+import StatCard from '../components/StatCard'
 import { useAuth } from '../context/AuthContext'
 import { buscarPainelOperador, buscarPainelEquipe, buscarPainelDeUmOperador, listarEmpresas } from '../api'
 
@@ -16,22 +16,7 @@ const fmtPct = (v) => v == null ? '—' : `${Math.round(v * 100)}%`
 const PERIODOS = [['hoje', 'Hoje'], ['7d', '7 dias'], ['30d', '30 dias']]
 
 function Cartao({ icone: Icone, rotulo, valor, nota, cor = 'text-blue-400', i = 0, link }) {
-  return (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
-      className="rounded-xl border border-line bg-surface p-5">
-      <div className="flex items-center justify-between">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-2">{rotulo}</p>
-        <Icone className={`h-4 w-4 ${cor}`} />
-      </div>
-      <p className="mt-2 text-3xl font-bold tabular-nums tracking-tight text-ink">{valor}</p>
-      {nota && <p className="mt-1 text-xs text-ink-2">{nota}</p>}
-      {link && (
-        <Link to={link.to} className="mt-2 inline-flex min-h-[36px] items-center gap-1 text-xs font-semibold text-blue-400 hover:text-blue-300">
-          {link.label} <ArrowRight className="h-3 w-3" aria-hidden="true" />
-        </Link>
-      )}
-    </motion.div>
-  )
+  return <StatCard icon={Icone} label={rotulo} value={valor} nota={nota} corClasse={cor} i={i} link={link} />
 }
 
 function BarraMeta({ feitos, meta, compacta = false }) {
