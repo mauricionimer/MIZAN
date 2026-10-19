@@ -86,6 +86,32 @@ class LinUCB:
         # como 0,5. Para a PoP — P(pagou | oferta) — é preciso contar quantos
         # pagaram alguma coisa, que é o que n_pagamentos guarda.
         self.n_pagamentos         = [0]   * n_acoes
+        # Chance de pagar POR OFERTA: denominador = ofertas apresentadas, uma por
+        # devedor × oferta. n_tentativas conta cada contato (dois contatos com o
+        # mesmo devedor = duas tentativas) e derrubava a taxa das ofertas mais
+        # trabalhadas: 10 devedores, 2 contatos cada, todos pagaram → 33%.
+        # Guardam um código curto do devedor (hash, nunca o CPF).
+        self.ofertas_apresentadas: dict = {}   # oferta -> [código do devedor]
+        self.ofertas_pagas:        dict = {}   # oferta -> [código do devedor]
+
+    def __setstate__(self, estado: dict) -> None:
+        # Arquivo .pkl gravado antes dos campos novos: carrega e completa.
+        self.__dict__.update(estado)
+        self.__dict__.setdefault("n_pagamentos", [0] * self.n_acoes)
+        self.__dict__.setdefault("ofertas_apresentadas", {})
+        self.__dict__.setdefault("ofertas_pagas", {})
+
+    def marcar_oferta(self, oferta: str, devedor: str, pagou: bool) -> None:
+        """Conta a oferta apresentada a este devedor (uma vez) e, se pagou, o pagamento (uma vez)."""
+        if not oferta or not devedor:
+            return
+        vistos = self.ofertas_apresentadas.setdefault(oferta, [])
+        if devedor not in vistos:
+            vistos.append(devedor)
+        if pagou:
+            pagos = self.ofertas_pagas.setdefault(oferta, [])
+            if devedor not in pagos:
+                pagos.append(devedor)
 
     def recomendar(self, contexto: np.ndarray) -> tuple[int, list[float]]:
         x      = contexto.astype(float)
@@ -165,6 +191,8 @@ def _bandit_para_json(bandit: LinUCB) -> dict:
         "n_tentativas":         list(bandit.n_tentativas),
         "recompensa_acumulada": list(bandit.recompensa_acumulada),
         "n_pagamentos":         list(bandit.n_pagamentos),
+        "ofertas_apresentadas": {o: list(v) for o, v in bandit.ofertas_apresentadas.items()},
+        "ofertas_pagas":        {o: list(v) for o, v in bandit.ofertas_pagas.items()},
         "alpha":                bandit.alpha,
         "n_acoes":              bandit.n_acoes,
         "d":                    bandit.d,
@@ -183,7 +211,27 @@ def _bandit_de_json(data: dict) -> LinUCB:
     # Zerar seria mentir para menos, então fica ausente e a PoP daquelas
     # ofertas segue vindo do modelo até chegar feedback novo.
     bandit.n_pagamentos = list(data.get("n_pagamentos") or [0] * bandit.n_acoes)
+    # Estado antigo não tem as ofertas por devedor: começam vazias e a chance
+    # por oferta usa os contadores antigos até chegar feedback novo.
+    bandit.ofertas_apresentadas = {o: list(v) for o, v in (data.get("ofertas_apresentadas") or {}).items()}
+    bandit.ofertas_pagas        = {o: list(v) for o, v in (data.get("ofertas_pagas") or {}).items()}
     return bandit
+
+
+def _copia(bandit: LinUCB) -> LinUCB:
+    """Cópia independente. Quem altera trabalha numa cópia e publica no fim:
+    quem está lendo o objeto antigo (recomendar, pop_por_oferta) não vê
+    metade de uma atualização."""
+    return _bandit_de_json(_bandit_para_json(bandit))
+
+
+def codigo_devedor(empresa_id: "str | None", cpf: "str | None") -> "str | None":
+    """Código curto e estável do devedor na empresa (o CPF não vai para o estado)."""
+    import hashlib
+    d = "".join(ch for ch in str(cpf or "") if ch.isdigit())
+    if not d:
+        return None
+    return hashlib.sha256(f"{_chave(empresa_id)}:{d}".encode()).hexdigest()[:12]
 
 
 # ---------------------------------------------------------------------------
@@ -352,7 +400,33 @@ _BANDIT_TTL: float = 300.0  # 5 minutos
 # requisições simultâneas se sobrescreveriam e um feedback seria perdido.
 # RLock porque registrar_resultado chama carregar_bandit e salvar_bandit,
 # que também pegam o lock.
-_bandit_lock = threading.RLock()
+#
+# Um lock POR EMPRESA, e sem ida ao banco dentro dele: com um lock só e o
+# Supabase lento, o feedback de uma empresa esperava a rede da outra. O lock
+# guarda só o cache em memória; a gravação no banco é protegida pela versão.
+_bandit_lock = threading.RLock()          # protege o dicionário de locks
+_locks_empresa: "dict[str, threading.RLock]" = {}
+
+
+def _lock_de(chave: str) -> threading.RLock:
+    with _bandit_lock:
+        lock = _locks_empresa.get(chave)
+        if lock is None:
+            lock = _locks_empresa[chave] = threading.RLock()
+        return lock
+
+
+def _gravar_arquivo(chave: str, bandit: LinUCB) -> None:
+    try:
+        joblib.dump(bandit, _arquivo_bandit(chave))
+    except Exception:
+        pass
+
+
+def _publicar(chave: str, bandit: LinUCB) -> None:
+    with _lock_de(chave):
+        _bandit_cache[chave]    = bandit
+        _bandit_cache_ts[chave] = time.monotonic()
 
 # Quantas vezes refazer a conta quando outro processo grava primeiro. Cada
 # tentativa relê o estado atual, então poucas bastam: só perde a corrida de
@@ -361,35 +435,35 @@ MAX_TENTATIVAS_GRAVACAO = 5
 
 
 def carregar_bandit(empresa_id: "str | None") -> LinUCB:
+    """Bandit da empresa (cache de 5 min). Não altere o objeto devolvido: copie."""
     chave = _chave(empresa_id)
-    with _bandit_lock:
+    with _lock_de(chave):
         agora = time.monotonic()
         em_cache = _bandit_cache.get(chave)
         if em_cache is not None and (agora - _bandit_cache_ts.get(chave, 0.0)) < _BANDIT_TTL:
             return em_cache
-        # Cache expirado ou primeira carga — recarrega do Supabase
-        bandit = _carregar_supabase(chave)
-        if bandit is None:
-            # Supabase indisponível: usa cache em memória se existir, senão arquivo local
-            if em_cache is not None:
-                return em_cache
-            arq = _arquivo_bandit(chave)
+    # Cache expirado ou primeira carga — recarrega do Supabase (fora do lock)
+    bandit = _carregar_supabase(chave)
+    if bandit is None:
+        # Supabase indisponível: usa cache em memória se existir, senão arquivo local
+        if em_cache is not None:
+            return em_cache
+        arq = _arquivo_bandit(chave)
+        try:
             bandit = joblib.load(arq) if arq.exists() else LinUCB()
+        except Exception:
+            bandit = LinUCB()
+    with _lock_de(chave):
         _bandit_cache[chave] = bandit
         _bandit_cache_ts[chave] = agora
-        return bandit
+    return bandit
 
 
 def salvar_bandit(empresa_id: "str | None", bandit: LinUCB) -> None:
     chave = _chave(empresa_id)
-    with _bandit_lock:
-        try:
-            joblib.dump(bandit, _arquivo_bandit(chave))
-        except Exception:
-            pass
-        _bandit_cache[chave]    = bandit
-        _bandit_cache_ts[chave] = time.monotonic()  # reseta TTL após salvar
-        _salvar_supabase(chave, bandit)
+    _publicar(chave, bandit)          # reseta TTL após salvar
+    _gravar_arquivo(chave, bandit)
+    _salvar_supabase(chave, bandit)
 
 
 # ---------------------------------------------------------------------------
@@ -398,15 +472,13 @@ def salvar_bandit(empresa_id: "str | None", bandit: LinUCB) -> None:
 
 def recomendar(devedor: dict, empresa_id: "str | None") -> dict:
     contexto = construir_contexto(devedor)
-    # Leitura sob lock: atualizar() altera A, b e os contadores in-place, então
-    # sem isso uma recomendação poderia ler A já atualizado e b ainda antigo.
-    # Medido em 0,2ms — serializar aqui não é gargalo.
-    with _bandit_lock:
-        bandit = carregar_bandit(empresa_id)
-        acao_id, scores = bandit.recomendar(contexto)
-        total_interacoes = sum(bandit.n_tentativas)
-        n_acao           = bandit.n_tentativas[acao_id]
-        recomp_acumulada = bandit.recompensa_acumulada[acao_id]
+    # O objeto do cache nunca é alterado no lugar (quem atualiza publica uma
+    # cópia), então ler sem lock não pega metade de uma atualização.
+    bandit = carregar_bandit(empresa_id)
+    acao_id, scores = bandit.recomendar(contexto)
+    total_interacoes = sum(bandit.n_tentativas)
+    n_acao           = bandit.n_tentativas[acao_id]
+    recomp_acumulada = bandit.recompensa_acumulada[acao_id]
 
     acao = ACOES[acao_id]
 
@@ -450,7 +522,15 @@ def recomendar(devedor: dict, empresa_id: "str | None") -> dict:
 
 
 def registrar_resultado(acao_id: int, contexto: list[float], recompensa: float,
-                        empresa_id: "str | None", pagou: "bool | None" = None) -> None:
+                        empresa_id: "str | None", pagou: "bool | None" = None,
+                        devedor: "str | None" = None) -> None:
+    """Soma um resultado ao LinUCB da empresa.
+
+    Contatos (sem `devedor`) atualizam o LinUCB e os contadores por ação.
+    Com `devedor` (o CPF; vira código curto), conta também a oferta
+    apresentada a ele, uma vez por devedor × oferta, e o pagamento, uma vez:
+    é o denominador e o numerador da chance de pagar por oferta.
+    """
     if not (0 <= acao_id < N_ACOES):
         print(f"[Bandit] ERRO: acao_id inválido: {acao_id} (válidos: 0–{N_ACOES-1}). Feedback ignorado.")
         return
@@ -472,27 +552,42 @@ def registrar_resultado(acao_id: int, contexto: list[float], recompensa: float,
     # A versão resolve o caso de duas INSTÂNCIAS: o lock de uma máquina não
     # significa nada para a outra. Cada tentativa relê do banco, refaz a conta
     # sobre o estado atual e só grava se ninguém tiver gravado no meio.
-    with _bandit_lock:
-        for tentativa in range(MAX_TENTATIVAS_GRAVACAO):
-            bandit, versao = _carregar_com_versao(chave)
-            if bandit is None:
-                # Ainda não existe linha para esta empresa (ou o banco não
-                # respondeu). Parte do que houver em memória e deixa
-                # _gravar_se_versao decidir: ele insere quando a linha falta.
-                bandit, versao = carregar_bandit(chave), 0
-            bandit.atualizar(acao_id, ctx, premio, pagou=pagou)
-            if _gravar_se_versao(chave, bandit, versao):
-                _bandit_cache[chave]    = bandit
-                _bandit_cache_ts[chave] = time.monotonic()
-                try:
-                    joblib.dump(bandit, _arquivo_bandit(chave))
-                except Exception:
-                    pass
-                return
-            # Perdeu a corrida: o próximo giro relê o estado já com o feedback
-            # do outro processo dentro, e soma o nosso em cima.
-        print(f"[Bandit] {MAX_TENTATIVAS_GRAVACAO} conflitos seguidos em {chave}; "
-              "feedback não gravado no Supabase.")
+    #
+    # A leitura e a gravação no banco ficam FORA do lock (a versão protege).
+    # Só quando a linha não existe ou o banco não responde a conta é feita
+    # sobre a memória, e aí o lock da empresa fica até publicar: sem banco
+    # para desempatar, é ele que impede duas threads de somarem sobre a mesma
+    # cópia.
+    cod = codigo_devedor(empresa_id, devedor) if devedor else None
+    oferta = ACOES[acao_id]["oferta"]
+
+    def _aplicar(b: LinUCB) -> None:
+        b.atualizar(acao_id, ctx, premio, pagou=pagou)
+        if cod:
+            b.marcar_oferta(oferta, cod, bool(pagou))
+
+    for tentativa in range(MAX_TENTATIVAS_GRAVACAO):
+        bandit, versao = _carregar_com_versao(chave)
+        if bandit is None:
+            with _lock_de(chave):
+                bandit = _copia(carregar_bandit(chave))
+                _aplicar(bandit)
+                ok = _gravar_se_versao(chave, bandit, 0)
+                if ok:
+                    _bandit_cache[chave]    = bandit
+                    _bandit_cache_ts[chave] = time.monotonic()
+        else:
+            _aplicar(bandit)
+            ok = _gravar_se_versao(chave, bandit, versao)
+            if ok:
+                _publicar(chave, bandit)
+        if ok:
+            _gravar_arquivo(chave, bandit)
+            return
+        # Perdeu a corrida: o próximo giro relê o estado já com o feedback
+        # do outro processo dentro, e soma o nosso em cima.
+    print(f"[Bandit] {MAX_TENTATIVAS_GRAVACAO} conflitos seguidos em {chave}; "
+          "feedback não gravado no Supabase.")
 
 
 # ---------------------------------------------------------------------------
@@ -524,16 +619,25 @@ def pop_por_oferta(empresa_id: "str | None", pop_base: float,
     número solto.
     """
     pop_base = float(min(1.0, max(0.0, pop_base)))
-    with _bandit_lock:
-        bandit = carregar_bandit(empresa_id)
-        tentativas = list(bandit.n_tentativas)
-        pagamentos = list(bandit.n_pagamentos)
+    bandit = carregar_bandit(empresa_id)
+    tentativas = list(bandit.n_tentativas)
+    pagamentos = list(bandit.n_pagamentos)
+    apresentadas = getattr(bandit, "ofertas_apresentadas", {}) or {}
+    pagas = getattr(bandit, "ofertas_pagas", {}) or {}
 
     agregado: dict = {}
     for a in ACOES:
         o = agregado.setdefault(a["oferta"], {"n_tentativas": 0, "n_pagamentos": 0})
         o["n_tentativas"] += tentativas[a["id"]]
         o["n_pagamentos"] += pagamentos[a["id"]]
+    # Com ofertas contadas por devedor, é delas que sai a taxa: n_tentativas
+    # soma contatos e punia a oferta mais trabalhada. Os contadores antigos só
+    # valem para a oferta que ainda não tem nenhuma contagem nova (estado antigo).
+    for oferta, o in agregado.items():
+        vistos = apresentadas.get(oferta) or []
+        if vistos:
+            o["n_tentativas"] = len(vistos)
+            o["n_pagamentos"] = len(set(pagas.get(oferta) or []) & set(vistos))
 
     saida = {}
     for oferta, o in agregado.items():
@@ -556,35 +660,60 @@ def convergencia_stats(empresa_id: "str | None") -> list[dict]:
     Incerteza alta = bandit ainda explorando. Abaixo de 0.01 com ≥10 tentativas = convergido.
     """
     result = []
-    with _bandit_lock:
-        bandit = carregar_bandit(empresa_id)
-        for a in range(bandit.n_acoes):
-            A_inv   = np.linalg.inv(bandit.A[a])
-            theta   = A_inv @ bandit.b[a]
-            incerteza = float(np.mean(np.diag(A_inv)))
-            recomp_media = (
-                bandit.recompensa_acumulada[a] / bandit.n_tentativas[a]
-                if bandit.n_tentativas[a] > 0 else None
-            )
-            result.append({
-                **ACOES[a],
-                "n_tentativas":     bandit.n_tentativas[a],
-                "recompensa_media": round(recomp_media, 4) if recomp_media is not None else None,
-                "theta_norm":       round(float(np.linalg.norm(theta)), 4),
-                "incerteza_media":  round(incerteza, 6),
-                "convergido":       incerteza < 0.01 and bandit.n_tentativas[a] >= 10,
-            })
+    bandit = carregar_bandit(empresa_id)
+    for a in range(bandit.n_acoes):
+        A_inv   = np.linalg.inv(bandit.A[a])
+        theta   = A_inv @ bandit.b[a]
+        incerteza = float(np.mean(np.diag(A_inv)))
+        recomp_media = (
+            bandit.recompensa_acumulada[a] / bandit.n_tentativas[a]
+            if bandit.n_tentativas[a] > 0 else None
+        )
+        result.append({
+            **ACOES[a],
+            "n_tentativas":     bandit.n_tentativas[a],
+            "recompensa_media": round(recomp_media, 4) if recomp_media is not None else None,
+            "theta_norm":       round(float(np.linalg.norm(theta)), 4),
+            "incerteza_media":  round(incerteza, 6),
+            "convergido":       incerteza < 0.01 and bandit.n_tentativas[a] >= 10,
+        })
     return result
 
 
 def ajustar_alpha(novo_alpha: float, empresa_id: "str | None") -> float:
     """Ajusta o parâmetro de exploração e persiste. Retorna o valor efetivo aplicado."""
     alpha_efetivo = float(np.clip(novo_alpha, 0.1, 5.0))
-    with _bandit_lock:
-        bandit = carregar_bandit(empresa_id)
-        bandit.alpha = alpha_efetivo
-        salvar_bandit(empresa_id, bandit)
+
+    def _novo(b: LinUCB) -> LinUCB:
+        b.alpha = alpha_efetivo
+        return b
+    _trocar_com_versao(empresa_id, _novo)
     return alpha_efetivo
+
+
+def _trocar_com_versao(empresa_id: "str | None", mudar) -> None:
+    """Grava uma mudança no estado SUBINDO a versão (ajustar alpha, zerar).
+
+    O upsert antigo não mexia na versão: um feedback que tivesse lido o estado
+    antes gravava por cima depois, e o zerar ou o alpha novo sumiam sem aviso.
+    Sem linha no banco (ou sem banco), cai na gravação simples.
+    """
+    chave = _chave(empresa_id)
+    for _ in range(MAX_TENTATIVAS_GRAVACAO):
+        bandit, versao = _carregar_com_versao(chave)
+        if bandit is None:
+            break
+        novo = mudar(bandit)
+        if _gravar_se_versao(chave, novo, versao):
+            _publicar(chave, novo)
+            _gravar_arquivo(chave, novo)
+            return
+    else:
+        print(f"[Bandit] {MAX_TENTATIVAS_GRAVACAO} conflitos seguidos em {chave}; mudança não gravada.")
+        return
+    with _lock_de(chave):
+        novo = mudar(_copia(carregar_bandit(chave)))
+        salvar_bandit(chave, novo)
 
 
 def zerar(empresa_id: str) -> None:
@@ -593,6 +722,4 @@ def zerar(empresa_id: str) -> None:
     Serve para descartar um histórico contaminado, como o do "aprendizado
     offline" que creditava ações que nunca foram feitas (achado D2).
     """
-    with _bandit_lock:
-        alpha = carregar_bandit(empresa_id).alpha
-        salvar_bandit(empresa_id, LinUCB(alpha=alpha))
+    _trocar_com_versao(empresa_id, lambda b: LinUCB(alpha=b.alpha))

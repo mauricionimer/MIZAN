@@ -1302,8 +1302,10 @@ def _fechar_loop_bandit(db, cpf: str, pagou: bool, valor_recuperado: float, pred
             vd = float(pred_data.get("valor_divida") or 0)
             rd = float(pred_data.get("renda_estimada") or 0)
             contexto = construir_contexto({**pred_data, "comprometimento_renda": (vd / rd) if rd > 0 else 1.0}).tolist()
+        # devedor: conta a oferta apresentada a ele (uma vez) e o pagamento, que
+        # é a base da chance de pagar por oferta (contatos não entram nela).
         registrar_resultado(acao_id=acao_id, contexto=contexto, recompensa=recompensa,
-                            empresa_id=empresa_id, pagou=bool(pagou))
+                            empresa_id=empresa_id, pagou=bool(pagou), devedor=cpf)
     except Exception as _be:
         # sem o CPF: o log não é lugar de dado pessoal
         print(f"[Bandit] Erro ao fechar loop: {type(_be).__name__}")
@@ -4688,34 +4690,94 @@ LOTE_INSERCAO = 2000       # ~1 MB de JSON por requisição; 200 mil devedores =
 INSERCOES_PARALELAS = 4    # poucas: o Supabase tem teto de conexões por projeto
 
 
-def _inserir_predicoes_em_lotes(db, linhas: list[dict]) -> dict:
+def _inserir_predicoes_em_lotes(db, linhas) -> dict:
     """Grava todas as predições e devolve {cpf: id}.
 
     Era um laço de 500 em 500, uma ida ao banco por vez: 400 idas para 200 mil
     devedores. Agora lotes de 2000, quatro em paralelo. Qualquer lote que falhe
-    derruba o conjunto (a exceção sobe depois de os demais terminarem), para o
-    chamador tratar a gravação como incompleta em vez de seguir como se nada.
+    derruba o conjunto (a exceção sobe depois de os que estão no ar terminarem),
+    para o chamador tratar a gravação como incompleta em vez de seguir como se nada.
+
+    `linhas` pode ser lista ou gerador. Com gerador, só ficam em memória os
+    lotes que estão sendo enviados: a lista inteira de predições de uma
+    carteira de 50 mil devedores custava sozinha mais de 100 MB. Depois de uma
+    falha, nenhum lote novo é enviado (o que já foi o chamador desfaz).
     """
+    from collections import deque
     from concurrent.futures import ThreadPoolExecutor
-    lotes = [linhas[i:i + LOTE_INSERCAO] for i in range(0, len(linhas), LOTE_INSERCAO)]
+    from itertools import islice
+
     mapa: dict[str, str] = {}
-    if not lotes:
+    it = iter(linhas)
+    primeiro = list(islice(it, LOTE_INSERCAO))
+    if not primeiro:
         return mapa
-    with ThreadPoolExecutor(max_workers=min(INSERCOES_PARALELAS, len(lotes))) as ex:
-        futuros = [ex.submit(_inserir_predicoes, db, lote) for lote in lotes]
-        erro = None
-        for f in futuros:
-            try:
-                res = f.result()
-            except Exception as e:      # espera todos terminarem antes de relançar
-                erro = erro or e
-                continue
-            for row in (res.data or []):
-                if row.get("cpf") and row.get("id"):
-                    mapa[str(row["cpf"])] = row["id"]
+    erro = None
+
+    def _colher(f):
+        nonlocal erro
+        try:
+            res = f.result()
+        except Exception as e:      # espera os outros terminarem antes de relançar
+            erro = erro or e
+            return
+        for row in (res.data or []):
+            if row.get("cpf") and row.get("id"):
+                mapa[str(row["cpf"])] = row["id"]
+
+    with ThreadPoolExecutor(max_workers=INSERCOES_PARALELAS) as ex:
+        no_ar: deque = deque()
+        lote = primeiro
+        while lote and erro is None:
+            no_ar.append(ex.submit(_inserir_predicoes, db, lote))
+            if len(no_ar) >= INSERCOES_PARALELAS:
+                _colher(no_ar.popleft())
+            lote = list(islice(it, LOTE_INSERCAO))
+        while no_ar:
+            _colher(no_ar.popleft())
     if erro is not None:
         raise erro
     return mapa
+
+
+def _desfazer_predicoes_novas(db, carteira_id: str, ids_antigos: list) -> None:
+    """Sincronização que falhou no meio: apaga só as predições novas da carteira.
+
+    As antigas ficam como estavam (com os feedbacks ligados a elas).
+    """
+    try:
+        antigos = set(ids_antigos)
+        novas = [p["id"] for p in _todas_as_linhas(
+            lambda: db.table("predicoes").select("id").eq("carteira_id", carteira_id))
+            if p["id"] not in antigos]
+        for i in range(0, len(novas), ITENS_POR_IN):
+            db.table("predicoes").delete().in_("id", novas[i:i + ITENS_POR_IN]).execute()
+    except Exception as e:
+        print(f"[Supabase] Não consegui desfazer as predições novas: {e}")
+
+
+def _trocar_predicoes_da_carteira(db, ids_antigos: list, novo_por_cpf: dict) -> None:
+    """Religa os feedbacks das predições antigas às novas (pelo CPF) e apaga as antigas.
+
+    Só roda depois que as novas foram todas gravadas. O feedback cujo CPF saiu
+    da carteira fica com predicao_id vazio (a ligação é obrigatória para apagar).
+    """
+    if not ids_antigos:
+        return
+    feedbacks: list = []
+    for i in range(0, len(ids_antigos), ITENS_POR_IN):
+        lote = ids_antigos[i:i + ITENS_POR_IN]
+        feedbacks += db.table("feedbacks").select("id, cpf, predicao_id") \
+            .in_("predicao_id", lote).execute().data or []
+    por_destino: dict = {}
+    for fb in feedbacks:
+        por_destino.setdefault(novo_por_cpf.get(str(fb.get("cpf") or "")), []).append(fb["id"])
+    for destino, fb_ids in por_destino.items():
+        for i in range(0, len(fb_ids), ITENS_POR_IN):
+            db.table("feedbacks").update({"predicao_id": destino}) \
+                .in_("id", fb_ids[i:i + ITENS_POR_IN]).execute()
+    for i in range(0, len(ids_antigos), ITENS_POR_IN):
+        db.table("predicoes").delete().in_("id", ids_antigos[i:i + ITENS_POR_IN]).execute()
 
 
 def _premissa_recuperacao_se_pagar(empresa_id: str | None) -> float:
@@ -4771,6 +4833,18 @@ def _politica_proposta(empresa_id: "str | None"):
         return PoliticaProposta()
 
 
+MAX_LINHAS_ANALISE_PADRAO = 50_000
+
+
+def _max_linhas_analise() -> int:
+    """Teto de linhas por análise (MIZAN_MAX_LINHAS_ANALISE; padrão 50 mil)."""
+    try:
+        valor = int(os.environ.get("MIZAN_MAX_LINHAS_ANALISE", "") or MAX_LINHAS_ANALISE_PADRAO)
+    except ValueError:
+        return MAX_LINHAS_ANALISE_PADRAO
+    return valor if valor > 0 else MAX_LINHAS_ANALISE_PADRAO
+
+
 def _sem_nan(obj):
     """NaN e infinito viram None (null), em dicts e listas aninhados. O JSON não tem NaN."""
     if isinstance(obj, dict):
@@ -4786,6 +4860,17 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
                  _empresa_id: str = None, _carteira_id_existente: str = None,
                  _incluir_ranking: bool = True) -> dict:
     """Executa o pipeline de scoring em um DataFrame já carregado e persiste no Supabase."""
+    # Teto de linhas por análise. O servidor tem 512 MB: 200 mil linhas chegaram
+    # a 930 MB de pico (scoring + fila + predições + resposta) e o processo morre
+    # sem resposta nenhuma. Melhor recusar com uma mensagem que diga o que fazer.
+    _limite_linhas = _max_linhas_analise()
+    if len(df) > _limite_linhas:
+        raise HTTPException(
+            status_code=413,
+            detail=(f"A carteira tem {len(df):,} linhas e o limite por análise é "
+                    f"{_limite_linhas:,}. Divida o arquivo em partes menores "
+                    f"(cada parte vira uma carteira).").replace(",", "."),
+        )
     # Aplica CAMPO_ALIASES para mapear colunas de qualquer fonte (CSV, Excel, DB)
     _cols_norm = {c.lower().strip().replace(" ", "_"): c for c in df.columns}
     _rename: dict = {}
@@ -5014,7 +5099,16 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
     # _sem_nan e não .where(notna, None): no pandas 3 o where devolve NaN de volta
     # nas colunas numéricas, e um NaN na resposta derrubava a análise inteira
     # (Starlette recusa NaN no JSON). Uma célula de renda em branco bastava.
-    devedores = [_sem_nan(d) for d in resultado_sorted.to_dict(orient="records")]
+    #
+    # A fila inteira como lista de dicts custava mais que o próprio DataFrame.
+    # Agora ela só é montada se for para a resposta; a gravação das predições
+    # percorre o DataFrame em pedaços de 2000 linhas.
+    def _registros(tabela: pd.DataFrame, passo: int = 2000):
+        for _ini in range(0, len(tabela), passo):
+            for _d in tabela.iloc[_ini:_ini + passo].to_dict(orient="records"):
+                yield _sem_nan(_d)
+
+    top10 = list(_registros(resultado_sorted.head(10)))
 
     total_em_risco = float(resultado["valor_divida"].sum())
     ver_total      = float(resultado["valor_esperado_recuperacao"].sum())
@@ -5126,38 +5220,29 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
             if isinstance(val, float) and not math.isfinite(val): return None   # NaN não é JSON
             return val
 
+        pred_ids_antigos: list = []
+        responsaveis_antes: dict = {}
         if _carteira_id_existente:
-            # ── Modo atualização: substitui predicoes, preserva feedbacks ──
+            # ── Modo atualização: troca as predições, preserva os feedbacks ──
+            # Ordem segura: grava as novas, religa os feedbacks pelo CPF e só
+            # então apaga as antigas. Antes apagava primeiro: uma falha no meio
+            # da gravação deixava a carteira vazia e os feedbacks soltos.
             carteira_id = _carteira_id_existente
-            # Truncado, os feedbacks ligados às predições além da milésima
-            # continuariam apontando para linhas apagadas.
-            pred_ids = [p["id"] for p in _todas_as_linhas(
-                lambda: db.table("predicoes").select("id").eq("carteira_id", carteira_id))]
             # Quem já tinha dono continua com ele depois da sincronização (F1):
             # sem isto, cada atualização da carteira desfazia a divisão da fila.
             try:
-                responsaveis_antes = {
-                    str(p["cpf"]): (p.get("responsavel_id"), p.get("responsavel_nome"))
-                    for p in _todas_as_linhas(lambda: db.table("predicoes")
-                                              .select("id, cpf, responsavel_id, responsavel_nome")
-                                              .eq("carteira_id", carteira_id))
-                    if p.get("responsavel_id")}
+                antigas = _todas_as_linhas(lambda: db.table("predicoes")
+                                           .select("id, cpf, responsavel_id, responsavel_nome")
+                                           .eq("carteira_id", carteira_id))
             except Exception:
-                responsaveis_antes = {}       # banco sem a coluna: nada a preservar
-            for i in range(0, len(pred_ids), 100):
-                lote = pred_ids[i:i+100]
-                if lote:
-                    db.table("feedbacks").update({"predicao_id": None}).in_("predicao_id", lote).execute()
-            db.table("predicoes").delete().eq("carteira_id", carteira_id).execute()
-            db.table("carteiras").update({
-                "nome_arquivo":    nome_fonte,
-                "total_devedores": resumo["total_devedores"],
-                "valor_face":      resumo["total_em_risco"],
-                "valor_esperado":  resumo["valor_esperado_recuperacao_total"],
-                "score_medio":     resumo["score_medio"],
-                "modelo_versao":   versao_modelo,
-                "updated_at":      datetime.utcnow().isoformat(),
-            }).eq("id", carteira_id).execute()
+                # banco sem a coluna de responsável: nada a preservar
+                antigas = _todas_as_linhas(lambda: db.table("predicoes")
+                                           .select("id, cpf").eq("carteira_id", carteira_id))
+            pred_ids_antigos = [p["id"] for p in antigas]
+            responsaveis_antes = {
+                str(p["cpf"]): (p.get("responsavel_id"), p.get("responsavel_nome"))
+                for p in antigas if p.get("responsavel_id")}
+            del antigas
         else:
             # ── Modo criação: nova carteira ──
             cart_row = {
@@ -5178,36 +5263,53 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
 
         resumo["carteira_id"] = carteira_id
 
-        predicoes_rows = [
-            {"carteira_id": carteira_id, "cpf": str(d.get("cpf") or ""),
-             "nome": d.get("nome"), "produto": d.get("produto"), "status": d.get("status"),
-             "uf": d.get("uf"), "valor_divida": _py(d.get("valor_divida")),
-             "renda_estimada": _py(d.get("renda_estimada")), "dias_em_atraso": _py(d.get("dias_em_atraso")),
-             "score_recuperabilidade": _py(d.get("score_recuperabilidade")),
-             "valor_esperado_recuperacao": _py(d.get("valor_esperado_recuperacao")),
-             "perfil_cluster": d.get("perfil_cluster"), "cluster_id": _py(d.get("cluster_id")),
-             "dados_incompletos": bool(d.get("dados_incompletos", False)),
-             "aviso_dados": str(d.get("aviso_dados") or ""),
-             "taxa_recuperacao_prevista": _py(d.get("taxa_recuperacao_prevista")),
-             "probabilidade_pagamento": _py(d.get("probabilidade_pagamento")),
-             "origem_taxa": str(d.get("origem_taxa") or ""),
-             "perda_esperada": _py(d.get("perda_esperada")),
-             "lgd": _py(d.get("lgd")),
-             "despesas_mensais": _py(d.get("despesas_mensais")),
-             "fase_cobranca": d.get("fase_cobranca"),
-             "valor_esperado_liquido": _py(d.get("valor_esperado_liquido")),
-             # A posição na fila é resultado da POLÍTICA de priorização, não do
-             # score. Sem gravá-la, reabrir a carteira reordenava por score e
-             # desfazia em silêncio a decisão de ordenar por valor.
-             "rank": _py(d.get("rank"))}
-            for d in devedores
-        ]
-        if _carteira_id_existente and responsaveis_antes:
-            for linha in predicoes_rows:
+        def _linhas_predicoes():
+            for d in _registros(resultado_sorted):
+                linha = {
+                    "carteira_id": carteira_id, "cpf": str(d.get("cpf") or ""),
+                    "nome": d.get("nome"), "produto": d.get("produto"), "status": d.get("status"),
+                    "uf": d.get("uf"), "valor_divida": _py(d.get("valor_divida")),
+                    "renda_estimada": _py(d.get("renda_estimada")), "dias_em_atraso": _py(d.get("dias_em_atraso")),
+                    "score_recuperabilidade": _py(d.get("score_recuperabilidade")),
+                    "valor_esperado_recuperacao": _py(d.get("valor_esperado_recuperacao")),
+                    "perfil_cluster": d.get("perfil_cluster"), "cluster_id": _py(d.get("cluster_id")),
+                    "dados_incompletos": bool(d.get("dados_incompletos", False)),
+                    "aviso_dados": str(d.get("aviso_dados") or ""),
+                    "taxa_recuperacao_prevista": _py(d.get("taxa_recuperacao_prevista")),
+                    "probabilidade_pagamento": _py(d.get("probabilidade_pagamento")),
+                    "origem_taxa": str(d.get("origem_taxa") or ""),
+                    "perda_esperada": _py(d.get("perda_esperada")),
+                    "lgd": _py(d.get("lgd")),
+                    "despesas_mensais": _py(d.get("despesas_mensais")),
+                    "fase_cobranca": d.get("fase_cobranca"),
+                    "valor_esperado_liquido": _py(d.get("valor_esperado_liquido")),
+                    # A posição na fila é resultado da POLÍTICA de priorização, não do
+                    # score. Sem gravá-la, reabrir a carteira reordenava por score e
+                    # desfazia em silêncio a decisão de ordenar por valor.
+                    "rank": _py(d.get("rank"))}
                 dono = responsaveis_antes.get(linha["cpf"])
                 if dono:
                     linha["responsavel_id"], linha["responsavel_nome"] = dono
-        pred_id_map = _inserir_predicoes_em_lotes(db, predicoes_rows)
+                yield linha
+
+        try:
+            pred_id_map = _inserir_predicoes_em_lotes(db, _linhas_predicoes())
+        except Exception:
+            if _carteira_id_existente:
+                _desfazer_predicoes_novas(db, carteira_id, pred_ids_antigos)
+            raise
+
+        if _carteira_id_existente:
+            _trocar_predicoes_da_carteira(db, pred_ids_antigos, pred_id_map)
+            db.table("carteiras").update({
+                "nome_arquivo":    nome_fonte,
+                "total_devedores": resumo["total_devedores"],
+                "valor_face":      resumo["total_em_risco"],
+                "valor_esperado":  resumo["valor_esperado_recuperacao_total"],
+                "score_medio":     resumo["score_medio"],
+                "modelo_versao":   versao_modelo,
+                "updated_at":      datetime.utcnow().isoformat(),
+            }).eq("id", carteira_id).execute()
     except Exception as _e:
         print(f"[Supabase] Erro ao salvar: {_e}")
         pred_id_map = {}
@@ -5275,10 +5377,10 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
     resumo["feedbacks_registrados_automaticamente"] = n_feedbacks_auto
 
     return _sem_nan({"resumo": resumo, "distribuicao_aging": aging_dist,
-                     "distribuicao_cluster": cluster_dist, "top10_prioritarios": devedores[:10],
+                     "distribuicao_cluster": cluster_dist, "top10_prioritarios": top10,
                      # Sem carteira gravada não há o que paginar no servidor: a
                      # fila vai na resposta, senão a tabela abriria vazia.
-                     **({"ranking_completo": devedores}
+                     **({"ranking_completo": list(_registros(resultado_sorted))}
                         if _incluir_ranking or not resumo.get("carteira_id") else {})})
 
 
@@ -5320,6 +5422,47 @@ def listar_tabelas(conn: ConexaoDB, credentials: HTTPAuthorizationCredentials = 
         raise HTTPException(status_code=503, detail=f"Erro ao conectar: {str(e)}")
 
 
+LINHAS_PREVIA = 5
+
+
+def _previa_sem_subconsulta_sqlalchemy(connection, consulta, erro_previa) -> pd.DataFrame:
+    """Prévia quando o banco recusa a consulta dentro de uma subconsulta.
+
+    Antes caía em `pd.read_sql(q).head(5)`: lia a tabela INTEIRA para mostrar
+    5 linhas (uma tabela de milhões derrubava o servidor de 512 MB). Agora pede
+    as linhas aos poucos (cursor no servidor) e para na quinta. Se nem assim
+    der, devolve o erro da prévia, que é o que o usuário precisa corrigir.
+    """
+    try:
+        res = connection.execution_options(stream_results=True).execute(consulta)
+        try:
+            linhas = res.fetchmany(LINHAS_PREVIA)
+            colunas = list(res.keys())
+        finally:
+            res.close()
+    except Exception:
+        raise erro_previa
+    return pd.DataFrame([tuple(l) for l in linhas], columns=colunas)
+
+
+def _previa_sem_subconsulta_dbapi(conexao, consulta: str, erro_previa) -> pd.DataFrame:
+    """O mesmo, para conexão DB-API direta (SQL Server via pytds)."""
+    try:
+        cur = conexao.cursor()
+        try:
+            cur.execute(consulta)
+            linhas = cur.fetchmany(LINHAS_PREVIA)
+            colunas = [d[0] for d in (cur.description or [])]
+        finally:
+            try:
+                cur.close()
+            except Exception:
+                pass
+    except Exception:
+        raise erro_previa
+    return pd.DataFrame([tuple(l) for l in linhas], columns=colunas)
+
+
 @app.post("/testar-db")
 def testar_db(conn: ConexaoDB, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """Testa conexão, executa query limitada e retorna colunas + preview + mapeamento sugerido."""
@@ -5339,8 +5482,8 @@ def testar_db(conn: ConexaoDB, credentials: HTTPAuthorizationCredentials = Secur
                 with _sqlserver_connect(conn) as tds_conn:
                     try:
                         df_preview = pd.read_sql(preview_q, tds_conn)
-                    except Exception:
-                        df_preview = pd.read_sql(q, tds_conn).head(5)
+                    except Exception as e_previa:
+                        df_preview = _previa_sem_subconsulta_dbapi(tds_conn, q, e_previa)
             else:
                 from sqlalchemy import create_engine, text
                 url = _construir_url_db(conn)
@@ -5352,8 +5495,8 @@ def testar_db(conn: ConexaoDB, credentials: HTTPAuthorizationCredentials = Secur
                         preview_q = f"SELECT * FROM ({q}) AS _mizan_preview LIMIT 5"
                     try:
                         df_preview = pd.read_sql(text(preview_q), connection)
-                    except Exception:
-                        df_preview = pd.read_sql(text(q), connection).head(5)
+                    except Exception as e_previa:
+                        df_preview = _previa_sem_subconsulta_sqlalchemy(connection, text(q), e_previa)
                 engine.dispose()
     except HTTPException:
         raise
@@ -5875,6 +6018,81 @@ def confirmar_pagamento(
         _confirmacoes_em_andamento.discard(lock_key)
 
 
+def _chave_feedback(cpf, data_pagamento, valor) -> tuple:
+    """O que identifica um pagamento repetido: CPF + data + valor (dentro da empresa)."""
+    try:
+        v = round(float(valor or 0), 2)
+    except (TypeError, ValueError):
+        v = 0.0
+    return (str(cpf or ""), str(data_pagamento or "")[:10], v)
+
+
+def _feedbacks_existentes(db, empresa: "str | None", cpfs: list) -> dict:
+    """{chave do pagamento: id do feedback} já gravados para estes CPFs na empresa.
+
+    Reenviar o mesmo webhook (o sistema do cliente tenta de novo quando a
+    resposta demora) ou importar a mesma planilha duas vezes duplicava o
+    pagamento: contava duas vezes no painel e no treino e ensinava o bandit
+    duas vezes com o mesmo resultado.
+    """
+    mapa: dict = {}
+    cpfs = list(dict.fromkeys(str(c) for c in cpfs if c))
+    for i in range(0, len(cpfs), ITENS_POR_IN):
+        lote = cpfs[i:i + ITENS_POR_IN]
+
+        def _consulta(lote=lote):
+            q = db.table("feedbacks").select("id, cpf, data_pagamento, valor_recuperado").in_("cpf", lote)
+            return q.eq("empresa", empresa) if empresa else q
+        for f in _todas_as_linhas(_consulta):
+            mapa.setdefault(_chave_feedback(f.get("cpf"), f.get("data_pagamento"),
+                                            f.get("valor_recuperado")), f.get("id"))
+    return mapa
+
+
+def _predicoes_dos_cpfs(db, cpfs: list, empresa_id: "str | None") -> dict:
+    """{cpf: predição mais recente na empresa}, para muitos CPFs de uma vez.
+
+    O mesmo critério de _predicao_do_cpf, mas com as carteiras lidas uma vez e
+    os CPFs em lotes: o laço antigo listava as carteiras da empresa e fazia
+    uma consulta por CPF, por linha da planilha.
+    """
+    colunas = _COLUNAS_PREDICAO_CPF + ", cpf"
+    cpfs = list(dict.fromkeys(str(c) for c in cpfs if c))
+    melhor: dict = {}
+
+    def _guardar(linhas):
+        for p in linhas:
+            c = str(p.get("cpf") or "")
+            if c and (c not in melhor or (p.get("created_at") or "") > (melhor[c].get("created_at") or "")):
+                melhor[c] = p
+
+    carteiras = _ids_carteiras(db, empresa_id) if empresa_id else None
+    if empresa_id and not carteiras:
+        return melhor                  # falha fechada: empresa sem carteira não casa com ninguém
+    for i in range(0, len(cpfs), ITENS_POR_IN):
+        lote_cpf = cpfs[i:i + ITENS_POR_IN]
+        if carteiras is None:
+            _guardar(_todas_as_linhas(lambda: db.table("predicoes").select(colunas).in_("cpf", lote_cpf)))
+            continue
+        for j in range(0, len(carteiras), ITENS_POR_IN):
+            lote_cart = carteiras[j:j + ITENS_POR_IN]
+            _guardar(_todas_as_linhas(lambda: db.table("predicoes").select(colunas)
+                                      .in_("cpf", lote_cpf).in_("carteira_id", lote_cart)))
+    return melhor
+
+
+MAX_LINHAS_FEEDBACK_LOTE_PADRAO = 5_000
+
+
+def _max_linhas_feedback_lote() -> int:
+    """Teto de linhas por importação de feedbacks (MIZAN_MAX_LINHAS_FEEDBACK_LOTE)."""
+    try:
+        valor = int(os.environ.get("MIZAN_MAX_LINHAS_FEEDBACK_LOTE", "") or MAX_LINHAS_FEEDBACK_LOTE_PADRAO)
+    except ValueError:
+        return MAX_LINHAS_FEEDBACK_LOTE_PADRAO
+    return valor if valor > 0 else MAX_LINHAS_FEEDBACK_LOTE_PADRAO
+
+
 @app.post("/webhook/pagamento")
 def webhook_pagamento(body: WebhookPagamentoIn, request: Request):
     """
@@ -5914,14 +6132,27 @@ def webhook_pagamento(body: WebhookPagamentoIn, request: Request):
     predicao_id   = pred_dict["id"]              if pred_dict else None
     _pred_cart_id = pred_dict.get("carteira_id") if pred_dict else None
 
+    # Sem data no corpo, vale a de hoje em Brasília: é o dia em que o pagamento
+    # chegou, e é o que separa a parcela deste mês de um reenvio do mesmo aviso.
+    from agente.auditor import BRASILIA
+    data_pagamento = (body.data_pagamento or "").strip()[:10] or \
+        datetime.now(BRASILIA).date().isoformat()
+
+    # Idempotente: o mesmo pagamento (CPF + data + valor) reenviado não grava
+    # de novo nem ensina o bandit outra vez.
+    repetido = _feedbacks_existentes(db, empresa, [body.cpf]).get(
+        _chave_feedback(body.cpf, data_pagamento, body.valor_recuperado))
+    if repetido:
+        print(f"[Webhook] Pagamento repetido ignorado — CPF: {_cpf_no_log(body.cpf)}, empresa: {empresa}")
+        return {"ok": True, "feedback_id": repetido, "repetido": True}
+
     fb_row = {
         "cpf": body.cpf,
         "pagou": body.pagou,
         "valor_recuperado": body.valor_recuperado or 0,
         "empresa": empresa,
+        "data_pagamento": data_pagamento,
     }
-    if body.data_pagamento:
-        fb_row["data_pagamento"] = body.data_pagamento
     if predicao_id:
         fb_row["predicao_id"] = predicao_id
 
@@ -6023,8 +6254,28 @@ async def feedback_lote(
         if not empresa and _jwt.get("role") != "comando":
             raise HTTPException(status_code=403, detail="Credencial sem empresa vinculada.")
 
+        limite = _max_linhas_feedback_lote()
+        if len(df) > limite:
+            raise HTTPException(
+                status_code=413,
+                detail=(f"O arquivo tem {len(df):,} linhas e o limite por importação é "
+                        f"{limite:,}. Divida em partes menores.").replace(",", "."))
+
+        def _cpf_limpo(v) -> str:
+            return str(v if v is not None else "").strip().replace(".", "").replace("-", "").replace("/", "")
+
+        # Uma leitura para o arquivo inteiro, não uma por linha: as carteiras
+        # da empresa, a predição de cada CPF e os pagamentos que já existem.
+        _cpfs_arquivo = [c for c in (_cpf_limpo(v) for v in df["cpf"].tolist()) if len(c) >= 3]
+        try:
+            preds_por_cpf = _predicoes_dos_cpfs(db, _cpfs_arquivo, empresa)
+            ja_gravados = _feedbacks_existentes(db, empresa, _cpfs_arquivo)
+        except Exception as e:
+            raise HTTPException(status_code=503, detail=f"Erro ao ler o banco: {type(e).__name__}")
+
         n_ok = 0
         n_erro = 0
+        n_repetidos = 0
         detalhes = []
 
         for idx, row in df.iterrows():
@@ -6068,8 +6319,17 @@ async def feedback_lote(
                 except Exception:
                     pass
 
+            chave_fb = _chave_feedback(cpf, data_pag, valor_recuperado)
+            if chave_fb in ja_gravados:
+                # Já gravado (antes ou mais acima neste arquivo): não duplica e
+                # não ensina o bandit de novo.
+                detalhes.append({"linha": linha, "cpf": cpf, "ok": True, "repetido": True,
+                                 "feedback_id": ja_gravados[chave_fb]})
+                n_repetidos += 1
+                continue
+
             try:
-                pred_dict = _predicao_do_cpf(db, cpf, empresa)
+                pred_dict = preds_por_cpf.get(cpf)
                 predicao_id = pred_dict["id"] if pred_dict else None
 
                 fb_row = {"cpf": cpf, "pagou": pagou, "valor_recuperado": valor_recuperado, "empresa": empresa}
@@ -6080,6 +6340,7 @@ async def feedback_lote(
 
                 res = db.table("feedbacks").insert(fb_row).execute()
                 feedback_id = res.data[0]["id"]
+                ja_gravados[chave_fb] = feedback_id
 
                 _fechar_loop_bandit(
                     db, cpf, pagou, valor_recuperado,
@@ -6109,7 +6370,8 @@ async def feedback_lote(
             _cache_del_prefix(f"pagamentos:{_eid}")
             _cache_del_prefix(f"perf:{_eid}")
             _cache_del_prefix(f"fb_status:{_eid}")
-        return {"total": n_ok + n_erro, "importados": n_ok, "erros": n_erro, "detalhes": detalhes}
+        return {"total": n_ok + n_erro + n_repetidos, "importados": n_ok, "erros": n_erro,
+                "repetidos": n_repetidos, "detalhes": detalhes}
 
     # Parse da planilha mais uma gravação no Supabase por linha do lote:
     # trabalho bloqueante que cresce com o arquivo, então sai do event loop.

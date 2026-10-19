@@ -270,6 +270,35 @@ def _metricas(y_true, p) -> dict:
     return out
 
 
+def _atual_viu_o_teste(empresa_id: str, impressao: str, origem: str, inicio_teste) -> "str | None":
+    """Por que o modelo ativo da empresa já viu a fatia de teste (None se não viu).
+
+    Mesmo arquivo, os dois treinados com os pagamentos registrados no Mizan
+    (que só crescem), ou período de treino do ativo que chega até a fatia.
+    """
+    from model import modelos_empresa as me
+    try:
+        dados = me.carregar_versoes(empresa_id)
+        ativa = dados.get("versao_ativa")
+        reg = next((v for v in dados.get("versoes", []) if v.get("versao") == ativa), None)
+    except Exception:
+        return None
+    if not reg:
+        return None
+    if impressao and (reg.get("arquivo") or {}).get("sha256") == impressao:
+        return "mesmo arquivo"
+    if origem == "feedbacks" and reg.get("origem") == "feedbacks":
+        return "mesmos pagamentos registrados"
+    fim = (reg.get("periodo") or {}).get("fim")
+    if fim and inicio_teste is not None:
+        try:
+            if pd.Timestamp(fim).date() >= pd.Timestamp(inicio_teste).date():
+                return "período de treino cobre o teste"
+        except Exception:
+            pass
+    return None
+
+
 def treinar(conteudo: bytes, nome_arquivo: str, empresa_id: str, usuario_email: str = "",
             df: "pd.DataFrame | None" = None, origem: str = "arquivo") -> dict:
     """Treina o modelo da empresa e o deixa guardado, inativo. Descarta os dados.
@@ -335,6 +364,18 @@ def treinar(conteudo: bytes, nome_arquivo: str, empresa_id: str, usuario_email: 
         base = score_carteira(d.iloc[i_te].copy(), empresa_id)
         m_atual = _metricas(y[i_te], base["score_recuperabilidade"].to_numpy() / 100.0)
         m_atual["origem"] = "proprio" if me.tem_modelo_proprio(empresa_id) else "global"
+        motivo = (_atual_viu_o_teste(empresa_id, impressao, origem,
+                                     datas.iloc[i_te].min() if datas is not None else None)
+                  if m_atual["origem"] == "proprio" else None)
+        if motivo:
+            # O modelo ativo já treinou com estas linhas: a medida dele aqui sai
+            # otimista, e a ativação recusava (409) justamente o modelo melhor.
+            # Fica guardada à parte e não entra na comparação.
+            m_atual = {"origem": "proprio", "em_amostra": True, "n_teste": m_atual.get("n_teste"),
+                       "metricas_em_amostra": m_atual,
+                       "indisponivel": f"o modelo atual já viu estes dados no treino ({motivo})"}
+            avisos.append("O modelo atual foi treinado com parte deste período: a comparação "
+                          "com ele não vale e não impede a ativação.")
     except Exception as e:
         m_atual = {"indisponivel": f"{type(e).__name__}"}
 

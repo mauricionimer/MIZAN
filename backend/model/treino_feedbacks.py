@@ -43,6 +43,30 @@ def _norm(empresa_id) -> str:
     return str(empresa_id or "").strip().lower()
 
 
+def _feedbacks_das_carteiras(db, carteiras: list, todas: bool) -> list:
+    """Feedbacks ligados a predições destas carteiras.
+
+    Com `todas` (o agendador, que treina todo mundo), uma leitura só da tabela
+    serve a todas as empresas. Para UMA empresa, antes lia também os feedbacks
+    de todas as outras (memória e tempo de todas, num servidor de 512 MB):
+    agora pega os ids das predições das carteiras dela e só os feedbacks
+    dessas predições.
+    """
+    colunas = "id, predicao_id, pagou, created_at"
+    if todas:
+        return _paginar(lambda: db.table("feedbacks").select(colunas).not_.is_("predicao_id", "null"))
+    pred_ids: list = []
+    for i in range(0, len(carteiras), ITENS_IN):
+        lote = carteiras[i:i + ITENS_IN]
+        pred_ids += [p["id"] for p in _paginar(
+            lambda: db.table("predicoes").select("id").in_("carteira_id", lote))]
+    saida: list = []
+    for i in range(0, len(pred_ids), ITENS_IN):
+        lote = pred_ids[i:i + ITENS_IN]
+        saida += _paginar(lambda: db.table("feedbacks").select(colunas).in_("predicao_id", lote))
+    return saida
+
+
 def datasets(db, empresas=None) -> dict:
     """{empresa: (df, datas_dos_feedbacks, precos)} das empresas pedidas (todas, se None).
 
@@ -64,8 +88,7 @@ def datasets(db, empresas=None) -> dict:
     # Um pagamento por predição. Se em algum momento foi marcado como pago, conta
     # como pago (quem não pagou e pagou depois); entre iguais, vale o mais novo.
     por_predicao: dict = {}
-    for f in _paginar(lambda: db.table("feedbacks").select("id, predicao_id, pagou, created_at")
-                      .not_.is_("predicao_id", "null")):
+    for f in _feedbacks_das_carteiras(db, list(carteira_empresa), todas=alvo is None):
         pid, atual = f.get("predicao_id"), por_predicao.get(f.get("predicao_id"))
         if not pid:
             continue

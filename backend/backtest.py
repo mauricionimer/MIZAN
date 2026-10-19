@@ -48,6 +48,13 @@ COLUNAS_VAZAMENTO = {
 
 OBRIGATORIAS = {"cpf", "valor_divida", "dias_em_atraso", "pagou"}
 
+# Colunas que costumam ser contadas DURANTE a cobrança do período avaliado: quem
+# pagou parou de receber ligações e não quebrou promessa. Numa carteira
+# histórica elas carregam o desfecho (medido: KS 3 → 75, topo de 10% de 17% →
+# 37%, sem aviso nenhum). Saem por padrão; quem tem certeza de que foram
+# tiradas ANTES do período pode mantê-las (manter_colunas_do_periodo=True).
+COLUNAS_DO_PERIODO = ("tentativas_contato", "promessa_quebrada", "status")
+
 # A ordem que a operação usou de verdade. Nomes aceitos para a mesma coluna.
 NOMES_ORDEM_ATUAL = ("ordem_atual", "ordem_banco", "fila_atual", "posicao_atual",
                      "prioridade_atual", "ordem_cobranca")
@@ -228,7 +235,24 @@ def decis(df: pd.DataFrame, score: np.ndarray) -> list[dict]:
 # Execução
 # ---------------------------------------------------------------------------
 
-def rodar(df: pd.DataFrame, empresa_id: "str | None" = None) -> dict:
+def suspeitas_de_vazamento(df: pd.DataFrame) -> list[str]:
+    """Colunas numéricas que, sozinhas, separam quem pagou quase perfeitamente.
+
+    Mesmo critério do treino da empresa (treino_empresa._suspeitas_de_vazamento):
+    um nome de coluna inocente não impede que ela carregue a resposta.
+    """
+    from model.treino_empresa import _suspeitas_de_vazamento
+    candidatas = [c for c in df.columns
+                  if c not in ("cpf", "pagou", "valor_recuperado", "ordem_atual")]
+    numericas = df[candidatas].apply(pd.to_numeric, errors="coerce")
+    numericas = numericas.loc[:, numericas.notna().mean() >= 0.5]
+    if numericas.empty:
+        return []
+    return sorted(_suspeitas_de_vazamento(numericas, df["pagou"].to_numpy()))
+
+
+def rodar(df: pd.DataFrame, empresa_id: "str | None" = None,
+          manter_colunas_do_periodo: bool = False) -> dict:
     """Pontua a carteira e compara as filas. Não escreve nada no banco.
 
     Pontua com o modelo que a empresa usa na análise (o dela, se houver um
@@ -244,6 +268,24 @@ def rodar(df: pd.DataFrame, empresa_id: "str | None" = None) -> dict:
         avisos.append(
             f"Colunas removidas antes de pontuar por entregarem o desfecho: "
             f"{vazando}. Mantê-las produziria um KS alto e falso."
+        )
+
+    do_periodo = [c for c in COLUNAS_DO_PERIODO if c in df.columns]
+    if do_periodo and not manter_colunas_do_periodo:
+        vazando = vazando + do_periodo
+        avisos.append(
+            f"Colunas deixadas de fora por costumarem ser contadas durante a própria "
+            f"cobrança (quem pagou para de receber ligações): {do_periodo}. Se elas "
+            f"foram tiradas ANTES do período, rode de novo mantendo-as."
+        )
+
+    suspeitas = [c for c in suspeitas_de_vazamento(df.drop(columns=vazando))
+                 if c not in OBRIGATORIAS]
+    if suspeitas:
+        vazando = vazando + suspeitas
+        avisos.append(
+            f"Colunas que separam sozinhas quem pagou de quem não pagou foram deixadas "
+            f"de fora: {suspeitas}. Provavelmente carregam a resposta."
         )
 
     auc_ordem = ordem_suspeita(df)
@@ -262,6 +304,14 @@ def rodar(df: pd.DataFrame, empresa_id: "str | None" = None) -> dict:
 
     separacao = _ks_gini(df["pagou"].to_numpy(), score / 100.0)
     filas = comparar_filas(df, score)
+    # KS suspeito: o ganho das filas pode ser vazamento, não modelo. O
+    # resultado sai, mas sem a conclusão "o Mizan recuperou mais".
+    conclusao_valida = separacao.get("ks_leitura") != "suspeito"
+    if not conclusao_valida:
+        avisos.append(
+            "KS acima de 50 costuma ser vazamento de dados, não qualidade de modelo: "
+            "o ganho sobre a prática atual não vale como conclusão até conferir as colunas."
+        )
 
     # A comparação que decide: ganhar de "maior dívida primeiro"
     ganho = {}
@@ -347,6 +397,8 @@ def rodar(df: pd.DataFrame, empresa_id: "str | None" = None) -> dict:
         "ganho_sobre_pratica_atual": ganho,
         "ganho_sobre_fila_atual":    ganho_fila_atual,
         "avisos":             avisos,
+        "colunas_ignoradas":  sorted(set(vazando)),
+        "conclusao_valida":   conclusao_valida,
     }
 
 
@@ -426,7 +478,10 @@ def relatorio(r: dict) -> str:
         L.append(f"   {int(cap*100):>3}% da base: {sinal}{_brl(g['diferenca'])}  ({pct})")
 
     L.append("")
-    if venceu == len(CAPACIDADES):
+    if r.get("conclusao_valida") is False:
+        L.append("   Sem conclusão: o KS está suspeito (provável vazamento).")
+        L.append("   Confira as colunas de entrada antes de comparar as filas.")
+    elif venceu == len(CAPACIDADES):
         L.append("   O Mizan recuperou mais em todas as capacidades testadas.")
     elif venceu == 0:
         L.append("   O Mizan NÃO superou a prática atual em nenhuma capacidade.")
