@@ -1,7 +1,7 @@
 import ThemeToggle from '../components/ThemeToggle'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Mail, Loader2, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, Loader2, CheckCircle2 } from 'lucide-react'
 import { LogoMark } from '../components/Logo'
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
@@ -30,7 +30,7 @@ export default function EsqueciSenha() {
       setEnviado(true)
     } catch (e) {
       if (e.name === 'AbortError') setErro('O servidor demorou muito. Tente novamente em instantes.')
-      else setErro('Erro ao conectar. Tente novamente.')
+      else setErro('Não foi possível falar com o servidor. Tente novamente.')
     } finally {
       setCarregando(false)
     }
@@ -50,12 +50,12 @@ export default function EsqueciSenha() {
           border: '1px solid var(--line)',
           boxShadow: '0 16px 48px rgba(0,0,0,0.50), 0 4px 12px rgba(0,0,0,0.30)',
         }}>
-        <button onClick={() => navigate('/login')}
+        <button type="button" onClick={() => navigate('/login')}
           className="flex items-center gap-1.5 text-sm mb-7 transition-colors font-medium"
           style={{ color: 'var(--ink-2)' }}
-          onMouseOver={e => e.currentTarget.style.color = 'white'}
+          onMouseOver={e => e.currentTarget.style.color = 'var(--ink)'}
           onMouseOut={e => e.currentTarget.style.color = 'var(--ink-2)'}>
-          <ArrowLeft className="w-4 h-4" /> Voltar ao login
+          <ArrowLeft className="w-4 h-4" aria-hidden="true" /> Voltar ao login
         </button>
 
         {enviado ? (
@@ -64,9 +64,9 @@ export default function EsqueciSenha() {
               style={{ background: 'rgb(var(--c-success) / 0.12)', border: '1px solid rgb(var(--c-success) / 0.20)' }}>
               <CheckCircle2 className="w-7 h-7 text-emerald-400" />
             </div>
-            <h2 className="text-lg font-bold text-ink mb-2 tracking-tight">E-mail enviado!</h2>
+            <h2 className="text-lg font-bold text-ink mb-2 tracking-tight">Pedido enviado</h2>
             <p className="text-sm leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-              Se o e-mail estiver cadastrado, você receberá as instruções em breve. Verifique também a caixa de spam.
+              Se o e-mail estiver cadastrado, o link chega em instantes. Confira também o spam.
             </p>
             <button onClick={() => navigate('/login')} className="btn-primary mt-6 w-full py-2.5">
               Voltar ao login
@@ -80,9 +80,11 @@ export default function EsqueciSenha() {
             </p>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>E-mail</label>
+                <label htmlFor="esqueci-email" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>E-mail</label>
                 <input
+                  id="esqueci-email"
                   type="email"
+                  autoComplete="email"
                   required
                   value={email}
                   onChange={e => setEmail(e.target.value)}
@@ -91,14 +93,14 @@ export default function EsqueciSenha() {
                 />
               </div>
               {erro && (
-                <div className="text-sm text-red-400 rounded-xl px-4 py-3"
-                  style={{ background: 'rgb(var(--c-danger) / 0.10)', border: '1px solid rgb(var(--c-danger) / 0.20)' }}>
+                <div role="alert" className="text-sm rounded-xl px-4 py-3"
+                  style={{ color: 'var(--danger)', background: 'rgb(var(--c-danger) / 0.10)', border: '1px solid rgb(var(--c-danger) / 0.20)' }}>
                   {erro}
                 </div>
               )}
               <button type="submit" disabled={carregando} className="btn-primary w-full py-2.5 disabled:opacity-50">
                 {carregando
-                  ? <><Loader2 className="h-4 w-4 animate-spin" /> Enviando...</>
+                  ? <><Loader2 className="h-4 w-4 animate-spin" /> Enviando…</>
                   : 'Enviar link de redefinição'}
               </button>
             </form>

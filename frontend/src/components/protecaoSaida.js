@@ -43,7 +43,8 @@ export function useProtegerSaida(ativo, mensagem = 'Você tem alterações não 
     if (!ativo) return
     const minha = { mensagem }
     trava = minha
-    const aviso = (e) => { e.preventDefault(); e.returnValue = '' }
+    // Trava liberada (ex.: a sessão expirou e o app vai ao login): sai sem perguntar.
+    const aviso = (e) => { if (trava !== minha) return; e.preventDefault(); e.returnValue = '' }
     window.addEventListener('beforeunload', aviso)
     const empilhar = () => window.history.pushState({ ...window.history.state, [SENTINELA]: true }, '')
     const aoVoltar = () => {

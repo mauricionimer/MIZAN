@@ -3,9 +3,9 @@ import { createPortal } from 'react-dom'
 import { useNavigate, useLocation, useOutlet } from 'react-router-dom'
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'framer-motion'
 import {
-  LayoutDashboard, UploadCloud, ClipboardList, Users, KeyRound, LogOut, Loader2, Menu, X,
-  ShieldCheck, Zap, Brain, Command, FlaskConical, Lock, HelpCircle, SlidersHorizontal,
-  MessageCircleQuestion, GraduationCap, KeySquare, CalendarClock, Gauge, MessageSquareText, TrendingUp, Handshake, Tags, Bot,
+  UploadCloud, KeyRound, LogOut, Loader2, Menu, X,
+  Zap, Brain, Command, Lock, HelpCircle, SlidersHorizontal,
+  MessageCircleQuestion, GraduationCap, KeySquare, CalendarClock, Gauge, TrendingUp, Handshake, Bot,
 } from 'lucide-react'
 import ThemeToggle from './ThemeToggle'
 import useAvisosDeDuvida from './useAvisosDeDuvida'
@@ -54,7 +54,7 @@ function useItens() {
   const avisos = useAvisosDeDuvida()
   const agenda = useAvisoAgenda()
   const gestor = isAdmin || isComando
-  const avisoAgenda = { aviso: isComando ? 0 : agenda.alto + agenda.medio, corAviso: agenda.alto > 0 ? 'bg-red-600' : 'bg-amber-500',
+  const avisoAgenda = { aviso: isComando ? 0 : agenda.alto + agenda.medio, corAviso: agenda.alto > 0 ? 'bg-red-600 text-white' : 'bg-amber-400 text-black',
     tituloAviso: agenda.alto > 0 ? `compromissos (${agenda.alto} ${agenda.alto === 1 ? 'vencido' : 'vencidos'})` : 'compromissos para hoje ou amanhã' }
   const carteira = { id: 'carteira', label: 'Carteira', icon: UploadCloud, vista: 'analise', abas: [
     ...(result ? [{ id: 'dashboard', label: 'Painel da carteira', vista: 'dashboard' }] : []),
@@ -158,7 +158,7 @@ function Navegacao({ grupos, ativo, acionar, sair, idDestaque }) {
                     <Icon className={`relative h-[18px] w-[18px] shrink-0 ${on ? 'text-blue-400' : ''}`} />
                     <span className="relative truncate">{it.label}</span>
                     {it.aviso > 0 && (
-                      <span className={`relative ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-full ${it.corAviso || 'bg-blue-600'} px-1.5 text-[11px] font-semibold leading-5 text-white`}
+                      <span className={`relative ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-full ${it.corAviso || 'bg-[var(--royal)] text-[var(--on-brand)]'} px-1.5 text-[11px] font-semibold leading-5`}
                         aria-label={`${it.aviso} ${it.tituloAviso}`}>{it.aviso > 99 ? '99+' : it.aviso}</span>
                     )}
                   </button>
@@ -325,7 +325,7 @@ export function ShellLayout() {
                   <p className="text-sm font-medium leading-tight text-ink">{nomeUser}</p>
                   <p className="text-xs font-light text-ink-2">{usuario?.email || ''}</p>
                 </div>
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-brand-ink" aria-hidden="true">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--royal)] text-xs font-bold text-brand-ink" aria-hidden="true">
                   {iniciais}
                 </div>
               </div>
