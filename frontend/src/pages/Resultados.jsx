@@ -6,6 +6,7 @@ import { TrendingUp, Loader2, Info, Trophy, Banknote, ClipboardCheck, Percent, R
 import AppShell from '../components/AppShell'
 import DicaAjuda from '../components/DicaAjuda'
 import ErroCarga from '../components/ErroCarga'
+import StatCard from '../components/StatCard'
 import { useAuth } from '../context/AuthContext'
 import { buscarResultados, listarEmpresas } from '../api'
 
@@ -40,17 +41,7 @@ const CORTES = [
 ]
 
 function Numero({ icone: Icone, rotulo, valor, nota, i }) {
-  return (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
-      className="rounded-xl border border-line bg-surface p-4 sm:p-5">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-2">{rotulo}</p>
-        <Icone className="h-4 w-4 text-ink-2" />
-      </div>
-      <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-ink sm:text-3xl">{valor}</p>
-      {nota && <p className="mt-1 text-xs text-ink-2">{nota}</p>}
-    </motion.div>
-  )
+  return <StatCard icon={Icone} label={rotulo} value={valor} nota={nota} i={i} corClasse="text-ink-2" />
 }
 
 // Barra horizontal: uma série, uma cor. O número fica escrito ao lado (nunca só a cor).

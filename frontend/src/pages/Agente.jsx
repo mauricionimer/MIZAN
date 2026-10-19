@@ -6,6 +6,7 @@ import { Bot, Send, Search, Loader2, Activity, ShieldCheck, AlertTriangle, Power
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import ErroCarga from '../components/ErroCarga'
+import StatCard from '../components/StatCard'
 import EscritorioAgentes, { Retrato } from '../components/EscritorioAgentes'
 import FichaPassagem, { SeloPrioridade } from '../components/FichaPassagem'
 import { useAuth } from '../context/AuthContext'
@@ -264,13 +265,7 @@ function Conversa({ empresa }) {
 }
 
 function Cartao({ icone: Icone, rotulo, valor, nota, cor }) {
-  return (
-    <div className="rounded-xl border border-line bg-surface p-4">
-      <div className="flex items-center justify-between"><p className="text-[11px] font-semibold uppercase tracking-wider text-ink-2">{rotulo}</p><Icone className="h-4 w-4" style={{ color: cor }} /></div>
-      <p className="mt-2 text-xl font-bold tabular-nums text-ink">{valor}</p>
-      {nota && <p className="mt-1 text-xs text-ink-2">{nota}</p>}
-    </div>
-  )
+  return <StatCard icon={Icone} label={rotulo} value={valor} nota={nota} cor={cor} />
 }
 
 function Central({ empresa }) {
@@ -663,14 +658,7 @@ function Agenda({ empresa }) {
 const NOMES_AGENTES = ['Triagem', 'Negociador', 'Supervisor', 'Estrategista', 'Cientista', 'Acompanhamento', 'Orquestrador', 'Auditor']
 
 function Numero({ rotulo, valor, detalhe, barra }) {
-  return (
-    <div className="rounded-xl border border-line bg-surface p-4">
-      <p className="text-xs font-medium text-ink-2">{rotulo}</p>
-      <p className="mt-1 text-2xl font-bold tabular-nums text-ink">{valor}</p>
-      {barra != null && <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-raise-2"><div className="h-full rounded-full bg-blue-500" style={{ width: `${Math.min(100, barra * 100)}%` }} /></div>}
-      {detalhe && <p className="mt-1 text-xs text-ink-3">{detalhe}</p>}
-    </div>
-  )
+  return <StatCard label={rotulo} value={valor} nota={detalhe} barra={barra} />
 }
 
 function AoVivo({ empresa }) {
