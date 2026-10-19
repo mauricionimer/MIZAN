@@ -9,9 +9,10 @@ import {
   listarEmpresas, adicionarUsuarioEmpresa, removerUsuarioEmpresa, deletarEmpresa,
   putEmpresaConfig, uploadEmpresaFoto, getEmpresaConfigPublica,
   verDominios, gravarDominios,
+  listarDisponibilidade, criarDisponibilidade, removerDisponibilidade,
 } from '../api'
 import {
-  Users, UserPlus, ShieldCheck, ShieldOff, ToggleLeft, ToggleRight, Database, Lock, Unlock, Building2, Plus, X, UserMinus, Mail, Trash2, Camera, Pencil, Check, AtSign,
+  Users, UserPlus, ShieldCheck, ShieldOff, ToggleLeft, ToggleRight, Database, Lock, Unlock, Building2, Plus, X, UserMinus, Mail, Trash2, Camera, Pencil, Check, AtSign, CalendarClock,
 } from 'lucide-react'
 import DicaAjuda from '../components/DicaAjuda'
 
@@ -447,6 +448,170 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
   )
 }
 
+// ── Disponibilidade do operador ──────────────────────────────────────────────
+// Dia da semana por extenso (0=segunda..6=domingo, igual ao backend).
+const DIAS_SEMANA = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo']
+const hora2d = h => String(h).padStart(2, '0') + ':00'
+
+function TelaDisponibilidade({ token, empresaId }) {
+  const { pedir: pedirConfirmacao, modal: modalConfirmar } = useConfirmar()
+  const [faixas, setFaixas] = useState([])
+  const [operadores, setOperadores] = useState([])
+  const [carregando, setCarregando] = useState(true)
+  const [erro, setErro] = useState('')
+  const [msg, setMsg] = useState('')
+
+  const [form, setForm] = useState({ usuario_id: '', dia_semana: '0', hora_inicio: '8', hora_fim: '18' })
+  const [formErro, setFormErro] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const [removendo, setRemovendo] = useState(null)
+
+  useEffect(() => { carregar() }, [])
+
+  async function carregar() {
+    setCarregando(true); setErro('')
+    try {
+      const r = await listarDisponibilidade(token, empresaId)
+      setFaixas(r.faixas || [])
+      setOperadores(r.operadores || [])
+      setForm(f => ({ ...f, usuario_id: f.usuario_id || (r.operadores?.[0]?.id ?? '') }))
+    } catch (e) { setErro(e.message) } finally { setCarregando(false) }
+  }
+
+  function flash(texto) { setMsg(texto); setTimeout(() => setMsg(''), 3500) }
+
+  const nomeDoOperador = id => operadores.find(o => o.id === id)?.nome || 'Operador removido'
+
+  async function handleAdicionar(e) {
+    e.preventDefault(); setFormErro('')
+    if (!form.usuario_id) { setFormErro('Escolha um operador.'); return }
+    const dia_semana = Number(form.dia_semana)
+    const hora_inicio = Number(form.hora_inicio)
+    const hora_fim = Number(form.hora_fim)
+    if (hora_inicio >= hora_fim) { setFormErro('O horário final precisa ser depois do inicial.'); return }
+    setSalvando(true)
+    try {
+      const nova = await criarDisponibilidade(token, { usuario_id: form.usuario_id, dia_semana, hora_inicio, hora_fim }, empresaId)
+      setFaixas(prev => [...prev, nova])
+      flash('Faixa de horário adicionada.')
+    } catch (e) { setFormErro(e.message) } finally { setSalvando(false) }
+  }
+
+  async function handleRemover(f) {
+    const ok = await pedirConfirmacao({
+      titulo: `Remover esta faixa de ${nomeDoOperador(f.usuario_id)}?`,
+      texto: `${DIAS_SEMANA[f.dia_semana]}, das ${hora2d(f.hora_inicio)} às ${hora2d(f.hora_fim)}.`,
+      confirmar: 'Remover', perigo: true,
+    })
+    if (!ok) return
+    setRemovendo(f.id); setErro('')
+    try {
+      await removerDisponibilidade(token, f.id, empresaId)
+      setFaixas(prev => prev.filter(x => x.id !== f.id))
+    } catch (e) { setErro(e.message) } finally { setRemovendo(null) }
+  }
+
+  // Agrupa por operador, mais fácil de ler que uma lista solta.
+  const porOperador = operadores.map(op => ({
+    operador: op,
+    faixas: faixas.filter(f => f.usuario_id === op.id)
+      .sort((a, b) => a.dia_semana - b.dia_semana || a.hora_inicio - b.hora_inicio),
+  }))
+
+  return (
+    <>
+      {modalConfirmar}
+      <div className="mb-8">
+        <h1 className="text-xl font-bold text-ink tracking-tight">Disponibilidade dos operadores<DicaAjuda id="disponibilidade-operador" /></h1>
+        <p className="text-sm mt-1" style={{ color: 'var(--ink-2)' }}>
+          Horários em que cada operador está disponível, usados para avisar o devedor.
+        </p>
+      </div>
+
+      <div className="mb-6 rounded-2xl p-6" style={{ background: 'var(--surface)', border: '1px solid var(--line)', boxShadow: '0 2px 12px rgba(0,0,0,0.40)' }}>
+        <h2 className="text-sm font-bold text-ink mb-5">Adicionar faixa de horário</h2>
+        {operadores.length === 0 && !carregando ? (
+          <p className="text-sm" style={{ color: 'var(--ink-3)' }}>Nenhum operador ativo nesta empresa ainda.</p>
+        ) : (
+          <form onSubmit={handleAdicionar} className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+            <div className="sm:col-span-2">
+              <label htmlFor="disp-operador" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>Operador</label>
+              <select id="disp-operador" value={form.usuario_id} onChange={e => setForm(f => ({ ...f, usuario_id: e.target.value }))} className="input-base">
+                {operadores.map(op => <option key={op.id} value={op.id}>{op.nome}</option>)}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="disp-dia" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>Dia da semana</label>
+              <select id="disp-dia" value={form.dia_semana} onChange={e => setForm(f => ({ ...f, dia_semana: e.target.value }))} className="input-base">
+                {DIAS_SEMANA.map((d, i) => <option key={d} value={i}>{d}</option>)}
+              </select>
+            </div>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label htmlFor="disp-inicio" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>Início</label>
+                <select id="disp-inicio" value={form.hora_inicio} onChange={e => setForm(f => ({ ...f, hora_inicio: e.target.value }))} className="input-base">
+                  {Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{hora2d(h)}</option>)}
+                </select>
+              </div>
+              <div className="flex-1">
+                <label htmlFor="disp-fim" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>Fim</label>
+                <select id="disp-fim" value={form.hora_fim} onChange={e => setForm(f => ({ ...f, hora_fim: e.target.value }))} className="input-base">
+                  {Array.from({ length: 24 }, (_, h) => h + 1).map(h => <option key={h} value={h}>{hora2d(h)}</option>)}
+                </select>
+              </div>
+            </div>
+            {formErro && <MsgErro className="sm:col-span-4">{formErro}</MsgErro>}
+            <div className="sm:col-span-4 flex justify-end">
+              <button type="submit" disabled={salvando} className="btn-primary disabled:opacity-50">
+                <Plus className="w-4 h-4" aria-hidden="true" />{salvando ? 'Adicionando…' : 'Adicionar faixa'}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+
+      {msg && <div role="status" className="mb-5 rounded-xl px-4 py-3 text-sm" style={{ color: 'var(--success)', background: 'rgb(var(--c-success) / 0.08)', border: '1px solid rgb(var(--c-success) / 0.20)' }}>{msg}</div>}
+      {erro && <MsgErro className="mb-5 py-3">{erro}</MsgErro>}
+
+      {carregando ? (
+        <div className="text-center py-16 text-sm" style={{ color: 'var(--ink-3)' }}>Carregando…</div>
+      ) : operadores.length === 0 ? null : (
+        <div className="space-y-4">
+          {porOperador.map(({ operador, faixas: faixasDoOp }) => (
+            <div key={operador.id} className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--line)', boxShadow: '0 2px 12px rgba(0,0,0,0.40)' }}>
+              <div className="px-5 py-3 border-b flex items-center gap-2.5" style={{ borderColor: 'var(--line)' }}>
+                <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{ background: 'var(--raise-3)', color: 'var(--ink-2)' }}>
+                  {operador.nome[0]?.toUpperCase()}
+                </div>
+                <p className="font-bold text-ink text-sm">{operador.nome}</p>
+              </div>
+              {faixasDoOp.length === 0 ? (
+                <p className="px-5 py-4 text-sm" style={{ color: 'var(--ink-3)' }}>Nenhuma faixa de horário cadastrada.</p>
+              ) : (
+                <div>
+                  {faixasDoOp.map(f => (
+                    <div key={f.id} className="flex items-center justify-between px-5 py-3 border-b" style={{ borderColor: 'var(--line)' }}>
+                      <p className="text-sm text-ink">{DIAS_SEMANA[f.dia_semana]} · {hora2d(f.hora_inicio)} às {hora2d(f.hora_fim)}</p>
+                      <button type="button" onClick={() => handleRemover(f)} disabled={removendo === f.id}
+                        aria-label={`Remover faixa de ${DIAS_SEMANA[f.dia_semana]} de ${operador.nome}`}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-40"
+                        style={{ color: 'var(--ink-3)' }}
+                        onMouseOver={e => { e.currentTarget.style.background = 'rgb(var(--c-danger) / 0.08)'; e.currentTarget.style.color = 'var(--danger)' }}
+                        onMouseOut={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--ink-3)' }}>
+                        <Trash2 className="w-3.5 h-3.5" />{removendo === f.id ? '...' : 'Remover'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  )
+}
+
 // ── Componente principal ─────────────────────────────────────────────────────
 // Um degrau por papel: o botão da linha desce quem está acima e sobe quem
 // está abaixo. Promover ALGUÉM a comando é decisão de outra ordem e fica no
@@ -468,7 +633,7 @@ export default function AdminUsuarios() {
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState('')
   const [msg, setMsg] = useState('')
-  const [aba, setAba] = useState('usuarios') // 'usuarios' | 'empresas' | 'permissoes'
+  const [aba, setAba] = useState('usuarios') // 'usuarios' | 'empresas' | 'permissoes' | 'disponibilidade'
   const [novaEmpresa, setNovaEmpresa] = useState('')
   const [criandoEmpresa, setCriandoEmpresa] = useState(false)
 
@@ -627,6 +792,8 @@ export default function AdminUsuarios() {
               ['usuarios', <Users key="i" className="w-4 h-4" aria-hidden="true" />, 'Usuários'],
               ...(isComando ? [['empresas', <Building2 key="i" className="w-4 h-4" aria-hidden="true" />, 'Empresas']] : []),
               ['permissoes', <Database key="i" className="w-4 h-4" aria-hidden="true" />, 'Permissões de banco'],
+              // Só admin cadastra/edita (regra do backend); comando não pertence a uma empresa.
+              ...(isAdmin ? [['disponibilidade', <CalendarClock key="i" className="w-4 h-4" aria-hidden="true" />, 'Disponibilidade']] : []),
             ].map(([id, icon, label]) => (
               <button key={id} type="button" onClick={() => setAba(id)} aria-pressed={aba === id}
                 className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
@@ -934,6 +1101,11 @@ export default function AdminUsuarios() {
               </div>
             )}
           </>
+        )}
+
+        {/* ── ABA DISPONIBILIDADE (apenas admin) ── */}
+        {aba === 'disponibilidade' && isAdmin && (
+          <TelaDisponibilidade token={token} empresaId={usuario?.empresa_id} />
         )}
       </div>
     </AppShell>
