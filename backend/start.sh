@@ -17,4 +17,4 @@ if [ -n "$DATA_DIR" ]; then
     echo "[Init] Volume de dados pronto em $DATA_DIR"
 fi
 
-exec python -m uvicorn main:app --host 0.0.0.0 --port "${PORT:-8080}"
+exec python -m uvicorn main:app --host 0.0.0.0 --port "${PORT:-8080}" --proxy-headers --forwarded-allow-ips="*"
