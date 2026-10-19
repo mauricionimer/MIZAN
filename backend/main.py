@@ -6073,6 +6073,17 @@ async def feedback_lote(
     return await asyncio.to_thread(_processar)
 
 
+# Score a partir do qual o modelo "disse que paga", para medir acurácia com os
+# pagamentos reais. Um só valor para /performance e /admin/modelos (antes um
+# usava 40 e o outro 50, e a mesma versão mostrava duas acurácias); 50 é o
+# mesmo corte de 0,5 da matriz de confusão em model/diagnostico.py.
+LIMIAR_ACERTO_SCORE = 50
+
+
+def _acertou(score, pagou) -> bool:
+    return (score >= LIMIAR_ACERTO_SCORE) == bool(pagou)
+
+
 def _chave_cache_feedbacks(prefixo: str, carteira_id: "str | None", empresa_id: str) -> str:
     """Chave de cache de /performance, /performance/pagamentos e /feedbacks/status.
 
@@ -6192,8 +6203,7 @@ def performance(
 
         if score is not None:
             total_com_score += 1
-            acertou = (score >= 40 and pagou) or (score < 40 and not pagou)
-            if acertou:
+            if _acertou(score, pagou):
                 total_corretos += 1
 
     metricas = [
@@ -7875,7 +7885,7 @@ def listar_modelos(
         pagou = fb["pagou"]
         if score is not None:
             totais[versao] += 1
-            if (score >= 50 and pagou) or (score < 50 and not pagou):
+            if _acertou(score, pagou):
                 acertos[versao] += 1
 
     # Monta resposta por versão
