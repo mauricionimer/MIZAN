@@ -38,6 +38,7 @@ class FonteMemoria:
         self.ofertas: list = []
         self.contatos: list = []
         self.contestacoes: list = []
+        self.disponibilidades: list = []
 
     def devedor(self, empresa_id: str, predicao_id: str) -> dict | None:
         d = self._devedores.get(predicao_id)
@@ -116,6 +117,33 @@ class FonteMemoria:
              "motivo": motivo, "situacao": "aberta"}
         self.contestacoes.append(c)
         return copy.deepcopy(c)
+
+    # ── disponibilidade do operador (backend/sql/migracao_disponibilidade_operador.sql) ──
+    def disponibilidade_operador(self, empresa_id: str, usuario_id: str | None = None) -> list:
+        return [copy.deepcopy(d) for d in self.disponibilidades
+                if d["empresa_id"] == empresa_id and d.get("ativo", True)
+                and (usuario_id is None or d["usuario_id"] == usuario_id)]
+
+    def criar_disponibilidade(self, empresa_id: str, usuario_id: str, dia_semana: int,
+                              hora_inicio: int, hora_fim: int) -> dict:
+        item = {"id": str(uuid.uuid4()), "empresa_id": empresa_id, "usuario_id": usuario_id,
+                "dia_semana": dia_semana, "hora_inicio": hora_inicio, "hora_fim": hora_fim, "ativo": True}
+        self.disponibilidades.append(item)
+        return copy.deepcopy(item)
+
+    def editar_disponibilidade(self, empresa_id: str, item_id: str, campos: dict) -> dict | None:
+        for d in self.disponibilidades:
+            if d["id"] == item_id and d["empresa_id"] == empresa_id:
+                d.update(campos)
+                return copy.deepcopy(d)
+        return None
+
+    def remover_disponibilidade(self, empresa_id: str, item_id: str) -> bool:
+        for d in self.disponibilidades:
+            if d["id"] == item_id and d["empresa_id"] == empresa_id:
+                d["ativo"] = False
+                return True
+        return False
 
 
 _COLUNAS_DEVEDOR = ("id, cpf, nome, carteira_id, valor_divida, dias_em_atraso, produto, "
@@ -254,3 +282,28 @@ class FonteSupabase:
         res = (self.db.table("agente_contestacoes")
                .insert({"empresa_id": empresa_id, "caso_id": caso_id, "motivo": motivo}).execute())
         return res.data[0]
+
+    # ── disponibilidade do operador (backend/sql/migracao_disponibilidade_operador.sql) ──
+    def disponibilidade_operador(self, empresa_id: str, usuario_id: str | None = None) -> list:
+        q = (self.db.table("disponibilidade_operador").select("*")
+             .eq("empresa_id", empresa_id).eq("ativo", True))
+        if usuario_id is not None:
+            q = q.eq("usuario_id", usuario_id)
+        return q.order("dia_semana").order("hora_inicio").limit(500).execute().data or []
+
+    def criar_disponibilidade(self, empresa_id: str, usuario_id: str, dia_semana: int,
+                              hora_inicio: int, hora_fim: int) -> dict:
+        res = (self.db.table("disponibilidade_operador").insert({
+            "empresa_id": empresa_id, "usuario_id": usuario_id, "dia_semana": dia_semana,
+            "hora_inicio": hora_inicio, "hora_fim": hora_fim, "ativo": True}).execute())
+        return res.data[0]
+
+    def editar_disponibilidade(self, empresa_id: str, item_id: str, campos: dict) -> dict | None:
+        res = (self.db.table("disponibilidade_operador").update(campos)
+               .eq("id", item_id).eq("empresa_id", empresa_id).execute())
+        return res.data[0] if res.data else None
+
+    def remover_disponibilidade(self, empresa_id: str, item_id: str) -> bool:
+        res = (self.db.table("disponibilidade_operador").update({"ativo": False})
+               .eq("id", item_id).eq("empresa_id", empresa_id).execute())
+        return bool(res.data)
