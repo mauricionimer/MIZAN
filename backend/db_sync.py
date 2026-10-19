@@ -80,6 +80,19 @@ def _parsear_pagou(val) -> bool:
     return bool(val)
 
 
+def _carteiras_da_empresa(db, empresa_id: str) -> list:
+    """Ids das carteiras da empresa, paginando (o PostgREST corta em mil)."""
+    ids, inicio = [], 0
+    while True:
+        r = (db.table("carteiras").select("id").eq("empresa_id", empresa_id)
+             .range(inicio, inicio + 999).execute())
+        lote = r.data or []
+        ids.extend(c["id"] for c in lote)
+        if len(lote) < 1000:
+            return ids
+        inicio += 1000
+
+
 def sincronizar() -> dict:
     """Busca pagamentos novos no banco externo e registra como feedbacks. Chamado pelo scheduler."""
     cfg = carregar_config()
@@ -123,20 +136,30 @@ def sincronizar() -> dict:
     from db import get_db
     db = get_db()
 
-    # Pré-busca predicao_ids para linkar feedbacks ao devedor correto
+    # Pré-busca predicao_ids para linkar feedbacks ao devedor correto — só
+    # dentro das carteiras da empresa. Antes procurava o CPF em TODAS as
+    # empresas: o pagamento ia para a predição de outro cliente e o bandit dele
+    # aprendia com isso. Sem empresa configurada, não liga a nenhuma predição.
     cpfs = [str(row[col_cpf]) for _, row in df.iterrows() if row.get(col_cpf)]
     pred_map: dict[str, str] = {}
-    for i in range(0, len(cpfs), 100):
-        res = (
-            db.table("predicoes")
-            .select("cpf, id")
-            .in_("cpf", cpfs[i:i+100])
-            .order("created_at", desc=True)
-            .execute()
-        )
-        for p in (res.data or []):
-            if p["cpf"] not in pred_map:
-                pred_map[p["cpf"]] = p["id"]
+    escopo = (cfg.get("empresa_id") or "").strip()
+    cart_ids = _carteiras_da_empresa(db, escopo) if escopo else []
+    for j in range(0, len(cart_ids), 50):
+        for i in range(0, len(cpfs), 100):
+            res = (
+                db.table("predicoes")
+                .select("cpf, id, created_at")
+                .in_("carteira_id", cart_ids[j:j+50])
+                .in_("cpf", cpfs[i:i+100])
+                .order("created_at", desc=True)
+                .execute()
+            )
+            for p in (res.data or []):
+                atual = pred_map.get(p["cpf"])
+                # Entre lotes de carteiras, fica a predição mais nova.
+                if atual is None or str(p.get("created_at") or "") > atual[1]:
+                    pred_map[p["cpf"]] = (p["id"], str(p.get("created_at") or ""))
+    pred_map = {cpf: v[0] for cpf, v in pred_map.items()}
 
     fb_rows = []
     for _, row in df.iterrows():

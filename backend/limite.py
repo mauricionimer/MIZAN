@@ -16,9 +16,18 @@ Duas coisas diferentes, porque são dois problemas:
 
 Quem é "o usuário": o `sub` do JWT; se o token não for um JWT (chave de API), o
 hash do cabeçalho; se não houver credencial, a requisição passa e a rota a
-recusa com 401. IP não serve de chave: atrás do proxy do Render,
-`request.client.host` costuma ser o do proxy, igual para todos, e o limite
-viraria um balde global que uns usuários esgotam para os outros.
+recusa com 401. IP não serve de chave nas rotas com login: atrás do proxy do
+Render, `request.client.host` costuma ser o do proxy, igual para todos, e o
+limite viraria um balde global que uns usuários esgotam para os outros.
+
+Rota PÚBLICA (sem login, ex.: a marca da tela de login) é diferente: lá a
+requisição sem credencial não leva 401, então deixar passar desligava o
+limite. Nelas a chave é o IP real (primeiro do X-Forwarded-For, que o proxy
+do Render preenche) e, por cima, um balde comum a todos os anônimos com teto
+maior. O comum existe porque o X-Forwarded-For pode ser inventado pelo
+cliente: trocar o cabeçalho a cada chamada abre balde novo por IP, mas não
+escapa do comum. Token que não é um JWT válido também cai no IP (um token
+inventado por chamada não pode valer como identidade nova).
 
 Limite deste arquivo é por PROCESSO. Com duas instâncias o teto efetivo é o
 dobro. É um freio contra abuso e acidente, não contabilidade exata; contar em
@@ -53,6 +62,8 @@ class Regra:
     janela_s: int
     mensagem: str
     pesada: bool = False    # também passa pelo portão de análises simultâneas
+    publica: bool = False   # rota sem login: limita por IP e por um balde comum
+    maximo_comum: int = 0   # teto do balde comum dos anônimos (0 = 10 × maximo)
 
 
 REGRAS = {
@@ -80,7 +91,7 @@ REGRAS = {
     # Marca no login: pública, sem login. Responde só pelo domínio, mas sem
     # freio serviria para varrer a lista de clientes domínio por domínio.
     ("GET", "/empresa/marca"): Regra("marca", 60, 600,
-        "Muitas consultas em pouco tempo. Aguarde {espera} s."),
+        "Muitas consultas em pouco tempo. Aguarde {espera} s.", publica=True),
     ("POST", "/comando/treino"): Regra("treino", 6, 3600,
         "Muitos treinos em pouco tempo. Aguarde {espera} s."),
 }
@@ -124,23 +135,63 @@ class Limitador:
 LIMITADOR = Limitador()
 
 
-def identidade(scope: dict) -> "str | None":
-    """Quem está chamando, sem tocar em IP. None se não houver credencial."""
+def primeiro_ip(x_forwarded_for: "str | None", direto: "str | None") -> str:
+    """IP de quem chamou: o primeiro do X-Forwarded-For, se houver; senão o direto.
+
+    Atrás do proxy do Render, o IP direto é o do proxy (igual para todos) e o
+    do cliente vem no começo do X-Forwarded-For. Sem o cabeçalho (chamada
+    direta, teste), vale o IP da conexão.
+    """
+    if x_forwarded_for:
+        ip = x_forwarded_for.split(",")[0].strip()
+        if ip:
+            return ip[:64]
+    return direto or "?"
+
+
+def ip_do_scope(scope: dict) -> str:
+    xff = None
+    for nome, valor in scope.get("headers", []):
+        if nome == b"x-forwarded-for":
+            xff = valor.decode("latin-1")
+            break
+    cliente = scope.get("client") or (None, None)
+    return primeiro_ip(xff, cliente[0] if cliente else None)
+
+
+def ip_da_requisicao(request) -> str:
+    """Mesmo que ip_do_scope, para uma Request do FastAPI."""
+    direto = request.client.host if request.client else None
+    return primeiro_ip(request.headers.get("x-forwarded-for"), direto)
+
+
+def _sub_do_jwt(token: str) -> "str | None":
+    try:
+        from auth import validar_token
+        return validar_token(token).get("sub") or None
+    except Exception:
+        return None
+
+
+def identidade(scope: dict, publica: bool = False) -> "str | None":
+    """Quem está chamando. None se não houver credencial (rota com login).
+
+    Em rota pública, quem não tem JWT válido é identificado pelo IP real.
+    """
     for nome, valor in scope.get("headers", []):
         if nome != b"authorization":
             continue
         bruto = valor.decode("latin-1")
-        token = bruto.split(" ", 1)[-1]
-        try:
-            from auth import validar_token
-            sub = validar_token(token).get("sub")
-            if sub:
-                return f"u:{sub}"
-        except Exception:
-            pass
+        sub = _sub_do_jwt(bruto.split(" ", 1)[-1])
+        if sub:
+            return f"u:{sub}"
+        if publica:
+            break
         # Não é JWT válido: pode ser chave de API. O hash identifica a
         # credencial sem guardá-la.
         return "k:" + hashlib.sha256(bruto.encode()).hexdigest()[:16]
+    if publica:
+        return "ip:" + ip_do_scope(scope)
     return None
 
 
@@ -177,7 +228,7 @@ class LimiteDeRequisicoes:
         if regra is None:
             return await self.app(scope, receive, send)
 
-        quem = identidade(scope)
+        quem = identidade(scope, publica=regra.publica)
         if quem is None:
             # Sem credencial não há o que limitar: a rota devolve 401.
             return await self.app(scope, receive, send)
@@ -196,6 +247,9 @@ class LimiteDeRequisicoes:
 
         try:
             ok, espera = self.limitador.tentar(f"{regra.balde}:{quem}", regra.maximo, regra.janela_s)
+            if ok and regra.publica and quem.startswith("ip:"):
+                comum = regra.maximo_comum or regra.maximo * 10
+                ok, espera = self.limitador.tentar(f"{regra.balde}:anon", comum, regra.janela_s)
             if not ok:
                 log.warning(json.dumps({"evento": "limite_excedido", "balde": regra.balde,
                                         "rota": scope["path"], "usuario": quem}))

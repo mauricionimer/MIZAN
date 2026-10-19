@@ -19,6 +19,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Security, BackgroundTasks, Request
+from fastapi import Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field, field_validator
@@ -666,6 +667,26 @@ class ConfirmarPagamentoIn(BaseModel):
     data_pagamento: Optional[date] = None
 
 
+def _hora_brasilia(ts) -> str:
+    """'AAAA-MM-DD HH:MM' no horário de Brasília a partir do created_at do banco.
+
+    Cortar o texto em [:16] mostrava a hora UTC do servidor como se fosse a
+    local (três horas adiantada). Texto sem fuso é tratado como UTC.
+    """
+    from agenda import FUSO
+    from datetime import timezone as _tz
+    bruto = str(ts or "").strip()
+    if not bruto:
+        return ""
+    try:
+        dt = datetime.fromisoformat(bruto.replace("Z", "+00:00"))
+    except ValueError:
+        return bruto[:16].replace("T", " ")
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=_tz.utc)
+    return dt.astimezone(FUSO).strftime("%Y-%m-%d %H:%M")
+
+
 _confirmacoes_em_andamento: set[str] = set()
 _rate_confirmacoes: dict[str, list[float]] = defaultdict(list)
 _RATE_CONFIRM_MAX = 30
@@ -694,8 +715,11 @@ class ConexaoDB(BaseModel):
 def _conexao_usavel(db, conexao_id: str, payload: dict) -> dict:
     """Linha da conexão salva, se ESTE usuário pode usá-la; senão 404/403.
 
-    comando usa qualquer uma; admin, as da própria empresa (ou que ele criou, ou
-    em que tem permissão); operador, só as que o admin liberou para ele.
+    comando usa qualquer uma; admin, as da própria empresa; operador, só as da
+    própria empresa que o admin liberou para ele. Antes valia também "foi ele
+    quem criou" (usuario_id): um admin movido da empresa A para a B seguia
+    usando, editando e sincronizando a conexão de A, e os devedores do banco de
+    A viravam carteira de B. A permissão também só vale dentro da empresa.
     """
     res = db.table("conexoes_db").select("*").eq("id", conexao_id).limit(1).execute()
     if not res.data:
@@ -704,7 +728,9 @@ def _conexao_usavel(db, conexao_id: str, payload: dict) -> dict:
     role, eid, uid = payload.get("role", "operador"), payload.get("empresa_id", ""), payload.get("sub")
     if role == "comando":
         return r
-    if role == "admin" and ((eid and r.get("empresa_id") == eid) or r.get("usuario_id") == uid):
+    if not eid or r.get("empresa_id") != eid:
+        raise HTTPException(status_code=403, detail="Sem permissão para usar esta conexão.")
+    if role == "admin":
         return r
     perm = (db.table("conexao_permissoes").select("id")
             .eq("conexao_id", conexao_id).eq("operador_id", uid).limit(1).execute())
@@ -714,16 +740,17 @@ def _conexao_usavel(db, conexao_id: str, payload: dict) -> dict:
 
 
 def _exigir_conexao_da_empresa(db, conexao_id: str, payload: dict) -> dict:
-    """Para gerir (editar, liberar a operadores): a conexão tem de ser da empresa
-    de quem gere. Usar uma conexão por permissão não dá o direito de geri-la."""
+    """Para gerir (editar, apagar, liberar a operadores): a conexão tem de ser da
+    empresa de quem gere. Usar uma conexão por permissão não dá o direito de
+    geri-la, e ter criado a conexão também não (ver _conexao_usavel)."""
     res = db.table("conexoes_db").select("id, empresa_id, usuario_id").eq("id", conexao_id).limit(1).execute()
     if not res.data:
         raise HTTPException(status_code=404, detail="Conexão não encontrada.")
     r = res.data[0]
     if payload.get("role") == "comando":
         return r
-    eid, uid = payload.get("empresa_id", ""), payload.get("sub")
-    if (eid and r.get("empresa_id") == eid) or r.get("usuario_id") == uid:
+    eid = payload.get("empresa_id", "")
+    if eid and r.get("empresa_id") == eid:
         return r
     raise HTTPException(status_code=403, detail="Acesso negado.")
 
@@ -779,6 +806,11 @@ def _resolver_credenciais(conn: ConexaoDB, payload: dict) -> None:
             setattr(conn, campo, r[campo])
     if not senha_da_requisicao and r.get("senha"):
         conn.senha = _decrypt(r["senha"])
+    if role not in ("admin", "comando"):
+        # O operador usa a consulta que o admin salvou, não a dele: com a
+        # liberação de uso da conexão ele mandava qualquer SELECT (outras
+        # tabelas, outras colunas) com a senha do banco do cliente.
+        conn.query = r.get("query") or None
     if r.get("tipo") == "sheets":
         for campo in ("sheets_id", "sheets_aba"):
             if r.get(campo):
@@ -1393,7 +1425,12 @@ class AlterarSenhaIn(BaseModel):
 
 @app.post("/auth/login")
 def auth_login(body: LoginIn, request: Request):
-    chave = f"{request.client.host}:{body.email}"
+    # E-mail normalizado como o buscar_usuario faz: antes "CMD@x.com" e
+    # "cmd@x.com" eram o mesmo usuário com cotas separadas (força bruta livre).
+    # IP real (primeiro do X-Forwarded-For): sem ele todos chegam com o IP do
+    # proxy, e 5 senhas erradas de um estranho trancavam o dono da conta.
+    _email = (body.email or "").strip().lower()
+    chave = f"{_limite.ip_da_requisicao(request)}:{_email}"
     _checar_rate_limit(chave)
     usuario = buscar_usuario(body.email)
     senha_ok = bool(usuario and usuario.get("ativo") and verificar_senha(body.senha, usuario.get("senha_hash", "")))
@@ -1632,12 +1669,12 @@ def auth_esqueci_senha(body: EsqueciSenhaIn, background_tasks: BackgroundTasks):
                                         "global": not _ok_geral}))
         return {"ok": True, "mensagem": "Se o e-mail estiver cadastrado, você receberá as instruções em breve."}
 
-    token = criar_reset_token(body.email)
+    token = criar_reset_token(_email)
     if token:
-        usuario = buscar_usuario(body.email)
+        usuario = buscar_usuario(_email)
         nome = usuario.get("nome", "usuário") if usuario else "usuário"
         link = f"{FRONTEND_URL}/redefinir-senha?token={token}"
-        background_tasks.add_task(email_redefinir_senha, body.email, nome, link)
+        background_tasks.add_task(email_redefinir_senha, _email, nome, link)
     return {"ok": True, "mensagem": "Se o e-mail estiver cadastrado, você receberá as instruções em breve."}
 
 @app.get("/conexoes")
@@ -1654,30 +1691,21 @@ def listar_conexoes(credentials: HTTPAuthorizationCredentials = Security(bearer)
         # Comando vê TODAS as conexões de todas as empresas
         r = db.table("conexoes_db").select("*").order("created_at", desc=True).execute()
         rows = r.data or []
+    elif not eid:
+        # Sem empresa (removido dela) não há conexão a ver. Antes o admin seguia
+        # vendo as que criou, mesmo depois de sair da empresa.
+        rows = []
     elif role == "admin":
-        # Admin vê conexões da sua empresa + as que criou + as que recebeu permissão explícita
-        seen: set = set()
-        if eid:
-            r1 = db.table("conexoes_db").select("*").eq("empresa_id", eid).order("created_at", desc=True).execute()
-            for r in (r1.data or []):
-                seen.add(r["id"]); rows.append(r)
-        r2 = db.table("conexoes_db").select("*").eq("usuario_id", uid).order("created_at", desc=True).execute()
-        for r in (r2.data or []):
-            if r["id"] not in seen:
-                seen.add(r["id"]); rows.append(r)
-        perm = db.table("conexao_permissoes").select("conexao_id").eq("operador_id", uid).execute()
-        ids_perm = [p["conexao_id"] for p in (perm.data or []) if p["conexao_id"] not in seen]
-        if ids_perm:
-            r3 = db.table("conexoes_db").select("*").in_("id", ids_perm).execute()
-            for r in (r3.data or []):
-                if r["id"] not in seen:
-                    seen.add(r["id"]); rows.append(r)
+        # Admin vê as conexões da sua empresa (só elas: ver _conexao_usavel)
+        r1 = db.table("conexoes_db").select("*").eq("empresa_id", eid).order("created_at", desc=True).execute()
+        rows = r1.data or []
     else:
-        # Operador vê apenas conexões com permissão explícita
+        # Operador vê as da sua empresa que o admin liberou para ele
         perm = db.table("conexao_permissoes").select("conexao_id").eq("operador_id", uid).execute()
         ids_permitidos = [p["conexao_id"] for p in (perm.data or [])]
         if ids_permitidos:
-            r = db.table("conexoes_db").select("*").in_("id", ids_permitidos).order("created_at", desc=True).execute()
+            r = (db.table("conexoes_db").select("*").in_("id", ids_permitidos).eq("empresa_id", eid)
+                 .order("created_at", desc=True).execute())
             rows = r.data or []
 
     rows.sort(key=lambda r: r.get("created_at", ""), reverse=True)
@@ -1814,7 +1842,12 @@ def registrar_contato(body: ContatoIn, credentials: HTTPAuthorizationCredentials
     db = get_db()
 
     _emp = payload.get("empresa_id", "")
-    if not _emp and payload.get("role") != "comando":
+    # Contato é trabalho de fila de uma empresa (como a agenda). O COMANDO, sem
+    # empresa, gravava contato com empresa_id vazio: fora de todos os painéis, e
+    # o "pagou" procurava o CPF em todas as empresas.
+    if payload.get("role") == "comando":
+        raise HTTPException(status_code=403, detail="O COMANDO não registra contatos: é trabalho da equipe da empresa.")
+    if not _emp:
         raise HTTPException(status_code=403, detail="Acesso negado: usuário sem empresa definida.")
 
     if body.resultado == "pagou":
@@ -2111,10 +2144,15 @@ def agente_retorno_passagem(predicao_id: str, body: PassagemRetornoIn,
     from agente import api as agente_api
     payload = _usuario_autenticado(credentials)
     emp = _empresa_da_agenda(payload, body.empresa_id)
+    # Caso travado pelo agente (ou por outra pessoa) é 409, como em assumir e
+    # devolver, não 500. getattr: a trava no retorno pode ainda não existir.
+    _ocupado = getattr(agente_api, "CasoOcupado", None) or type("_SemTrava", (Exception,), {})
     try:
         r = agente_api.registrar_retorno_passagem(emp, predicao_id, body.ajudou, payload.get("email"), body.comentario or "")
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except _ocupado as e:
+        raise HTTPException(status_code=409, detail=str(e))
     _registrar_auditoria(acao="passagem_retorno", entidade="agente_casos", entidade_id=predicao_id,
                          usuario_email=payload.get("email"), empresa_id=emp, usuario_id=payload.get("sub"),
                          detalhes={"ajudou": body.ajudou})
@@ -2821,12 +2859,27 @@ def listar_contatos_cpf(cpf: str, credentials: HTTPAuthorizationCredentials = Se
     return res.data
 
 
+class ExcluirContaIn(BaseModel):
+    senha: str
+
+
 @app.delete("/auth/me")
-def deletar_conta(credentials: HTTPAuthorizationCredentials = Security(bearer)):
-    """LGPD — usuário solicita exclusão da própria conta e dados."""
+def deletar_conta(body: ExcluirContaIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """LGPD — usuário solicita exclusão da própria conta e dados.
+
+    Pede a senha de novo: só o token (que fica no navegador por dias) bastava
+    para apagar a conta de quem deixou a sessão aberta ou teve o token vazado.
+    """
     payload = _usuario_autenticado(credentials)
     usuario_id = payload["sub"]
     db = get_db()
+    chave = f"excluir:{usuario_id}"
+    _checar_rate_limit(chave)
+    linha = (db.table("usuarios").select("senha_hash").eq("id", usuario_id).limit(1).execute().data or [{}])[0]
+    if not verificar_senha(body.senha or "", linha.get("senha_hash") or ""):
+        _registrar_tentativa(chave)
+        raise HTTPException(status_code=401, detail="Senha incorreta.")
+    _limpar_tentativas(chave)
     from auth import _ultimo_comando_ativo
     if _ultimo_comando_ativo(db, usuario_id):
         raise HTTPException(status_code=400, detail="Você é o único COMANDO ativo: excluir a conta trancaria a "
@@ -2876,15 +2929,11 @@ def atualizar_conexao(conexao_id: str, body: ConexaoUpdateIn, credentials: HTTPA
 def deletar_conexao(conexao_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     payload = _exigir_admin_ou_comando(credentials)
     db = get_db()
-    eid = payload.get("empresa_id", "")
-    uid = payload["sub"]
-    chk = db.table("conexoes_db").select("id, empresa_id, usuario_id").eq("id", conexao_id).execute()
+    chk = db.table("conexoes_db").select("id").eq("id", conexao_id).execute()
     if not chk.data:
         return {"ok": True}
-    r = chk.data[0]
-    # COMANDO gere as conexões de todas as empresas (como em _exigir_conexao_da_empresa)
-    if payload.get("role") != "comando" and not ((eid and r.get("empresa_id") == eid) or r.get("usuario_id") == uid):
-        raise HTTPException(status_code=403, detail="Acesso negado.")
+    # COMANDO gere as conexões de todas as empresas; os demais, só as da empresa.
+    _exigir_conexao_da_empresa(db, conexao_id, payload)
     db.table("conexoes_db").delete().eq("id", conexao_id).execute()
     return {"ok": True}
 
@@ -3588,29 +3637,16 @@ async def sincronizar_conexao(conexao_id: str, credentials: HTTPAuthorizationCre
     payload = _usuario_autenticado(credentials)
 
     db = get_db()
-    eid = payload.get("empresa_id", "")
     uid = payload["sub"]
-    role = payload.get("role", "operador")
-    res = db.table("conexoes_db").select("*").eq("id", conexao_id).execute()
-    if not res.data:
-        raise HTTPException(status_code=404, detail="Conexão não encontrada.")
-    r = res.data[0]
-
-    if role == "comando":
-        pass  # comando vê tudo
-    elif role == "admin":
-        tem_acesso = (eid and r.get("empresa_id") == eid) or r.get("usuario_id") == uid
-        if not tem_acesso:
-            perm = db.table("conexao_permissoes").select("id").eq("conexao_id", conexao_id).eq("operador_id", uid).execute()
-            tem_acesso = bool(perm.data)
-        if not tem_acesso:
-            raise HTTPException(status_code=403, detail="Acesso negado.")
-    else:
-        # Operador precisa de permissão explícita
-        perm = db.table("conexao_permissoes").select("id").eq("conexao_id", conexao_id).eq("operador_id", uid).execute()
-        if not perm.data:
-            raise HTTPException(status_code=403, detail="Sem permissão para sincronizar esta conexão.")
-
+    # Mesma regra de uso de _conexao_usavel (comando: todas; admin: as da
+    # empresa; operador: as da empresa liberadas para ele).
+    r = _conexao_usavel(db, conexao_id, payload)
+    # A carteira nasce na empresa DA CONEXÃO, não na de quem chama: antes um
+    # admin movido de empresa gravava os devedores do banco de A como carteira
+    # de B, e o comando (sem empresa) recebia 400.
+    eid = r.get("empresa_id") or ""
+    if not eid:
+        raise HTTPException(status_code=400, detail="Conexão sem empresa: peça ao COMANDO para vinculá-la.")
     uemail = payload.get("email", "")
 
     try:
@@ -3618,7 +3654,12 @@ async def sincronizar_conexao(conexao_id: str, credentials: HTTPAuthorizationCre
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=503, detail=f"Erro ao conectar no banco: {e}")
+        # O texto da exceção traz host, IP interno, porta e usuário do banco do
+        # cliente: vai para o log (mascarado), e o cliente recebe só o tipo e o código.
+        codigo = _erros.registrar({"path": "/conexoes/{conexao_id}/sincronizar", "method": "POST"}, e, 503)
+        raise HTTPException(status_code=503, detail=(
+            f"Não foi possível ler o banco da conexão ({type(e).__name__}). "
+            f"Teste a conexão na tela de conexões. Código: {codigo}"))
 
     n_dev = resultado.get("resumo", {}).get("total_devedores", 0)
     return {"ok": True, "n_devedores": n_dev, "carteira": resultado}
@@ -3640,21 +3681,39 @@ def health():
 
 
 @app.get("/carteiras")
-def listar_carteiras(credentials: HTTPAuthorizationCredentials = Security(bearer)):
+def listar_carteiras(response: Response,
+                     credentials: HTTPAuthorizationCredentials = Security(bearer),
+                     empresa_id: Optional[str] = None,
+                     limite: int = Query(50, ge=1, le=200),
+                     offset: int = Query(0, ge=0)):
+    """Carteiras da empresa de quem chama, das mais novas para as mais antigas.
+
+    Antes, quem estava SEM empresa ("remover da empresa" grava empresa_id
+    vazio) caía no filtro por usuario_id e seguia listando as carteiras que
+    subiu na empresa antiga. Agora só o comando atua sem empresa: escolhe uma
+    com ?empresa_id= ou, sem ela, vê as que ele mesmo analisou.
+
+    `limite`/`offset` paginam (antes cortava em 50 sem aviso); o total vem no
+    cabeçalho X-Total-Count, para a lista continuar sendo uma lista.
+    """
     payload = _usuario_autenticado(credentials)
     usuario_id = payload.get("sub")
-    empresa_id = payload.get("empresa_id", "")
-    try:
-        db = get_db()
-        q = db.table("carteiras").select("id, nome_arquivo, created_at, total_devedores, valor_face, valor_esperado, score_medio")
-        if empresa_id:
-            q = q.eq("empresa_id", empresa_id)
-        elif usuario_id:
-            q = q.eq("usuario_id", usuario_id)
-        res = q.order("created_at", desc=True).limit(50).execute()
-        return res.data
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {e}")
+    role = payload.get("role")
+    emp = payload.get("empresa_id", "")
+    if role == "comando":
+        emp = (empresa_id or "").strip()
+    elif not emp:
+        raise HTTPException(status_code=403, detail="Acesso negado: usuário sem empresa definida.")
+    db = get_db()
+    q = db.table("carteiras").select(
+        "id, nome_arquivo, created_at, total_devedores, valor_face, valor_esperado, score_medio",
+        count="exact")
+    q = q.eq("empresa_id", emp) if emp else q.eq("usuario_id", usuario_id)
+    res = q.order("created_at", desc=True).range(offset, offset + limite - 1).execute()
+    total = getattr(res, "count", None)
+    if isinstance(total, int):
+        response.headers["X-Total-Count"] = str(total)
+    return res.data or []
 
 
 # Os mesmos cortes de frontend/src/utils/prioridade.js. Prioridade é posição na
@@ -3908,7 +3967,7 @@ def _anexar_agenda(db, itens: list, payload: dict, carteira_id: str) -> list:
     if not itens:
         return itens
     from agenda import hoje, nivel
-    emp = payload.get("empresa_id") or (_empresa_da_carteira(db, carteira_id) if payload.get("role") == "comando" else "")
+    emp = payload.get("empresa_id") or (_empresa_da_carteira_ou_vazio(db, carteira_id) if payload.get("role") == "comando" else "")
     if not emp:
         return itens
     cpfs = list({str(i.get("cpf")) for i in itens if i.get("cpf")})
@@ -3943,9 +4002,28 @@ _MSG_SEM_MIGRACAO_FILA = ("A divisão da fila ainda não está ativa: rode "
                           "sql/migracao_operador.sql no Supabase.")
 
 
-def _empresa_da_carteira(db, carteira_id: str) -> str:
+def _empresa_da_carteira(db, carteira_id) -> str:
+    """Empresa dona da carteira ("" se a carteira não existe ou não tem id).
+
+    Erro do banco SOBE: quem divide fila, lista operadores ou explica o score
+    não pode seguir como se a carteira não tivesse empresa. Havia duas funções
+    com este nome; a segunda (que engolia o erro) valia para todo o arquivo.
+    """
+    if not carteira_id:
+        return ""
     r = db.table("carteiras").select("empresa_id").eq("id", carteira_id).limit(1).execute()
     return ((r.data or [{}])[0].get("empresa_id") or "").strip()
+
+
+def _empresa_da_carteira_ou_vazio(db, carteira_id) -> str:
+    """Igual a _empresa_da_carteira, mas devolve "" se o banco falhar. Só onde
+    a falha é aceitável: enfeitar a fila com a agenda ou ler a configuração
+    da empresa para as propostas (sem ela vale o padrão)."""
+    try:
+        return _empresa_da_carteira(db, carteira_id)
+    except Exception as e:
+        print(f"[carteira] não leu a empresa da carteira {carteira_id}: {type(e).__name__}")
+        return ""
 
 
 def _operadores_validos(db, empresa_id: str, ids: list) -> dict:
@@ -4176,18 +4254,16 @@ def carregar_carteira(carteira_id: str, incluir_ranking: bool = True,
     isso em silêncio quebraria o cliente do outro lado.
     """
     payload = _usuario_autenticado(credentials)
-    empresa_id = payload.get("empresa_id", "")
-    usuario_id = payload.get("sub")
     db = get_db()
 
-    q = db.table("carteiras").select("*").eq("id", carteira_id)
-    if empresa_id:
-        q = q.eq("empresa_id", empresa_id)
-    elif usuario_id:
-        q = q.eq("usuario_id", usuario_id)
-    cart_res = q.execute()
+    # Mesma regra das outras rotas de carteira. Antes, quem estava sem empresa
+    # caía no filtro por usuario_id: um usuário removido da empresa seguia
+    # abrindo a carteira que subiu (CPF, renda), e o comando não abria nenhuma.
+    _exige_carteira_da_empresa(db, carteira_id, payload)
+    cart_res = db.table("carteiras").select("*").eq("id", carteira_id).limit(1).execute()
     if not cart_res.data:
         raise HTTPException(status_code=404, detail="Carteira não encontrada.")
+    empresa_id = cart_res.data[0].get("empresa_id") or payload.get("empresa_id", "")
 
     predicoes = _todas_as_linhas(
         lambda: db.table("predicoes").select("*").eq("carteira_id", carteira_id).order("rank"))
@@ -4272,7 +4348,7 @@ async def upload_csv(file: UploadFile = File(...),
         try:
             df = _read_csv_auto(contents)
         except Exception as e:
-            raise HTTPException(status_code=422, detail=f"Erro ao processar CSV: {e}")
+            raise HTTPException(status_code=422, detail=f"Erro ao processar CSV: {_erros.mascarar(e)}")
         return {
             "filename": file.filename,
             "rows": len(df),
@@ -4728,11 +4804,14 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
     # Enriquece com histórico de contatos anteriores do mesmo CPF
     try:
         cpfs = df["cpf"].astype(str).unique().tolist() if "cpf" in df.columns else []
-        if cpfs:
+        # Só os contatos da empresa da carteira: sem o filtro, o histórico de
+        # um CPF em outra empresa entrava aqui. Sem empresa, não enriquece.
+        if cpfs and _empresa_id:
             db_ct = get_db()
             ct_raw: list[dict] = []
             for _i in range(0, len(cpfs), 100):
-                res = db_ct.table("contatos").select("cpf, resultado, created_at").in_("cpf", cpfs[_i:_i+100]).execute()
+                res = (db_ct.table("contatos").select("cpf, resultado, created_at")
+                       .eq("empresa_id", _empresa_id).in_("cpf", cpfs[_i:_i+100]).execute())
                 ct_raw.extend(res.data or [])
             if ct_raw:
                 ct_df = pd.DataFrame(ct_raw)
@@ -4741,7 +4820,7 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
                 ct_agg = ct_df.groupby("cpf").agg(
                     hist_n_contatos        =("resultado", "count"),
                     hist_resultado_positivo=("resultado", lambda x: int(x.str.lower().isin(["pagamento_confirmado", "acordo_fechado"]).any())),
-                    hist_dias_ultimo_contato=("created_at", lambda x: int((_now - x.dropna().max()).days) if x.dropna().any() else 9999),
+                    hist_dias_ultimo_contato=("created_at", lambda x: int((_now - x.dropna().max()).days) if x.notna().any() else 9999),
                 ).reset_index()
                 df = df.merge(ct_agg, on="cpf", how="left")
                 df["hist_n_contatos"]         = df["hist_n_contatos"].fillna(0).astype(int)
@@ -5179,6 +5258,10 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
                     fb_row["predicao_id"] = pred_id_map[cpf_str]
                 if _usuario_id:
                     fb_row["usuario_id"] = _usuario_id
+                # feedbacks.empresa é o escopo de Resultados e da baixa das
+                # promessas: sem ela os pagamentos da planilha ficavam órfãos.
+                if _empresa_id:
+                    fb_row["empresa"] = _empresa_id
                 fb_rows.append(fb_row)
             if fb_rows:
                 db2 = get_db()
@@ -5346,12 +5429,15 @@ def analisar_db(conn: ConexaoDB, incluir_ranking: bool = True,
                              _incluir_ranking=incluir_ranking)
 
     # Vincula a carteira criada à conexão salva (para sincronizações futuras atualizarem no lugar)
+    # Só admin e comando reapontam: o operador que usa a conexão liberada não
+    # pode trocar a carteira que as sincronizações seguintes vão atualizar.
     nova_carteira_id = resultado.get("resumo", {}).get("carteira_id")
-    if conn.conexao_id and nova_carteira_id:
+    if conn.conexao_id and nova_carteira_id and _payload.get("role") in ("admin", "comando"):
         try:
             get_db().table("conexoes_db").update({"carteira_id": nova_carteira_id}).eq("id", conn.conexao_id).execute()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[analisar/db] não religou a conexão {conn.conexao_id} à carteira "
+                  f"{nova_carteira_id}: {type(e).__name__}")
 
     return resultado
 
@@ -5615,6 +5701,7 @@ def receber_feedback(
 def confirmar_pagamento(
     cpf: str,
     body: ConfirmarPagamentoIn,
+    empresa_id: Optional[str] = None,   # COMANDO escolhe a empresa cliente
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     """Confirma pagamento manualmente. Apenas admin/comando. Idempotente — bloqueia duplo registro."""
@@ -5623,7 +5710,10 @@ def confirmar_pagamento(
     if role not in ("admin", "comando"):
         raise HTTPException(status_code=403, detail="Apenas administradores podem confirmar pagamentos.")
 
-    empresa_id = payload.get("empresa_id", "")
+    # O COMANDO confirma DENTRO de uma empresa: sem ela, a idempotência olhava
+    # empresa "" (nunca achava o pagamento já feito), a predição vinha de
+    # qualquer empresa e o cache invalidado era o errado.
+    empresa_id = _empresa_da_agenda(payload, empresa_id)
     usuario_nome = payload.get("nome") or payload.get("email") or "admin"
     usuario_id = payload.get("sub", "")
 
@@ -5659,7 +5749,7 @@ def confirmar_pagamento(
         )
         if existing.data:
             fb = existing.data[0]
-            ts = (fb.get("created_at") or "")[:16].replace("T", " ")
+            ts = _hora_brasilia(fb.get("created_at"))
             raise HTTPException(
                 status_code=409,
                 detail=f"Pagamento já confirmado por {fb.get('registrado_por', 'sistema')} em {ts}.",
@@ -5691,10 +5781,10 @@ def confirmar_pagamento(
                 detail=f"CPF {cpf} não encontrado na carteira ativa. Só é possível registrar pagamentos de devedores analisados pelo Mizan.",
             )
 
-        # COMANDO não tem empresa própria: o pagamento é da empresa da carteira
-        # do devedor. Sem isso ele ficava sem empresa e sumia de Resultados,
-        # do painel e da baixa automática das promessas.
-        empresa_fb = empresa_id or (_empresa_da_carteira(db, _pred_cart_id) if _pred_cart_id else "")
+        # Sempre a empresa escolhida (a do admin ou a que o COMANDO indicou):
+        # sem empresa o pagamento sumia de Resultados, do painel e da baixa
+        # automática das promessas.
+        empresa_fb = empresa_id
         fb_row: dict = {
             "cpf":             cpf,
             "pagou":           True,
@@ -5862,6 +5952,7 @@ def webhook_pagamento(body: WebhookPagamentoIn, request: Request):
 @app.post("/feedback/lote")
 async def feedback_lote(
     file: UploadFile = File(...),
+    empresa_id: Optional[str] = None,   # COMANDO escolhe a empresa cliente
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     """Importa feedbacks em lote a partir de CSV ou Excel."""
@@ -5876,11 +5967,18 @@ async def feedback_lote(
     # quando a autenticação é por JWT, então gravar esse campo aqui fazia os
     # feedbacks importados em lote ficarem fora do escopo da empresa.
     _jwt = empresa_info.get("jwt") or {}
-    empresa = (
-        _jwt.get("empresa_id")
-        or empresa_info.get("empresa_id")
-        or empresa_info.get("empresa_nome")
-    )
+    if _jwt.get("role") == "comando":
+        # O COMANDO não tem empresa: sem escolher a cliente, o lote caía no
+        # "empresa_nome" (o nome do usuário) e ficava fora de todos os painéis.
+        empresa = (empresa_id or "").strip().lower()
+        if not empresa:
+            raise HTTPException(status_code=400, detail="Escolha a empresa cliente antes de importar.")
+    else:
+        empresa = (
+            _jwt.get("empresa_id")
+            or empresa_info.get("empresa_id")
+            or ("" if _jwt else empresa_info.get("empresa_nome"))
+        )
 
     nome = (file.filename or "").lower()
     contents = await file.read()
@@ -5998,7 +6096,8 @@ async def feedback_lote(
                 detalhes.append({"linha": linha, "cpf": cpf, "ok": False, "erro": str(e)})
                 n_erro += 1
 
-        _eid = empresa_info.get("empresa_id") or (empresa_info.get("jwt") or {}).get("empresa_id") or ""
+        _eid = empresa if _jwt.get("role") == "comando" else (
+            empresa_info.get("empresa_id") or (empresa_info.get("jwt") or {}).get("empresa_id") or "")
         if n_ok > 0:
             _registrar_auditoria(
                 acao="feedback_importado",
@@ -6017,6 +6116,29 @@ async def feedback_lote(
     return await asyncio.to_thread(_processar)
 
 
+# Score a partir do qual o modelo "disse que paga", para medir acurácia com os
+# pagamentos reais. Um só valor para /performance e /admin/modelos (antes um
+# usava 40 e o outro 50, e a mesma versão mostrava duas acurácias); 50 é o
+# mesmo corte de 0,5 da matriz de confusão em model/diagnostico.py.
+LIMIAR_ACERTO_SCORE = 50
+
+
+def _acertou(score, pagou) -> bool:
+    return (score >= LIMIAR_ACERTO_SCORE) == bool(pagou)
+
+
+def _chave_cache_feedbacks(prefixo: str, carteira_id: "str | None", empresa_id: str) -> str:
+    """Chave de cache de /performance, /performance/pagamentos e /feedbacks/status.
+
+    Começa por `prefixo:{carteira_id}` ou `prefixo:{empresa_id}` porque é assim
+    que as baixas invalidam (_cache_del_prefix). A empresa de quem pede (ou
+    "comando") vem depois, para duas empresas nunca dividirem a mesma entrada.
+    """
+    if carteira_id:
+        return f"{prefixo}:{carteira_id}:{empresa_id or 'comando'}"
+    return f"{prefixo}:{empresa_id}"
+
+
 @app.get("/performance")
 def performance(
     credentials: HTTPAuthorizationCredentials = Security(bearer),
@@ -6030,15 +6152,17 @@ def performance(
     if not empresa_id and role != "comando":
         return {"mensagem": "Nenhum feedback recebido ainda.", "total_feedbacks": 0}
 
-    cache_key = f"perf:{carteira_id or empresa_id}"
+    db = get_db()
+
+    # Dono ANTES do cache, e a empresa na chave: antes a chave era só o
+    # carteira_id e o cache era lido antes da checagem, então quem mandasse o
+    # id de uma carteira alheia recebia da memória o que o dono tinha aberto.
+    if carteira_id:
+        _exige_carteira_da_empresa(db, carteira_id, payload)
+    cache_key = _chave_cache_feedbacks("perf", carteira_id, empresa_id)
     cached = _cache_get(cache_key, ttl=300)
     if cached is not None:
         return cached
-
-    db = get_db()
-
-    if carteira_id:
-        _exige_carteira_da_empresa(db, carteira_id, payload)
 
     # Quando carteira_id fornecido, filtra apenas por aquela carteira específica
     empresa_pred_ids: set | None = None
@@ -6122,8 +6246,7 @@ def performance(
 
         if score is not None:
             total_com_score += 1
-            acertou = (score >= 40 and pagou) or (score < 40 and not pagou)
-            if acertou:
+            if _acertou(score, pagou):
                 total_corretos += 1
 
     metricas = [
@@ -6165,15 +6288,22 @@ def performance_pagamentos(
     if not empresa_id and role != "comando":
         return []
 
-    cache_key = f"pagamentos:{carteira_id or empresa_id}"
+    db = get_db()
+
+    # Dono antes de tudo (do cache e do corte por papel): carteira alheia é
+    # 403 para qualquer um, como em /performance e /feedbacks/status.
+    if carteira_id:
+        _exige_carteira_da_empresa(db, carteira_id, payload)
+    # Nome, CPF e valor pago de cada devedor é visão de gestão (admin e
+    # comando). O operador recebe lista vazia, não 403: a tela dele consulta
+    # esta rota junto com /feedbacks/status no mesmo ciclo, e um erro aqui
+    # pararia também a atualização do status da fila.
+    if role not in ("admin", "comando"):
+        return []
+    cache_key = _chave_cache_feedbacks("pagamentos", carteira_id, empresa_id)
     cached = _cache_get(cache_key, ttl=300)
     if cached is not None:
         return cached
-
-    db = get_db()
-
-    if carteira_id:
-        _exige_carteira_da_empresa(db, carteira_id, payload)
 
     empresa_pred_ids: set | None = None
     if carteira_id:
@@ -6237,7 +6367,7 @@ def performance_pagamentos(
             "valor_recuperado":  fb.get("valor_recuperado") or 0,
             "data_pagamento":    fb.get("data_pagamento") or fb.get("created_at", "")[:10],
             "registrado_por":    fb.get("registrado_por") or "",
-            "registrado_em":     (fb.get("created_at") or "")[:16],
+            "registrado_em":     fb.get("created_at") or "",   # completo, com fuso: cortado em [:16] a tela lia UTC como hora local
         })
     _cache_set(cache_key, result)
     return result
@@ -6256,15 +6386,15 @@ def feedbacks_status(
     if not empresa_id and role != "comando":
         return {}
 
-    cache_key = f"fb_status:{carteira_id or empresa_id}"
+    db = get_db()
+
+    # Dono antes do cache e empresa na chave (ver /performance).
+    if carteira_id:
+        _exige_carteira_da_empresa(db, carteira_id, payload)
+    cache_key = _chave_cache_feedbacks("fb_status", carteira_id, empresa_id)
     cached = _cache_get(cache_key, ttl=30)
     if cached is not None:
         return cached
-
-    db = get_db()
-
-    if carteira_id:
-        _exige_carteira_da_empresa(db, carteira_id, payload)
 
     empresa_pred_ids: set | None = None
     if carteira_id:
@@ -6315,7 +6445,7 @@ def feedbacks_status(
             "valor_recuperado": fb.get("valor_recuperado"),
             "data_pagamento":   fb.get("data_pagamento") or (fb.get("created_at") or "")[:10],
             "registrado_por":   fb.get("registrado_por") or "",
-            "registrado_em":    (fb.get("created_at") or "")[:16],
+            "registrado_em":    fb.get("created_at") or "",
         }
 
     _cache_set(cache_key, status_map)
@@ -7201,9 +7331,11 @@ def _contexto_propostas(cpf: str, payload: dict, despesas_mensais: "float | None
     from model.proposta import avaliar, calcular_margem, montar_propostas
     from model.oferta import catalogo_da_empresa, alcada_da_empresa, para_arquetipos
 
-    emp = empresa_id or _empresa_da_carteira(db, pred.get("carteira_id"))
+    emp = empresa_id or _empresa_da_carteira_ou_vazio(db, pred.get("carteira_id"))
     extra = _extra_empresa(emp)
-    politica = _politica_proposta(empresa_id)
+    # A política é a da empresa do devedor também para o COMANDO (que não tem
+    # empresa própria e caía no padrão, mostrando outra margem que o admin).
+    politica = _politica_proposta(emp)
     # A carteira pode trazer as despesas; a query string permite ao operador
     # informar na hora, quando o devedor declara na ligação.
     despesas = despesas_mensais
@@ -7483,16 +7615,6 @@ def desfazer_oferta(oferta_id: str, credentials: HTTPAuthorizationCredentials = 
                          detalhes={"cpf": oferta.get("cpf"), "resposta": oferta.get("resposta"),
                                    "contato_id": contato_id, "agenda_removida": len(agenda)})
     return {"ok": True, "agenda_removida": len(agenda)}
-
-
-def _empresa_da_carteira(db, carteira_id) -> str:
-    if not carteira_id:
-        return ""
-    try:
-        r = db.table("carteiras").select("empresa_id").eq("id", carteira_id).limit(1).execute()
-        return (r.data or [{}])[0].get("empresa_id") or ""
-    except Exception:
-        return ""
 
 
 @app.get("/predicoes/{cpf}/explicacao")
@@ -7797,7 +7919,7 @@ def listar_modelos(
         pagou = fb["pagou"]
         if score is not None:
             totais[versao] += 1
-            if (score >= 50 and pagou) or (score < 50 and not pagou):
+            if _acertou(score, pagou):
                 acertos[versao] += 1
 
     # Monta resposta por versão

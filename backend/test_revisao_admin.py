@@ -78,8 +78,12 @@ def jwt(empresa, role):
     return {"Authorization": "Bearer " + criar_token(
         {"sub": f"u-{role}", "email": f"{role}@x", "nome": role, "role": role, "empresa_id": empresa})}
 
+# O COMANDO escolhe a empresa: sem ela a idempotência e a predição ficavam sem escopo.
 r = c.post("/devedores/11111111111/confirmar-pagamento", json={"valor_recuperado": 300}, headers=jwt("", "comando"))
-checar(r.status_code == 200, "comando confirma", r.text[:120])
+checar(r.status_code == 400 and not GRAVADO, "comando sem empresa escolhida: 400 e nada gravado", r.text[:120])
+r = c.post("/devedores/11111111111/confirmar-pagamento?empresa_id=goiasbank", json={"valor_recuperado": 300},
+           headers=jwt("", "comando"))
+checar(r.status_code == 200, "comando confirma na empresa escolhida", r.text[:120])
 checar(GRAVADO and GRAVADO[-1]["empresa"] == "goiasbank", "o pagamento leva a empresa da carteira", str(GRAVADO[-1:]))
 checar(CUMPRIU[-1:] == ["goiasbank"] and BANDIT[-1:] == ["goiasbank"], "promessas e aprendizado da empresa certa")
 r = c.post("/devedores/22222222222/confirmar-pagamento", json={"valor_recuperado": 50}, headers=jwt("goiasbank", "admin"))
