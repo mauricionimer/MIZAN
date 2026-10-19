@@ -1,16 +1,18 @@
 import ThemeToggle from '../components/ThemeToggle'
 import { useState, useEffect } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { LogoMark } from '../components/Logo'
 import { getEmpresaConfigPublica, marcaPorEmail } from '../api'
+import { aplicarCorDaMarca } from '../utils/marca'
 
 const BASE_API = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
 
 export default function Login() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [searchParams] = useSearchParams()
   const sessionExpirada = searchParams.get('expired') === '1'
   const { login, loading, erro } = useAuth()
@@ -53,10 +55,17 @@ export default function Login() {
     e.preventDefault()
     const user = await login(email, senha)
     if (!user) return
-    if (user.role === 'comando') navigate('/comando')
-    // Admin e operador caem direto na tela de trabalho: o menu intermediário
-    // deixou de existir, e as opções dele estão lá dentro.
-    else navigate('/')
+    // Volta para a tela de onde a pessoa saiu (sessão expirada ou link direto).
+    // Só caminho interno: "//site" ou URL completa levariam para fora.
+    const de = searchParams.get('de')
+    const from = location.state?.from
+    const anterior = de || (from?.pathname ? `${from.pathname}${from.search || ''}` : '')
+    if (anterior.startsWith('/') && !anterior.startsWith('//') && !anterior.startsWith('/login')) {
+      navigate(anterior, { replace: true })
+    } else {
+      // Admin e operador caem direto na tela de trabalho.
+      navigate(user.role === 'comando' ? '/comando' : '/', { replace: true })
+    }
   }
 
   // O link `?empresa=` vale primeiro; sem ele, a marca do domínio digitado.
@@ -64,14 +73,16 @@ export default function Login() {
   const cor = marca?.cor_primaria
 
   // Antes do login o AuthContext ainda não tem empresaConfig, então a cor da
-  // empresa precisa ser aplicada aqui para o branding valer já na entrada.
-  // Sem empresa, a propriedade é removida: cravar um valor no <html> venceria
-  // o --royal do tema escuro, que é mais claro que o do tema claro.
+  // empresa (com a tinta --on-brand certa) é aplicada aqui. Ao sair da tela,
+  // volta a marca da sessão (se já entrou) ou nenhuma.
   useEffect(() => {
-    const raiz = document.documentElement
-    if (cor) raiz.style.setProperty('--royal', cor)
-    else raiz.style.removeProperty('--royal')
+    aplicarCorDaMarca(cor)
   }, [cor])
+  useEffect(() => () => {
+    let daSessao = null
+    try { daSessao = JSON.parse(sessionStorage.getItem('mizan_empresa_config'))?.cor_primaria } catch { /* sem marca */ }
+    aplicarCorDaMarca(daSessao)
+  }, [])
 
   const nomEmpresa = marca?.nome_exibicao
   const fotoEmpresa = marca?.foto_url
@@ -112,8 +123,9 @@ export default function Login() {
 
           <form onSubmit={handleSubmit} className="space-y-5 mt-7">
             {sessionExpirada && (
-              <div className="p-3.5 rounded text-amber-300 text-sm text-center bg-amber-950 border border-amber-900">
-                Sua sessão expirou. Faça login novamente.
+              <div role="status" className="p-3.5 rounded text-sm text-center"
+                style={{ color: 'var(--ink)', background: 'var(--warning-soft, var(--surface-2))', border: '1px solid var(--warning)' }}>
+                Sua sessão expirou. Entre de novo para continuar.
               </div>
             )}
 
@@ -159,7 +171,7 @@ export default function Login() {
             </div>
 
             {erro && (
-              <div className="text-sm rounded px-4 py-3"
+              <div role="alert" className="text-sm rounded px-4 py-3"
                 style={{ color: 'var(--danger)', background: 'var(--danger-soft)', border: '1px solid var(--danger)' }}>
                 {erro}
               </div>

@@ -6,24 +6,28 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
 import PageTransition from './components/PageTransition'
 import { ShellLayout } from './components/AppShell'
+import { AVISO_CONECTANDO } from './api'
 
 class ErrorBoundary extends Component {
   state = { error: null }
   static getDerivedStateFromError(e) { return { error: e } }
+  componentDidCatch(error, info) {
+    console.error('[ErrorBoundary]', error, info?.componentStack)
+  }
   render() {
     if (!this.state.error) return this.props.children
+    const detalhe = this.state.error?.message || String(this.state.error)
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-8 text-center">
+      <div role="alert" className="min-h-screen flex flex-col items-center justify-center gap-4 p-8 text-center">
         <p className="text-ink text-lg font-semibold">Algo deu errado nesta página.</p>
-        <p className="text-ink-2 text-sm tabular-nums bg-raise-3 border border-line px-4 py-2 rounded-xl max-w-lg break-all">
-          {this.state.error?.message || String(this.state.error)}
-        </p>
-        <button
-          onClick={() => window.location.reload()}
-          className="btn-primary mt-2"
-        >
+        <p className="text-ink-2 text-sm max-w-md">Recarregue a página. Se continuar, avise o suporte.</p>
+        <button type="button" onClick={() => window.location.reload()} className="btn-primary mt-2">
           Recarregar página
         </button>
+        <details className="text-ink-3 text-xs max-w-lg">
+          <summary className="cursor-pointer">Detalhe técnico</summary>
+          <p className="mt-2 tabular-nums bg-raise-3 border border-line px-4 py-2 rounded-xl break-all">{detalhe}</p>
+        </details>
       </div>
     )
   }
@@ -31,35 +35,39 @@ class ErrorBoundary extends Component {
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
 
+// Pergunta ao /health com prazo. Sem AbortSignal.timeout (não existe em
+// navegadores antigos) e sem erro solto: falha de rede só encerra o aviso.
+function pingarServidor(prazoMs) {
+  const ctrl = typeof AbortController === 'function' ? new AbortController() : null
+  const t = ctrl ? setTimeout(() => ctrl.abort(), prazoMs) : null
+  return fetch(`${BASE}/health`, ctrl ? { signal: ctrl.signal } : undefined)
+    .catch(() => {})
+    .finally(() => { if (t) clearTimeout(t) })
+}
+
 function ServerWarmupBanner() {
   const [show, setShow] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     const timer = setTimeout(() => { if (!cancelled) setShow(true) }, 4000)
-    fetch(`${BASE}/health`, { signal: AbortSignal.timeout(90000) })
-      .finally(() => { clearTimeout(timer); if (!cancelled) setShow(false) })
+    pingarServidor(90000).finally(() => { clearTimeout(timer); if (!cancelled) setShow(false) })
     return () => { cancelled = true; clearTimeout(timer) }
   }, [])
 
-  // Keepalive: pinga /health a cada 8 min enquanto a aba está visível
-  // Impede que o Render (free tier) hiberne durante uso ativo da plataforma
+  // Pinga /health a cada 8 min enquanto a aba está visível, para o Render
+  // (plano grátis) não hibernar durante o uso.
   useEffect(() => {
-    const INTERVALO = 8 * 60 * 1000
-    let id = null
-    function ping() {
-      if (!document.hidden) fetch(`${BASE}/health`).catch(() => {})
-    }
-    id = setInterval(ping, INTERVALO)
+    const id = setInterval(() => { if (!document.hidden) pingarServidor(30000) }, 8 * 60 * 1000)
     return () => clearInterval(id)
   }, [])
 
   if (!show) return null
   return (
-    <div className="fixed top-0 inset-x-0 z-50 px-4 py-2.5 flex items-center justify-center gap-3 text-sm text-amber-400"
-      style={{ background: 'rgb(var(--c-warning) / 0.10)', borderBottom: '1px solid rgb(var(--c-warning) / 0.20)', backdropFilter: 'blur(8px)' }}>
-      <Loader2 className="h-4 w-4 animate-spin text-amber-400 shrink-0" />
-      <span>O servidor está acordando — a primeira requisição pode levar até 30s (plano gratuito).</span>
+    <div role="status" className="fixed top-0 inset-x-0 z-50 px-4 py-2.5 flex items-center justify-center gap-3 text-sm"
+      style={{ color: 'var(--ink)', background: 'rgb(var(--c-warning) / 0.10)', borderBottom: '1px solid rgb(var(--c-warning) / 0.20)', backdropFilter: 'blur(8px)' }}>
+      <Loader2 className="h-4 w-4 animate-spin shrink-0" style={{ color: 'var(--warning)' }} aria-hidden="true" />
+      <span>{AVISO_CONECTANDO}</span>
     </div>
   )
 }
@@ -117,9 +125,11 @@ function TelaCarregando() {
   )
 }
 
+// Atalho para rota com papéis: função comum (não componente).
+const P = (roles, el) => <RotaProtegida roles={roles}>{el}</RotaProtegida>
+
 function RotasAnimadas() {
   const location = useLocation()
-  const P = (roles, el) => <RotaProtegida roles={roles}>{el}</RotaProtegida>
   return (
     <Suspense fallback={<TelaCarregando />}>
       <Routes location={location}>

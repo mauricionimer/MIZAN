@@ -15,7 +15,7 @@ export default function ErroCarga({ erro, onTentar, ocupado = false, compacto = 
   const tentando = tentandoAqui || ocupado
   if (!erro) return null
   const c = classificarErro(erro)
-  const Icone = c.tipo === 'rede' || c.tipo === 'acordando' ? WifiOff : c.tipo === 'autorizacao' ? Lock : AlertTriangle
+  const Icone = c.tipo === 'rede' || c.tipo === 'acordando' ? WifiOff : c.tipo === 'autorizacao' || c.tipo === 'sessao' ? Lock : AlertTriangle
   const cor = c.tipo === 'validacao' || c.tipo === 'negocio' ? 'var(--warning)' : 'var(--danger)'
   async function tentar() {
     if (tentando) return

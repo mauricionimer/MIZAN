@@ -12,10 +12,8 @@ function _getToken() {
 // (senão o navegador pergunta "sair do site?") e volta ao login lembrando a
 // tela de onde a pessoa saiu. Vários pedidos com 401 ao mesmo tempo saem uma
 // vez só.
-let _encerrando = false
-export function encerrarSessao() {
-  if (_encerrando) return
-  _encerrando = true
+// Apaga todas as chaves mizan_* da aba (token, usuário, marca, análise...).
+export function limparSessaoLocal() {
   try {
     const chaves = []
     for (let i = 0; i < sessionStorage.length; i++) {
@@ -24,6 +22,13 @@ export function encerrarSessao() {
     }
     chaves.forEach(k => sessionStorage.removeItem(k))
   } catch { /* sem armazenamento */ }
+}
+
+let _encerrando = false
+export function encerrarSessao() {
+  if (_encerrando) return
+  _encerrando = true
+  limparSessaoLocal()
   window.dispatchEvent(new Event('mizan:logout'))
   liberarSaida()
   const { pathname, search } = window.location
@@ -122,6 +127,9 @@ const _id = v => encodeURIComponent(v)
 // Tipos de erro que a tela distingue (mensagem e se vale "Tentar novamente").
 // A mensagem do servidor (validação, regra de negócio, acesso) já vem em
 // português e é mostrada como está; só o que é técnico ganha texto próprio.
+// O mesmo aviso no banner do App e no erro de servidor acordando (Render grátis).
+export const AVISO_CONECTANDO = 'Conectando ao servidor… pode levar até um minuto.'
+
 const _RE_REDE = /failed to fetch|networkerror|load failed|network request failed|fetch failed/i
 export function classificarErro(e) {
   if (!e) return { tipo: 'desconhecido', mensagem: 'Algo deu errado. Tente novamente.', podeTentar: true }
@@ -134,7 +142,7 @@ export function classificarErro(e) {
   }
   if (status === 401) return { tipo: 'sessao', podeTentar: false, mensagem: 'Sua sessão expirou. Entre de novo.' }
   if (status === 502 || status === 503 || status === 504) {
-    return { tipo: 'acordando', podeTentar: true, mensagem: 'O servidor está acordando. Aguarde alguns segundos e tente novamente.' }
+    return { tipo: 'acordando', podeTentar: true, mensagem: AVISO_CONECTANDO }
   }
   if (status >= 500) {
     return { tipo: 'servidor', podeTentar: true,
