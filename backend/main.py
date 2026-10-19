@@ -4612,31 +4612,51 @@ LOTE_INSERCAO = 2000       # ~1 MB de JSON por requisição; 200 mil devedores =
 INSERCOES_PARALELAS = 4    # poucas: o Supabase tem teto de conexões por projeto
 
 
-def _inserir_predicoes_em_lotes(db, linhas: list[dict]) -> dict:
+def _inserir_predicoes_em_lotes(db, linhas) -> dict:
     """Grava todas as predições e devolve {cpf: id}.
 
     Era um laço de 500 em 500, uma ida ao banco por vez: 400 idas para 200 mil
     devedores. Agora lotes de 2000, quatro em paralelo. Qualquer lote que falhe
-    derruba o conjunto (a exceção sobe depois de os demais terminarem), para o
-    chamador tratar a gravação como incompleta em vez de seguir como se nada.
+    derruba o conjunto (a exceção sobe depois de os que estão no ar terminarem),
+    para o chamador tratar a gravação como incompleta em vez de seguir como se nada.
+
+    `linhas` pode ser lista ou gerador. Com gerador, só ficam em memória os
+    lotes que estão sendo enviados: a lista inteira de predições de uma
+    carteira de 50 mil devedores custava sozinha mais de 100 MB. Depois de uma
+    falha, nenhum lote novo é enviado (o que já foi o chamador desfaz).
     """
+    from collections import deque
     from concurrent.futures import ThreadPoolExecutor
-    lotes = [linhas[i:i + LOTE_INSERCAO] for i in range(0, len(linhas), LOTE_INSERCAO)]
+    from itertools import islice
+
     mapa: dict[str, str] = {}
-    if not lotes:
+    it = iter(linhas)
+    primeiro = list(islice(it, LOTE_INSERCAO))
+    if not primeiro:
         return mapa
-    with ThreadPoolExecutor(max_workers=min(INSERCOES_PARALELAS, len(lotes))) as ex:
-        futuros = [ex.submit(_inserir_predicoes, db, lote) for lote in lotes]
-        erro = None
-        for f in futuros:
-            try:
-                res = f.result()
-            except Exception as e:      # espera todos terminarem antes de relançar
-                erro = erro or e
-                continue
-            for row in (res.data or []):
-                if row.get("cpf") and row.get("id"):
-                    mapa[str(row["cpf"])] = row["id"]
+    erro = None
+
+    def _colher(f):
+        nonlocal erro
+        try:
+            res = f.result()
+        except Exception as e:      # espera os outros terminarem antes de relançar
+            erro = erro or e
+            return
+        for row in (res.data or []):
+            if row.get("cpf") and row.get("id"):
+                mapa[str(row["cpf"])] = row["id"]
+
+    with ThreadPoolExecutor(max_workers=INSERCOES_PARALELAS) as ex:
+        no_ar: deque = deque()
+        lote = primeiro
+        while lote and erro is None:
+            no_ar.append(ex.submit(_inserir_predicoes, db, lote))
+            if len(no_ar) >= INSERCOES_PARALELAS:
+                _colher(no_ar.popleft())
+            lote = list(islice(it, LOTE_INSERCAO))
+        while no_ar:
+            _colher(no_ar.popleft())
     if erro is not None:
         raise erro
     return mapa
