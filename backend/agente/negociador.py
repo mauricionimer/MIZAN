@@ -18,7 +18,7 @@ precisa passar pelo Auditor e ficar no rastreio antes do próximo:
 import json
 from datetime import date
 
-from agente import auditor, conhecimento, estado, ferramentas, guardrails, supervisor
+from agente import auditor, conhecimento, disponibilidade, estado, ferramentas, guardrails, supervisor
 from agente.triagem import como_dado, mascarar
 
 VERSAO_PROMPT = "negociador-v10"           # v10: primeiro degrau da estratégia, oferecer pessoa x transferir; v8: valor que não cabe não transfere            # v5: caderno; v6: emoção, urgência e ironia            # v3: blindagem; v4: só afirma o que fez, oferece pessoa e marca atendimento
@@ -117,30 +117,46 @@ FIXAS = {
 }
 
 
-def mensagem_fixa(ctx) -> str | None:
-    """Resposta escrita em código para quando a conversa automática terminou."""
+def mensagem_fixa(ctx, fonte=None) -> str | None:
+    """Resposta escrita em código para quando a conversa automática terminou.
+
+    Marca ctx.saida["_seguranca"] sempre que devolve texto: é a confirmação de
+    uma ação de segurança (parar, contestar, transferir), que o Auditor nunca
+    bloqueia (agente/auditor.py, SEGURANCA) — nem por frequência, nem por
+    horário, mesmo com o caso já fora da janela de contato normal.
+    """
     s = ctx.caso["situacao"]
     tri = ctx.saida.get("triagem") or {}
     if "sofrimento_grave" in tri.get("sinais_de_risco", []):
         # Quem pediu para parar (ou não reconhece a dívida) não ouve promessa de
         # contato: a equipe recebe o aviso, mas a mensagem só acolhe e indica o CVV.
+        ctx.saida["_seguranca"] = True
         if s == "suspenso":
             return FIXAS["apoio_sem_contato"]
         if s == "contestado":
             return FIXAS["contestado"] + " " + FIXAS["cvv"]
         return FIXAS["apoio"]
     if s == "suspenso":
+        ctx.saida["_seguranca"] = True
         motivo = ((ctx.caso.get("dados") or {}).get("suspensao") or {}).get("motivo")
         return FIXAS["pessoa_errada"] if motivo == "pessoa_errada" else FIXAS["parar"]
     if s == "contestado":
+        ctx.saida["_seguranca"] = True
         return FIXAS["contestado"]
     if s == "com_pessoa":
+        ctx.saida["_seguranca"] = True
         at = (ctx.caso.get("dados") or {}).get("atendimento")
         if at and at.get("data") and at.get("hora"):
             dia = date.fromisoformat(at["data"]).strftime("%d/%m")
             quem = at.get("atendente") or "uma pessoa da nossa equipe"
             return (f"Combinado: {quem} vai falar com você em {dia}, às {at['hora']}. "
                     "Até lá, se precisar, é só escrever por aqui.")
+        prox = disponibilidade.proximo_atendimento(fonte, ctx.caso["empresa_id"], ctx.agora) if fonte else None
+        if prox and prox.get("nome"):
+            dia_txt = "hoje" if prox["dia"] == ctx.agora.astimezone(auditor.BRASILIA).date().isoformat() \
+                else disponibilidade.DIAS_PT[prox["dia_semana"]]
+            return (f"Vou passar sua conversa para a equipe. {prox['nome']} costuma atender {dia_txt} às "
+                    f"{prox['hora_inicio']}h; se preferir outro horário, é só me avisar.")
         return FIXAS["com_pessoa"]
     return None
 
@@ -345,7 +361,7 @@ def _conversar(ctx, fonte, texto_devedor: str, notas: list) -> str | None:
                                "content": json.dumps(res, ensure_ascii=False), "is_error": not res.get("ok", False)})
             mensagens.append({"role": "user", "content": saidas})   # todos os resultados numa mensagem só
             if not ctx.pode_falar:
-                return mensagem_fixa(ctx)                              # suspendeu, contestou ou transferiu
+                return mensagem_fixa(ctx, fonte)                       # suspendeu, contestou ou transferiu
             continue
 
         texto = (r.texto or "").strip()
@@ -389,4 +405,4 @@ def _conversar(ctx, fonte, texto_devedor: str, notas: list) -> str | None:
                                {"motivo": "falha", "resumo": "A resposta automática não passou nas travas."})
     if not res.get("ok"):
         raise SemResposta("transferência falhou")
-    return mensagem_fixa(ctx)
+    return mensagem_fixa(ctx, fonte)
