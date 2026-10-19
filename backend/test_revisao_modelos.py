@@ -144,5 +144,35 @@ dono = [p for p in TAB["predicoes"] if p["cpf"] == "00000000001"][0]
 checar(dono.get("responsavel_id") == "op-1", "responsável preservado na sincronização")
 
 
+print("\n== 3. backtest sem colunas do período e sem conclusão com KS suspeito ==")
+import backtest  # noqa: E402
+rng = np.random.default_rng(1); n = 2000
+pagou = rng.random(n) < 0.3
+base_bt = pd.DataFrame({"cpf": [f"{i:011d}" for i in range(n)], "valor_divida": rng.uniform(500, 20000, n).round(2),
+                        "dias_em_atraso": rng.integers(30, 720, n), "renda_estimada": rng.uniform(1000, 8000, n).round(0),
+                        "uf": rng.choice(["SP", "GO", "BA", "RS"], n), "pagou": pagou.astype(int)})
+d2 = base_bt.copy()
+d2["tentativas_contato"] = np.where(pagou, 1, 8); d2["promessa_quebrada"] = np.where(pagou, 0, 1)
+r0 = backtest.rodar(base_bt.copy()); r1 = backtest.rodar(d2.copy())
+checar(abs(r1["separacao"]["ks"] - r0["separacao"]["ks"]) < 1,
+       "tentativas/promessa do período não inflam o KS", f'{r0["separacao"]["ks"]} x {r1["separacao"]["ks"]}')
+checar({"tentativas_contato", "promessa_quebrada"} <= set(r1["colunas_ignoradas"])
+       and any("durante a própria cobrança" in a for a in r1["avisos"]), "colunas do período saem com aviso")
+d3 = base_bt.copy(); d3["nota_interna"] = np.where(pagou, 900, 100) + rng.integers(0, 50, n)
+r3 = backtest.rodar(d3)
+checar("nota_interna" in r3["colunas_ignoradas"] and any("separam sozinhas" in a for a in r3["avisos"]),
+       "coluna de nome inocente que separa sozinha sai (mesmo critério do treino)")
+# mantidas de propósito e sem o detector (simula vazamento que escapou dos dois)
+_det = backtest.suspeitas_de_vazamento
+backtest.suspeitas_de_vazamento = lambda df: []
+rk = backtest.rodar(d2.copy(), manter_colunas_do_periodo=True)
+backtest.suspeitas_de_vazamento = _det
+checar(rk["separacao"]["ks_leitura"] == "suspeito" and rk["conclusao_valida"] is False,
+       "KS suspeito marca conclusão inválida", str(rk["separacao"]["ks"]))
+txt = backtest.relatorio(rk)
+checar("recuperou mais" not in txt and "Sem conclusão" in txt, "relatório não conclui 'recuperou mais' com KS suspeito")
+checar(r0["conclusao_valida"] is True, "carteira limpa mantém a conclusão")
+
+
 print(f"\n{falhas} falha(s)")
 sys.exit(falhas)
