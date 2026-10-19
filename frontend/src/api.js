@@ -34,6 +34,8 @@ export function encerrarSessao() {
   const { pathname, search } = window.location
   if (pathname.startsWith('/login')) { _encerrando = false; return }
   window.location.href = `/login?expired=1&de=${encodeURIComponent(pathname + search)}`
+  // Se a navegação for interrompida, a próxima expiração ainda funciona.
+  setTimeout(() => { _encerrando = false }, 3000)
 }
 
 // ── Mensagem de erro ─────────────────────────────────────────────────────────
