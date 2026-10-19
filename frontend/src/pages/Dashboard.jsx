@@ -651,7 +651,7 @@ export default function Dashboard({ onIrPara }) {
 
           <div className="mb-7">
             <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--ink-4)' }}>Análise de Carteira</p>
-            <h1 className="text-2xl font-semibold tracking-tight mt-1" style={{ color: 'var(--ink)' }}>Dashboard</h1>
+            <h1 className="text-2xl font-semibold tracking-tight mt-1" style={{ color: 'var(--ink)' }}>Painel da carteira</h1>
           </div>
 
           {/* Em que dados o score se apoia: o número mais importante para não
