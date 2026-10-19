@@ -45,7 +45,7 @@ export default function IACalculando({ etapas = ETAPAS_ANALISE, titulo = 'A IA e
           transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }} />
         <div className="absolute inset-3 flex items-center justify-center rounded-full"
           style={{ background: 'var(--royal)' }}>
-          <Sparkles className="h-5 w-5 text-white" />
+          <Sparkles className="h-5 w-5" style={{ color: 'var(--on-brand)' }} aria-hidden="true" />
         </div>
         {!reduzir && [0, 1, 2].map(k => (
           <motion.span key={k} className="absolute left-1/2 top-1/2 h-1.5 w-1.5 rounded-full"
