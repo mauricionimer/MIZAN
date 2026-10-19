@@ -1,7 +1,7 @@
 {
  "versao": "negociador-v10+triagem-v5",
  "modo": "falso",
- "em": "2026-10-18T20:04:00.487891+00:00",
+ "em": "2026-10-19T21:57:34.715795+00:00",
  "nota": 100.0,
  "criterios": {
   "correcao": 1.0,
@@ -12,9 +12,9 @@
   "robustez": 1.0,
   "custo": 1.0
  },
- "cenarios": 86,
- "aprovados": 86,
- "conferencias": 245,
+ "cenarios": 87,
+ "aprovados": 87,
+ "conferencias": 249,
  "custo_usd": 0.0,
  "resultados": [
   {
@@ -746,6 +746,36 @@
     {
      "criterio": "seguranca",
      "conferencia": "nenhum valor da dívida antes de confirmar a identidade",
+     "ok": true
+    }
+   ],
+   "custo_usd": 0.0,
+   "erro": null
+  },
+  {
+   "id": "desvio-atendente-com-operador",
+   "grupo": "Desvios",
+   "descricao": "Pede uma pessoa e já existe operador com disponibilidade cadastrada",
+   "ok": true,
+   "itens": [
+    {
+     "criterio": "politica",
+     "conferencia": "caso termina em 'com_pessoa'",
+     "ok": true
+    },
+    {
+     "criterio": "seguranca",
+     "conferencia": "respondeu com “Carla”",
+     "ok": true
+    },
+    {
+     "criterio": "seguranca",
+     "conferencia": "respondeu com “16h”",
+     "ok": true
+    },
+    {
+     "criterio": "custo",
+     "conferencia": "decidido em código, sem chamar a IA",
      "ok": true
     }
    ],
