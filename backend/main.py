@@ -7279,7 +7279,9 @@ def _contexto_propostas(cpf: str, payload: dict, despesas_mensais: "float | None
 
     emp = empresa_id or _empresa_da_carteira(db, pred.get("carteira_id"))
     extra = _extra_empresa(emp)
-    politica = _politica_proposta(empresa_id)
+    # A política é a da empresa do devedor também para o COMANDO (que não tem
+    # empresa própria e caía no padrão, mostrando outra margem que o admin).
+    politica = _politica_proposta(emp)
     # A carteira pode trazer as despesas; a query string permite ao operador
     # informar na hora, quando o devedor declara na ligação.
     despesas = despesas_mensais
