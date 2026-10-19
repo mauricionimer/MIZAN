@@ -32,6 +32,7 @@ da ajuda acusa que ficou velho em vez de continuar dizendo o que já não é ver
 
 import ast
 import re
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -173,14 +174,39 @@ def _anexar(entrada: Entrada, chave: str, texto: str, continuacao: bool) -> None
     # perfis/telas não têm continuação: ficam numa linha
 
 
+# Catálogo já lido, por pasta. Cada pergunta da Ajuda relia e reinterpretava
+# todos os .md; agora só relê quando algum arquivo muda (data, tamanho ou
+# lista de arquivos), então editar o catálogo continua valendo sem reiniciar.
+_CACHE_CATALOGO: dict = {}
+_CACHE_LOCK = threading.Lock()
+
+
+def _assinatura(arquivos: list) -> tuple:
+    saida = []
+    for arq in arquivos:
+        try:
+            st = arq.stat()
+            saida.append((arq.name, st.st_mtime_ns, st.st_size))
+        except OSError:
+            saida.append((arq.name, None, None))
+    return tuple(saida)
+
+
 def carregar(pasta: Path = PASTA) -> list:
     """Todas as entradas do catálogo, na ordem dos arquivos."""
+    arquivos = [a for a in sorted(pasta.glob("*.md")) if not a.name.startswith("_")]
+    assinatura = _assinatura(arquivos)
+    chave = str(pasta)
+    with _CACHE_LOCK:
+        guardado = _CACHE_CATALOGO.get(chave)
+    if guardado and guardado[0] == assinatura:
+        return list(guardado[1])
     todas = []
-    for arq in sorted(pasta.glob("*.md")):
-        if arq.name.startswith("_"):
-            continue
+    for arq in arquivos:
         todas.extend(_interpretar(arq))
-    return todas
+    with _CACHE_LOCK:
+        _CACHE_CATALOGO[chave] = (assinatura, todas)
+    return list(todas)
 
 
 def para_perfil(perfil: str, entradas: "list | None" = None) -> list:

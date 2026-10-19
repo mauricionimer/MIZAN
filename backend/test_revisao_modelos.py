@@ -435,5 +435,29 @@ checar(lidos_fb and not any(i.startswith("fb") for i in lidos_fb),
        "nenhum feedback de outra empresa é lido", f"{len(lidos_fb)} lidos")
 
 
+print("\n== 9. ajuda com cache do catálogo ==")
+import ajuda  # noqa: E402
+lidos_md = []
+_interp = ajuda._interpretar
+ajuda._interpretar = lambda arq: (lidos_md.append(arq.name), _interp(arq))[1]
+ajuda._CACHE_CATALOGO.clear()
+c1 = ajuda.carregar(); n1 = len(lidos_md)
+c2 = ajuda.carregar()
+checar(n1 > 0 and len(lidos_md) == n1 and [e.id for e in c1] == [e.id for e in c2],
+       "segunda leitura vem do cache (nenhum .md reinterpretado)", f"{n1} arquivos na primeira")
+pasta_tmp = Path(tempfile.mkdtemp())
+amostra = sorted(p_ for p_ in ajuda.PASTA.glob("*.md") if not p_.name.startswith("_"))[0]
+destino = pasta_tmp / amostra.name
+destino.write_text(amostra.read_text(encoding="utf-8"), encoding="utf-8")
+a1 = ajuda.carregar(pasta_tmp)
+lidos_md.clear()
+destino.write_text(amostra.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+a2 = ajuda.carregar(pasta_tmp)
+checar(lidos_md == [amostra.name] and len(a1) == len(a2), "arquivo alterado é relido sem reiniciar")
+a2.clear()
+checar(len(ajuda.carregar(pasta_tmp)) == len(a1), "quem altera a lista devolvida não estraga o cache")
+ajuda._interpretar = _interp
+
+
 print(f"\n{falhas} falha(s)")
 sys.exit(falhas)
