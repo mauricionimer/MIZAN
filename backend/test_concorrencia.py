@@ -171,14 +171,14 @@ class _SemLock:
 
 def _rodar(com_lock: bool) -> int:
     B._bandit_cache[EMP], B._bandit_cache_ts[EMP] = B.LinUCB(), time.monotonic()
-    original = B._bandit_lock
+    original = B._lock_de                  # lock por empresa
     if not com_lock:
-        B._bandit_lock = _SemLock()
+        B._lock_de = lambda chave: _SemLock()
     try:
         with ThreadPoolExecutor(max_workers=N) as ex:
             list(ex.map(lambda _: B.registrar_resultado(0, CTX, 0.5, EMP), range(N)))
     finally:
-        B._bandit_lock = original
+        B._lock_de = original
     return sum(B._bandit_cache[EMP].n_tentativas)
 
 

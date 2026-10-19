@@ -168,9 +168,11 @@ checar(depois4[0] == antes4[0] + 1 and depois4[1] == antes4[1],
 
 # ── a PoP da oferta reflete o que foi registrado ──────────────────────────
 pops = B.pop_por_oferta(EMP, 0.50)
-checar(pops["parcelado_12x"]["n_pagamentos"] == 2
+# O mesmo devedor pagou a mesma oferta por dois canais: na chance por oferta
+# ele conta uma vez (denominador = ofertas apresentadas, por devedor × oferta).
+checar(pops["parcelado_12x"]["n_pagamentos"] == 1 and pops["parcelado_12x"]["n_tentativas"] == 1
        and pops["parcelado_12x"]["origem"] == "bandit",
-       "a PoP por oferta passa a se apoiar nesses registros",
+       "a PoP por oferta passa a se apoiar nesses registros (uma vez por devedor)",
        f'{pops["parcelado_12x"]["n_pagamentos"]}/{pops["parcelado_12x"]["n_tentativas"]}')
 checar(pops["parcelado_12x"]["pop"] > pops["parcelado_4x"]["pop"],
        "a oferta que foi paga fica com chance maior que a recusada",

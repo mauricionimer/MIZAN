@@ -1270,8 +1270,10 @@ def _fechar_loop_bandit(db, cpf: str, pagou: bool, valor_recuperado: float, pred
             vd = float(pred_data.get("valor_divida") or 0)
             rd = float(pred_data.get("renda_estimada") or 0)
             contexto = construir_contexto({**pred_data, "comprometimento_renda": (vd / rd) if rd > 0 else 1.0}).tolist()
+        # devedor: conta a oferta apresentada a ele (uma vez) e o pagamento, que
+        # é a base da chance de pagar por oferta (contatos não entram nela).
         registrar_resultado(acao_id=acao_id, contexto=contexto, recompensa=recompensa,
-                            empresa_id=empresa_id, pagou=bool(pagou))
+                            empresa_id=empresa_id, pagou=bool(pagou), devedor=cpf)
     except Exception as _be:
         # sem o CPF: o log não é lugar de dado pessoal
         print(f"[Bandit] Erro ao fechar loop: {type(_be).__name__}")

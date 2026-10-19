@@ -174,5 +174,85 @@ checar("recuperou mais" not in txt and "Sem conclusão" in txt, "relatório não
 checar(r0["conclusao_valida"] is True, "carteira limpa mantém a conclusão")
 
 
+print("\n== 4. bandit: taxa por oferta, estado antigo, lock por empresa, versão ==")
+import threading, joblib  # noqa: E402
+from model import bandit as B  # noqa: E402
+_tmp_bandit = Path(tempfile.mkdtemp())
+B._arquivo_bandit = lambda emp: _tmp_bandit / f"bandit_{B._chave(emp)}.pkl"
+_tabela_b: dict = {}
+def _carregar_b(emp):
+    emp = B._chave(emp)
+    if emp not in _tabela_b:
+        return None, 0
+    estado, versao = _tabela_b[emp]
+    return B._bandit_de_json(estado), versao
+def _gravar_b(emp, bandit, versao):
+    emp = B._chave(emp)
+    atual = _tabela_b.get(emp)
+    if atual is not None and atual[1] != versao:
+        return False
+    _tabela_b[emp] = (B._bandit_para_json(bandit), versao + 1)
+    return True
+B._carregar_com_versao = _carregar_b
+B._gravar_se_versao = _gravar_b
+B._carregar_supabase = lambda emp: _carregar_b(emp)[0]
+B._salvar_supabase = lambda emp, b: _gravar_b(emp, b, _tabela_b.get(B._chave(emp), (None, 0))[1])
+
+CTX = [0.5] * B.D
+EMP = "emp_pop"
+id_12x = B.acao_id_de("whatsapp", "parcelado_12x")
+for i in range(10):
+    cpf = f"{i:011d}"
+    for _ in range(2):        # dois contatos (sem devedor: como a rota /contatos chama)
+        B.registrar_resultado(id_12x, CTX, 0.05, EMP, pagou=False)
+    B.registrar_resultado(id_12x, CTX, 1.0, EMP, pagou=True, devedor=cpf)
+B.registrar_resultado(id_12x, CTX, 1.0, EMP, pagou=True, devedor="00000000000")  # repetido
+pop = B.pop_por_oferta(EMP, 0.3)["parcelado_12x"]
+checar(pop["n_tentativas"] == 10 and pop["taxa_observada"] == 1.0,
+       "10 devedores, 2 contatos cada, todos pagaram → taxa 100% (denominador por devedor × oferta)", str(pop))
+checar(sum(B.carregar_bandit(EMP).n_tentativas) == 31, "contatos continuam atualizando o LinUCB")
+estado = _tabela_b[EMP][0]
+checar("00000000000" not in str(estado), "o estado guarda código do devedor, não o CPF")
+
+# estado antigo (sem os campos novos), em JSON e em .pkl
+antigo = {k: v for k, v in B._bandit_para_json(B.LinUCB()).items()
+          if k not in ("ofertas_apresentadas", "ofertas_pagas", "n_pagamentos")}
+antigo["n_tentativas"][id_12x] = 4
+b_ant = B._bandit_de_json(antigo)
+checar(b_ant.ofertas_apresentadas == {} and b_ant.n_tentativas[id_12x] == 4, "estado antigo em JSON carrega")
+b_pkl = B.LinUCB(); del b_pkl.__dict__["ofertas_apresentadas"]; del b_pkl.__dict__["ofertas_pagas"]
+joblib.dump(b_pkl, _tmp_bandit / "velho.pkl")
+b_pkl2 = joblib.load(_tmp_bandit / "velho.pkl")
+checar(b_pkl2.ofertas_pagas == {} and B._bandit_para_json(b_pkl2)["ofertas_apresentadas"] == {},
+       "estado antigo em .pkl carrega e completa os campos")
+_tabela_b["emp_antiga"] = (antigo, 3)
+pop_ant = B.pop_por_oferta("emp_antiga", 0.3)["parcelado_12x"]
+checar(pop_ant["n_tentativas"] == 4, "sem contagem nova, a oferta usa os contadores antigos")
+
+# lock por empresa e banco fora do lock
+checar(B._lock_de("a") is not B._lock_de("b") and B._lock_de("a") is B._lock_de("a"), "um lock por empresa")
+livre = []
+def _gravar_espiando(emp, bandit, versao):
+    t = threading.Thread(target=lambda: livre.append(B._lock_de(emp).acquire(timeout=1)
+                                                     and (B._lock_de(emp).release() or True)))
+    t.start(); t.join()
+    return _gravar_b(emp, bandit, versao)
+B._gravar_se_versao = _gravar_espiando
+B.registrar_resultado(id_12x, CTX, 0.5, EMP, pagou=False)
+B._gravar_se_versao = _gravar_b
+checar(livre == [True], "gravação no banco acontece fora do lock da empresa")
+
+# zerar e ajustar_alpha sobem a versão: feedback lido antes não grava por cima
+lido, v_lido = _carregar_b(EMP)
+B.ajustar_alpha(2.0, EMP)
+checar(_tabela_b[EMP][1] == v_lido + 1 and _tabela_b[EMP][0]["alpha"] == 2.0, "ajustar_alpha sobe a versão")
+checar(_gravar_b(EMP, lido, v_lido) is False, "feedback com versão velha não apaga o alpha novo")
+lido, v_lido = _carregar_b(EMP)
+B.zerar(EMP)
+checar(_tabela_b[EMP][1] == v_lido + 1 and sum(_tabela_b[EMP][0]["n_tentativas"]) == 0
+       and _tabela_b[EMP][0]["alpha"] == 2.0, "zerar sobe a versão e mantém o alpha")
+checar(_gravar_b(EMP, lido, v_lido) is False, "feedback com versão velha não desfaz o zerar")
+
+
 print(f"\n{falhas} falha(s)")
 sys.exit(falhas)
