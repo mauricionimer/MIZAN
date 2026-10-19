@@ -8907,6 +8907,92 @@ def agente_atribuir(item_id: str, body: AgenteAtribuirIn, credentials: HTTPAutho
     return r
 
 
+class AgenteDisponibilidadeIn(BaseModel):
+    usuario_id: str = Field(..., min_length=1, max_length=80)
+    dia_semana: int = Field(..., ge=0, le=6)
+    hora_inicio: int = Field(..., ge=0, le=23)
+    hora_fim: int = Field(..., ge=1, le=24)
+    empresa_id: Optional[str] = None
+
+
+class AgenteDisponibilidadeEditarIn(BaseModel):
+    dia_semana: Optional[int] = Field(None, ge=0, le=6)
+    hora_inicio: Optional[int] = Field(None, ge=0, le=23)
+    hora_fim: Optional[int] = Field(None, ge=1, le=24)
+    ativo: Optional[bool] = None
+    empresa_id: Optional[str] = None
+
+
+@app.get("/agente/disponibilidade")
+def agente_disponibilidade(empresa_id: Optional[str] = None,
+                           credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Faixas de horário dos operadores, para o devedor saber quando esperar (handoff)."""
+    from agente import api as agente_api
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") not in ("admin", "comando"):
+        raise HTTPException(status_code=403, detail="Acesso negado.")
+    return agente_api.disponibilidade(_empresa_do_agente(payload, empresa_id))
+
+
+@app.post("/agente/disponibilidade")
+def agente_disponibilidade_criar(body: AgenteDisponibilidadeIn,
+                                 credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """O administrador cadastra uma faixa de horário para um operador."""
+    from agente import api as agente_api
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Só o administrador cadastra disponibilidade.")
+    emp = _empresa_do_agente(payload, body.empresa_id)
+    try:
+        r = agente_api.criar_disponibilidade(emp, body.usuario_id, body.dia_semana, body.hora_inicio, body.hora_fim)
+    except LookupError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    _registrar_auditoria(acao="disponibilidade_criada", entidade="disponibilidade_operador", entidade_id=r["id"],
+                         usuario_email=payload.get("email"), empresa_id=emp, usuario_id=payload.get("sub"),
+                         detalhes={"operador_id": body.usuario_id, "dia_semana": body.dia_semana})
+    return r
+
+
+@app.put("/agente/disponibilidade/{item_id}")
+def agente_disponibilidade_editar(item_id: str, body: AgenteDisponibilidadeEditarIn,
+                                  credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """O administrador corrige uma faixa de horário já cadastrada."""
+    from agente import api as agente_api
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Só o administrador edita disponibilidade.")
+    emp = _empresa_do_agente(payload, body.empresa_id)
+    campos = body.model_dump(exclude={"empresa_id"}, exclude_none=True)
+    try:
+        r = agente_api.editar_disponibilidade(emp, item_id, campos)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    _registrar_auditoria(acao="disponibilidade_editada", entidade="disponibilidade_operador", entidade_id=item_id,
+                         usuario_email=payload.get("email"), empresa_id=emp, usuario_id=payload.get("sub"),
+                         detalhes=campos)
+    return r
+
+
+@app.delete("/agente/disponibilidade/{item_id}")
+def agente_disponibilidade_remover(item_id: str, empresa_id: Optional[str] = None,
+                                   credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """O administrador remove (desativa) uma faixa de horário de um operador."""
+    from agente import api as agente_api
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Só o administrador remove disponibilidade.")
+    emp = _empresa_do_agente(payload, empresa_id)
+    try:
+        r = agente_api.remover_disponibilidade(emp, item_id)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    _registrar_auditoria(acao="disponibilidade_removida", entidade="disponibilidade_operador", entidade_id=item_id,
+                         usuario_email=payload.get("email"), empresa_id=emp, usuario_id=payload.get("sub"))
+    return r
+
+
 @app.post("/agente/casos/{predicao_id}/controle")
 def agente_controle(predicao_id: str, body: AgenteControleIn,
                     credentials: HTTPAuthorizationCredentials = Security(bearer)):
