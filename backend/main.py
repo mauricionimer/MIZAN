@@ -3947,7 +3947,7 @@ def _anexar_agenda(db, itens: list, payload: dict, carteira_id: str) -> list:
     if not itens:
         return itens
     from agenda import hoje, nivel
-    emp = payload.get("empresa_id") or (_empresa_da_carteira(db, carteira_id) if payload.get("role") == "comando" else "")
+    emp = payload.get("empresa_id") or (_empresa_da_carteira_ou_vazio(db, carteira_id) if payload.get("role") == "comando" else "")
     if not emp:
         return itens
     cpfs = list({str(i.get("cpf")) for i in itens if i.get("cpf")})
@@ -3982,9 +3982,28 @@ _MSG_SEM_MIGRACAO_FILA = ("A divisão da fila ainda não está ativa: rode "
                           "sql/migracao_operador.sql no Supabase.")
 
 
-def _empresa_da_carteira(db, carteira_id: str) -> str:
+def _empresa_da_carteira(db, carteira_id) -> str:
+    """Empresa dona da carteira ("" se a carteira não existe ou não tem id).
+
+    Erro do banco SOBE: quem divide fila, lista operadores ou explica o score
+    não pode seguir como se a carteira não tivesse empresa. Havia duas funções
+    com este nome; a segunda (que engolia o erro) valia para todo o arquivo.
+    """
+    if not carteira_id:
+        return ""
     r = db.table("carteiras").select("empresa_id").eq("id", carteira_id).limit(1).execute()
     return ((r.data or [{}])[0].get("empresa_id") or "").strip()
+
+
+def _empresa_da_carteira_ou_vazio(db, carteira_id) -> str:
+    """Igual a _empresa_da_carteira, mas devolve "" se o banco falhar. Só onde
+    a falha é aceitável: enfeitar a fila com a agenda ou ler a configuração
+    da empresa para as propostas (sem ela vale o padrão)."""
+    try:
+        return _empresa_da_carteira(db, carteira_id)
+    except Exception as e:
+        print(f"[carteira] não leu a empresa da carteira {carteira_id}: {type(e).__name__}")
+        return ""
 
 
 def _operadores_validos(db, empresa_id: str, ids: list) -> dict:
@@ -7291,7 +7310,7 @@ def _contexto_propostas(cpf: str, payload: dict, despesas_mensais: "float | None
     from model.proposta import avaliar, calcular_margem, montar_propostas
     from model.oferta import catalogo_da_empresa, alcada_da_empresa, para_arquetipos
 
-    emp = empresa_id or _empresa_da_carteira(db, pred.get("carteira_id"))
+    emp = empresa_id or _empresa_da_carteira_ou_vazio(db, pred.get("carteira_id"))
     extra = _extra_empresa(emp)
     # A política é a da empresa do devedor também para o COMANDO (que não tem
     # empresa própria e caía no padrão, mostrando outra margem que o admin).
@@ -7575,16 +7594,6 @@ def desfazer_oferta(oferta_id: str, credentials: HTTPAuthorizationCredentials = 
                          detalhes={"cpf": oferta.get("cpf"), "resposta": oferta.get("resposta"),
                                    "contato_id": contato_id, "agenda_removida": len(agenda)})
     return {"ok": True, "agenda_removida": len(agenda)}
-
-
-def _empresa_da_carteira(db, carteira_id) -> str:
-    if not carteira_id:
-        return ""
-    try:
-        r = db.table("carteiras").select("empresa_id").eq("id", carteira_id).limit(1).execute()
-        return (r.data or [{}])[0].get("empresa_id") or ""
-    except Exception:
-        return ""
 
 
 @app.get("/predicoes/{cpf}/explicacao")
