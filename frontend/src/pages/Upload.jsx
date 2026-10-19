@@ -181,14 +181,6 @@ function FormDB({ onResult, isOperador = false, empresaAlvo = '', exigirEmpresa 
     catch (e) { setErro(e.message); setEtapa('tabelas') } finally { setLoadingTeste(false) }
   }
 
-  async function testar() {
-    if (!isSheets && !form.query.trim()) { setErro('Informe uma consulta SQL.'); return }
-    if (isSheets && !form.sheets_id) { setErro('Informe o ID da planilha.'); return }
-    setLoadingTeste(true); setErro(null)
-    try { const res = await testarDB(paramsConexao()); setTeste(res); setMapa(res.mapeamento_sugerido); setEtapa('mapeamento') }
-    catch (e) { setErro(e.message) } finally { setLoadingTeste(false) }
-  }
-
   async function analisar() {
     const faltando = CAMPOS_MIZAN.filter(c => c.obrigatorio && !mapa[c.key])
     if (faltando.length) { setErro(`Mapeie os campos obrigatórios: ${faltando.map(c => c.label).join(', ')}`); return }

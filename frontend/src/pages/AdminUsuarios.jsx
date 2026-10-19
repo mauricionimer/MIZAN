@@ -624,9 +624,9 @@ export default function AdminUsuarios() {
         {(isAdmin || isComando) && (
           <div className="flex gap-1 mb-8 p-1 rounded-xl w-fit max-w-full overflow-x-auto" style={{ background: 'var(--raise-2)' }}>
             {[
-              ['usuarios', <Users className="w-4 h-4" aria-hidden="true" />, 'Usuários'],
-              ...(isComando ? [['empresas', <Building2 className="w-4 h-4" aria-hidden="true" />, 'Empresas']] : []),
-              ['permissoes', <Database className="w-4 h-4" aria-hidden="true" />, 'Permissões de banco'],
+              ['usuarios', <Users key="i" className="w-4 h-4" aria-hidden="true" />, 'Usuários'],
+              ...(isComando ? [['empresas', <Building2 key="i" className="w-4 h-4" aria-hidden="true" />, 'Empresas']] : []),
+              ['permissoes', <Database key="i" className="w-4 h-4" aria-hidden="true" />, 'Permissões de banco'],
             ].map(([id, icon, label]) => (
               <button key={id} type="button" onClick={() => setAba(id)} aria-pressed={aba === id}
                 className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"

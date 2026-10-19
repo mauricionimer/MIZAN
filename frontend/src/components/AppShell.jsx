@@ -3,9 +3,9 @@ import { createPortal } from 'react-dom'
 import { useNavigate, useLocation, useOutlet } from 'react-router-dom'
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'framer-motion'
 import {
-  LayoutDashboard, UploadCloud, ClipboardList, Users, KeyRound, LogOut, Loader2, Menu, X,
-  ShieldCheck, Zap, Brain, Command, FlaskConical, Lock, HelpCircle, SlidersHorizontal,
-  MessageCircleQuestion, GraduationCap, KeySquare, CalendarClock, Gauge, MessageSquareText, TrendingUp, Handshake, Tags, Bot,
+  UploadCloud, KeyRound, LogOut, Loader2, Menu, X,
+  Zap, Brain, Command, Lock, HelpCircle, SlidersHorizontal,
+  MessageCircleQuestion, GraduationCap, KeySquare, CalendarClock, Gauge, TrendingUp, Handshake, Bot,
 } from 'lucide-react'
 import ThemeToggle from './ThemeToggle'
 import useAvisosDeDuvida from './useAvisosDeDuvida'
