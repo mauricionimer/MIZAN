@@ -89,6 +89,8 @@ class Cenario:
     agenda: list = field(default_factory=list)    # [(tipo, data, valor)]
     controle: bool = False
     papeis: tuple = ()                            # agentes novos com IA ligados neste cenário
+    operadores: list = field(default_factory=list)        # [{"id", "nome"}], para o handoff com nome real
+    disponibilidades: list = field(default_factory=list)  # [{"usuario_id", "dia_semana", "hora_inicio", "hora_fim"}]
 
 
 @dataclass
@@ -140,6 +142,11 @@ def _executar(c: Cenario, cliente=None) -> Resultado:
     repo.gravar_politica("emp", 1, c.politica or auditor.POLITICA_DEMONSTRACAO)
     for tipo, data, valor in c.agenda:
         fonte.criar_agenda("emp", c.devedor, tipo, data, valor=valor)
+    if c.operadores:
+        fonte._operadores = list(c.operadores)
+    for d in c.disponibilidades:
+        fonte.disponibilidades.append({"id": f"d{len(fonte.disponibilidades)}", "empresa_id": "emp",
+                                       "ativo": True, **d})
     cliente = cliente or ClienteFalso(dict(c.roteiro) if isinstance(c.roteiro, dict) else list(c.roteiro))
     g = grafos(fonte)
     erro = None
