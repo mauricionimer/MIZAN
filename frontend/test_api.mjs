@@ -52,6 +52,10 @@ globalThis.fetch = async (url, opcoes = {}) => {
   }
 }
 
+globalThis.AbortController = AbortController
+globalThis.AbortSignal = AbortSignal
+globalThis.__MIZAN_TEST_PRAZO_MS = 150 // teste não espera 25s de verdade
+
 const api = await import(pathToFileURL(arquivo).href)
 rmSync(arquivo, { force: true })
 
@@ -124,6 +128,37 @@ ok(!guardado.has('mizan_token') && !guardado.has('mizan_user'), 'apaga as chaves
 ok(guardado.has('outra_chave'), 'não mexe em chave de fora')
 ok(eventos.includes('mizan:logout'), "dispara 'mizan:logout'")
 ok(window.location.href === '/login?expired=1&de=%2Fagenda%3Fx%3D1', 'vai ao login lembrando a tela', window.location.href)
+
+// ── regressão: pedir() travava para sempre sem timeout de rede ──
+// Fetch que nunca resolve por si só: pedir() tem que abandonar sozinho via
+// o prazo padrão (encurtado para 150ms neste teste), não ficar pendurado
+// esperando o fetch resolver para sempre.
+{
+  const respostaAntiga = resposta
+  resposta = (url, opcoes) => new Promise((_resolve, rejeita) => {
+    opcoes.signal?.addEventListener('abort', () => {
+      const e = new Error('The operation was aborted.')
+      e.name = 'AbortError'
+      rejeita(e)
+    })
+  })
+  const original = globalThis.fetch
+  globalThis.fetch = async (url, opcoes = {}) => {
+    pedidos.push({ url, ...opcoes })
+    const r = resposta(url, opcoes)
+    return r // promessa que só resolve/rejeita via abort
+  }
+  erro = null
+  const inicio = Date.now()
+  try { await api.listarUsuarios('tok') } catch (e) { erro = e }
+  const demorou = Date.now() - inicio
+  ok(erro != null, 'pedir() rejeita quando o fetch nunca resolve (timeout)')
+  ok(demorou >= 150 && demorou < 3000, 'abandonou perto do prazo padrão (encurtado no teste), não ficou pendurado', `${demorou}ms`)
+  const classificado = api.classificarErro(erro)
+  ok(classificado.tipo === 'rede' && classificado.podeTentar === true, 'timeout é classificado como erro de rede, tentável', JSON.stringify(classificado))
+  globalThis.fetch = original
+  resposta = respostaAntiga
+}
 
 // ── Lista de funções exportadas: nada sumiu ──
 const exigidas = ['analisarCarteira', 'listarCarteiras', 'carregarCarteira', 'confirmarPagamento', 'feedbackLote', 'deletarConta',

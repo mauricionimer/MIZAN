@@ -98,6 +98,26 @@ function _qs(params = {}) {
  * - `publico`: não manda token nem encerra sessão (telas antes do login).
  * - `sessao: false`: 401 não encerra a sessão (ex.: senha errada).
  */
+// Prazo padrão para pedidos que a tela não controla com o próprio sinal
+// (Login.jsx e EsqueciSenha.jsx já criam o AbortController deles). Sem isto,
+// uma rede que nunca responde trava o `await fetch` para sempre e a tela
+// fica presa sem nenhum jeito de "Tentar de novo".
+// `__MIZAN_TEST_PRAZO_MS` existe só para test_api.mjs encurtar a espera.
+const _PRAZO_PADRAO_MS = (typeof globalThis !== 'undefined' && globalThis.__MIZAN_TEST_PRAZO_MS) || 25000
+
+function _sinalComPrazo(sinal) {
+  if (sinal) return { sinal, limpar: () => {} }
+  if (typeof AbortSignal === 'function' && typeof AbortSignal.timeout === 'function') {
+    return { sinal: AbortSignal.timeout(_PRAZO_PADRAO_MS), limpar: () => {} }
+  }
+  if (typeof AbortController === 'function') {
+    const ctrl = new AbortController()
+    const t = setTimeout(() => ctrl.abort(), _PRAZO_PADRAO_MS)
+    return { sinal: ctrl.signal, limpar: () => clearTimeout(t) }
+  }
+  return { sinal: undefined, limpar: () => {} }
+}
+
 async function pedir(caminho, { metodo = 'GET', corpo, form, token, query, sinal, publico = false, sessao = true } = {}) {
   const tok = publico ? '' : (token ?? _getToken())
   const headers = {}
@@ -107,7 +127,13 @@ async function pedir(caminho, { metodo = 'GET', corpo, form, token, query, sinal
   else if (corpo !== undefined) { headers['Content-Type'] = 'application/json'; body = JSON.stringify(corpo) }
   const qs = query ? _qs(query) : ''
   const url = `${BASE}${caminho}${qs ? (caminho.includes('?') ? '&' : '?') + qs : ''}`
-  const res = await fetch(url, { method: metodo, headers, body, signal: sinal })
+  const { sinal: sinalComPrazo, limpar } = _sinalComPrazo(sinal)
+  let res
+  try {
+    res = await fetch(url, { method: metodo, headers, body, signal: sinalComPrazo })
+  } finally {
+    limpar()
+  }
   if (res.status === 401 && sessao && !publico) encerrarSessao()
   if (!res.ok) {
     const dados = await res.json().catch(() => null)
@@ -138,7 +164,7 @@ export function classificarErro(e) {
   const msg = typeof e === 'string' ? e : (e.message || '')
   const status = e.status ?? (Number((msg.match(/Erro HTTP (\d{3})/) || [])[1]) || null)
   const doServidor = msg && !/^Erro HTTP/.test(msg) ? msg : ''
-  if (e.name === 'TypeError' || _RE_REDE.test(msg)) {
+  if (e.name === 'TypeError' || e.name === 'AbortError' || e.name === 'TimeoutError' || _RE_REDE.test(msg)) {
     return { tipo: 'rede', podeTentar: true,
       mensagem: 'Não foi possível falar com o servidor. Ele pode estar acordando (leva até um minuto) ou a sua conexão caiu. Tente novamente.' }
   }
