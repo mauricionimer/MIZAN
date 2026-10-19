@@ -6029,6 +6029,18 @@ async def feedback_lote(
     return await asyncio.to_thread(_processar)
 
 
+def _chave_cache_feedbacks(prefixo: str, carteira_id: "str | None", empresa_id: str) -> str:
+    """Chave de cache de /performance, /performance/pagamentos e /feedbacks/status.
+
+    Começa por `prefixo:{carteira_id}` ou `prefixo:{empresa_id}` porque é assim
+    que as baixas invalidam (_cache_del_prefix). A empresa de quem pede (ou
+    "comando") vem depois, para duas empresas nunca dividirem a mesma entrada.
+    """
+    if carteira_id:
+        return f"{prefixo}:{carteira_id}:{empresa_id or 'comando'}"
+    return f"{prefixo}:{empresa_id}"
+
+
 @app.get("/performance")
 def performance(
     credentials: HTTPAuthorizationCredentials = Security(bearer),
@@ -6042,15 +6054,17 @@ def performance(
     if not empresa_id and role != "comando":
         return {"mensagem": "Nenhum feedback recebido ainda.", "total_feedbacks": 0}
 
-    cache_key = f"perf:{carteira_id or empresa_id}"
+    db = get_db()
+
+    # Dono ANTES do cache, e a empresa na chave: antes a chave era só o
+    # carteira_id e o cache era lido antes da checagem, então quem mandasse o
+    # id de uma carteira alheia recebia da memória o que o dono tinha aberto.
+    if carteira_id:
+        _exige_carteira_da_empresa(db, carteira_id, payload)
+    cache_key = _chave_cache_feedbacks("perf", carteira_id, empresa_id)
     cached = _cache_get(cache_key, ttl=300)
     if cached is not None:
         return cached
-
-    db = get_db()
-
-    if carteira_id:
-        _exige_carteira_da_empresa(db, carteira_id, payload)
 
     # Quando carteira_id fornecido, filtra apenas por aquela carteira específica
     empresa_pred_ids: set | None = None
@@ -6176,16 +6190,22 @@ def performance_pagamentos(
 
     if not empresa_id and role != "comando":
         return []
-
-    cache_key = f"pagamentos:{carteira_id or empresa_id}"
-    cached = _cache_get(cache_key, ttl=300)
-    if cached is not None:
-        return cached
+    # Nome, CPF e valor pago de cada devedor é visão de gestão (admin e
+    # comando). O operador recebe lista vazia, não 403: a tela dele consulta
+    # esta rota junto com /feedbacks/status no mesmo ciclo, e um erro aqui
+    # pararia também a atualização do status da fila.
+    if role not in ("admin", "comando"):
+        return []
 
     db = get_db()
 
+    # Dono antes do cache e empresa na chave (ver /performance).
     if carteira_id:
         _exige_carteira_da_empresa(db, carteira_id, payload)
+    cache_key = _chave_cache_feedbacks("pagamentos", carteira_id, empresa_id)
+    cached = _cache_get(cache_key, ttl=300)
+    if cached is not None:
+        return cached
 
     empresa_pred_ids: set | None = None
     if carteira_id:
@@ -6249,7 +6269,7 @@ def performance_pagamentos(
             "valor_recuperado":  fb.get("valor_recuperado") or 0,
             "data_pagamento":    fb.get("data_pagamento") or fb.get("created_at", "")[:10],
             "registrado_por":    fb.get("registrado_por") or "",
-            "registrado_em":     (fb.get("created_at") or "")[:16],
+            "registrado_em":     fb.get("created_at") or "",   # completo, com fuso: cortado em [:16] a tela lia UTC como hora local
         })
     _cache_set(cache_key, result)
     return result
@@ -6268,15 +6288,15 @@ def feedbacks_status(
     if not empresa_id and role != "comando":
         return {}
 
-    cache_key = f"fb_status:{carteira_id or empresa_id}"
+    db = get_db()
+
+    # Dono antes do cache e empresa na chave (ver /performance).
+    if carteira_id:
+        _exige_carteira_da_empresa(db, carteira_id, payload)
+    cache_key = _chave_cache_feedbacks("fb_status", carteira_id, empresa_id)
     cached = _cache_get(cache_key, ttl=30)
     if cached is not None:
         return cached
-
-    db = get_db()
-
-    if carteira_id:
-        _exige_carteira_da_empresa(db, carteira_id, payload)
 
     empresa_pred_ids: set | None = None
     if carteira_id:
@@ -6327,7 +6347,7 @@ def feedbacks_status(
             "valor_recuperado": fb.get("valor_recuperado"),
             "data_pagamento":   fb.get("data_pagamento") or (fb.get("created_at") or "")[:10],
             "registrado_por":   fb.get("registrado_por") or "",
-            "registrado_em":    (fb.get("created_at") or "")[:16],
+            "registrado_em":    fb.get("created_at") or "",
         }
 
     _cache_set(cache_key, status_map)
