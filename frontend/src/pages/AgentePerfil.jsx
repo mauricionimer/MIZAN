@@ -30,7 +30,7 @@ const SOBRE = {
 }
 
 const hora = s => (s ? new Date(s).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '')
-const COR_RES = { ok: 'text-emerald-300', bloqueado: 'text-red-300', erro: 'text-red-300' }
+const COR_RES = { ok: 'text-success', bloqueado: 'text-danger', erro: 'text-danger' }
 
 function Numero({ rotulo, valor }) {
   return <StatCard label={rotulo} value={valor} />
@@ -93,7 +93,7 @@ export default function AgentePerfil() {
             <p className="mt-0.5 text-sm text-ink-2">{faz}</p>
             <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
               {time && <span className="rounded bg-raise-2 px-2 py-0.5 text-ink-2">{time}</span>}
-              {d && <span className={`rounded px-2 py-0.5 ${d.papel ? (d.ia_ligada ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-300') : 'bg-raise-2 text-ink-2'}`}>
+              {d && <span className={`rounded px-2 py-0.5 ${d.papel ? (d.ia_ligada ? 'bg-emerald-500/15 text-success' : 'bg-amber-500/15 text-warning') : 'bg-raise-2 text-ink-2'}`}>
                 {d.papel ? (d.ia_ligada ? 'IA ligada' : 'IA desligada: em código') : 'Código'}</span>}
               {isComando && d?.modelo && <span className="rounded bg-raise-2 px-2 py-0.5 text-ink-3">{d.modelo}</span>}
               {isComando && d?.versao_prompt && <span className="rounded bg-raise-2 px-2 py-0.5 text-ink-3">{d.versao_prompt}</span>}
