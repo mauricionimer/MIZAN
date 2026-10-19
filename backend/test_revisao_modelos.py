@@ -408,5 +408,32 @@ checar(reg3["metricas"]["atual"].get("origem") == "global" and not reg3["metrica
        "sem modelo próprio, o atual (geral) continua comparado normalmente")
 
 
+print("\n== 8. treino com feedbacks lê só a empresa pedida ==")
+from model import treino_feedbacks as tf  # noqa: E402
+TAB.clear()
+TAB["carteiras"] = [{"id": "ca", "empresa_id": "Alfa"}, {"id": "cb", "empresa_id": "beta"}]
+TAB["predicoes"] = ([{"id": f"pa{i}", "carteira_id": "ca", "valor_divida": 1000, "dias_em_atraso": 30 + i,
+                      "created_at": "2026-09-01"} for i in range(30)]
+                    + [{"id": f"pb{i}", "carteira_id": "cb", "valor_divida": 900, "dias_em_atraso": 40,
+                        "created_at": "2026-09-01"} for i in range(50)])
+TAB["feedbacks"] = ([{"id": f"fa{i}", "predicao_id": f"pa{i}", "pagou": i % 2 == 0, "created_at": "2026-09-10"}
+                     for i in range(30)]
+                    + [{"id": f"fb{i}", "predicao_id": f"pb{i}", "pagou": True, "created_at": "2026-09-10"}
+                       for i in range(50)])
+lidos_fb = []
+_exec_orig = Q.execute
+def _exec_espia(q):
+    r = _exec_orig(q)
+    if q.t == "feedbacks" and q.ins is None and q.patch is None and not q.dele:
+        lidos_fb.extend(x["id"] for x in r.data)
+    return r
+Q.execute = _exec_espia
+ds = tf.datasets(DB, ["alfa"])
+Q.execute = _exec_orig
+checar(set(ds) == {"alfa"} and len(ds["alfa"][0]) == 30, "dataset da alfa com os 30 pagamentos dela")
+checar(lidos_fb and not any(i.startswith("fb") for i in lidos_fb),
+       "nenhum feedback de outra empresa é lido", f"{len(lidos_fb)} lidos")
+
+
 print(f"\n{falhas} falha(s)")
 sys.exit(falhas)
