@@ -806,6 +806,11 @@ def _resolver_credenciais(conn: ConexaoDB, payload: dict) -> None:
             setattr(conn, campo, r[campo])
     if not senha_da_requisicao and r.get("senha"):
         conn.senha = _decrypt(r["senha"])
+    if role not in ("admin", "comando"):
+        # O operador usa a consulta que o admin salvou, não a dele: com a
+        # liberação de uso da conexão ele mandava qualquer SELECT (outras
+        # tabelas, outras colunas) com a senha do banco do cliente.
+        conn.query = r.get("query") or None
     if r.get("tipo") == "sheets":
         for campo in ("sheets_id", "sheets_aba"):
             if r.get(campo):
@@ -5381,12 +5386,15 @@ def analisar_db(conn: ConexaoDB, incluir_ranking: bool = True,
                              _incluir_ranking=incluir_ranking)
 
     # Vincula a carteira criada à conexão salva (para sincronizações futuras atualizarem no lugar)
+    # Só admin e comando reapontam: o operador que usa a conexão liberada não
+    # pode trocar a carteira que as sincronizações seguintes vão atualizar.
     nova_carteira_id = resultado.get("resumo", {}).get("carteira_id")
-    if conn.conexao_id and nova_carteira_id:
+    if conn.conexao_id and nova_carteira_id and _payload.get("role") in ("admin", "comando"):
         try:
             get_db().table("conexoes_db").update({"carteira_id": nova_carteira_id}).eq("id", conn.conexao_id).execute()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[analisar/db] não religou a conexão {conn.conexao_id} à carteira "
+                  f"{nova_carteira_id}: {type(e).__name__}")
 
     return resultado
 
