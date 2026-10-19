@@ -254,5 +254,34 @@ checar(_tabela_b[EMP][1] == v_lido + 1 and sum(_tabela_b[EMP][0]["n_tentativas"]
 checar(_gravar_b(EMP, lido, v_lido) is False, "feedback com versão velha não desfaz o zerar")
 
 
+print("\n== 5. /testar-db: prévia de reserva lê só 5 linhas ==")
+import sqlite3  # noqa: E402
+from sqlalchemy import create_engine, text  # noqa: E402
+lidas = {"n": 0}
+def _conta(x):
+    lidas["n"] += 1
+    return x
+eng = create_engine("sqlite://")
+with eng.connect() as cx:
+    cx.connection.create_function("conta", 1, _conta)
+    cx.execute(text("create table t (id integer, nome text)"))
+    cx.execute(text("insert into t values " + ",".join(f"({i}, 'n{i}')" for i in range(5000))))
+    dfp = main._previa_sem_subconsulta_sqlalchemy(cx, text("select conta(id) as id, nome from t"), RuntimeError("x"))
+    checar(len(dfp) == 5 and list(dfp.columns) == ["id", "nome"], "reserva SQLAlchemy devolve 5 linhas com as colunas")
+    checar(lidas["n"] < 100, "reserva SQLAlchemy não lê a tabela inteira", f'{lidas["n"]} linhas avaliadas de 5000')
+    try:
+        main._previa_sem_subconsulta_sqlalchemy(cx, text("select * from nao_existe"), RuntimeError("erro da prévia"))
+        checar(False, "reserva que falha devolve o erro da prévia")
+    except RuntimeError as e:
+        checar(str(e) == "erro da prévia", "reserva que falha devolve o erro da prévia")
+lidas["n"] = 0
+raw = sqlite3.connect(":memory:")
+raw.create_function("conta", 1, _conta)
+raw.execute("create table t (id integer)")
+raw.executemany("insert into t values (?)", [(i,) for i in range(5000)])
+dfp = main._previa_sem_subconsulta_dbapi(raw, "select conta(id) as id from t", RuntimeError("x"))
+checar(len(dfp) == 5 and lidas["n"] < 100, "reserva DB-API (SQL Server) lê só o começo", f'{lidas["n"]} avaliadas')
+
+
 print(f"\n{falhas} falha(s)")
 sys.exit(falhas)

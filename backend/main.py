@@ -5339,6 +5339,47 @@ def listar_tabelas(conn: ConexaoDB, credentials: HTTPAuthorizationCredentials = 
         raise HTTPException(status_code=503, detail=f"Erro ao conectar: {str(e)}")
 
 
+LINHAS_PREVIA = 5
+
+
+def _previa_sem_subconsulta_sqlalchemy(connection, consulta, erro_previa) -> pd.DataFrame:
+    """Prévia quando o banco recusa a consulta dentro de uma subconsulta.
+
+    Antes caía em `pd.read_sql(q).head(5)`: lia a tabela INTEIRA para mostrar
+    5 linhas (uma tabela de milhões derrubava o servidor de 512 MB). Agora pede
+    as linhas aos poucos (cursor no servidor) e para na quinta. Se nem assim
+    der, devolve o erro da prévia, que é o que o usuário precisa corrigir.
+    """
+    try:
+        res = connection.execution_options(stream_results=True).execute(consulta)
+        try:
+            linhas = res.fetchmany(LINHAS_PREVIA)
+            colunas = list(res.keys())
+        finally:
+            res.close()
+    except Exception:
+        raise erro_previa
+    return pd.DataFrame([tuple(l) for l in linhas], columns=colunas)
+
+
+def _previa_sem_subconsulta_dbapi(conexao, consulta: str, erro_previa) -> pd.DataFrame:
+    """O mesmo, para conexão DB-API direta (SQL Server via pytds)."""
+    try:
+        cur = conexao.cursor()
+        try:
+            cur.execute(consulta)
+            linhas = cur.fetchmany(LINHAS_PREVIA)
+            colunas = [d[0] for d in (cur.description or [])]
+        finally:
+            try:
+                cur.close()
+            except Exception:
+                pass
+    except Exception:
+        raise erro_previa
+    return pd.DataFrame([tuple(l) for l in linhas], columns=colunas)
+
+
 @app.post("/testar-db")
 def testar_db(conn: ConexaoDB, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """Testa conexão, executa query limitada e retorna colunas + preview + mapeamento sugerido."""
@@ -5358,8 +5399,8 @@ def testar_db(conn: ConexaoDB, credentials: HTTPAuthorizationCredentials = Secur
                 with _sqlserver_connect(conn) as tds_conn:
                     try:
                         df_preview = pd.read_sql(preview_q, tds_conn)
-                    except Exception:
-                        df_preview = pd.read_sql(q, tds_conn).head(5)
+                    except Exception as e_previa:
+                        df_preview = _previa_sem_subconsulta_dbapi(tds_conn, q, e_previa)
             else:
                 from sqlalchemy import create_engine, text
                 url = _construir_url_db(conn)
@@ -5371,8 +5412,8 @@ def testar_db(conn: ConexaoDB, credentials: HTTPAuthorizationCredentials = Secur
                         preview_q = f"SELECT * FROM ({q}) AS _mizan_preview LIMIT 5"
                     try:
                         df_preview = pd.read_sql(text(preview_q), connection)
-                    except Exception:
-                        df_preview = pd.read_sql(text(q), connection).head(5)
+                    except Exception as e_previa:
+                        df_preview = _previa_sem_subconsulta_sqlalchemy(connection, text(q), e_previa)
                 engine.dispose()
     except HTTPException:
         raise
