@@ -290,6 +290,11 @@ export async function deletarConta(senha) {
   return pedir('/auth/me', { metodo: 'DELETE', corpo: { senha: senha || '' }, sessao: false })
 }
 
+// Devolve { token } novo: as outras sessões abertas caem, esta continua.
+export async function alterarSenha(senhaAtual, novaSenha) {
+  return pedir('/auth/alterar-senha', { metodo: 'POST', corpo: { senha_atual: senhaAtual, nova_senha: novaSenha } })
+}
+
 // ── Contatos ─────────────────────────────────────────────────────────────────
 export async function registrarContato(dados) {
   try {
