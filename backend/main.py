@@ -4662,6 +4662,46 @@ def _inserir_predicoes_em_lotes(db, linhas) -> dict:
     return mapa
 
 
+def _desfazer_predicoes_novas(db, carteira_id: str, ids_antigos: list) -> None:
+    """Sincronização que falhou no meio: apaga só as predições novas da carteira.
+
+    As antigas ficam como estavam (com os feedbacks ligados a elas).
+    """
+    try:
+        antigos = set(ids_antigos)
+        novas = [p["id"] for p in _todas_as_linhas(
+            lambda: db.table("predicoes").select("id").eq("carteira_id", carteira_id))
+            if p["id"] not in antigos]
+        for i in range(0, len(novas), ITENS_POR_IN):
+            db.table("predicoes").delete().in_("id", novas[i:i + ITENS_POR_IN]).execute()
+    except Exception as e:
+        print(f"[Supabase] Não consegui desfazer as predições novas: {e}")
+
+
+def _trocar_predicoes_da_carteira(db, ids_antigos: list, novo_por_cpf: dict) -> None:
+    """Religa os feedbacks das predições antigas às novas (pelo CPF) e apaga as antigas.
+
+    Só roda depois que as novas foram todas gravadas. O feedback cujo CPF saiu
+    da carteira fica com predicao_id vazio (a ligação é obrigatória para apagar).
+    """
+    if not ids_antigos:
+        return
+    feedbacks: list = []
+    for i in range(0, len(ids_antigos), ITENS_POR_IN):
+        lote = ids_antigos[i:i + ITENS_POR_IN]
+        feedbacks += db.table("feedbacks").select("id, cpf, predicao_id") \
+            .in_("predicao_id", lote).execute().data or []
+    por_destino: dict = {}
+    for fb in feedbacks:
+        por_destino.setdefault(novo_por_cpf.get(str(fb.get("cpf") or "")), []).append(fb["id"])
+    for destino, fb_ids in por_destino.items():
+        for i in range(0, len(fb_ids), ITENS_POR_IN):
+            db.table("feedbacks").update({"predicao_id": destino}) \
+                .in_("id", fb_ids[i:i + ITENS_POR_IN]).execute()
+    for i in range(0, len(ids_antigos), ITENS_POR_IN):
+        db.table("predicoes").delete().in_("id", ids_antigos[i:i + ITENS_POR_IN]).execute()
+
+
 def _premissa_recuperacao_se_pagar(empresa_id: str | None) -> float:
     """Lê a premissa da empresa; cai no padrão declarado se não houver."""
     if not empresa_id:
@@ -4715,6 +4755,18 @@ def _politica_proposta(empresa_id: "str | None"):
         return PoliticaProposta()
 
 
+MAX_LINHAS_ANALISE_PADRAO = 50_000
+
+
+def _max_linhas_analise() -> int:
+    """Teto de linhas por análise (MIZAN_MAX_LINHAS_ANALISE; padrão 50 mil)."""
+    try:
+        valor = int(os.environ.get("MIZAN_MAX_LINHAS_ANALISE", "") or MAX_LINHAS_ANALISE_PADRAO)
+    except ValueError:
+        return MAX_LINHAS_ANALISE_PADRAO
+    return valor if valor > 0 else MAX_LINHAS_ANALISE_PADRAO
+
+
 def _sem_nan(obj):
     """NaN e infinito viram None (null), em dicts e listas aninhados. O JSON não tem NaN."""
     if isinstance(obj, dict):
@@ -4730,6 +4782,17 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
                  _empresa_id: str = None, _carteira_id_existente: str = None,
                  _incluir_ranking: bool = True) -> dict:
     """Executa o pipeline de scoring em um DataFrame já carregado e persiste no Supabase."""
+    # Teto de linhas por análise. O servidor tem 512 MB: 200 mil linhas chegaram
+    # a 930 MB de pico (scoring + fila + predições + resposta) e o processo morre
+    # sem resposta nenhuma. Melhor recusar com uma mensagem que diga o que fazer.
+    _limite_linhas = _max_linhas_analise()
+    if len(df) > _limite_linhas:
+        raise HTTPException(
+            status_code=413,
+            detail=(f"A carteira tem {len(df):,} linhas e o limite por análise é "
+                    f"{_limite_linhas:,}. Divida o arquivo em partes menores "
+                    f"(cada parte vira uma carteira).").replace(",", "."),
+        )
     # Aplica CAMPO_ALIASES para mapear colunas de qualquer fonte (CSV, Excel, DB)
     _cols_norm = {c.lower().strip().replace(" ", "_"): c for c in df.columns}
     _rename: dict = {}
@@ -4955,7 +5018,16 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
     # _sem_nan e não .where(notna, None): no pandas 3 o where devolve NaN de volta
     # nas colunas numéricas, e um NaN na resposta derrubava a análise inteira
     # (Starlette recusa NaN no JSON). Uma célula de renda em branco bastava.
-    devedores = [_sem_nan(d) for d in resultado_sorted.to_dict(orient="records")]
+    #
+    # A fila inteira como lista de dicts custava mais que o próprio DataFrame.
+    # Agora ela só é montada se for para a resposta; a gravação das predições
+    # percorre o DataFrame em pedaços de 2000 linhas.
+    def _registros(tabela: pd.DataFrame, passo: int = 2000):
+        for _ini in range(0, len(tabela), passo):
+            for _d in tabela.iloc[_ini:_ini + passo].to_dict(orient="records"):
+                yield _sem_nan(_d)
+
+    top10 = list(_registros(resultado_sorted.head(10)))
 
     total_em_risco = float(resultado["valor_divida"].sum())
     ver_total      = float(resultado["valor_esperado_recuperacao"].sum())
@@ -5067,38 +5139,29 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
             if isinstance(val, float) and not math.isfinite(val): return None   # NaN não é JSON
             return val
 
+        pred_ids_antigos: list = []
+        responsaveis_antes: dict = {}
         if _carteira_id_existente:
-            # ── Modo atualização: substitui predicoes, preserva feedbacks ──
+            # ── Modo atualização: troca as predições, preserva os feedbacks ──
+            # Ordem segura: grava as novas, religa os feedbacks pelo CPF e só
+            # então apaga as antigas. Antes apagava primeiro: uma falha no meio
+            # da gravação deixava a carteira vazia e os feedbacks soltos.
             carteira_id = _carteira_id_existente
-            # Truncado, os feedbacks ligados às predições além da milésima
-            # continuariam apontando para linhas apagadas.
-            pred_ids = [p["id"] for p in _todas_as_linhas(
-                lambda: db.table("predicoes").select("id").eq("carteira_id", carteira_id))]
             # Quem já tinha dono continua com ele depois da sincronização (F1):
             # sem isto, cada atualização da carteira desfazia a divisão da fila.
             try:
-                responsaveis_antes = {
-                    str(p["cpf"]): (p.get("responsavel_id"), p.get("responsavel_nome"))
-                    for p in _todas_as_linhas(lambda: db.table("predicoes")
-                                              .select("id, cpf, responsavel_id, responsavel_nome")
-                                              .eq("carteira_id", carteira_id))
-                    if p.get("responsavel_id")}
+                antigas = _todas_as_linhas(lambda: db.table("predicoes")
+                                           .select("id, cpf, responsavel_id, responsavel_nome")
+                                           .eq("carteira_id", carteira_id))
             except Exception:
-                responsaveis_antes = {}       # banco sem a coluna: nada a preservar
-            for i in range(0, len(pred_ids), 100):
-                lote = pred_ids[i:i+100]
-                if lote:
-                    db.table("feedbacks").update({"predicao_id": None}).in_("predicao_id", lote).execute()
-            db.table("predicoes").delete().eq("carteira_id", carteira_id).execute()
-            db.table("carteiras").update({
-                "nome_arquivo":    nome_fonte,
-                "total_devedores": resumo["total_devedores"],
-                "valor_face":      resumo["total_em_risco"],
-                "valor_esperado":  resumo["valor_esperado_recuperacao_total"],
-                "score_medio":     resumo["score_medio"],
-                "modelo_versao":   versao_modelo,
-                "updated_at":      datetime.utcnow().isoformat(),
-            }).eq("id", carteira_id).execute()
+                # banco sem a coluna de responsável: nada a preservar
+                antigas = _todas_as_linhas(lambda: db.table("predicoes")
+                                           .select("id, cpf").eq("carteira_id", carteira_id))
+            pred_ids_antigos = [p["id"] for p in antigas]
+            responsaveis_antes = {
+                str(p["cpf"]): (p.get("responsavel_id"), p.get("responsavel_nome"))
+                for p in antigas if p.get("responsavel_id")}
+            del antigas
         else:
             # ── Modo criação: nova carteira ──
             cart_row = {
@@ -5119,36 +5182,53 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
 
         resumo["carteira_id"] = carteira_id
 
-        predicoes_rows = [
-            {"carteira_id": carteira_id, "cpf": str(d.get("cpf") or ""),
-             "nome": d.get("nome"), "produto": d.get("produto"), "status": d.get("status"),
-             "uf": d.get("uf"), "valor_divida": _py(d.get("valor_divida")),
-             "renda_estimada": _py(d.get("renda_estimada")), "dias_em_atraso": _py(d.get("dias_em_atraso")),
-             "score_recuperabilidade": _py(d.get("score_recuperabilidade")),
-             "valor_esperado_recuperacao": _py(d.get("valor_esperado_recuperacao")),
-             "perfil_cluster": d.get("perfil_cluster"), "cluster_id": _py(d.get("cluster_id")),
-             "dados_incompletos": bool(d.get("dados_incompletos", False)),
-             "aviso_dados": str(d.get("aviso_dados") or ""),
-             "taxa_recuperacao_prevista": _py(d.get("taxa_recuperacao_prevista")),
-             "probabilidade_pagamento": _py(d.get("probabilidade_pagamento")),
-             "origem_taxa": str(d.get("origem_taxa") or ""),
-             "perda_esperada": _py(d.get("perda_esperada")),
-             "lgd": _py(d.get("lgd")),
-             "despesas_mensais": _py(d.get("despesas_mensais")),
-             "fase_cobranca": d.get("fase_cobranca"),
-             "valor_esperado_liquido": _py(d.get("valor_esperado_liquido")),
-             # A posição na fila é resultado da POLÍTICA de priorização, não do
-             # score. Sem gravá-la, reabrir a carteira reordenava por score e
-             # desfazia em silêncio a decisão de ordenar por valor.
-             "rank": _py(d.get("rank"))}
-            for d in devedores
-        ]
-        if _carteira_id_existente and responsaveis_antes:
-            for linha in predicoes_rows:
+        def _linhas_predicoes():
+            for d in _registros(resultado_sorted):
+                linha = {
+                    "carteira_id": carteira_id, "cpf": str(d.get("cpf") or ""),
+                    "nome": d.get("nome"), "produto": d.get("produto"), "status": d.get("status"),
+                    "uf": d.get("uf"), "valor_divida": _py(d.get("valor_divida")),
+                    "renda_estimada": _py(d.get("renda_estimada")), "dias_em_atraso": _py(d.get("dias_em_atraso")),
+                    "score_recuperabilidade": _py(d.get("score_recuperabilidade")),
+                    "valor_esperado_recuperacao": _py(d.get("valor_esperado_recuperacao")),
+                    "perfil_cluster": d.get("perfil_cluster"), "cluster_id": _py(d.get("cluster_id")),
+                    "dados_incompletos": bool(d.get("dados_incompletos", False)),
+                    "aviso_dados": str(d.get("aviso_dados") or ""),
+                    "taxa_recuperacao_prevista": _py(d.get("taxa_recuperacao_prevista")),
+                    "probabilidade_pagamento": _py(d.get("probabilidade_pagamento")),
+                    "origem_taxa": str(d.get("origem_taxa") or ""),
+                    "perda_esperada": _py(d.get("perda_esperada")),
+                    "lgd": _py(d.get("lgd")),
+                    "despesas_mensais": _py(d.get("despesas_mensais")),
+                    "fase_cobranca": d.get("fase_cobranca"),
+                    "valor_esperado_liquido": _py(d.get("valor_esperado_liquido")),
+                    # A posição na fila é resultado da POLÍTICA de priorização, não do
+                    # score. Sem gravá-la, reabrir a carteira reordenava por score e
+                    # desfazia em silêncio a decisão de ordenar por valor.
+                    "rank": _py(d.get("rank"))}
                 dono = responsaveis_antes.get(linha["cpf"])
                 if dono:
                     linha["responsavel_id"], linha["responsavel_nome"] = dono
-        pred_id_map = _inserir_predicoes_em_lotes(db, predicoes_rows)
+                yield linha
+
+        try:
+            pred_id_map = _inserir_predicoes_em_lotes(db, _linhas_predicoes())
+        except Exception:
+            if _carteira_id_existente:
+                _desfazer_predicoes_novas(db, carteira_id, pred_ids_antigos)
+            raise
+
+        if _carteira_id_existente:
+            _trocar_predicoes_da_carteira(db, pred_ids_antigos, pred_id_map)
+            db.table("carteiras").update({
+                "nome_arquivo":    nome_fonte,
+                "total_devedores": resumo["total_devedores"],
+                "valor_face":      resumo["total_em_risco"],
+                "valor_esperado":  resumo["valor_esperado_recuperacao_total"],
+                "score_medio":     resumo["score_medio"],
+                "modelo_versao":   versao_modelo,
+                "updated_at":      datetime.utcnow().isoformat(),
+            }).eq("id", carteira_id).execute()
     except Exception as _e:
         print(f"[Supabase] Erro ao salvar: {_e}")
         pred_id_map = {}
@@ -5212,10 +5292,10 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
     resumo["feedbacks_registrados_automaticamente"] = n_feedbacks_auto
 
     return _sem_nan({"resumo": resumo, "distribuicao_aging": aging_dist,
-                     "distribuicao_cluster": cluster_dist, "top10_prioritarios": devedores[:10],
+                     "distribuicao_cluster": cluster_dist, "top10_prioritarios": top10,
                      # Sem carteira gravada não há o que paginar no servidor: a
                      # fila vai na resposta, senão a tabela abriria vazia.
-                     **({"ranking_completo": devedores}
+                     **({"ranking_completo": list(_registros(resultado_sorted))}
                         if _incluir_ranking or not resumo.get("carteira_id") else {})})
 
 
