@@ -172,7 +172,7 @@ export default function Resultados() {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight text-ink">
-              <TrendingUp className="h-5 w-5 text-blue-400" /> Resultados<DicaAjuda id="painel-de-resultados" />
+              <TrendingUp className="h-5 w-5 text-accent-text" /> Resultados<DicaAjuda id="painel-de-resultados" />
             </h1>
             <p className="mt-1 text-sm text-ink-2">O que está funcionando, a partir dos pagamentos registrados.</p>
           </div>

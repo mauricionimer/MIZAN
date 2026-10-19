@@ -226,11 +226,11 @@ function Conversa({ empresa }) {
       </section>
 
       <section className="rounded-xl border border-line bg-surface p-4">
-        <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink"><ListChecks className="h-4 w-4 text-blue-400" /> Por que o agente fez isso</h2>
+        <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink"><ListChecks className="h-4 w-4 text-accent-text" /> Por que o agente fez isso</h2>
         <Passos passos={dados?.passos} />
         {dados?.caderno?.length > 0 && (
           <div className="mt-4 border-t border-line pt-3">
-            <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-ink"><BookOpen className="h-3.5 w-3.5 text-blue-400" /> Caderno do caso</h3>
+            <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-ink"><BookOpen className="h-3.5 w-3.5 text-accent-text" /> Caderno do caso</h3>
             <p className="mb-2 text-[11px] text-ink-3">O que cada agente decidiu; o próximo lê antes de agir.</p>
             <ol className="space-y-1.5">
               {dados.caderno.map((n, i) => {
@@ -456,7 +456,7 @@ function Plano({ empresa }) {
       </div>
       <ErroCarga erro={erro} onTentar={carregar} />
       <div className="rounded-xl border border-line bg-surface p-4">
-        <p className="flex items-center gap-2 text-sm font-semibold text-ink"><Shuffle className="h-4 w-4 text-blue-400" /> Grupo sorteado: {p.contagem.controle} devedores ({p.percentual_controle}% da carteira)</p>
+        <p className="flex items-center gap-2 text-sm font-semibold text-ink"><Shuffle className="h-4 w-4 text-accent-text" /> Grupo sorteado: {p.contagem.controle} devedores ({p.percentual_controle}% da carteira)</p>
         <p className="mt-1 text-xs text-ink-2">Seguem no processo normal, sem o agente. Comparar quanto entrou em cada grupo, por real de dívida, mostra o efeito do agente na carteira da própria empresa. O sorteio é fixo por devedor.</p>
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
@@ -527,7 +527,7 @@ export function Laboratorio({ empresa }) {
             {ocupado === 'analisar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FlaskConical className="h-4 w-4" />} Gerar análise</button>}
         </div>
         <p className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">Na demonstração, a carteira e os pagamentos são fictícios: os números servem para mostrar o método, não como resultado.</p>
-        {d.erro && <p className="mt-3 text-xs text-red-300">{d.erro}</p>}
+        {d.erro && <p className="mt-3 text-xs text-danger">{d.erro}</p>}
         <ErroCarga erro={erro} compacto className="mt-3" />
         {!atual && !d.erro && <p className="mt-6 text-center text-sm text-ink-2">Nenhuma análise ainda.{isAdmin ? ' Clique em Gerar análise.' : ''}</p>}
       </div>
@@ -608,7 +608,7 @@ function Agenda({ empresa }) {
   for (const i of d.itens) (porDia[i.data] ||= []).push(i)
   return (
     <section className="rounded-xl border border-line bg-surface p-4">
-      <h2 className="flex items-center gap-2 text-sm font-semibold text-ink"><CalendarClock className="h-4 w-4 text-blue-400" /> Agenda dos agentes</h2>
+      <h2 className="flex items-center gap-2 text-sm font-semibold text-ink"><CalendarClock className="h-4 w-4 text-accent-text" /> Agenda dos agentes</h2>
       <p className="mt-1 text-xs text-ink-2">Retornos, atendimentos com pessoa e conferências marcados pelos agentes. Atendimento de devedor sem responsável fica aqui até o administrador escolher quem atende.</p>
       {aviso && <p className="mt-3 text-xs" style={{ color: 'var(--success)' }}>{aviso}</p>}
       <ErroCarga erro={erro} compacto className="mt-3" />
@@ -734,7 +734,7 @@ export default function Agente() {
     <AppShell>
       <div className="mx-auto w-full max-w-7xl space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight text-ink"><Bot className="h-5 w-5 text-blue-400" /> Agentes</h1>
+          <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight text-ink"><Bot className="h-5 w-5 text-accent-text" /> Agentes</h1>
           {isComando && (
             <select value={alvo} onChange={e => setAlvo(e.target.value)} aria-label="Empresa"
               className="rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-sm text-ink focus:outline-none [color-scheme:dark]">

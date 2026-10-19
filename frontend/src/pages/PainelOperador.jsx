@@ -15,7 +15,7 @@ const fmtNum = (v) => new Intl.NumberFormat('pt-BR').format(v || 0)
 const fmtPct = (v) => v == null ? '—' : `${Math.round(v * 100)}%`
 const PERIODOS = [['hoje', 'Hoje'], ['7d', '7 dias'], ['30d', '30 dias']]
 
-function Cartao({ icone: Icone, rotulo, valor, nota, cor = 'text-blue-400', i = 0, link }) {
+function Cartao({ icone: Icone, rotulo, valor, nota, cor = 'text-royal', i = 0, link }) {
   return <StatCard icon={Icone} label={rotulo} value={valor} nota={nota} corClasse={cor} i={i} link={link} />
 }
 
@@ -28,7 +28,7 @@ function BarraMeta({ feitos, meta, compacta = false }) {
       {!compacta && (
         <div className="mb-2 flex items-baseline justify-between gap-2">
           <p className="text-sm text-ink"><span className="text-2xl font-bold tabular-nums">{fmtNum(feitos)}</span> de {fmtNum(meta)} contatos hoje</p>
-          <span className={`text-sm font-semibold ${bateu ? 'text-emerald-400' : 'text-ink-2'}`}>
+          <span className={`text-sm font-semibold ${bateu ? 'text-success' : 'text-ink-2'}`}>
             {bateu ? 'Meta batida' : `faltam ${fmtNum(meta - feitos)}`}
           </span>
         </div>
@@ -60,7 +60,7 @@ function MeusNumeros({ d }) {
       {d.meta_dia ? (
         <div className="rounded-xl border border-line bg-surface p-5">
           <p className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-ink-2">
-            <Target className="h-3.5 w-3.5 text-blue-400" /> Meta do dia
+            <Target className="h-3.5 w-3.5 text-accent-text" /> Meta do dia
           </p>
           <BarraMeta feitos={d.contatos_hoje} meta={d.meta_dia} />
         </div>
@@ -68,9 +68,9 @@ function MeusNumeros({ d }) {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Cartao i={0} icone={PhoneOutgoing} rotulo="Contatos feitos" valor={fmtNum(d.contatos)}
           nota={d.contatos ? `${fmtNum(d.contatos_efetivos)} efetivos · ${fmtPct(d.taxa_contato_efetivo)}` : 'Nenhum contato no período'} />
-        <Cartao i={1} icone={Handshake} rotulo="Acordos fechados" valor={fmtNum(d.acordos)} cor="text-amber-400"
+        <Cartao i={1} icone={Handshake} rotulo="Acordos fechados" valor={fmtNum(d.acordos)} cor="text-warning"
           nota={d.acordos ? `${fmtBRL(d.acordos_valor)} prometidos` : 'Promessas de pagamento registradas'} />
-        <Cartao i={2} icone={Banknote} rotulo="Recebido" valor={fmtBRL(d.recebido)} cor="text-emerald-400"
+        <Cartao i={2} icone={Banknote} rotulo="Recebido" valor={fmtBRL(d.recebido)} cor="text-success"
           nota={`${fmtNum(d.pagamentos)} ${d.pagamentos === 1 ? 'pagamento confirmado' : 'pagamentos confirmados'} da sua fila`} />
         <Cartao i={3} icone={Gauge} rotulo="Promessas" valor={`${fmtNum(d.promessas_cumpridas)} pagas`} cor="text-ink-2"
           nota={`${fmtNum(d.promessas_quebradas)} não pagas · ${fmtNum(d.promessas_pendentes)} pendentes`}
@@ -104,15 +104,15 @@ function Individual({ id, periodo, empresa, onVoltar }) {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Cartao i={0} icone={PhoneOutgoing} rotulo="Contatos" valor={fmtNum(d.contatos)}
               nota={d.contatos ? `${fmtPct(d.taxa_contato_efetivo)} efetivos` : 'Nenhum contato no período'} />
-            <Cartao i={1} icone={Target} rotulo="Devedores trabalhados" valor={fmtNum(d.devedores_trabalhados)} cor="text-blue-400" nota="Devedores diferentes contatados" />
-            <Cartao i={2} icone={Handshake} rotulo="Promessas" valor={fmtNum(d.acordos)} cor="text-amber-400"
+            <Cartao i={1} icone={Target} rotulo="Devedores trabalhados" valor={fmtNum(d.devedores_trabalhados)} cor="text-accent-text" nota="Devedores diferentes contatados" />
+            <Cartao i={2} icone={Handshake} rotulo="Promessas" valor={fmtNum(d.acordos)} cor="text-warning"
               nota={d.acordos ? `${fmtBRL(d.acordos_valor)} prometidos` : 'Promessas registradas'} />
             <Cartao i={3} icone={Gauge} rotulo="Promessas pagas" valor={fmtNum(d.promessas_cumpridas)} cor="text-ink-2"
               nota={`${fmtNum(d.promessas_quebradas)} não pagas · ${fmtNum(d.promessas_pendentes)} pendentes`} />
-            <Cartao i={4} icone={Banknote} rotulo="Valor recuperado" valor={fmtBRL(d.recebido)} cor="text-emerald-400" nota={`${fmtNum(d.pagamentos)} pagamentos confirmados`} />
-            <Cartao i={5} icone={Handshake} rotulo="Ofertas feitas" valor={o.ativo ? fmtNum(o.feitas) : '—'} cor="text-blue-400"
+            <Cartao i={4} icone={Banknote} rotulo="Valor recuperado" valor={fmtBRL(d.recebido)} cor="text-success" nota={`${fmtNum(d.pagamentos)} pagamentos confirmados`} />
+            <Cartao i={5} icone={Handshake} rotulo="Ofertas feitas" valor={o.ativo ? fmtNum(o.feitas) : '—'} cor="text-accent-text"
               nota={o.ativo ? `${fmtNum(o.aceitas)} aceitas · ${fmtNum(o.vai_pensar)} a pensar · ${fmtNum(o.recusadas)} recusadas` : 'Disponível após ativar o histórico de ofertas'} />
-            <Cartao i={6} icone={ArrowRight} rotulo="Retornos marcados" valor={r.ativo ? fmtNum(r.marcados) : '—'} cor="text-amber-400"
+            <Cartao i={6} icone={ArrowRight} rotulo="Retornos marcados" valor={r.ativo ? fmtNum(r.marcados) : '—'} cor="text-warning"
               nota={r.ativo ? `${fmtNum(r.feitos)} feitos · ${fmtNum(r.pendentes)} pendentes` : 'Disponível com a Agenda ativa'} />
           </div>
         </>
@@ -128,9 +128,9 @@ function Equipe({ d, comando, onAbrir }) {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Cartao i={0} icone={PhoneOutgoing} rotulo="Contatos da equipe" valor={fmtNum(t.contatos)}
           nota={t.contatos ? `${fmtPct(t.taxa_contato_efetivo)} efetivos` : 'Nenhum contato no período'} />
-        <Cartao i={1} icone={Handshake} rotulo="Acordos fechados" valor={fmtNum(t.acordos)} cor="text-amber-400"
+        <Cartao i={1} icone={Handshake} rotulo="Acordos fechados" valor={fmtNum(t.acordos)} cor="text-warning"
           nota={t.acordos ? `${fmtBRL(t.acordos_valor)} prometidos` : 'Promessas registradas'} />
-        <Cartao i={2} icone={Banknote} rotulo="Recebido" valor={fmtBRL(t.recebido)} cor="text-emerald-400"
+        <Cartao i={2} icone={Banknote} rotulo="Recebido" valor={fmtBRL(t.recebido)} cor="text-success"
           nota={d.recebido_sem_responsavel > 0 ? `${fmtBRL(d.recebido_sem_responsavel)} de devedores sem responsável` : `${fmtNum(t.pagamentos)} pagamentos confirmados`} />
         <Cartao i={3} icone={Gauge} rotulo="Promessas" valor={`${fmtNum(t.promessas_cumpridas)} pagas`} cor="text-ink-2"
           nota={`${fmtNum(t.promessas_quebradas)} não pagas · ${fmtNum(t.promessas_pendentes)} pendentes`}
@@ -156,13 +156,13 @@ function Equipe({ d, comando, onAbrir }) {
                 {d.operadores.map(o => (
                   <tr key={o.operador_id} className="border-b border-line last:border-0">
                     <td className="whitespace-nowrap px-4 py-3 font-medium text-ink">
-                      <button type="button" onClick={() => onAbrir(o.operador_id)} className="min-h-[40px] text-left text-blue-400 hover:text-blue-300">{o.nome}</button>
+                      <button type="button" onClick={() => onAbrir(o.operador_id)} className="min-h-[40px] text-left text-accent-text hover:opacity-80">{o.nome}</button>
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums text-ink">{fmtNum(o.contatos)}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-ink-2">{fmtPct(o.taxa_contato_efetivo)}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-ink">{fmtNum(o.acordos)}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-emerald-400">{fmtNum(o.promessas_cumpridas)}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-red-400">{fmtNum(o.promessas_quebradas)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-success">{fmtNum(o.promessas_cumpridas)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-danger">{fmtNum(o.promessas_quebradas)}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-right font-semibold tabular-nums text-ink">{fmtBRL(o.recebido)}</td>
                     {d.meta_dia ? <td className="px-4 py-3"><div className="ml-auto w-28"><BarraMeta compacta feitos={o.contatos_hoje} meta={d.meta_dia} /></div></td> : null}
                   </tr>
@@ -211,7 +211,7 @@ export default function PainelOperador() {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight text-ink">
-              <Gauge className="h-5 w-5 text-blue-400" /> {equipe ? 'Painel da equipe' : 'Meu painel'}<DicaAjuda id="painel-do-operador" />
+              <Gauge className="h-5 w-5 text-accent-text" /> {equipe ? 'Painel da equipe' : 'Meu painel'}<DicaAjuda id="painel-do-operador" />
             </h1>
             <p className="mt-1 text-sm text-ink-2">
               {equipe ? 'Contatos, acordos e quanto entrou, por operador.' : 'Seus contatos, acordos e quanto entrou da sua fila.'}
