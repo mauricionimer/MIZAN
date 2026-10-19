@@ -6287,18 +6287,19 @@ def performance_pagamentos(
 
     if not empresa_id and role != "comando":
         return []
+
+    db = get_db()
+
+    # Dono antes de tudo (do cache e do corte por papel): carteira alheia é
+    # 403 para qualquer um, como em /performance e /feedbacks/status.
+    if carteira_id:
+        _exige_carteira_da_empresa(db, carteira_id, payload)
     # Nome, CPF e valor pago de cada devedor é visão de gestão (admin e
     # comando). O operador recebe lista vazia, não 403: a tela dele consulta
     # esta rota junto com /feedbacks/status no mesmo ciclo, e um erro aqui
     # pararia também a atualização do status da fila.
     if role not in ("admin", "comando"):
         return []
-
-    db = get_db()
-
-    # Dono antes do cache e empresa na chave (ver /performance).
-    if carteira_id:
-        _exige_carteira_da_empresa(db, carteira_id, payload)
     cache_key = _chave_cache_feedbacks("pagamentos", carteira_id, empresa_id)
     cached = _cache_get(cache_key, ttl=300)
     if cached is not None:
