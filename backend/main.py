@@ -5219,6 +5219,10 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
                     fb_row["predicao_id"] = pred_id_map[cpf_str]
                 if _usuario_id:
                     fb_row["usuario_id"] = _usuario_id
+                # feedbacks.empresa é o escopo de Resultados e da baixa das
+                # promessas: sem ela os pagamentos da planilha ficavam órfãos.
+                if _empresa_id:
+                    fb_row["empresa"] = _empresa_id
                 fb_rows.append(fb_row)
             if fb_rows:
                 db2 = get_db()
