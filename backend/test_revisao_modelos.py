@@ -11,7 +11,15 @@ import pandas as pd
 AQUI = Path(__file__).resolve().parent
 sys.path.insert(0, str(AQUI))
 os.chdir(AQUI)
-os.environ.update(SUPABASE_URL="http://127.0.0.1:1", SUPABASE_KEY="x", JWT_SECRET="teste")
+TMP = tempfile.mkdtemp(prefix="mizan_revmod_")
+os.environ.update(SUPABASE_URL="http://127.0.0.1:1", SUPABASE_KEY="x", JWT_SECRET="teste",
+                  MIZAN_DATA_DIR=TMP)
+# modelos globais copiados para a pasta de teste: o treino por empresa grava lá, não no repositório
+import shutil  # noqa: E402
+(Path(TMP) / "model").mkdir(parents=True)
+for _n in ("mizan_model.pkl", "kmeans.pkl", "scaler.pkl", "versions.json"):
+    if (AQUI / "model" / _n).exists():
+        shutil.copy(AQUI / "model" / _n, Path(TMP) / "model" / _n)
 import main  # noqa: E402
 from fastapi import HTTPException  # noqa: E402
 
@@ -368,6 +376,36 @@ os.environ.pop("MIZAN_MAX_LINHAS_FEEDBACK_LOTE")
 checar(r.status_code == 413 and "limite por importação é 2" in r.json().get("detail", ""),
        "lote acima do limite: 413 com mensagem clara", r.text[:120])
 main._fechar_loop_bandit = _fechar_orig
+
+
+print("\n== 7. treino da empresa: modelo atual medido em amostra não bloqueia ==")
+from model import modelos_empresa as me, treino_empresa as te  # noqa: E402
+rng7 = np.random.default_rng(7); N7 = 2000
+dias7 = rng7.integers(10, 900, N7); valor7 = rng7.lognormal(8.0, 0.8, N7).round(2)
+renda7 = rng7.lognormal(7.9, 0.5, N7).round(2)
+pagou7 = (rng7.random(N7) < 1 / (1 + np.exp(-(-0.004 * dias7 + 0.0004 * renda7 + 0.8)))).astype(int)
+df7 = pd.DataFrame({"cpf": [f"{(i * 7919) % 10**11:011d}" for i in range(N7)], "valor_divida": valor7,
+                    "renda_estimada": renda7, "dias_em_atraso": dias7,
+                    "produto": rng7.choice(["cartao", "consignado"], N7), "uf": rng7.choice(["GO", "DF"], N7),
+                    "pagou": np.where(pagou7 == 1, "sim", "não"),
+                    "data_referencia": pd.date_range("2024-01-01", periods=N7, freq="6h").strftime("%d/%m/%Y")})
+raw7 = df7.to_csv(index=False).encode()
+reg1 = te.treinar(raw7, "h.csv", "emp-amostra", "")
+me.ativar("emp-amostra", reg1["versao"])
+reg2 = te.treinar(raw7, "h.csv", "emp-amostra", "")
+at = reg2["metricas"]["atual"]
+checar(at.get("em_amostra") is True and at.get("auc") is None and "metricas_em_amostra" in at,
+       "mesmo arquivo do modelo ativo: medida do atual marcada 'em amostra' e fora da comparação",
+       at.get("indisponivel", ""))
+cli7 = TestClient(main.app, raise_server_exceptions=False)
+h7 = {"Authorization": "Bearer " + criar_token({"sub": "cmd", "email": "cmd@x", "nome": "Cmd",
+                                                 "role": "comando", "empresa_id": ""})}
+main._exigir_comando = lambda cred: {"role": "comando", "email": "cmd@x", "sub": "cmd"}
+r7 = cli7.post("/comando/modelos/ativar", headers=h7, json={"empresa_id": "emp-amostra", "versao": reg2["versao"]})
+checar(r7.status_code == 200, "ativação não é bloqueada pela medida em amostra", f"{r7.status_code} {r7.text[:120]}")
+reg3 = te.treinar(raw7, "h.csv", "emp-limpa", "")
+checar(reg3["metricas"]["atual"].get("origem") == "global" and not reg3["metricas"]["atual"].get("em_amostra"),
+       "sem modelo próprio, o atual (geral) continua comparado normalmente")
 
 
 print(f"\n{falhas} falha(s)")
