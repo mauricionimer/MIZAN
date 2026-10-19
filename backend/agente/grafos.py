@@ -77,7 +77,7 @@ def grafo_mensagem(fonte) -> Grafo:
             "motivo": "dificuldade_grave" if grave else "pedido_do_devedor", "resumo": resumo})
 
     def resposta_fixa(ctx):
-        ctx.saida["resposta"] = negociador.mensagem_fixa(ctx)
+        ctx.saida["resposta"] = negociador.mensagem_fixa(ctx, fonte)
 
     def negociar(ctx):
         ctx.saida["resposta"] = negociador.conversar(ctx, fonte, ctx.saida.get("texto", ""))
@@ -86,6 +86,10 @@ def grafo_mensagem(fonte) -> Grafo:
         texto = ctx.saida.get("resposta")
         if not texto:
             return
+        if ctx.saida.get("_seguranca"):
+            # Mensagem fixa de handoff/segurança: sempre passa (R9_SEGURANCA),
+            # mesmo com o limite semanal de contatos batido ou fora do horário.
+            ctx.auditar({"tipo": "enviar_mensagem_seguranca", "params": {}})
         anteriores = ctx.repo.ultimas_mensagens(ctx.caso["empresa_id"], ctx.caso["id"], 50)
         if not any(m["direcao"] == "saida" for m in anteriores):
             # Transparência: a primeira mensagem diz que é um assistente virtual.
@@ -127,7 +131,7 @@ def grafo_mensagem(fonte) -> Grafo:
         # Algo quebrou depois de receber a mensagem: o devedor não fica sem
         # resposta. Mensagem fixa, sem IA, só se nada foi enviado ainda.
         if ctx.saida.get("texto") and not ctx.saida.get("enviada") and ctx.caso["situacao"] == "com_pessoa":
-            ctx.saida["resposta"] = negociador.FIXAS["com_pessoa"]
+            ctx.saida["resposta"] = negociador.mensagem_fixa(ctx, fonte)
             enviar(ctx)
 
     g.ao_falhar = ao_falhar

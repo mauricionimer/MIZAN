@@ -54,8 +54,14 @@ _LIMITES = {                          # campo: (mínimo, máximo)
 }
 
 # "Já paguei" também é segurança: suspende a cobrança enquanto o banco confere.
+# "enviar_mensagem_seguranca" é a mensagem fixa de handoff/segurança (com_pessoa,
+# parar, pessoa_errada, contestado, apoio): quem pediu ajuda ou já teve a
+# cobrança suspensa/contestada/transferida precisa ouvir essa confirmação
+# mesmo que o devedor já tenha batido o limite semanal de contatos ou esteja
+# fora do horário comercial (R2_HORARIO e R3_FREQUENCIA existem para a
+# cobrança ativa, não para avisar que uma pessoa assumiu).
 SEGURANCA = frozenset({"suspender_contato", "registrar_contestacao", "transferir_para_pessoa",
-                       "registrar_pagamento_informado"})
+                       "registrar_pagamento_informado", "enviar_mensagem_seguranca"})
 FALA = frozenset({"enviar_mensagem"})          # o agente procura o devedor
 RESPOSTA = frozenset({"responder_mensagem"})   # o devedor escreveu e o agente responde
 ACORDO = frozenset({"propor_acordo", "registrar_aceite"})
