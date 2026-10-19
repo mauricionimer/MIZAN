@@ -667,6 +667,26 @@ class ConfirmarPagamentoIn(BaseModel):
     data_pagamento: Optional[date] = None
 
 
+def _hora_brasilia(ts) -> str:
+    """'AAAA-MM-DD HH:MM' no horário de Brasília a partir do created_at do banco.
+
+    Cortar o texto em [:16] mostrava a hora UTC do servidor como se fosse a
+    local (três horas adiantada). Texto sem fuso é tratado como UTC.
+    """
+    from agenda import FUSO
+    from datetime import timezone as _tz
+    bruto = str(ts or "").strip()
+    if not bruto:
+        return ""
+    try:
+        dt = datetime.fromisoformat(bruto.replace("Z", "+00:00"))
+    except ValueError:
+        return bruto[:16].replace("T", " ")
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=_tz.utc)
+    return dt.astimezone(FUSO).strftime("%Y-%m-%d %H:%M")
+
+
 _confirmacoes_em_andamento: set[str] = set()
 _rate_confirmacoes: dict[str, list[float]] = defaultdict(list)
 _RATE_CONFIRM_MAX = 30
@@ -5671,7 +5691,7 @@ def confirmar_pagamento(
         )
         if existing.data:
             fb = existing.data[0]
-            ts = (fb.get("created_at") or "")[:16].replace("T", " ")
+            ts = _hora_brasilia(fb.get("created_at"))
             raise HTTPException(
                 status_code=409,
                 detail=f"Pagamento já confirmado por {fb.get('registrado_por', 'sistema')} em {ts}.",
