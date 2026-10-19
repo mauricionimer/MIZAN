@@ -4760,11 +4760,14 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
     # Enriquece com histórico de contatos anteriores do mesmo CPF
     try:
         cpfs = df["cpf"].astype(str).unique().tolist() if "cpf" in df.columns else []
-        if cpfs:
+        # Só os contatos da empresa da carteira: sem o filtro, o histórico de
+        # um CPF em outra empresa entrava aqui. Sem empresa, não enriquece.
+        if cpfs and _empresa_id:
             db_ct = get_db()
             ct_raw: list[dict] = []
             for _i in range(0, len(cpfs), 100):
-                res = db_ct.table("contatos").select("cpf, resultado, created_at").in_("cpf", cpfs[_i:_i+100]).execute()
+                res = (db_ct.table("contatos").select("cpf, resultado, created_at")
+                       .eq("empresa_id", _empresa_id).in_("cpf", cpfs[_i:_i+100]).execute())
                 ct_raw.extend(res.data or [])
             if ct_raw:
                 ct_df = pd.DataFrame(ct_raw)
@@ -4773,7 +4776,7 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
                 ct_agg = ct_df.groupby("cpf").agg(
                     hist_n_contatos        =("resultado", "count"),
                     hist_resultado_positivo=("resultado", lambda x: int(x.str.lower().isin(["pagamento_confirmado", "acordo_fechado"]).any())),
-                    hist_dias_ultimo_contato=("created_at", lambda x: int((_now - x.dropna().max()).days) if x.dropna().any() else 9999),
+                    hist_dias_ultimo_contato=("created_at", lambda x: int((_now - x.dropna().max()).days) if x.notna().any() else 9999),
                 ).reset_index()
                 df = df.merge(ct_agg, on="cpf", how="left")
                 df["hist_n_contatos"]         = df["hist_n_contatos"].fillna(0).astype(int)
