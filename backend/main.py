@@ -5894,6 +5894,7 @@ def webhook_pagamento(body: WebhookPagamentoIn, request: Request):
 @app.post("/feedback/lote")
 async def feedback_lote(
     file: UploadFile = File(...),
+    empresa_id: Optional[str] = None,   # COMANDO escolhe a empresa cliente
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     """Importa feedbacks em lote a partir de CSV ou Excel."""
@@ -5908,11 +5909,18 @@ async def feedback_lote(
     # quando a autenticação é por JWT, então gravar esse campo aqui fazia os
     # feedbacks importados em lote ficarem fora do escopo da empresa.
     _jwt = empresa_info.get("jwt") or {}
-    empresa = (
-        _jwt.get("empresa_id")
-        or empresa_info.get("empresa_id")
-        or empresa_info.get("empresa_nome")
-    )
+    if _jwt.get("role") == "comando":
+        # O COMANDO não tem empresa: sem escolher a cliente, o lote caía no
+        # "empresa_nome" (o nome do usuário) e ficava fora de todos os painéis.
+        empresa = (empresa_id or "").strip().lower()
+        if not empresa:
+            raise HTTPException(status_code=400, detail="Escolha a empresa cliente antes de importar.")
+    else:
+        empresa = (
+            _jwt.get("empresa_id")
+            or empresa_info.get("empresa_id")
+            or ("" if _jwt else empresa_info.get("empresa_nome"))
+        )
 
     nome = (file.filename or "").lower()
     contents = await file.read()
@@ -6030,7 +6038,8 @@ async def feedback_lote(
                 detalhes.append({"linha": linha, "cpf": cpf, "ok": False, "erro": str(e)})
                 n_erro += 1
 
-        _eid = empresa_info.get("empresa_id") or (empresa_info.get("jwt") or {}).get("empresa_id") or ""
+        _eid = empresa if _jwt.get("role") == "comando" else (
+            empresa_info.get("empresa_id") or (empresa_info.get("jwt") or {}).get("empresa_id") or "")
         if n_ok > 0:
             _registrar_auditoria(
                 acao="feedback_importado",
