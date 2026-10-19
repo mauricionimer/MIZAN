@@ -5658,6 +5658,7 @@ def receber_feedback(
 def confirmar_pagamento(
     cpf: str,
     body: ConfirmarPagamentoIn,
+    empresa_id: Optional[str] = None,   # COMANDO escolhe a empresa cliente
     credentials: HTTPAuthorizationCredentials = Security(bearer),
 ):
     """Confirma pagamento manualmente. Apenas admin/comando. Idempotente — bloqueia duplo registro."""
@@ -5666,7 +5667,10 @@ def confirmar_pagamento(
     if role not in ("admin", "comando"):
         raise HTTPException(status_code=403, detail="Apenas administradores podem confirmar pagamentos.")
 
-    empresa_id = payload.get("empresa_id", "")
+    # O COMANDO confirma DENTRO de uma empresa: sem ela, a idempotência olhava
+    # empresa "" (nunca achava o pagamento já feito), a predição vinha de
+    # qualquer empresa e o cache invalidado era o errado.
+    empresa_id = _empresa_da_agenda(payload, empresa_id)
     usuario_nome = payload.get("nome") or payload.get("email") or "admin"
     usuario_id = payload.get("sub", "")
 
@@ -5734,10 +5738,10 @@ def confirmar_pagamento(
                 detail=f"CPF {cpf} não encontrado na carteira ativa. Só é possível registrar pagamentos de devedores analisados pelo Mizan.",
             )
 
-        # COMANDO não tem empresa própria: o pagamento é da empresa da carteira
-        # do devedor. Sem isso ele ficava sem empresa e sumia de Resultados,
-        # do painel e da baixa automática das promessas.
-        empresa_fb = empresa_id or (_empresa_da_carteira(db, _pred_cart_id) if _pred_cart_id else "")
+        # Sempre a empresa escolhida (a do admin ou a que o COMANDO indicou):
+        # sem empresa o pagamento sumia de Resultados, do painel e da baixa
+        # automática das promessas.
+        empresa_fb = empresa_id
         fb_row: dict = {
             "cpf":             cpf,
             "pagou":           True,
