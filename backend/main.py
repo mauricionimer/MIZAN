@@ -2854,12 +2854,27 @@ def listar_contatos_cpf(cpf: str, credentials: HTTPAuthorizationCredentials = Se
     return res.data
 
 
+class ExcluirContaIn(BaseModel):
+    senha: str
+
+
 @app.delete("/auth/me")
-def deletar_conta(credentials: HTTPAuthorizationCredentials = Security(bearer)):
-    """LGPD — usuário solicita exclusão da própria conta e dados."""
+def deletar_conta(body: ExcluirContaIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """LGPD — usuário solicita exclusão da própria conta e dados.
+
+    Pede a senha de novo: só o token (que fica no navegador por dias) bastava
+    para apagar a conta de quem deixou a sessão aberta ou teve o token vazado.
+    """
     payload = _usuario_autenticado(credentials)
     usuario_id = payload["sub"]
     db = get_db()
+    chave = f"excluir:{usuario_id}"
+    _checar_rate_limit(chave)
+    linha = (db.table("usuarios").select("senha_hash").eq("id", usuario_id).limit(1).execute().data or [{}])[0]
+    if not verificar_senha(body.senha or "", linha.get("senha_hash") or ""):
+        _registrar_tentativa(chave)
+        raise HTTPException(status_code=401, detail="Senha incorreta.")
+    _limpar_tentativas(chave)
     from auth import _ultimo_comando_ativo
     if _ultimo_comando_ativo(db, usuario_id):
         raise HTTPException(status_code=400, detail="Você é o único COMANDO ativo: excluir a conta trancaria a "
