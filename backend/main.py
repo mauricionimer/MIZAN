@@ -2144,10 +2144,15 @@ def agente_retorno_passagem(predicao_id: str, body: PassagemRetornoIn,
     from agente import api as agente_api
     payload = _usuario_autenticado(credentials)
     emp = _empresa_da_agenda(payload, body.empresa_id)
+    # Caso travado pelo agente (ou por outra pessoa) é 409, como em assumir e
+    # devolver, não 500. getattr: a trava no retorno pode ainda não existir.
+    _ocupado = getattr(agente_api, "CasoOcupado", None) or type("_SemTrava", (Exception,), {})
     try:
         r = agente_api.registrar_retorno_passagem(emp, predicao_id, body.ajudou, payload.get("email"), body.comentario or "")
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except _ocupado as e:
+        raise HTTPException(status_code=409, detail=str(e))
     _registrar_auditoria(acao="passagem_retorno", entidade="agente_casos", entidade_id=predicao_id,
                          usuario_email=payload.get("email"), empresa_id=emp, usuario_id=payload.get("sub"),
                          detalhes={"ajudou": body.ajudou})
