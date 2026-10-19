@@ -6,6 +6,7 @@ import AppShell from '../components/AppShell'
 import ErroCarga from '../components/ErroCarga'
 import { Retrato, MESAS, TIMES } from '../components/EscritorioAgentes'
 import { COR_AGENTE } from './Agente'
+import { useAuth } from '../context/AuthContext'
 import { agentePerfil } from '../api'
 
 const SOBRE = {
@@ -75,6 +76,7 @@ function SinaisEquipe({ s }) {
 export default function AgentePerfil() {
   const { nome } = useParams()
   const navigate = useNavigate()
+  const { isComando } = useAuth()
   const [d, setD] = useState(null)
   const [erro, setErro] = useState(null)
   useEffect(() => { setD(null); agentePerfil(nome).then(setD).catch(setErro) }, [nome])
@@ -97,8 +99,8 @@ export default function AgentePerfil() {
               {time && <span className="rounded bg-raise-2 px-2 py-0.5 text-ink-2">{time}</span>}
               {d && <span className={`rounded px-2 py-0.5 ${d.papel ? (d.ia_ligada ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-300') : 'bg-raise-2 text-ink-2'}`}>
                 {d.papel ? (d.ia_ligada ? 'IA ligada' : 'IA desligada: em código') : 'Código'}</span>}
-              {d?.modelo && <span className="rounded bg-raise-2 px-2 py-0.5 text-ink-3">{d.modelo}</span>}
-              {d?.versao_prompt && <span className="rounded bg-raise-2 px-2 py-0.5 text-ink-3">{d.versao_prompt}</span>}
+              {isComando && d?.modelo && <span className="rounded bg-raise-2 px-2 py-0.5 text-ink-3">{d.modelo}</span>}
+              {isComando && d?.versao_prompt && <span className="rounded bg-raise-2 px-2 py-0.5 text-ink-3">{d.versao_prompt}</span>}
             </div>
           </div>
         </div>
@@ -120,7 +122,7 @@ export default function AgentePerfil() {
                 <ul className="mt-3 space-y-2">
                   {controles.map(c => <li key={c} className="flex gap-2 text-sm text-ink-2"><span style={{ color: cor }}>■</span>{c}</li>)}
                 </ul>
-                {d.papel && <p className="mt-4 text-xs text-ink-3">Custo nas últimas 24 h: US$ {Number(d.custo_usd || 0).toFixed(4).replace('.', ',')}</p>}
+                {isComando && d.papel && <p className="mt-4 text-xs text-ink-3">Custo nas últimas 24 h: US$ {Number(d.custo_usd || 0).toFixed(4).replace('.', ',')}</p>}
               </section>
               <section className="rounded-xl border border-line bg-surface p-4">
                 <h2 className="text-sm font-semibold text-ink">Últimas decisões</h2>

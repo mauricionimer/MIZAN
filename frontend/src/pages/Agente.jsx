@@ -274,6 +274,7 @@ function Cartao({ icone: Icone, rotulo, valor, nota, cor }) {
 }
 
 function Central({ empresa }) {
+  const { isComando } = useAuth()
   const [c, setC] = useState(null)
   const [erro, setErro] = useState(null)
   const [carregando, setCarregando] = useState(true)
@@ -303,8 +304,10 @@ function Central({ empresa }) {
       <ErroCarga erro={erro} onTentar={carregar} />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Cartao icone={Power} rotulo="Agente" valor={c.ligado ? 'Ligado' : 'Desligado'} cor={c.ligado ? 'var(--success)' : 'var(--ink-3)'}
-          nota={`IA: ${c.cliente} · triagem ${c.modelos.triagem} · conversa ${c.modelos.negociador}`} />
-        <Cartao icone={Coins} rotulo="Custo hoje" valor={fmtUSD(c.custo_hoje_usd)} cor="var(--ink-2)" nota={`teto do dia: US$ ${c.teto_dia_usd.toFixed(2)}`} />
+          nota={isComando ? `IA: ${c.cliente} · triagem ${c.modelos.triagem} · conversa ${c.modelos.negociador}` : undefined} />
+        {isComando && (
+          <Cartao icone={Coins} rotulo="Custo hoje" valor={fmtUSD(c.custo_hoje_usd)} cor="var(--ink-2)" nota={`teto do dia: US$ ${c.teto_dia_usd.toFixed(2)}`} />
+        )}
         <Cartao icone={ShieldCheck} rotulo="Política" valor={c.politica.versao ? `Versão ${c.politica.versao}` : 'Sem política'}
           cor={c.politica.versao ? 'var(--success)' : 'var(--warning)'}
           nota={c.politica.regras ? `desconto até ${c.politica.regras.desconto_max_pct}% · até ${c.politica.regras.parcelas_max}x` : 'sem política, só ações de segurança passam'} />
@@ -672,7 +675,7 @@ function Numero({ rotulo, valor, detalhe, barra }) {
 
 function AoVivo({ empresa }) {
   const navigate = useNavigate()
-  const { empresaConfig } = useAuth()
+  const { empresaConfig, isComando } = useAuth()
   const [r, setR] = useState(null)
   useEffect(() => {
     let vivo = true
@@ -691,8 +694,10 @@ function AoVivo({ empresa }) {
         <Numero rotulo="Conversas (24 h)" valor={n ? n.conversas : '—'} detalhe={n ? `${n.respostas} respostas` : null} />
         <Numero rotulo="Acordos (24 h)" valor={n ? n.acordos : '—'} />
         <Numero rotulo="Bloqueios (24 h)" valor={n ? n.bloqueios : '—'} detalhe="Auditor e travas" />
-        <Numero rotulo="Gasto de IA hoje" valor={n ? usd(n.custo_hoje_usd) : '—'} detalhe={n ? `teto ${usd(n.teto_dia_usd)}` : null}
-          barra={n && n.teto_dia_usd ? n.custo_hoje_usd / n.teto_dia_usd : null} />
+        {isComando && (
+          <Numero rotulo="Gasto de IA hoje" valor={n ? usd(n.custo_hoje_usd) : '—'} detalhe={n ? `teto ${usd(n.teto_dia_usd)}` : null}
+            barra={n && n.teto_dia_usd ? n.custo_hoje_usd / n.teto_dia_usd : null} />
+        )}
       </div>
       <EscritorioAgentes empresa={empresa} cores={COR_AGENTE} nomeEmpresa={empresaConfig?.nome_exibicao} resumos={r?.agentes} onPerfil={abrir} />
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
