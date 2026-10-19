@@ -391,6 +391,41 @@ def passos(empresa_id: str, trace_id: str) -> list:
     return [_passo_publico(p) for p in fabrica_repo().passos_do_trace(empresa_id, trace_id)]
 
 
+# ── disponibilidade do operador (docs/PLANO_DISPONIBILIDADE_OPERADOR.md) ──
+
+def disponibilidade(empresa_id: str) -> dict:
+    """Faixas de horário cadastradas e a lista de operadores, para o formulário do admin."""
+    fonte = fabrica_fonte()
+    return {"faixas": fonte.disponibilidade_operador(empresa_id), "operadores": fonte.operadores(empresa_id)}
+
+
+def criar_disponibilidade(empresa_id: str, usuario_id: str, dia_semana: int, hora_inicio: int, hora_fim: int) -> dict:
+    fonte = fabrica_fonte()
+    if not any(o["id"] == usuario_id for o in fonte.operadores(empresa_id)):
+        raise LookupError("Operador não encontrado ou inativo nesta empresa.")
+    if not (0 <= dia_semana <= 6):
+        raise ValueError("dia_semana: de 0 (segunda) a 6 (domingo)")
+    if not (0 <= hora_inicio <= 23 and 1 <= hora_fim <= 24 and hora_inicio < hora_fim):
+        raise ValueError("horário inválido: hora_inicio antes de hora_fim, 0-23 e 1-24")
+    return fonte.criar_disponibilidade(empresa_id, usuario_id, dia_semana, hora_inicio, hora_fim)
+
+
+def editar_disponibilidade(empresa_id: str, item_id: str, campos: dict) -> dict:
+    fonte = fabrica_fonte()
+    permitidos = {k: v for k, v in campos.items() if k in ("dia_semana", "hora_inicio", "hora_fim", "ativo")}
+    r = fonte.editar_disponibilidade(empresa_id, item_id, permitidos)
+    if r is None:
+        raise LookupError("Faixa de disponibilidade não encontrada nesta empresa.")
+    return r
+
+
+def remover_disponibilidade(empresa_id: str, item_id: str) -> dict:
+    fonte = fabrica_fonte()
+    if not fonte.remover_disponibilidade(empresa_id, item_id):
+        raise LookupError("Faixa de disponibilidade não encontrada nesta empresa.")
+    return {"ok": True}
+
+
 def _exigir_ligado():
     if not ligado():
         raise AgenteDesligado("O agente está desligado (MIZAN_AGENTE_ATIVO).")
