@@ -33,6 +33,7 @@ class R:
 class Q:
     def __init__(s, t):
         s.t = t; s.f = []; s.rng = None; s.lim = None; s.ins = None; s.patch = None; s.dele = False
+        s.ordem = []
     def select(s, *a, **k): return s
     def eq(s, c, v): s.f.append(lambda l: l.get(c) == v); return s
     def neq(s, c, v): s.f.append(lambda l: l.get(c) != v); return s
@@ -40,7 +41,7 @@ class Q:
     def is_(s, c, v): s.f.append(lambda l: l.get(c) is None); return s
     def gte(s, *a): return s
     def lte(s, *a): return s
-    def order(s, *a, **k): return s
+    def order(s, col, desc=False): s.ordem.append((col, desc)); return s
     def limit(s, n): s.lim = n; return s
     def range(s, i, j): s.rng = (i, j); return s
     def insert(s, x): s.ins = x; return s
@@ -63,6 +64,8 @@ class Q:
         if s.patch is not None:
             for l in alvo: l.update(s.patch)
             return R(alvo)
+        for col, desc in reversed(s.ordem):
+            alvo = sorted(alvo, key=lambda l: str(l.get(col) or ""), reverse=desc)
         if s.rng: alvo = alvo[s.rng[0]:s.rng[1] + 1]
         if s.lim is not None: alvo = alvo[:s.lim]
         return R([dict(l) for l in alvo])
@@ -281,6 +284,90 @@ raw.execute("create table t (id integer)")
 raw.executemany("insert into t values (?)", [(i,) for i in range(5000)])
 dfp = main._previa_sem_subconsulta_dbapi(raw, "select conta(id) as id from t", RuntimeError("x"))
 checar(len(dfp) == 5 and lidas["n"] < 100, "reserva DB-API (SQL Server) lê só o começo", f'{lidas["n"]} avaliadas')
+
+
+print("\n== 6. webhook e /feedback/lote idempotentes ==")
+from fastapi.testclient import TestClient  # noqa: E402
+from auth import criar_token  # noqa: E402
+LACO = []
+_fechar_orig = main._fechar_loop_bandit
+main._fechar_loop_bandit = lambda db, cpf, pagou, val, pred, emp: LACO.append((cpf, emp, (pred or {}).get("id")))
+main._cumprir_promessas = lambda *a, **k: None
+main._cache_del_prefix = lambda *a, **k: None
+main._buscar_api_key = lambda db, tok: {"id": "k1", "empresa_id": "alfa"} if tok == "chave-alfa" else None
+main._marcar_uso_api_key = lambda *a, **k: None
+main.buscar_usuario_por_id = lambda uid: {"id": uid, "ativo": True}
+cli = TestClient(main.app, raise_server_exceptions=False)
+
+def base_feedback():
+    TAB.clear(); LACO.clear(); CONTA["insert"].clear()
+    TAB["carteiras"] = [{"id": "c-a", "empresa_id": "alfa"}, {"id": "c-b", "empresa_id": "beta"}]
+    TAB["predicoes"] = [
+        {"id": "pa1", "carteira_id": "c-a", "cpf": "11111111111", "created_at": "2026-10-01"},
+        {"id": "pa2", "carteira_id": "c-a", "cpf": "11111111111", "created_at": "2026-10-10"},
+        {"id": "pb1", "carteira_id": "c-b", "cpf": "22222222222", "created_at": "2026-10-11"},
+    ]
+    TAB["feedbacks"] = []
+
+base_feedback()
+corpo = {"cpf": "11111111111", "pagou": True, "valor_recuperado": 300, "data_pagamento": "2026-10-15"}
+r1 = cli.post("/webhook/pagamento", headers={"X-API-Key": "chave-alfa"}, json=corpo)
+r2 = cli.post("/webhook/pagamento", headers={"X-API-Key": "chave-alfa"}, json=corpo)
+checar(r1.status_code == 200 and r2.status_code == 200 and r2.json().get("repetido") is True
+       and r2.json()["feedback_id"] == r1.json()["feedback_id"], "webhook repetido devolve o mesmo feedback", r2.text[:120])
+checar(len(TAB["feedbacks"]) == 1 and len(LACO) == 1, "webhook repetido não grava nem fecha o laço de novo",
+       f'{len(TAB["feedbacks"])} feedbacks, {len(LACO)} laços')
+checar(TAB["feedbacks"][0].get("predicao_id") == "pa2", "webhook liga à predição mais recente da empresa")
+r3 = cli.post("/webhook/pagamento", headers={"X-API-Key": "chave-alfa"},
+              json={**corpo, "data_pagamento": "2026-11-15"})
+checar(r3.json().get("repetido") is None and len(TAB["feedbacks"]) == 2, "parcela de outra data é gravada")
+r4 = cli.post("/webhook/pagamento", headers={"X-API-Key": "chave-alfa"},
+              json={"cpf": "11111111111", "pagou": True, "valor_recuperado": 50})
+r5 = cli.post("/webhook/pagamento", headers={"X-API-Key": "chave-alfa"},
+              json={"cpf": "11111111111", "pagou": True, "valor_recuperado": 50})
+checar(TAB["feedbacks"][-1].get("data_pagamento") and r5.json().get("repetido") is True,
+       "sem data: vale a de hoje e o reenvio é reconhecido")
+
+def jwt_admin(emp="alfa"):
+    return {"Authorization": "Bearer " + criar_token({"sub": "u1", "email": "u1@x", "nome": "U1",
+                                                      "role": "admin", "empresa_id": emp})}
+def enviar_lote(linhas):
+    csv = "cpf,pagou,valor_recuperado,data_pagamento\n" + "\n".join(linhas)
+    return cli.post("/feedback/lote", headers=jwt_admin(),
+                    files={"file": ("f.csv", io.BytesIO(csv.encode()), "text/csv")})
+
+base_feedback()
+consultas_pred = {"n": 0}
+_pred_um = main._predicao_do_cpf
+main._predicao_do_cpf = lambda *a, **k: (consultas_pred.__setitem__("n", consultas_pred["n"] + 1), _pred_um(*a, **k))[1]
+_ids_orig = main._ids_carteiras
+chamadas_ids = {"n": 0}
+main._ids_carteiras = lambda db, e: (chamadas_ids.__setitem__("n", chamadas_ids["n"] + 1), _ids_orig(db, e))[1]
+linhas = ["11111111111,sim,300,2026-10-15", "11111111111,sim,300,2026-10-15",
+          "22222222222,sim,100,2026-10-15", "33333333333,nao,0,2026-10-15"]
+r = enviar_lote(linhas)
+j = r.json()
+checar(r.status_code == 200 and j["importados"] == 3 and j["repetidos"] == 1, "linha repetida no arquivo é pulada", r.text[:160])
+checar(len(LACO) == 3, "laço do bandit só nos inserts novos", str(len(LACO)))
+fb = {f["cpf"]: f for f in TAB["feedbacks"]}
+checar(fb["11111111111"].get("predicao_id") == "pa2" and "predicao_id" not in fb["22222222222"],
+       "predições em lote: mais recente da empresa, nunca de outra")
+checar(consultas_pred["n"] == 0 and chamadas_ids["n"] == 1,
+       "carteiras lidas uma vez e nenhuma consulta de predição por linha",
+       f'{chamadas_ids["n"]} leituras de carteiras, {consultas_pred["n"]} por linha')
+LACO.clear()
+r = enviar_lote(linhas)
+checar(r.json()["importados"] == 0 and r.json()["repetidos"] == 4 and not LACO and len(TAB["feedbacks"]) == 3,
+       "reimportar o mesmo arquivo não duplica nem ensina o bandit de novo", r.text[:120])
+main._predicao_do_cpf = _pred_um
+main._ids_carteiras = _ids_orig
+
+os.environ["MIZAN_MAX_LINHAS_FEEDBACK_LOTE"] = "2"
+r = enviar_lote(linhas)
+os.environ.pop("MIZAN_MAX_LINHAS_FEEDBACK_LOTE")
+checar(r.status_code == 413 and "limite por importação é 2" in r.json().get("detail", ""),
+       "lote acima do limite: 413 com mensagem clara", r.text[:120])
+main._fechar_loop_bandit = _fechar_orig
 
 
 print(f"\n{falhas} falha(s)")

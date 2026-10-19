@@ -5928,6 +5928,81 @@ def confirmar_pagamento(
         _confirmacoes_em_andamento.discard(lock_key)
 
 
+def _chave_feedback(cpf, data_pagamento, valor) -> tuple:
+    """O que identifica um pagamento repetido: CPF + data + valor (dentro da empresa)."""
+    try:
+        v = round(float(valor or 0), 2)
+    except (TypeError, ValueError):
+        v = 0.0
+    return (str(cpf or ""), str(data_pagamento or "")[:10], v)
+
+
+def _feedbacks_existentes(db, empresa: "str | None", cpfs: list) -> dict:
+    """{chave do pagamento: id do feedback} já gravados para estes CPFs na empresa.
+
+    Reenviar o mesmo webhook (o sistema do cliente tenta de novo quando a
+    resposta demora) ou importar a mesma planilha duas vezes duplicava o
+    pagamento: contava duas vezes no painel e no treino e ensinava o bandit
+    duas vezes com o mesmo resultado.
+    """
+    mapa: dict = {}
+    cpfs = list(dict.fromkeys(str(c) for c in cpfs if c))
+    for i in range(0, len(cpfs), ITENS_POR_IN):
+        lote = cpfs[i:i + ITENS_POR_IN]
+
+        def _consulta(lote=lote):
+            q = db.table("feedbacks").select("id, cpf, data_pagamento, valor_recuperado").in_("cpf", lote)
+            return q.eq("empresa", empresa) if empresa else q
+        for f in _todas_as_linhas(_consulta):
+            mapa.setdefault(_chave_feedback(f.get("cpf"), f.get("data_pagamento"),
+                                            f.get("valor_recuperado")), f.get("id"))
+    return mapa
+
+
+def _predicoes_dos_cpfs(db, cpfs: list, empresa_id: "str | None") -> dict:
+    """{cpf: predição mais recente na empresa}, para muitos CPFs de uma vez.
+
+    O mesmo critério de _predicao_do_cpf, mas com as carteiras lidas uma vez e
+    os CPFs em lotes: o laço antigo listava as carteiras da empresa e fazia
+    uma consulta por CPF, por linha da planilha.
+    """
+    colunas = _COLUNAS_PREDICAO_CPF + ", cpf"
+    cpfs = list(dict.fromkeys(str(c) for c in cpfs if c))
+    melhor: dict = {}
+
+    def _guardar(linhas):
+        for p in linhas:
+            c = str(p.get("cpf") or "")
+            if c and (c not in melhor or (p.get("created_at") or "") > (melhor[c].get("created_at") or "")):
+                melhor[c] = p
+
+    carteiras = _ids_carteiras(db, empresa_id) if empresa_id else None
+    if empresa_id and not carteiras:
+        return melhor                  # falha fechada: empresa sem carteira não casa com ninguém
+    for i in range(0, len(cpfs), ITENS_POR_IN):
+        lote_cpf = cpfs[i:i + ITENS_POR_IN]
+        if carteiras is None:
+            _guardar(_todas_as_linhas(lambda: db.table("predicoes").select(colunas).in_("cpf", lote_cpf)))
+            continue
+        for j in range(0, len(carteiras), ITENS_POR_IN):
+            lote_cart = carteiras[j:j + ITENS_POR_IN]
+            _guardar(_todas_as_linhas(lambda: db.table("predicoes").select(colunas)
+                                      .in_("cpf", lote_cpf).in_("carteira_id", lote_cart)))
+    return melhor
+
+
+MAX_LINHAS_FEEDBACK_LOTE_PADRAO = 5_000
+
+
+def _max_linhas_feedback_lote() -> int:
+    """Teto de linhas por importação de feedbacks (MIZAN_MAX_LINHAS_FEEDBACK_LOTE)."""
+    try:
+        valor = int(os.environ.get("MIZAN_MAX_LINHAS_FEEDBACK_LOTE", "") or MAX_LINHAS_FEEDBACK_LOTE_PADRAO)
+    except ValueError:
+        return MAX_LINHAS_FEEDBACK_LOTE_PADRAO
+    return valor if valor > 0 else MAX_LINHAS_FEEDBACK_LOTE_PADRAO
+
+
 @app.post("/webhook/pagamento")
 def webhook_pagamento(body: WebhookPagamentoIn, request: Request):
     """
@@ -5967,14 +6042,27 @@ def webhook_pagamento(body: WebhookPagamentoIn, request: Request):
     predicao_id   = pred_dict["id"]              if pred_dict else None
     _pred_cart_id = pred_dict.get("carteira_id") if pred_dict else None
 
+    # Sem data no corpo, vale a de hoje em Brasília: é o dia em que o pagamento
+    # chegou, e é o que separa a parcela deste mês de um reenvio do mesmo aviso.
+    from agente.auditor import BRASILIA
+    data_pagamento = (body.data_pagamento or "").strip()[:10] or \
+        datetime.now(BRASILIA).date().isoformat()
+
+    # Idempotente: o mesmo pagamento (CPF + data + valor) reenviado não grava
+    # de novo nem ensina o bandit outra vez.
+    repetido = _feedbacks_existentes(db, empresa, [body.cpf]).get(
+        _chave_feedback(body.cpf, data_pagamento, body.valor_recuperado))
+    if repetido:
+        print(f"[Webhook] Pagamento repetido ignorado — CPF: {_cpf_no_log(body.cpf)}, empresa: {empresa}")
+        return {"ok": True, "feedback_id": repetido, "repetido": True}
+
     fb_row = {
         "cpf": body.cpf,
         "pagou": body.pagou,
         "valor_recuperado": body.valor_recuperado or 0,
         "empresa": empresa,
+        "data_pagamento": data_pagamento,
     }
-    if body.data_pagamento:
-        fb_row["data_pagamento"] = body.data_pagamento
     if predicao_id:
         fb_row["predicao_id"] = predicao_id
 
@@ -6068,8 +6156,28 @@ async def feedback_lote(
         if not empresa and _jwt.get("role") != "comando":
             raise HTTPException(status_code=403, detail="Credencial sem empresa vinculada.")
 
+        limite = _max_linhas_feedback_lote()
+        if len(df) > limite:
+            raise HTTPException(
+                status_code=413,
+                detail=(f"O arquivo tem {len(df):,} linhas e o limite por importação é "
+                        f"{limite:,}. Divida em partes menores.").replace(",", "."))
+
+        def _cpf_limpo(v) -> str:
+            return str(v if v is not None else "").strip().replace(".", "").replace("-", "").replace("/", "")
+
+        # Uma leitura para o arquivo inteiro, não uma por linha: as carteiras
+        # da empresa, a predição de cada CPF e os pagamentos que já existem.
+        _cpfs_arquivo = [c for c in (_cpf_limpo(v) for v in df["cpf"].tolist()) if len(c) >= 3]
+        try:
+            preds_por_cpf = _predicoes_dos_cpfs(db, _cpfs_arquivo, empresa)
+            ja_gravados = _feedbacks_existentes(db, empresa, _cpfs_arquivo)
+        except Exception as e:
+            raise HTTPException(status_code=503, detail=f"Erro ao ler o banco: {type(e).__name__}")
+
         n_ok = 0
         n_erro = 0
+        n_repetidos = 0
         detalhes = []
 
         for idx, row in df.iterrows():
@@ -6113,8 +6221,17 @@ async def feedback_lote(
                 except Exception:
                     pass
 
+            chave_fb = _chave_feedback(cpf, data_pag, valor_recuperado)
+            if chave_fb in ja_gravados:
+                # Já gravado (antes ou mais acima neste arquivo): não duplica e
+                # não ensina o bandit de novo.
+                detalhes.append({"linha": linha, "cpf": cpf, "ok": True, "repetido": True,
+                                 "feedback_id": ja_gravados[chave_fb]})
+                n_repetidos += 1
+                continue
+
             try:
-                pred_dict = _predicao_do_cpf(db, cpf, empresa)
+                pred_dict = preds_por_cpf.get(cpf)
                 predicao_id = pred_dict["id"] if pred_dict else None
 
                 fb_row = {"cpf": cpf, "pagou": pagou, "valor_recuperado": valor_recuperado, "empresa": empresa}
@@ -6125,6 +6242,7 @@ async def feedback_lote(
 
                 res = db.table("feedbacks").insert(fb_row).execute()
                 feedback_id = res.data[0]["id"]
+                ja_gravados[chave_fb] = feedback_id
 
                 _fechar_loop_bandit(
                     db, cpf, pagou, valor_recuperado,
@@ -6153,7 +6271,8 @@ async def feedback_lote(
             _cache_del_prefix(f"pagamentos:{_eid}")
             _cache_del_prefix(f"perf:{_eid}")
             _cache_del_prefix(f"fb_status:{_eid}")
-        return {"total": n_ok + n_erro, "importados": n_ok, "erros": n_erro, "detalhes": detalhes}
+        return {"total": n_ok + n_erro + n_repetidos, "importados": n_ok, "erros": n_erro,
+                "repetidos": n_repetidos, "detalhes": detalhes}
 
     # Parse da planilha mais uma gravação no Supabase por linha do lote:
     # trabalho bloqueante que cresce com o arquivo, então sai do event loop.
