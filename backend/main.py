@@ -1934,7 +1934,7 @@ def registrar_contato(body: ContatoIn, credentials: HTTPAuthorizationCredentials
             if acao_id is not None and contexto is not None:
                 registrar_resultado(acao_id=acao_id, contexto=contexto,
                                     recompensa=_CONTATO_RECOMPENSA[body.resultado],
-                                    empresa_id=_emp, pagou=False)
+                                    empresa_id=_emp, pagou=False, devedor=body.cpf)
             else:
                 print(f"[Bandit/Contato] Sem ação ou contexto: "
                       f"acao_id={acao_id}, contexto={'ok' if contexto else 'ausente'}")

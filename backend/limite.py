@@ -94,6 +94,9 @@ REGRAS = {
         "Muitas consultas em pouco tempo. Aguarde {espera} s.", publica=True),
     ("POST", "/comando/treino"): Regra("treino", 6, 3600,
         "Muitos treinos em pouco tempo. Aguarde {espera} s."),
+    # Importação de pagamentos em lote: pesada (lê carteiras e grava em lote).
+    ("POST", "/feedback/lote"): Regra("feedback_lote", 10, 3600,
+        "Muitas importações em pouco tempo. Aguarde {espera} s."),
 }
 
 
@@ -197,7 +200,7 @@ def identidade(scope: dict, publica: bool = False) -> "str | None":
 
 def _simultaneas() -> int:
     try:
-        return max(1, int(os.getenv("MIZAN_ANALISES_SIMULTANEAS", "2")))
+        return max(1, int(os.getenv("MIZAN_ANALISES_SIMULTANEAS", "1")))
     except ValueError:
         return 2
 
