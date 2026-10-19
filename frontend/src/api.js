@@ -755,3 +755,17 @@ export async function agenteAtribuir(itemId, operadorId, empresaId) {
 export async function agenteControle(predicaoId, acao, empresaId) {
   return pedir(`/agente/casos/${_id(predicaoId)}/controle`, { metodo: 'POST', corpo: { acao, empresa_id: empresaId || null } })
 }
+
+// ── Disponibilidade do operador (docs/PLANO_DISPONIBILIDADE_OPERADOR.md) ─────
+// { faixas: [{id, usuario_id, dia_semana, hora_inicio, hora_fim, ativo}], operadores: [{id, nome}] }
+export async function listarDisponibilidade(token, empresaId) {
+  return pedir('/agente/disponibilidade', { token, query: { empresa_id: empresaId } })
+}
+
+export async function criarDisponibilidade(token, dados, empresaId) {
+  return pedir('/agente/disponibilidade', { metodo: 'POST', token, corpo: { ...dados, empresa_id: empresaId || null } })
+}
+
+export async function removerDisponibilidade(token, itemId, empresaId) {
+  return pedir(`/agente/disponibilidade/${_id(itemId)}`, { metodo: 'DELETE', token, query: { empresa_id: empresaId } })
+}
