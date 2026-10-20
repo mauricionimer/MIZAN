@@ -76,6 +76,7 @@ function ServerWarmupBanner() {
 // usuário abriu, em vez de todo o sistema no primeiro acesso. Recharts,
 // xlsx e jspdf saem do caminho crítico junto com as telas que os usam.
 const Home = lazy(() => import('./pages/Home'))
+const Inicio = lazy(() => import('./pages/Inicio'))
 const DebtorDetail = lazy(() => import('./pages/DebtorDetail'))
 const Feedback = lazy(() => import('./pages/Feedback'))
 const BanditDashboard = lazy(() => import('./pages/BanditDashboard'))
@@ -109,7 +110,7 @@ function RotaProtegida({ children, roles }) {
   const { autenticado, usuario } = useAuth()
   const location = useLocation()
   if (!autenticado) return <Navigate to="/login" state={{ from: location }} replace />
-  if (roles && !roles.includes(usuario?.role)) return <Navigate to="/" replace />
+  if (roles && !roles.includes(usuario?.role)) return <Navigate to="/inicio" replace />
   return children
 }
 
@@ -142,6 +143,7 @@ function RotasAnimadas() {
             carteira e o dashboard são vistas de "/", não rotas; "/dashboard"
             ficou de links salvos e cai na regra coringa. */}
         <Route element={<RotaProtegida><ShellLayout /></RotaProtegida>}>
+          <Route path="/inicio" element={<Inicio />} />
           <Route path="/" element={<Home />} />
           <Route path="/devedor/:rank" element={<DebtorDetail />} />
           <Route path="/ajuda" element={<Ajuda />} />
@@ -169,7 +171,7 @@ function RotasAnimadas() {
           <Route path="/auditoria" element={P(['admin', 'comando'], <Auditoria />)} />
           <Route path="/ia" element={P(['operador', 'admin', 'comando'], <PerformanceIA />)} />
         </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/inicio" replace />} />
       </Routes>
     </Suspense>
   )

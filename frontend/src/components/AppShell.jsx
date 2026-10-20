@@ -5,7 +5,7 @@ import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'framer-m
 import {
   UploadCloud, KeyRound, LogOut, Loader2, Menu, X,
   Zap, Brain, Command, Lock, HelpCircle, SlidersHorizontal,
-  MessageCircleQuestion, GraduationCap, KeySquare, CalendarClock, Gauge, TrendingUp, Handshake, Bot,
+  MessageCircleQuestion, GraduationCap, KeySquare, CalendarClock, Gauge, TrendingUp, Handshake, Bot, LayoutGrid,
 } from 'lucide-react'
 import ThemeToggle from './ThemeToggle'
 import useAvisosDeDuvida from './useAvisosDeDuvida'
@@ -62,9 +62,11 @@ function useItens() {
     { id: 'analise', label: 'Análise', vista: 'analise' },
     { id: 'pagamentos', label: 'Pagamentos', rota: '/feedback' },
   ] }
+  const inicio = { id: 'inicio', label: 'Início', icon: LayoutGrid, rota: '/inicio' }
   const hoje = { id: 'hoje', label: 'Hoje', icon: CalendarClock, rota: '/agenda', ...avisoAgenda }
 
   const principais = gestor ? [
+    inicio,
     hoje,
     carteira,
     { id: 'agente', label: 'Agentes', icon: Bot, rota: '/agente', prefixo: '/agente' },
@@ -83,6 +85,7 @@ function useItens() {
       { id: 'backtest', label: 'Simulação histórica', rota: '/backtest' },
     ] },
   ] : [
+    inicio,
     hoje,
     carteira,
     { id: 'acordos', label: 'Meus acordos', icon: Handshake, rota: '/acordos' },
@@ -317,7 +320,8 @@ export function ShellLayout() {
                 className="-ml-1 rounded-lg p-2 text-ink-2 hover:bg-raise-2"><Menu className="h-5 w-5" /></button>
               {/* Sem o nome da tela aqui: o menu já marca onde a pessoa está, e cada
                   tela tem o próprio título. */}
-              <span className="truncate font-semibold text-ink">{nomeEmpresa}</span>
+              <button onClick={() => acionar({ id: 'inicio', rota: '/inicio' })} title="Ir para o início"
+                className="truncate rounded-md px-1 font-semibold text-ink hover:text-[var(--royal)]">{nomeEmpresa}</button>
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <span ref={setSlotAcoes} className="flex items-center gap-2" />

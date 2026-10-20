@@ -404,6 +404,29 @@
     opacity: 0.42;
     transform: scale(1.12);
   }
+  /* ── Hub de entrada ── */
+  .hub-titulo { font-family: var(--font-display); font-weight: 700; font-size: clamp(30px, 4vw, 44px); letter-spacing: -0.02em; color: var(--ink); }
+  .hub-sub { margin-top: 6px; font-size: 18px; color: var(--ink-2); }
+  .hub-card {
+    background: var(--card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 22px;
+    box-shadow: var(--shadow-lg);
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .hub-card:hover, .hub-card:focus-within { border-color: var(--royal); }
+  .hub-card-arte {
+    height: 11rem;
+    color: var(--ink);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--royal) 22%, transparent), color-mix(in srgb, var(--royal) 6%, transparent));
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .hub-arte-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .hub-card-texto { padding: 22px 26px 26px; }
+  .hub-card-eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--royal); }
+  .hub-card-titulo { margin-top: 6px; font-family: var(--font-display); font-weight: 600; font-size: 22px; line-height: 1.2; letter-spacing: -0.01em; color: var(--ink); }
+  .hub-card-desc { margin-top: 8px; font-size: 14px; line-height: 1.5; color: var(--ink-2); }
+  .hub-card-badge { padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; background: var(--danger, #dc2626); color: #fff; }
   .login-fundo { position: absolute; inset: 0; z-index: -1; }
   /* véu escuro suave sobre o fundo: dá foco à marca e ao card */
   .login-shell::before {

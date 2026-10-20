@@ -67,8 +67,8 @@ export default function Login() {
     if (anterior.startsWith('/') && !anterior.startsWith('//') && !anterior.startsWith('/login')) {
       navigate(anterior, { replace: true })
     } else {
-      // Admin e operador caem direto na tela de trabalho.
-      navigate(user.role === 'comando' ? '/comando' : '/', { replace: true })
+      // Todos caem no hub: blocos que levam às áreas, as mesmas do menu (☰).
+      navigate('/inicio', { replace: true })
     }
   }
 
