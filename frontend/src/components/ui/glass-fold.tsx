@@ -105,8 +105,10 @@ const FRAGMENT = `
       // light variant: run the same folds in a fixed dark palette, then map
       // their brightness onto a ramp background -> pane body -> lit edge
       vec3 d = shade(vUv, u_time, vec3(0.35, 0.40, 0.85), vec3(0.03, 0.0, 0.09), vec3(0.72, 0.75, 0.93));
-      float l = clamp(dot(d, vec3(0.30, 0.45, 0.25)) / 0.62, 0.0, 1.0);
-      color = l < 0.5 ? mix(u_color2, u_color1, l * 2.0) : mix(u_color1, u_color3, (l - 0.5) * 2.0);
+      float l = clamp(dot(d, vec3(0.30, 0.45, 0.25)) / 0.9, 0.0, 1.0);
+      // the upper half is eased with a power so only the very core of each
+      // edge reaches full white and the glow keeps a visible gradient
+      color = l < 0.5 ? mix(u_color2, u_color1, l * 2.0) : mix(u_color1, u_color3, pow((l - 0.5) * 2.0, 2.4));
     } else {
       color = shade(vUv, u_time, u_color1, u_color2, u_color3);
     }
