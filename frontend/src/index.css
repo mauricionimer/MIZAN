@@ -399,20 +399,8 @@
     overflow: hidden;
   }
   .login-fundo { position: absolute; inset: 0; z-index: -1; }
-  /* véu branco a 20% com desfoque leve sobre o fundo: dá foco à marca e ao card */
-  .login-shell::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    background: rgba(255, 255, 255, 0.2);
-    -webkit-backdrop-filter: blur(8px);
-    backdrop-filter: blur(8px);
-    pointer-events: none;
-  }
   .login-stack {
     position: relative;
-    z-index: 1;
     width: 100%;
     max-width: 1060px;
     display: flex;
