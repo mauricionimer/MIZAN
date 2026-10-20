@@ -23,7 +23,7 @@ import { agentePastas, listarCarteiras, listarEmpresas } from '../api'
 const MARMORE = { style: 'marble', scale: 0.62, warp: 3.0, angle: -0.5, gloss: 0.5, veins: 0.55 }
 const ARTE = {
   branco: { ...MARMORE, colors: ['#f6f7f9', '#dfe3e8', '#b4bcc7', '#eef0f3', '#cdd3db', '#ffffff', '#99a3b1'] },
-  amarelo: { ...MARMORE, gloss: 0, veins: 0.25, colors: ['#e3dc87', '#d5ce78', '#c7bf6e', '#e9e3a0', '#dcd58a', '#efebbb', '#b2ab62'] },
+  amarelo: { ...MARMORE, gloss: 0, veins: 0.25, colors: ['#d5b51f', '#c5a51b', '#b59618', '#ddbd32', '#cfaf25', '#e4c642', '#a98c17'] },
   vermelho: { ...MARMORE, gloss: 0, veins: 0.25, colors: ['#cf6461', '#c45b59', '#b65050', '#d47a76', '#c96865', '#df938e', '#aa4e4e'] },
 }
 const PONTO = { branco: '#cfd5e6', amarelo: '#e8b23c', vermelho: '#d92d20' }
