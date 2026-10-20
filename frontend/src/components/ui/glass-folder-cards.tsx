@@ -73,6 +73,8 @@ export type GlassFolderProps = {
   meta?: string
   /** `light` is milk glass, `dark` is smoked glass. */
   tone?: "light" | "dark"
+  /** Matte removes reflections while preserving the folder shape and artwork. */
+  finish?: "glass" | "matte"
   /** What the back panel holds. A preset, your own recipe, or `none` for a plain frosted back. */
   art?: FolderArt
   /** A different arrangement of the same recipe. */
@@ -531,6 +533,7 @@ export default function GlassFolder({
   label = "My Files",
   meta,
   tone = "light",
+  finish = "glass",
   art = "aurora",
   seed = 3,
   image,
@@ -714,6 +717,7 @@ export default function GlassFolder({
       ref={rootRef}
       className={"gf-root" + (className ? " " + className : "")}
       data-tone={tone}
+      data-finish={finish}
       data-open={open || undefined}
       data-entered={entered || undefined}
       data-place={labelPlacement}
@@ -1162,6 +1166,10 @@ canvas.gf-sheet-art[data-ready] { opacity: 1; filter: none; }
 .gf-front-rim { width: 340px; height: 198px; }
 .gf-front-rim path { stroke-width: 2.4; transition: stroke-width .3s var(--gf-ease); }
 .gf-root[data-tone="dark"] .gf-front-rim { opacity: .55; }
+.gf-root[data-finish="matte"] .gf-back-sheen,
+.gf-root[data-finish="matte"] .gf-spec { display: none; }
+.gf-root[data-finish="matte"] .gf-back-rim,
+.gf-root[data-finish="matte"] .gf-front-rim { opacity: .12; }
 
 .gf-hit {
   all: unset;

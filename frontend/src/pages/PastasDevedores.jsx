@@ -23,8 +23,8 @@ import { agentePastas, listarCarteiras, listarEmpresas } from '../api'
 const MARMORE = { style: 'marble', scale: 0.62, warp: 3.0, angle: -0.5, gloss: 0.5, veins: 0.55 }
 const ARTE = {
   branco: { ...MARMORE, colors: ['#f6f7f9', '#dfe3e8', '#b4bcc7', '#eef0f3', '#cdd3db', '#ffffff', '#99a3b1'] },
-  amarelo: { ...MARMORE, colors: ['#f9d86b', '#e9bf42', '#d8a322', '#fbe69b', '#e8c557', '#fff5c7', '#ad7a13'] },
-  vermelho: { ...MARMORE, colors: ['#ef5350', '#df3434', '#b82c37', '#f58b85', '#dc4849', '#ffd6d1', '#9f202c'] },
+  amarelo: { ...MARMORE, gloss: 0, veins: 0.25, colors: ['#e3dc87', '#d5ce78', '#c7bf6e', '#e9e3a0', '#dcd58a', '#efebbb', '#b2ab62'] },
+  vermelho: { ...MARMORE, gloss: 0, veins: 0.25, colors: ['#cf6461', '#c45b59', '#b65050', '#d47a76', '#c96865', '#df938e', '#aa4e4e'] },
 }
 const PONTO = { branco: '#cfd5e6', amarelo: '#e8b23c', vermelho: '#d92d20' }
 const FILTROS = [
@@ -169,7 +169,7 @@ export default function PastasDevedores() {
               <GlassFolder
                 key={`${d.id}-${d.semaforo.cor}-${d.arquivos.length}`}
                 label={d.nome || 'Sem nome'} meta={`#${d.rank ?? '–'}${d.dias_em_atraso != null ? ` · ${d.dias_em_atraso} dias` : ''}`}
-                tone={tone} art={ARTE[d.semaforo.cor]} seed={(d.rank || i) % 97}
+                tone={tone} finish={d.semaforo.cor === 'branco' ? 'glass' : 'matte'} art={ARTE[d.semaforo.cor]} seed={(d.rank || i) % 97}
                 files={d.arquivos} action="none" width={300} appearDelay={(i % POR_PAGINA % 6) * 90}
                 onFileSelect={() => verCaso(d)}
               />
