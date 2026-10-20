@@ -414,7 +414,12 @@
     gap: clamp(12px, 1.6vw, 20px);
     min-width: 0;
   }
-  .login-brand-mark { width: clamp(56px, 9vw, 96px); height: clamp(56px, 9vw, 96px); flex: none; }
+  .login-brand-mark {
+    width: clamp(56px, 9vw, 96px); height: clamp(56px, 9vw, 96px); flex: none;
+    /* sombra escura para as barras claras não sumirem nas dobras do fundo */
+    filter: drop-shadow(0 4px 14px rgba(10, 0, 30, 0.55));
+    transform: translateY(-9%); /* base das barras na linha de base do texto */
+  }
   .login-brand-foto {
     width: clamp(56px, 9vw, 96px); height: clamp(56px, 9vw, 96px); flex: none;
     object-fit: cover; border-radius: var(--radius-lg);
