@@ -15,6 +15,8 @@ export interface GlassFoldProps {
   scale?: number
   /** Film grain, 0 to 0.5. */
   noise?: number
+  /** Light variant: color2 is the light background, color1 the pane body, color3 the lit edges. */
+  light?: boolean
   className?: string
 }
 
@@ -36,6 +38,7 @@ const FRAGMENT = `
   uniform vec3 u_color3;
   uniform float u_scale;
   uniform float u_noise;
+  uniform float u_light;
   uniform vec2 u_resolution;
   varying vec2 vUv;
 
@@ -59,12 +62,12 @@ const FRAGMENT = `
   // panes of glass folded over each other. Each pane has one creased edge
   // that catches the light and thins out to nothing behind it; panes screen
   // over one another, so overlaps get brighter instead of darker.
-  vec3 shade(vec2 uv, float time) {
+  vec3 shade(vec2 uv, float time, vec3 c1, vec3 c2, vec3 c3) {
     vec2 q = rot(0.6) * centered(uv) * 2.0 * u_scale;
     float t = time * 0.6;
     float pixel = 2.0 * u_scale / max(u_resolution.y, 1.0);
 
-    vec3 color = mix(u_color2, u_color2 * 0.45, clamp(length(centered(uv)) * 1.3, 0.0, 1.0));
+    vec3 color = mix(c2, c2 * 0.45, clamp(length(centered(uv)) * 1.3, 0.0, 1.0));
 
     for (int i = 0; i < 6; i++) {
       float fi = float(i);
@@ -85,9 +88,9 @@ const FRAGMENT = `
       float inner = exp(-pow((back - 0.045) / 0.014, 2.0));
       float bloom = exp(-abs(s) * 20.0);
 
-      vec3 tint = mix(u_color1, u_color3, clamp(fresnel * 0.6 + 0.08 + 0.14 * sin(fi * 2.1 + q.x * 0.8 + t * 0.2), 0.0, 1.0));
+      vec3 tint = mix(c1, c3, clamp(fresnel * 0.6 + 0.08 + 0.14 * sin(fi * 2.1 + q.x * 0.8 + t * 0.2), 0.0, 1.0));
       vec3 light = tint * pane * (body * 0.42 + fresnel * 0.4)
-                 + u_color3 * (pane * (rim * 0.6 + inner * 0.12) + bloom * 0.1);
+                 + c3 * (pane * (rim * 0.6 + inner * 0.12) + bloom * 0.1);
 
       // screen blend
       color += light * (1.0 - color);
@@ -97,7 +100,16 @@ const FRAGMENT = `
   }
 
   void main() {
-    vec3 color = shade(vUv, u_time);
+    vec3 color;
+    if (u_light > 0.5) {
+      // light variant: run the same folds in a fixed dark palette, then map
+      // their brightness onto a ramp background -> pane body -> lit edge
+      vec3 d = shade(vUv, u_time, vec3(0.35, 0.40, 0.85), vec3(0.03, 0.0, 0.09), vec3(0.72, 0.75, 0.93));
+      float l = clamp(dot(d, vec3(0.30, 0.45, 0.25)) / 0.62, 0.0, 1.0);
+      color = l < 0.5 ? mix(u_color2, u_color1, l * 2.0) : mix(u_color1, u_color3, (l - 0.5) * 2.0);
+    } else {
+      color = shade(vUv, u_time, u_color1, u_color2, u_color3);
+    }
     if (u_noise > 0.001) {
       float g = grain(vUv * 200.0 + u_time * 0.1);
       color *= 1.0 - u_noise * 0.4 + u_noise * g * 0.4;
@@ -127,13 +139,14 @@ export function GlassFold({
   speed = 0.5,
   scale = 1,
   noise = 0.12,
+  light = false,
   className,
 }: GlassFoldProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   // the draw loop reads the latest props from here, so changing one never
   // rebuilds the WebGL program
-  const props = useRef({ color1, color2, color3, speed, scale, noise })
-  props.current = { color1, color2, color3, speed, scale, noise }
+  const props = useRef({ color1, color2, color3, speed, scale, noise, light })
+  props.current = { color1, color2, color3, speed, scale, noise, light }
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -166,6 +179,7 @@ export function GlassFold({
       color3: uniform("u_color3"),
       scale: uniform("u_scale"),
       noise: uniform("u_noise"),
+      light: uniform("u_light"),
       resolution: uniform("u_resolution"),
     }
 
@@ -197,6 +211,7 @@ export function GlassFold({
       gl.uniform3fv(u.color3, hexToVec3(p.color3))
       gl.uniform1f(u.scale, p.scale)
       gl.uniform1f(u.noise, p.noise)
+      gl.uniform1f(u.light, p.light ? 1 : 0)
       gl.uniform2f(u.resolution, canvas.width, canvas.height)
       gl.drawArrays(gl.TRIANGLES, 0, 6)
     }

@@ -8,11 +8,13 @@ import { LogoMark } from '../components/Logo'
 import { GlassFold } from '../components/ui/glass-fold'
 import { getEmpresaConfigPublica, marcaPorEmail } from '../api'
 import { aplicarCorDaMarca } from '../utils/marca'
+import { useTheme } from '../context/ThemeContext'
 
 const BASE_API = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
 
 export default function Login() {
   const navigate = useNavigate()
+  const { claro } = useTheme()
   const location = useLocation()
   const [searchParams] = useSearchParams()
   const sessionExpirada = searchParams.get('expired') === '1'
@@ -94,9 +96,10 @@ export default function Login() {
       {/* Fundo animado (WebGL) nas cores da marca; fica parado com "reduzir movimento" */}
       <GlassFold
         className="login-fundo"
-        color1="#5966d9"
-        color2="#1a0033"
-        color3="#b8c0ee"
+        light={claro}
+        color1={claro ? '#a9b4f5' : '#5966d9'}
+        color2={claro ? '#f1eeff' : '#1a0033'}
+        color3={claro ? '#ffffff' : '#b8c0ee'}
         speed={0.35}
         noise={0.1}
       />

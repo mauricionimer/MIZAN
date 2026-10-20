@@ -408,19 +408,15 @@
     background: rgba(10, 0, 30, 0.28);
     pointer-events: none;
   }
-  /* Tema claro: o mesmo gradiente com as cores invertidas. O roxo escuro vira
-     branco e as linhas brancas viram roxo escuro (invert + hue-rotate mantém
-     o matiz roxo), e um piso roxo escuro (lighten) impede que as linhas fiquem
-     pretas. A marca passa a escura para continuar legível. */
-  :root[data-theme='light'] .login-fundo { filter: invert(1) hue-rotate(180deg) saturate(1.15); }
-  :root[data-theme='light'] .login-shell::before { background: #34248a; mix-blend-mode: lighten; }
+  /* Tema claro: o fundo ganha uma variação clara própria (GlassFold light) e a
+     marca passa a escura para continuar legível. */
+  :root[data-theme='light'] .login-shell::before { background: transparent; }
   :root[data-theme='light'] .login-brand-word { color: #1a0033; text-shadow: 0 2px 24px rgba(255, 255, 255, 0.5); }
-  :root[data-theme='light'] .login-brand-mark { filter: drop-shadow(0 4px 14px rgba(255, 255, 255, 0.5)); }
+  :root[data-theme='light'] .login-brand-mark { filter: brightness(0.72) saturate(1.3) drop-shadow(0 4px 14px rgba(26, 0, 51, 0.25)); }
   @media (prefers-color-scheme: light) {
-    :root:not([data-theme='dark']) .login-fundo { filter: invert(1) hue-rotate(180deg) saturate(1.15); }
-    :root:not([data-theme='dark']) .login-shell::before { background: #34248a; mix-blend-mode: lighten; }
+    :root:not([data-theme='dark']) .login-shell::before { background: transparent; }
     :root:not([data-theme='dark']) .login-brand-word { color: #1a0033; text-shadow: 0 2px 24px rgba(255, 255, 255, 0.5); }
-    :root:not([data-theme='dark']) .login-brand-mark { filter: drop-shadow(0 4px 14px rgba(255, 255, 255, 0.5)); }
+    :root:not([data-theme='dark']) .login-brand-mark { filter: brightness(0.72) saturate(1.3) drop-shadow(0 4px 14px rgba(26, 0, 51, 0.25)); }
   }
   .login-stack {
     position: relative;
