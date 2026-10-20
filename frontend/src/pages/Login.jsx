@@ -2,10 +2,11 @@ import ThemeToggle from '../components/ThemeToggle'
 import { useState, useEffect } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
-import { Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Eye, EyeOff, Loader2, Mail, Lock } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { LogoMark } from '../components/Logo'
 import { GlassFold } from '../components/ui/glass-fold'
+import { FormInput } from '../components/ui/glass-form'
 import { getEmpresaConfigPublica, marcaPorEmail } from '../api'
 import { aplicarCorDaMarca } from '../utils/marca'
 import { useTheme } from '../context/ThemeContext'
@@ -132,7 +133,10 @@ export default function Login() {
 
         {/* Card do formulário */}
         <div className="login-card">
-          <h1 className="login-title">Entrar</h1>
+          <h1 className="login-title">
+            <span className="login-title-halo" aria-hidden="true" />
+            <span className="relative">Entrar</span>
+          </h1>
 
           <form onSubmit={handleSubmit} className="space-y-5 mt-7">
             {sessionExpirada && (
@@ -142,43 +146,40 @@ export default function Login() {
               </div>
             )}
 
-            <div>
-              <label className="login-label" htmlFor="login-email">E-mail</label>
-              <input
-                id="login-email"
-                type="email"
-                value={email}
-                onChange={e => handleEmailChange(e.target.value)}
-                placeholder="seu@email.com"
-                required
-                autoFocus
-                className="input-base"
-              />
-            </div>
+            <FormInput
+              id="login-email"
+              type="email"
+              icon={<Mail size={18} />}
+              value={email}
+              onChange={e => handleEmailChange(e.target.value)}
+              placeholder="E-mail"
+              aria-label="E-mail"
+              required
+              autoFocus
+            />
 
             <div>
-              <label className="login-label" htmlFor="login-senha">Senha</label>
-              <div className="relative">
-                <input
-                  id="login-senha"
-                  type={mostrarSenha ? 'text' : 'password'}
-                  value={senha}
-                  onChange={e => setSenha(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                  className="input-base pr-11"
-                />
-                <button
-                  type="button"
-                  onClick={() => setMostrarSenha(v => !v)}
-                  aria-label={mostrarSenha ? 'Ocultar senha' : 'Mostrar senha'}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors"
-                  style={{ color: 'var(--text-muted)' }}
-                >
-                  {mostrarSenha ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-              <div className="flex justify-end mt-1.5">
+              <FormInput
+                id="login-senha"
+                type={mostrarSenha ? 'text' : 'password'}
+                icon={<Lock size={18} />}
+                value={senha}
+                onChange={e => setSenha(e.target.value)}
+                placeholder="Senha"
+                aria-label="Senha"
+                required
+                trailing={
+                  <button
+                    type="button"
+                    onClick={() => setMostrarSenha(v => !v)}
+                    aria-label={mostrarSenha ? 'Ocultar senha' : 'Mostrar senha'}
+                    className="glass-input-icon absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors"
+                  >
+                    {mostrarSenha ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                }
+              />
+              <div className="flex justify-end mt-2">
                 <a href="/esqueci-senha" className="login-link">Esqueci minha senha</a>
               </div>
             </div>
@@ -190,15 +191,15 @@ export default function Login() {
               </div>
             )}
 
-            <button type="submit" disabled={loading} className="btn-primary w-full py-3">
+            <button type="submit" disabled={loading} className="btn-primary login-enviar w-full py-3">
               {loading
                 ? <><Loader2 className="h-4 w-4 animate-spin" /> Entrando...</>
                 : 'Entrar'}
             </button>
           </form>
 
-          <p className="mt-7 text-center text-xs" style={{ color: 'var(--text-muted)' }}>
-            <a href="/privacidade" className="underline hover:text-[var(--text-2)] transition-colors">
+          <p className="mt-7 text-center text-xs" style={{ color: 'var(--glass-muted)' }}>
+            <a href="/privacidade" className="underline hover:text-[var(--glass-ink)] transition-colors">
               Política de privacidade
             </a>
           </p>

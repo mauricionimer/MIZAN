@@ -500,22 +500,85 @@
     color: var(--panel-ink); min-width: 0; overflow-wrap: anywhere;
   }
   .login-card {
+    /* Glass: vidro escuro translúcido sobre o fundo animado. As variáveis
+       --glass-* valem para o card inteiro; o tema claro as troca mais abaixo. */
+    --glass-bg: rgba(10, 4, 30, 0.5);
+    --glass-line: rgba(255, 255, 255, 0.12);
+    --glass-ink: #f4f2fa;
+    --glass-muted: rgba(244, 242, 250, 0.62);
+    --glass-field: rgba(255, 255, 255, 0.06);
+    --glass-field-line: rgba(255, 255, 255, 0.14);
+    --glass-focus: rgba(143, 155, 233, 0.7);
     flex: 0 0 auto;
     width: 440px;
     max-width: 100%;
-    background: var(--card);
-    color: var(--text);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-lg);
+    background: var(--glass-bg);
+    color: var(--glass-ink);
+    border: 1px solid var(--glass-line);
+    border-radius: 20px;
+    -webkit-backdrop-filter: blur(16px) saturate(1.25);
+    backdrop-filter: blur(16px) saturate(1.25);
+    box-shadow: 0 24px 64px rgba(6, 0, 20, 0.45);
     padding: 36px clamp(24px, 3.4vw, 40px);
   }
+  :root[data-theme='light'] .login-card {
+    --glass-bg: rgba(255, 255, 255, 0.55);
+    --glass-line: rgba(255, 255, 255, 0.75);
+    --glass-ink: #1a0033;
+    --glass-muted: rgba(26, 0, 51, 0.6);
+    --glass-field: rgba(255, 255, 255, 0.55);
+    --glass-field-line: rgba(26, 0, 51, 0.14);
+    --glass-focus: rgba(89, 102, 217, 0.8);
+    box-shadow: 0 24px 64px rgba(60, 50, 150, 0.18);
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme='dark']) .login-card {
+      --glass-bg: rgba(255, 255, 255, 0.55);
+      --glass-line: rgba(255, 255, 255, 0.75);
+      --glass-ink: #1a0033;
+      --glass-muted: rgba(26, 0, 51, 0.6);
+      --glass-field: rgba(255, 255, 255, 0.55);
+      --glass-field-line: rgba(26, 0, 51, 0.14);
+      --glass-focus: rgba(89, 102, 217, 0.8);
+      box-shadow: 0 24px 64px rgba(60, 50, 150, 0.18);
+    }
+  }
+  .glass-input {
+    background: var(--glass-field);
+    border: 1px solid var(--glass-field-line);
+    border-radius: 10px;
+    color: var(--glass-ink);
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.2s, background-color 0.2s;
+  }
+  .glass-input::placeholder { color: var(--glass-muted); }
+  .glass-input:focus { border-color: var(--glass-focus); }
+  .glass-input-icon { color: var(--glass-muted); display: inline-flex; }
+  button.glass-input-icon:hover { color: var(--glass-ink); }
+  .login-card .login-link { color: var(--glass-muted); }
+  .login-card .login-link:hover { color: var(--glass-ink); }
+  .login-enviar {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: 0 8px 24px rgba(89, 102, 217, 0.3);
+  }
+  .login-enviar:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(89, 102, 217, 0.45); }
   .login-title {
     font-family: var(--font-display);
     font-weight: 600;
     font-size: 26px;
     letter-spacing: -0.01em;
-    color: var(--text);
+    color: var(--glass-ink);
+    position: relative;
+    display: inline-block;
+  }
+  /* halo em degradê atrás do título, como no modelo glass */
+  .login-title-halo {
+    position: absolute;
+    inset: -4px -10px;
+    background: linear-gradient(90deg, rgba(89, 102, 217, 0.35), rgba(143, 155, 233, 0.3));
+    filter: blur(18px);
+    opacity: 0.8;
   }
   .login-label {
     display: block;
