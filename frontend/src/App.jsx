@@ -77,6 +77,7 @@ function ServerWarmupBanner() {
 // xlsx e jspdf saem do caminho crítico junto com as telas que os usam.
 const Home = lazy(() => import('./pages/Home'))
 const Inicio = lazy(() => import('./pages/Inicio'))
+const PastasDevedores = lazy(() => import('./pages/PastasDevedores'))
 const DebtorDetail = lazy(() => import('./pages/DebtorDetail'))
 const Feedback = lazy(() => import('./pages/Feedback'))
 const BanditDashboard = lazy(() => import('./pages/BanditDashboard'))
@@ -144,6 +145,7 @@ function RotasAnimadas() {
             ficou de links salvos e cai na regra coringa. */}
         <Route element={<RotaProtegida><ShellLayout /></RotaProtegida>}>
           <Route path="/inicio" element={<Inicio />} />
+          <Route path="/pastas" element={P(['operador', 'admin', 'comando'], <PastasDevedores />)} />
           <Route path="/" element={<Home />} />
           <Route path="/devedor/:rank" element={<DebtorDetail />} />
           <Route path="/ajuda" element={<Ajuda />} />
