@@ -394,8 +394,13 @@
     align-items: center;
     justify-content: center;
     padding: 56px clamp(24px, 7vw, 88px);
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
   }
+  .login-fundo { position: absolute; inset: 0; z-index: -1; }
   .login-stack {
+    position: relative;
     width: 100%;
     max-width: 1060px;
     display: flex;
@@ -409,7 +414,12 @@
     gap: clamp(12px, 1.6vw, 20px);
     min-width: 0;
   }
-  .login-brand-mark { width: clamp(56px, 9vw, 96px); height: clamp(56px, 9vw, 96px); flex: none; }
+  .login-brand-mark {
+    width: clamp(56px, 9vw, 96px); height: clamp(56px, 9vw, 96px); flex: none;
+    /* sombra escura para as barras claras não sumirem nas dobras do fundo */
+    filter: drop-shadow(0 4px 14px rgba(10, 0, 30, 0.55));
+    transform: translateY(-9%); /* base das barras na linha de base do texto */
+  }
   .login-brand-foto {
     width: clamp(56px, 9vw, 96px); height: clamp(56px, 9vw, 96px); flex: none;
     object-fit: cover; border-radius: var(--radius-lg);
@@ -421,9 +431,15 @@
     font-size: clamp(56px, 9vw, 96px);
     letter-spacing: -0.03em;
     line-height: 1;
-    color: var(--panel-ink);
+    color: #f4f2fa; /* o fundo animado é sempre escuro, nos dois temas */
+    text-shadow: 0 2px 24px rgba(10, 0, 30, 0.45);
   }
-  .login-brand-bloco { display: flex; flex-direction: column; gap: clamp(10px, 1.4vw, 18px); min-width: 0; }
+  .login-shell > button:first-of-type { color: #f4f2fa; }
+  .login-brand-bloco {
+    display: flex; flex-direction: column; gap: clamp(10px, 1.4vw, 18px); min-width: 0;
+    /* empurra a marca para a direita, longe da onda que cai sobre o símbolo */
+    margin-left: clamp(0px, 5vw, 72px);
+  }
   .login-cobrand {
     display: flex; align-items: center; gap: clamp(10px, 1.2vw, 14px); min-width: 0;
     padding-left: 2px;
@@ -496,7 +512,7 @@
       gap: 30px;
     }
     .login-brand { justify-content: center; }
-    .login-brand-bloco { align-items: center; }
+    .login-brand-bloco { align-items: center; margin-left: 0; }
     .login-cobrand { justify-content: center; }
     .login-brand-mark, .login-brand-foto { width: clamp(46px, 11vw, 68px); height: clamp(46px, 11vw, 68px); }
     .login-brand-word { font-size: clamp(46px, 11vw, 68px); }
