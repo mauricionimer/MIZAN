@@ -1,5 +1,3 @@
-import StatCard from '../components/StatCard'
-import { KpiBento } from '../components/ui/stats-bento'
 import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -31,7 +29,15 @@ const COR_MIZAN = 'var(--chart-1)'
 const COR_ATUAL = 'var(--chart-2)'
 const COR_REF   = 'var(--ink-3)'
 
-function Tile({ rotulo, valor, leitura, cor }) { return <StatCard label={rotulo} value={valor} nota={leitura} valueColor={cor} /> }
+function Tile({ rotulo, valor, leitura, cor }) {
+  return (
+    <div className="rounded-xl p-4" style={{ background: 'var(--raise-2)' }}>
+      <p className="section-label mb-1">{rotulo}</p>
+      <p className="text-2xl font-semibold tabular-nums" style={{ color: cor || 'var(--ink)' }}>{valor}</p>
+      {leitura && <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>{leitura}</p>}
+    </div>
+  )
+}
 
 function DicaGrafico({ active, payload, label, sufixo = '' }) {
   if (!active || !payload?.length) return null
@@ -163,7 +169,7 @@ export default function Backtest() {
             </section>
 
             {/* Separação e tamanho */}
-            <KpiBento aria-label="Resultado da simulação histórica">
+            <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <Tile rotulo="KS" valor={r.separacao?.ok === false ? '—' : r.separacao?.ks}
                 leitura={r.separacao?.ks_leitura} />
               <Tile rotulo="Gini" valor={r.separacao?.ok === false ? '—' : r.separacao?.gini}
@@ -172,7 +178,7 @@ export default function Backtest() {
                 leitura={`${r.taxa_pagamento}% pagaram`} />
               <Tile rotulo="Recuperado" valor={fmtBRL(r.valor_recuperado)}
                 leitura={`de ${fmtBRL(r.valor_face)} de face`} />
-            </KpiBento>
+            </section>
 
             {r.separacao?.ks_leitura === 'suspeito' && (
               <div className="flex items-start gap-2.5 rounded-xl p-3.5"

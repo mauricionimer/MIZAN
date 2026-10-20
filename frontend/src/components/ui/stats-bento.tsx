@@ -15,12 +15,11 @@ export type VarianteKpi = "destaque" | "largo" | "pequeno" | null
 export const VarianteKpiContext = createContext<VarianteKpi>(null)
 
 export interface BentoStatProps {
-  variante?: Exclude<VarianteKpi, null>
+  variante: Exclude<VarianteKpi, null>
   label: React.ReactNode
   value: React.ReactNode
   icon?: React.ComponentType<{ className?: string; style?: React.CSSProperties }>
   cor?: string
-  valueColor?: string
   corClasse?: string
   nota?: React.ReactNode
   barra?: number | null
@@ -30,9 +29,7 @@ export interface BentoStatProps {
 // Classes escritas por extenso: o Tailwind só mantém o que enxerga como texto.
 const CLASSE_VARIANTE = { destaque: "bento-kpi--destaque", largo: "bento-kpi--largo", pequeno: "bento-kpi--pequeno" } as const
 
-export function BentoStat({ variante: varianteProp, label, value, icon: Icon, cor, valueColor, corClasse, nota, barra, link }: BentoStatProps) {
-  const herdada = useContext(VarianteKpiContext)
-  const variante = varianteProp ?? herdada ?? 'pequeno'
+export function BentoStat({ variante, label, value, icon: Icon, cor, corClasse, nota, barra, link }: BentoStatProps) {
   const destaque = variante === "destaque"
   const rotulo = "text-[10px] font-semibold uppercase tracking-[0.14em]"
   return (
@@ -40,28 +37,28 @@ export function BentoStat({ variante: varianteProp, label, value, icon: Icon, co
       {destaque && <div className="bento-kpi-trama pointer-events-none absolute inset-0" aria-hidden="true" />}
       <div className="relative">
         <div className="flex items-center justify-between gap-3">
-          <div className={rotulo} style={{ color: destaque ? "var(--on-brand)" : "var(--text-muted)" }}>{label}</div>
+          <p className={rotulo} style={{ color: destaque ? "rgba(255,255,255,.72)" : "var(--text-muted)" }}>{label}</p>
           {Icon && (
             <span className={destaque ? "bento-kpi-icone" : ""} aria-hidden="true">
-              <Icon className={`h-3.5 w-3.5 ${destaque ? "" : corClasse ?? ""}`} style={destaque ? { color: "var(--on-brand)" } : !corClasse ? { color: cor ?? "var(--text-muted)" } : undefined} />
+              <Icon className={`h-3.5 w-3.5 ${destaque ? "" : corClasse ?? ""}`} style={destaque ? { color: "#fff" } : !corClasse ? { color: cor ?? "var(--text-muted)" } : undefined} />
             </span>
           )}
         </div>
-        <p className={`bento-kpi-value tnum mt-3 font-semibold leading-tight tracking-tight ${destaque ? "text-3xl sm:text-4xl" : variante === "largo" ? "text-3xl" : "text-2xl"}`}
-          style={{ color: destaque ? "var(--on-brand)" : valueColor ?? "var(--text)" }}>
+        <p className={`tnum mt-3 font-semibold leading-none tracking-tighter ${destaque ? "text-5xl md:text-6xl" : variante === "largo" ? "text-3xl" : "text-2xl"}`}
+          style={{ color: destaque ? "#fff" : "var(--text)" }}>
           {value}
         </p>
         {barra != null && (
-          <div className="mt-4 h-1.5 overflow-hidden rounded-full" role="progressbar" aria-label={typeof label === 'string' ? label : 'Progresso'} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Number.isFinite(barra) ? Math.max(0, Math.min(100, barra * 100)) : 0} style={{ background: destaque ? "rgba(255,255,255,.22)" : "var(--raised)" }}>
-            <div className="h-full rounded-full" style={{ width: `${Number.isFinite(barra) ? Math.max(0, Math.min(100, barra * 100)) : 0}%`, background: destaque ? "var(--on-brand)" : "var(--royal)" }} />
+          <div className="mt-4 h-1.5 overflow-hidden rounded-full" style={{ background: destaque ? "rgba(255,255,255,.22)" : "var(--raised)" }}>
+            <div className="h-full rounded-full" style={{ width: `${Math.min(100, barra * 100)}%`, background: destaque ? "#fff" : "var(--royal)" }} />
           </div>
         )}
       </div>
       {(nota || link) && (
         <div className="relative mt-4 space-y-2">
-          {nota && <p className="text-xs leading-relaxed" style={{ color: destaque ? "var(--on-brand)" : "var(--text-muted)" }}>{nota}</p>}
+          {nota && <p className="max-w-xs text-xs" style={{ color: destaque ? "rgba(255,255,255,.72)" : "var(--text-muted)" }}>{nota}</p>}
           {link && (
-            <Link to={link.to} className="inline-flex min-h-[40px] items-center gap-1 text-xs font-medium" style={{ color: destaque ? "var(--on-brand)" : "var(--accent-text)" }}>
+            <Link to={link.to} className="inline-flex items-center gap-1 text-xs font-medium" style={{ color: destaque ? "#fff" : "var(--royal)" }}>
               {link.label} <ArrowRight className="h-3 w-3" />
             </Link>
           )}
@@ -78,22 +75,22 @@ export function BentoStat({ variante: varianteProp, label, value, icon: Icon, co
  *  largo em cima e os demais em cartões menores embaixo.
  * Em tela estreita tudo empilha em duas colunas.
  */
-export function KpiBento({ children, className = '', 'aria-label': ariaLabel = 'Indicadores' }: { children: React.ReactNode; className?: string; 'aria-label'?: string }) {
+export function KpiBento({ children }: { children: React.ReactNode }) {
   const itens = React.Children.toArray(children).filter(React.isValidElement)
   if (itens.length <= 2) {
-    return <div role="group" aria-label={ariaLabel} className={`bento-stats grid grid-cols-1 gap-4 ${itens.length === 2 ? 'sm:grid-cols-2' : ''} ${className}`}>{itens}</div>
+    return <div className="grid grid-cols-2 gap-3 sm:gap-4">{itens}</div>
   }
   const [primeiro, segundo, ...resto] = itens
   const cols = resto.length >= 3 ? "sm:grid-cols-3" : "sm:grid-cols-2"
   return (
-    <div role="group" aria-label={ariaLabel} className={`bento-stats grid min-w-0 gap-4 lg:grid-cols-2 ${className}`}>
-      <VarianteKpiContext.Provider value="destaque"><div className="min-w-0 min-h-[11rem]">{primeiro}</div></VarianteKpiContext.Provider>
-      <div className="grid min-w-0 gap-4">
-        <VarianteKpiContext.Provider value="largo"><div className="min-w-0">{segundo}</div></VarianteKpiContext.Provider>
+    <div className="grid gap-3 sm:gap-4 lg:grid-cols-2">
+      <VarianteKpiContext.Provider value="destaque"><div className="min-h-[11rem]">{primeiro}</div></VarianteKpiContext.Provider>
+      <div className="grid gap-3 sm:gap-4">
+        <VarianteKpiContext.Provider value="largo"><div>{segundo}</div></VarianteKpiContext.Provider>
         {resto.length > 0 && (
-          <div className={`grid min-w-0 grid-cols-1 gap-4 ${cols}`}>
+          <div className={`grid grid-cols-2 gap-3 sm:gap-4 ${cols}`}>
             {resto.map((c, i) => (
-              <VarianteKpiContext.Provider key={i} value="pequeno"><div className="min-w-0">{c}</div></VarianteKpiContext.Provider>
+              <VarianteKpiContext.Provider key={i} value="pequeno"><div>{c}</div></VarianteKpiContext.Provider>
             ))}
           </div>
         )}
@@ -103,7 +100,3 @@ export function KpiBento({ children, className = '', 'aria-label': ariaLabel = '
 }
 
 export const useVarianteKpi = () => useContext(VarianteKpiContext)
-
-// Nome público do componente enviado; o alias mantém as integrações existentes.
-export const StatsBento = KpiBento
-export default StatsBento

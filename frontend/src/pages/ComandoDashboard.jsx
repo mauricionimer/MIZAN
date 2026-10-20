@@ -1,5 +1,3 @@
-import StatCard from '../components/StatCard'
-import { KpiBento } from '../components/ui/stats-bento'
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
@@ -24,7 +22,23 @@ const fmtDataCurta = iso => iso
   ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' }).format(new Date(iso))
   : '—'
 
-function KpiCard({ label, value, accent, icon }) { return <StatCard label={label} value={value} accent={accent} icon={icon} /> }
+function KpiCard({ label, value, accent = 'indigo' }) {
+  // Régua de acento no lugar do bloco colorido com ícone: a cor identifica a
+  // métrica sem tingir o card inteiro.
+  const cor = {
+    indigo:  'var(--royal)',
+    emerald: 'var(--success)',
+    amber:   'var(--warning)',
+    red:     'var(--danger)',
+  }[accent] ?? 'var(--royal)'
+  return (
+    <div className="card relative overflow-hidden px-5 py-4 pl-6">
+      <span className="absolute left-0 inset-y-0 w-1" style={{ background: cor }} />
+      <p className="text-[11px] font-semibold text-ink-2 uppercase tracking-widest">{label}</p>
+      <p className="tnum text-2xl font-semibold mt-2 leading-none tracking-tight text-ink">{value}</p>
+    </div>
+  )
+}
 
 function StatusBadge({ suspeita, taxaFeedback }) {
   if (suspeita) {
@@ -316,7 +330,7 @@ export default function ComandoDashboard() {
               </div>
             </div>
 
-            <KpiBento>
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
               <KpiCard
                 label="Empresas na plataforma"
                 value={fmtNum(t?.total_empresas)}
@@ -341,7 +355,7 @@ export default function ComandoDashboard() {
                 icon={TrendingUp}
                 accent={t?.valor_recuperado_real > 0 ? 'emerald' : 'amber'}
               />
-            </KpiBento>
+            </div>
 
             {suspeitas.length > 0 && (
               <div className="flex items-start gap-3 bg-red-950/30 border border-red-800/50 rounded-2xl px-5 py-4">

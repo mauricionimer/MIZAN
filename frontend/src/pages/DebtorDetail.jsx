@@ -1,5 +1,3 @@
-import StatCard from '../components/StatCard'
-import { KpiBento } from '../components/ui/stats-bento'
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Phone, Tag, Zap, MessageSquare, Brain, Plus, ClipboardList, CheckCircle2, XCircle, Clock, Wallet, AlertTriangle, ChevronDown, CalendarClock } from 'lucide-react'
@@ -1106,16 +1104,19 @@ function FichaDoDevedor() {
         {deAgenda && <ContextoAgenda item={deAgenda} oferta={ofertaCombinada} />}
 
         {/* Resumo: o essencial para entender o caso antes de agir. */}
-        <KpiBento className="mb-5" aria-label="Resumo do devedor">
+        <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[
             ['Dívida', fmtBRL(d.valor_divida)],
             ['Em atraso', `${fmtNum(d.dias_em_atraso)} dias`],
             ['Valor esperado', fmtBRL(d.valor_esperado_recuperacao)],
             ['Score', <span key="s" style={{ color: scoreColor }}>{score}<span className="text-xs font-normal" style={{ color: 'var(--ink-3)' }}> / 100</span></span>],
           ].map(([k, v]) => (
-            <StatCard key={k} label={k} value={v} />
+            <div key={k} className="rounded-xl px-4 py-3" style={CARD}>
+              <p className="text-xs" style={{ color: 'var(--ink-3)' }}>{k}</p>
+              <p className="mt-0.5 text-lg font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{v}</p>
+            </div>
           ))}
-        </KpiBento>
+        </div>
         {d.dados_incompletos && (
           <div className="mb-5 flex items-start gap-2 rounded-xl p-3 text-sm"
             style={{ background: 'rgb(var(--c-warning) / 0.08)', border: '1px solid rgb(var(--c-warning) / 0.18)', color: 'var(--ink-2)' }}>

@@ -1,5 +1,3 @@
-import StatCard from '../components/StatCard'
-import { KpiBento } from '../components/ui/stats-bento'
 import { motion } from 'framer-motion'
 import { lista, item } from '../lib/motion'
 import { useState, useMemo, useEffect } from 'react'
@@ -78,8 +76,25 @@ function StatusBadge({ cpf, statusMap }) {
 }
 
 /* ───────────────────────── KPI card (chic minimal) ───────────────────────── */
-function KpiCard({ label, value, danger = false, icon, accent, ajuda }) {
-  return <StatCard label={<>{label}{ajuda && <DicaAjuda id={ajuda} />}</>} value={value} icon={icon} accent={accent} valueColor={danger ? 'var(--danger)' : undefined} />
+function KpiCard({ label, value, danger = false, icon: Icon, accent, ajuda }) {
+  const cor = {
+    blue: 'var(--royal)', amber: 'var(--warning)',
+    violet: 'var(--accent-text)', emerald: 'var(--success)',
+  }[accent] ?? 'var(--text-muted)'
+  return (
+    <div className="card px-6 py-5 flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-muted)' }}>
+          {label}{ajuda && <DicaAjuda id={ajuda} />}
+        </p>
+        {Icon && <Icon className="h-3.5 w-3.5" style={{ color: cor }} />}
+      </div>
+      <p className="tnum text-[1.75rem] font-semibold tracking-tight leading-none"
+        style={{ color: danger ? 'var(--danger)' : 'var(--text)' }}>
+        {value}
+      </p>
+    </div>
+  )
 }
 
 function exportCSV(ranking) {
@@ -192,8 +207,28 @@ function Slider({ label, hint, value, min, max, step, onChange, color = 'blue' }
   )
 }
 
-function PricingCard({ label, value, sub, accent, icon, ajuda }) {
-  return <StatCard label={<>{label}{ajuda && <DicaAjuda id={ajuda} />}</>} value={value} nota={sub} accent={accent ?? 'blue'} icon={icon} valueColor={accent === 'emerald' ? 'var(--success)' : undefined} />
+function PricingCard({ label, value, sub, highlight = false, accent = null, icon: Icon, ajuda, grande = false }) {
+  const lucroCard = accent === 'emerald'
+  const box = highlight
+    ? 'border-blue-500/40 bg-blue-600/15 shadow-[0_0_0_1px_rgb(var(--c-royal) / 0.25),0_8px_28px_-8px_rgb(var(--c-royal) / 0.4)]'
+    : lucroCard
+      ? 'border-emerald-500/30 bg-emerald-500/[0.08]'
+      : 'border-line bg-raise-1'
+  const head  = highlight ? 'text-blue-300'     : lucroCard ? 'text-emerald-300'    : 'text-ink-2'
+  const val   = highlight ? 'text-ink'        : lucroCard ? 'text-emerald-200'    : 'text-ink'
+  const subCl = highlight ? 'text-blue-200/80'  : lucroCard ? 'text-emerald-300/70' : 'text-ink-2'
+  return (
+    <div className={`flex h-full flex-col justify-between gap-3 rounded-xl border p-5 ${box}`}>
+      <div className="flex items-start justify-between gap-2">
+        <p className={`text-xs font-semibold uppercase tracking-wide ${head}`}>
+          {label}{ajuda && <DicaAjuda id={ajuda} />}
+        </p>
+        {Icon && <Icon className={`h-4 w-4 shrink-0 ${head}`} />}
+      </div>
+      <p className={`font-bold leading-none tabular-nums tracking-tight ${grande ? 'text-3xl sm:text-4xl' : 'text-2xl sm:text-3xl'} ${val}`}>{value}</p>
+      {sub && <p className={`mt-0.5 text-xs ${subCl}`}>{sub}</p>}
+    </div>
+  )
 }
 
 export default function Dashboard({ onIrPara }) {
@@ -632,12 +667,13 @@ export default function Dashboard({ onIrPara }) {
           )}
 
           {/* ── KPIs ── */}
-          <KpiBento aria-label="Resumo da carteira">
-            <KpiCard label="Total de Devedores"     value={fmtNum(resumo.total_devedores)}  icon={Users}       accent="blue"    />
-            <KpiCard ajuda="valor-de-face" label="Valor de Face"           value={fmtBRL(resumo.total_em_risco)}   icon={TrendingDown} accent="amber"   />
-            <KpiCard ajuda="score-recuperabilidade" label="Score Médio"             value={resumo.score_medio.toFixed(1)}    icon={BarChart2}    accent="violet"  />
-            <KpiCard ajuda="devedores-prioritarios" label="Devedores Prioritários" value={fmtNum(prioritarios)}                  icon={Star}         accent="emerald" />
-          </KpiBento>
+          <motion.div variants={lista} initial="inicial" animate="entra"
+            className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <motion.div variants={item}><KpiCard label="Total de Devedores"     value={fmtNum(resumo.total_devedores)}  icon={Users}       accent="blue"    /></motion.div>
+            <motion.div variants={item}><KpiCard ajuda="valor-de-face" label="Valor de Face"           value={fmtBRL(resumo.total_em_risco)}   icon={TrendingDown} accent="amber"   /></motion.div>
+            <motion.div variants={item}><KpiCard ajuda="score-recuperabilidade" label="Score Médio"             value={resumo.score_medio.toFixed(1)}    icon={BarChart2}    accent="violet"  /></motion.div>
+            <motion.div variants={item}><KpiCard ajuda="devedores-prioritarios" label="Devedores Prioritários" value={fmtNum(prioritarios)}                  icon={Star}         accent="emerald" /></motion.div>
+          </motion.div>
 
           {/* ── Ciclo de cobrança ──
               As fases não são só faixas de tempo: cada uma tem economia
@@ -783,14 +819,15 @@ export default function Dashboard({ onIrPara }) {
 
                 {/* Duas linhas que ocupam a altura dos parâmetros: em cima os números
                     de base, embaixo (maiores) os dois que decidem a compra. */}
-                <KpiBento aria-label="Precificação da carteira">
-                  <PricingCard ajuda="valor-esperado" label="Valor Esperado de Recuperação" value={fmtBRL(pricing.ver)}
-                    icon={ArrowUpRight} />
-                  <PricingCard label="Após o custo simulado" value={fmtBRL(pricing.liquido)} icon={Percent} />
-                  <PricingCard ajuda="taxa-de-recuperacao" label="Taxa de Recuperação Estimada" value={`${pricing.taxaRecuperacao.toFixed(1)}%`} icon={TrendingUp} />
-                  <PricingCard label="Preço Sugerido de Compra" value={fmtBRL(pricing.preco)} highlight grande icon={Tag} />
-                  <PricingCard label="Lucro Final (simulado)" value={fmtBRL(pricing.lucro)} accent="emerald" grande icon={Banknote} />
-                </KpiBento>
+                <motion.div variants={lista} initial="inicial" animate="entra"
+                  className="grid grid-cols-1 gap-4 sm:grid-cols-6 sm:auto-rows-fr">
+                  <motion.div variants={item} className="sm:col-span-2"><PricingCard ajuda="valor-esperado" label="Valor Esperado de Recuperação" value={fmtBRL(pricing.ver)}
+                    icon={ArrowUpRight} /></motion.div>
+                  <motion.div variants={item} className="sm:col-span-2"><PricingCard label="Após o custo simulado" value={fmtBRL(pricing.liquido)} icon={Percent} /></motion.div>
+                  <motion.div variants={item} className="sm:col-span-2"><PricingCard ajuda="taxa-de-recuperacao" label="Taxa de Recuperação Estimada" value={`${pricing.taxaRecuperacao.toFixed(1)}%`} icon={TrendingUp} /></motion.div>
+                  <motion.div variants={item} className="sm:col-span-3"><PricingCard label="Preço Sugerido de Compra" value={fmtBRL(pricing.preco)} highlight grande icon={Tag} /></motion.div>
+                  <motion.div variants={item} className="sm:col-span-3"><PricingCard label="Lucro Final (simulado)" value={fmtBRL(pricing.lucro)} accent="emerald" grande icon={Banknote} /></motion.div>
+                </motion.div>
               </div>
 
             </section>

@@ -1,5 +1,3 @@
-import StatCard from '../components/StatCard'
-import { KpiBento } from '../components/ui/stats-bento'
 import { useState, useRef, useEffect } from 'react'
 import { lazy, Suspense } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -252,15 +250,25 @@ function ImportacaoLote({ token }) {
 
       {resultado && (
         <div className="space-y-4">
-          <KpiBento aria-label="Resultado da importação de pagamentos">
+          <div className="grid grid-cols-3 gap-3">
             {[
               { label: 'Total',      value: resultado.total,      color: 'slate'   },
               { label: 'Importados', value: resultado.importados, color: 'emerald' },
               { label: 'Erros',      value: resultado.erros,      color: resultado.erros > 0 ? 'red' : 'slate' },
             ].map(({ label, value, color }) => (
-              <StatCard key={label} label={label} value={value} valueColor={color === 'red' ? 'var(--danger)' : color === 'emerald' ? 'var(--success)' : undefined} />
+              <div key={label} className={`rounded-2xl border p-4 text-center ${
+                color === 'emerald' ? 'bg-emerald-500/10 border-emerald-500/20' :
+                color === 'red'     ? 'bg-red-500/10 border-red-500/20' :
+                                      'bg-raise-1 border-line'
+              }`}>
+                <p className={`text-2xl font-bold ${
+                  color === 'emerald' ? 'text-emerald-300' :
+                  color === 'red'     ? 'text-red-300' : 'text-ink'
+                }`}>{value}</p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--ink-2)' }}>{label}</p>
+              </div>
             ))}
-          </KpiBento>
+          </div>
 
           {erros.length > 0 && (
             <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>

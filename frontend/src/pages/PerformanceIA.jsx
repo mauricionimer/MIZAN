@@ -1,5 +1,3 @@
-import StatCard from '../components/StatCard'
-import { KpiBento } from '../components/ui/stats-bento'
 import { useEffect, useState } from 'react'
 import { Brain, Loader2, Target, BarChart3, Activity, MessageSquare, ShieldCheck, CheckCircle2, AlertTriangle, Info } from 'lucide-react'
 import AppShell from '../components/AppShell'
@@ -36,7 +34,15 @@ function Cartao({ icone: Icone, titulo, children }) {
   )
 }
 
-function Numero({ rotulo, valor, nota }) { return <StatCard label={rotulo} value={valor} nota={nota} /> }
+function Numero({ rotulo, valor, nota }) {
+  return (
+    <div>
+      <p className="text-xs" style={{ color: 'var(--ink-3)' }}>{rotulo}</p>
+      <p className="mt-1 text-2xl font-bold tabular-nums tracking-tight text-ink">{valor}</p>
+      {nota && <p className="mt-0.5 text-xs" style={{ color: 'var(--ink-3)' }}>{nota}</p>}
+    </div>
+  )
+}
 
 // A5 — "por que confiar nesta fila?", em linguagem de gerente. Só frases que
 // os números já recebidos sustentam; o que não tem dado não aparece.
@@ -159,12 +165,12 @@ export default function PerformanceIA() {
 
             <Cartao icone={Brain} titulo="Modelo em uso">
               {m?.usando === 'proprio' && ativa ? (
-                <KpiBento>
+                <div className="grid grid-cols-2 gap-5 sm:grid-cols-4">
                   <Numero rotulo="Modelo" valor="Próprio" nota={`treinado em ${fmtData(ativa.criado_em)}`} />
                   <Numero rotulo="KS no teste do treino" valor={metr.ks ?? '—'} nota={leituraKS(metr.ks)} />
                   <Numero rotulo="AUC no teste do treino" valor={metr.auc != null ? metr.auc.toFixed(2) : '—'} />
                   <Numero rotulo="Devedores no treino" valor={ativa.n_amostras?.toLocaleString('pt-BR') ?? '—'} />
-                </KpiBento>
+                </div>
               ) : (
                 <Vazio>A empresa ainda usa o modelo geral do Mizan. Com o histórico de pagamentos da empresa, o modelo é treinado com os dados dela.</Vazio>
               )}
@@ -172,13 +178,13 @@ export default function PerformanceIA() {
 
             <Cartao icone={Target} titulo="Acerto nos pagamentos registrados">
               {q?.ok ? (
-                <KpiBento>
+                <div className="grid grid-cols-2 gap-5 sm:grid-cols-4">
                   <Numero rotulo="KS" valor={q.ks ?? '—'} nota={q.ks_leitura || leituraKS(q.ks)} />
                   <Numero rotulo="AUC" valor={q.auc_roc != null ? Number(q.auc_roc).toFixed(2) : '—'} />
                   <Numero rotulo="Devedores medidos" valor={q.n_amostras?.toLocaleString('pt-BR') ?? '—'} />
                   <Numero rotulo="Pagaram" valor={q.n_pagou?.toLocaleString('pt-BR') ?? '—'}
                     nota={q.n_amostras ? `${((q.n_pagou / q.n_amostras) * 100).toFixed(0)}% dos medidos` : null} />
-                </KpiBento>
+                </div>
               ) : (
                 <Vazio>{q?.motivo || 'Ainda não há pagamentos registrados suficientes para medir o acerto da IA com os dados da empresa.'}</Vazio>
               )}
