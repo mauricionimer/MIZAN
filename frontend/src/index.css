@@ -398,6 +398,12 @@
     isolation: isolate;
     overflow: hidden;
   }
+  .fundo-ondas {
+    /* pano de fundo: desfoque grande e pouca opacidade (escala esconde a borda do blur) */
+    filter: blur(48px);
+    opacity: 0.42;
+    transform: scale(1.12);
+  }
   .login-fundo { position: absolute; inset: 0; z-index: -1; }
   /* véu escuro suave sobre o fundo: dá foco à marca e ao card */
   .login-shell::before {

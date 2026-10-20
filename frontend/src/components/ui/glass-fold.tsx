@@ -17,6 +17,8 @@ export interface GlassFoldProps {
   noise?: number
   /** Light variant: color2 is the light background, color1 the pane body, color3 the lit edges. */
   light?: boolean
+  /** Render scale. 1 is full resolution; lower values draw fewer pixels (cheaper, softer). Defaults to the device pixel ratio, capped at 2. */
+  resolution?: number
   className?: string
 }
 
@@ -142,13 +144,14 @@ export function GlassFold({
   scale = 1,
   noise = 0.12,
   light = false,
+  resolution,
   className,
 }: GlassFoldProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   // the draw loop reads the latest props from here, so changing one never
   // rebuilds the WebGL program
-  const props = useRef({ color1, color2, color3, speed, scale, noise, light })
-  props.current = { color1, color2, color3, speed, scale, noise, light }
+  const props = useRef({ color1, color2, color3, speed, scale, noise, light, resolution })
+  props.current = { color1, color2, color3, speed, scale, noise, light, resolution }
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -186,7 +189,7 @@ export function GlassFold({
     }
 
     const resize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2)
+      const dpr = props.current.resolution ?? Math.min(window.devicePixelRatio || 1, 2)
       const width = Math.max(1, Math.round(canvas.clientWidth * dpr))
       const height = Math.max(1, Math.round(canvas.clientHeight * dpr))
       if (canvas.width !== width || canvas.height !== height) {
