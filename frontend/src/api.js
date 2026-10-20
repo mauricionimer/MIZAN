@@ -200,10 +200,12 @@ export async function analisarCarteira(file, empresaId = null) {
 }
 
 export async function listarCarteiras(opcoes = {}) {
-  // `meus`: só as que a própria pessoa analisou; `limite`: quantas trazer.
+  // `meus`: só as que a própria pessoa analisou; `limite`: quantas trazer;
+  // `empresaId`: o comando escolhe a empresa.
   const query = {}
   if (opcoes.meus) query.meus = true
   if (opcoes.limite) query.limite = opcoes.limite
+  if (opcoes.empresaId) query.empresa_id = opcoes.empresaId
   return pedir('/carteiras', Object.keys(query).length ? { query } : undefined)
 }
 
@@ -706,6 +708,11 @@ export async function publicarNoFaq(token, id, publicar, titulo) {
 // ── Agentes (docs/PLANO_EXECUCAO_AGENTES.md) ─────────────────────────────────
 export async function agenteDevedores(busca, empresaId) {
   return pedir('/agente/devedores', { query: { busca, empresa_id: empresaId } })
+}
+
+// Pastas de devedores: cada uma traz a cor do semáforo (branco, amarelo, vermelho).
+export async function agentePastas({ carteiraId, busca, cor, limit = 24, offset = 0, empresaId } = {}) {
+  return pedir('/agente/pastas', { query: { carteira_id: carteiraId, busca, cor, limit, offset, empresa_id: empresaId } })
 }
 
 export async function agenteCaso(predicaoId, empresaId) {

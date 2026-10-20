@@ -5,7 +5,7 @@ import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'framer-m
 import {
   UploadCloud, KeyRound, LogOut, Loader2, Menu, X,
   Zap, Brain, Command, Lock, HelpCircle, SlidersHorizontal,
-  MessageCircleQuestion, GraduationCap, KeySquare, CalendarClock, Gauge, TrendingUp, Handshake, Bot, LayoutGrid,
+  MessageCircleQuestion, GraduationCap, KeySquare, CalendarClock, Gauge, TrendingUp, Handshake, Bot, LayoutGrid, FolderOpen,
 } from 'lucide-react'
 import ThemeToggle from './ThemeToggle'
 import useAvisosDeDuvida from './useAvisosDeDuvida'
@@ -63,12 +63,14 @@ function useItens() {
     { id: 'pagamentos', label: 'Pagamentos', rota: '/feedback' },
   ] }
   const inicio = { id: 'inicio', label: 'Início', icon: LayoutGrid, rota: '/inicio' }
+  const pastas = { id: 'pastas', label: 'Pastas', icon: FolderOpen, rota: '/pastas' }
   const hoje = { id: 'hoje', label: 'Hoje', icon: CalendarClock, rota: '/agenda', ...avisoAgenda }
 
   const principais = gestor ? [
     inicio,
     hoje,
     carteira,
+    pastas,
     { id: 'agente', label: 'Agentes', icon: Bot, rota: '/agente', prefixo: '/agente' },
     { id: 'resultados', label: 'Resultados', icon: TrendingUp, rota: '/resultados', abas: [
       { id: 'resultados', label: 'Resultados', rota: '/resultados' },
@@ -88,6 +90,7 @@ function useItens() {
     inicio,
     hoje,
     carteira,
+    pastas,
     { id: 'acordos', label: 'Meus acordos', icon: Handshake, rota: '/acordos' },
     { id: 'painel', label: 'Meu painel', icon: Gauge, rota: '/painel' },
     { id: 'ia', label: 'Performance da IA', icon: Brain, rota: '/ia' },

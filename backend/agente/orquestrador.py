@@ -376,6 +376,11 @@ def executar(grafo: Grafo, ctx: Contexto, dono: str = DONO) -> dict:
             except Exception as e:                   # o aviso não pode derrubar a transferência
                 print(f"[Agente] aviso de falha não enviado: {type(e).__name__}")
     _limpar_checkpoint(ctx)
+    try:
+        from agente import semaforo
+        semaforo.atualizar(ctx.caso, agora)             # a cor da pasta acompanha cada rodada do caso
+    except Exception as e:                              # a cor nunca derruba o atendimento
+        print(f"[Agente] semáforo não atualizado: {type(e).__name__}")
     _checkpoint(ctx, "erro" if erro else ctx.caso.get("ultimo_passo"), dono)
     return {"ok": erro is None, "erro": erro, "situacao": ctx.caso["situacao"]}
 

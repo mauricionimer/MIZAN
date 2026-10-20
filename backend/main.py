@@ -8700,6 +8700,118 @@ def agente_devedores(busca: Optional[str] = None, empresa_id: Optional[str] = No
                           for p in res.data or []]}
 
 
+def _cpf_parcial(cpf) -> str:
+    """CPF para a tela de pastas: só o começo e o fim (123.***.***-45)."""
+    d = "".join(c for c in str(cpf or "") if c.isdigit())
+    return f"{d[:3]}.***.***-{d[-2:]}" if len(d) == 11 else ""
+
+
+_COLUNAS_PASTA = "id, nome, cpf, valor_divida, dias_em_atraso, rank, score_recuperabilidade"
+
+
+@app.get("/agente/pastas")
+def agente_pastas(carteira_id: str, busca: Optional[str] = None, cor: Optional[str] = None,
+                  limit: int = Query(24, ge=1, le=60), offset: int = Query(0, ge=0),
+                  empresa_id: Optional[str] = None,
+                  credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Pastas de devedores de uma carteira, com a cor do semáforo (branco, amarelo, vermelho).
+
+    A cor vem dos agentes: regras em código a partir da situação do caso e da
+    leitura da Triagem, mais a avaliação da própria Triagem (agente/semaforo.py).
+    Quem nunca foi acionado não tem caso e é branco. A lista sai dos urgentes
+    para os tranquilos; dentro de cada cor, pela posição na fila. `busca` acha
+    por nome ou CPF; `cor` filtra por uma das três.
+    """
+    from agente import semaforo as sem
+    payload = _usuario_autenticado(credentials)
+    emp = _empresa_do_agente(payload, empresa_id)
+    db = get_db()
+    _exige_carteira_da_empresa(db, carteira_id, payload)
+    cor = (cor or "").strip().lower() or None
+    if cor and cor not in sem.CORES:
+        raise HTTPException(status_code=422, detail="cor deve ser branco, amarelo ou vermelho.")
+
+    casos: dict = {}
+    ligado = False
+    try:
+        from agente import api as agente_api
+        ligado = agente_api.ligado()
+        if ligado:
+            for c in agente_api.fabrica_repo().casos_da_empresa(emp):
+                casos[str(c["predicao_id"])] = c
+    except Exception as e:                       # sem a tabela dos agentes, todos aparecem como brancos
+        print(f"[Pastas] casos dos agentes indisponíveis: {type(e).__name__}")
+    destaque = {}
+    for pid, c in casos.items():
+        t = sem.para_tela(c)
+        if t["cor"] != "branco":
+            destaque[pid] = t
+
+    alvo = (busca or "").strip().replace("*", "").replace(",", "").replace("(", "").replace(")", "")
+
+    def com_busca(q):
+        return q.or_(f"nome.ilike.*{alvo}*,cpf.ilike.*{alvo}*") if alvo else q
+
+    def base(colunas, **k):
+        return com_busca(db.table("predicoes").select(colunas, **k).eq("carteira_id", carteira_id))
+
+    total_busca = base("id", count="exact").limit(1).execute().count or 0
+    linhas_d = []
+    ids = list(destaque)
+    for i in range(0, len(ids), ITENS_POR_IN):
+        linhas_d += (com_busca(db.table("predicoes").select(_COLUNAS_PASTA).eq("carteira_id", carteira_id)
+                               .in_("id", ids[i:i + ITENS_POR_IN])).execute().data or [])
+    ordem = lambda l: (-sem.ORDEM[destaque[l["id"]]["cor"]], l.get("rank") is None, l.get("rank") or 0)
+    linhas_d.sort(key=ordem)
+    n_v = sum(1 for l in linhas_d if destaque[l["id"]]["cor"] == "vermelho")
+    n_a = sum(1 for l in linhas_d if destaque[l["id"]]["cor"] == "amarelo")
+    n_b = max(0, total_busca - n_v - n_a)
+
+    def brancos(off: int, lim: int) -> list:
+        if lim <= 0:
+            return []
+        achados = {l["id"] for l in linhas_d}
+        if len(achados) <= 100:                  # poucos destaques: o banco já tira da página
+            q = base(_COLUNAS_PASTA)
+            if achados:
+                q = q.not_.in_("id", list(achados))
+            return q.order("rank").range(off, off + lim - 1).execute().data or []
+        # Muitos destaques: lê só id/rank da fila, tira os destacados e fatia.
+        leves = _todas_as_linhas(lambda: base("id, rank"))
+        leves.sort(key=lambda l: (l.get("rank") is None, l.get("rank") or 0, l["id"]))
+        pagina = [l["id"] for l in leves if l["id"] not in achados][off:off + lim]
+        saida = []
+        for i in range(0, len(pagina), ITENS_POR_IN):
+            saida += db.table("predicoes").select(_COLUNAS_PASTA).in_("id", pagina[i:i + ITENS_POR_IN]).execute().data or []
+        saida.sort(key=lambda l: (l.get("rank") is None, l.get("rank") or 0, l["id"]))
+        return saida
+
+    if cor in ("vermelho", "amarelo"):
+        lista = [l for l in linhas_d if destaque[l["id"]]["cor"] == cor]
+        pagina, filtrado = lista[offset:offset + limit], len(lista)
+    elif cor == "branco":
+        pagina, filtrado = brancos(offset, limit), n_b
+    else:
+        pagina = linhas_d[offset:offset + limit]
+        pagina += brancos(max(0, offset - len(linhas_d)), limit - len(pagina))
+        filtrado = total_busca
+
+    itens = []
+    for l in pagina:
+        c = casos.get(str(l["id"]))
+        itens.append({
+            "id": l["id"], "nome": l.get("nome"), "cpf": _cpf_parcial(l.get("cpf")), "rank": l.get("rank"),
+            "valor_divida": l.get("valor_divida"), "dias_em_atraso": l.get("dias_em_atraso"),
+            "score": l.get("score_recuperabilidade"),
+            "semaforo": destaque.get(str(l["id"])) or sem.para_tela(c),
+            "situacao": (c or {}).get("situacao"),
+            "arquivos": sem.arquivos(c),
+        })
+    return _sem_nan({"itens": itens, "filtrado": filtrado, "offset": offset, "limit": limit,
+                     "contagem": {"vermelho": n_v, "amarelo": n_a, "branco": n_b, "total": total_busca},
+                     "agente_ligado": ligado})
+
+
 @app.get("/agente/casos/{predicao_id}")
 def agente_caso(predicao_id: str, empresa_id: Optional[str] = None,
                 credentials: HTTPAuthorizationCredentials = Security(bearer)):

@@ -96,9 +96,11 @@ function Passos({ passos }) {
 }
 
 function Conversa({ empresa }) {
+  const [params] = useSearchParams()
   const [busca, setBusca] = useState('')
   const [devedores, setDevedores] = useState([])
-  const [escolhido, setEscolhido] = useState(null)
+  // Vindo de uma pasta de devedor (?caso=<id>&nome=<nome>): abre direto no caso.
+  const [escolhido, setEscolhido] = useState(() => params.get('caso') ? { id: params.get('caso'), nome: params.get('nome') || 'Devedor' } : null)
   const [dados, setDados] = useState(null)
   const [texto, setTexto] = useState('')
   const [enviando, setEnviando] = useState(false)

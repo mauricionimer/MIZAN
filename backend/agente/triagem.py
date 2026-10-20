@@ -21,7 +21,7 @@ import re
 import unicodedata
 from datetime import date
 
-VERSAO_PROMPT = "triagem-v5"            # v2: data e contexto; v3: emoção, urgência, ironia e resumo; v5: regras mais precisas, CPF mascarado
+VERSAO_PROMPT = "triagem-v6"            # v2: data e contexto; v3: emoção, urgência, ironia e resumo; v5: regras mais precisas, CPF mascarado; v6: semáforo (branco/amarelo/vermelho)
 MAX_CARACTERES = 2000
 
 INTENCOES = ("pagar_negociar", "ja_paguei", "contestar", "parar_contato", "pessoa_errada",
@@ -30,6 +30,7 @@ SINAIS = ("manipulacao", "sofrimento_grave", "agressividade")
 EMOCOES = ("calmo", "ansioso", "irritado", "triste", "desesperado")
 URGENCIAS = ("baixa", "media", "alta")
 PADRAO_LEITURA = {"emocao": "calmo", "urgencia": "baixa", "ironia": False, "resumo": ""}
+SEMAFOROS = ("branco", "amarelo", "vermelho")
 
 # Intenções em que a regra de segurança vence a IA.
 SEGURANCA = ("parar_contato", "pessoa_errada", "contestar", "pedir_pessoa")
@@ -145,6 +146,12 @@ Responda APENAS com um objeto JSON, sem texto antes ou depois, com os campos:
 - "ironia": true se a mensagem diz o contrário do que quer dizer (ex.: "ah claro, vou pagar com o
   dinheiro que eu não tenho"); senão false
 - "resumo": uma frase curta do que a pessoa quer, sem nomes, números de documento ou endereço
+- "semaforo": a cor da atenção que este devedor pede agora, um de ["branco", "amarelo", "vermelho"]:
+  "vermelho" = precisa de atenção agora (urgência alta, desespero ou raiva forte, ameaça de reclamar ou
+  processar, contestação ou fraude, pedido de uma pessoa, medo de negativação com pressa);
+  "amarelo" = em andamento (negociando, pedindo condições, ansioso, com dúvida real);
+  "branco" = tranquilo (saudação, confirmação de identidade, mensagem sem pendência)
+- "semaforo_motivo": o motivo da cor em poucas palavras, sem nomes nem números de documento
 O que cada intenção significa:
 - pagar_negociar: quer pagar, saber o valor, parcelar, propor data ou valor
 - ja_paguei: diz que já pagou
@@ -174,7 +181,9 @@ def _leitura(d: dict) -> dict:
     return {"emocao": emocao if emocao in EMOCOES else "calmo",
             "urgencia": urgencia if urgencia in URGENCIAS else "baixa",
             "ironia": d.get("ironia") is True,
-            "resumo": limpar_nota(d.get("resumo") if isinstance(d.get("resumo"), str) else "", 140)}
+            "resumo": limpar_nota(d.get("resumo") if isinstance(d.get("resumo"), str) else "", 140),
+            "semaforo": (str(d.get("semaforo") or "").strip().lower() if str(d.get("semaforo") or "").strip().lower() in SEMAFOROS else None),
+            "semaforo_motivo": limpar_nota(d.get("semaforo_motivo") if isinstance(d.get("semaforo_motivo"), str) else "", 80)}
 
 
 def _validar(bruto: str) -> dict:
@@ -254,7 +263,10 @@ def classificar(ctx, texto: str) -> dict:
         # Regra de segurança acertou: não gasta IA e não deixa a IA desfazer.
         out = {"intencao": r["intencao"], "confianca": 1.0, "valores_citados": [], "datas_citadas": [],
                "sinais_de_risco": r["sinais"], "origem": "regra", **PADRAO_LEITURA,
-               "emocao": "desesperado" if "sofrimento_grave" in r["sinais"] else "calmo"}
+               "emocao": "desesperado" if "sofrimento_grave" in r["sinais"] else "calmo",
+               "semaforo": "amarelo" if r["intencao"] == "parar_contato" else "vermelho",
+               "semaforo_motivo": {"parar_contato": "pediu para parar o contato", "pessoa_errada": "diz ser a pessoa errada",
+                                   "contestar": "contestou a dívida", "pedir_pessoa": "pediu uma pessoa"}[r["intencao"]]}
     else:
         resp = ctx.ia("triagem", SISTEMA,
                       [{"role": "user", "content": f"{_contexto(ctx)}<mensagem_do_devedor>{como_dado(mascarar(texto))}</mensagem_do_devedor>"}],
@@ -272,10 +284,12 @@ def classificar(ctx, texto: str) -> dict:
         out["origem"] = "modelo"
         if "sofrimento_grave" in r["sinais"]:
             out["emocao"] = "desesperado"                 # a regra vence a leitura da IA
+            out["semaforo"], out["semaforo_motivo"] = "vermelho", "sinal de sofrimento grave"
     ctx.saida["triagem"] = out
-    from agente import passagem
+    from agente import passagem, semaforo
     if getattr(ctx, "caso", None) is not None:
         passagem.anotar_valores(ctx.caso, out.get("valores_citados"))
+        semaforo.guardar_leitura(ctx.caso, out, getattr(ctx, "agora", None))
     fora_do_normal = (out["emocao"] in ("irritado", "desesperado") or out["urgencia"] == "alta" or out["ironia"])
     if out["intencao"] in SEGURANCA or out["sinais_de_risco"] or fora_do_normal:
         # Só o que muda o rumo do caso vai para o caderno.

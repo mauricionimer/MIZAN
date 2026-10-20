@@ -64,6 +64,13 @@ function Arte({ tipo }) {
           ))}
         </g>
       )}
+      {tipo === 'pastas' && (
+        <g {...traco}>
+          <path d="M86 52h52l14 16h82a10 10 0 0 1 10 10v50a10 10 0 0 1-10 10H86a10 10 0 0 1-10-10V62a10 10 0 0 1 10-10z" opacity="0.35" />
+          <circle cx="118" cy="104" r="7" fill="#d92d20" stroke="none" /><circle cx="146" cy="104" r="7" fill="#e8b23c" stroke="none" />
+          <circle cx="174" cy="104" r="7" fill="currentColor" opacity="0.5" stroke="none" />
+        </g>
+      )}
       {tipo === 'acordos' && (
         <g {...traco}>
           <rect x="96" y="30" width="128" height="100" rx="12" opacity="0.35" />
@@ -97,11 +104,13 @@ function blocosDoPerfil({ gestor, comando, agenda }) {
   const aviso = agenda.alto > 0 ? `${agenda.alto} ${agenda.alto === 1 ? 'vencido' : 'vencidos'}`
               : agenda.medio > 0 ? `${agenda.medio} para hoje` : null
   const hoje = { id: 'hoje', to: '/agenda', eyebrow: 'Hoje', title: 'Agenda', arte: 'hoje', badge: comando ? null : aviso,
-    description: 'Compromissos, retornos e atendimentos do dia, com o que está vencido em destaque.', className: 'lg:col-span-3' }
+    description: 'Compromissos, retornos e atendimentos do dia, com o que está vencido em destaque.', className: 'lg:col-span-2' }
   const carteira = { id: 'carteira', to: '/', eyebrow: 'Carteira', title: 'Análise e painel da carteira', arte: 'carteira',
-    description: 'Suba ou conecte a carteira, veja quem cobrar primeiro e acompanhe os pagamentos.', className: 'lg:col-span-3' }
+    description: 'Suba ou conecte a carteira, veja quem cobrar primeiro e acompanhe os pagamentos.', className: 'lg:col-span-2' }
+  const pastas = { id: 'pastas', to: '/pastas', eyebrow: 'Devedores', title: 'Pastas de devedores', arte: 'pastas',
+    description: 'Uma pasta por devedor, com a cor do agente: branca, amarela ou vermelha. Com busca.', className: 'lg:col-span-2' }
   const lista = gestor ? [
-    hoje, carteira,
+    hoje, carteira, pastas,
     { id: 'agente', to: '/agente', eyebrow: 'Agentes', title: 'Equipe de agentes de IA', arte: 'agentes',
       description: 'Veja os agentes trabalhando, as conversas e as regras do Auditor.', className: 'lg:col-span-2' },
     { id: 'resultados', to: '/resultados', eyebrow: 'Resultados', title: 'O que a cobrança recuperou', arte: 'resultados',
@@ -109,7 +118,7 @@ function blocosDoPerfil({ gestor, comando, agenda }) {
     { id: 'config', to: '/ofertas', eyebrow: 'Configurações', title: 'Ofertas e política de cobrança', arte: 'config',
       description: 'Ofertas, política, usuários, auditoria e simulação histórica.', className: 'lg:col-span-2' },
   ] : [
-    hoje, carteira,
+    hoje, carteira, pastas,
     { id: 'acordos', to: '/acordos', eyebrow: 'Acordos', title: 'Meus acordos', arte: 'acordos',
       description: 'Acordos firmados e o que já foi pago.', className: 'lg:col-span-2' },
     { id: 'painel', to: '/painel', eyebrow: 'Painel', title: 'Meu painel', arte: 'painel',
