@@ -133,10 +133,7 @@ export default function Login() {
 
         {/* Card do formulário */}
         <div className="login-card">
-          <h1 className="login-title">
-            <span className="login-title-halo" aria-hidden="true" />
-            <span className="relative">Entrar</span>
-          </h1>
+          <h1 className="login-title">Entrar</h1>
 
           <form onSubmit={handleSubmit} className="space-y-5 mt-7">
             {sessionExpirada && (
