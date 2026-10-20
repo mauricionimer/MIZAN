@@ -571,16 +571,6 @@
     color: var(--glass-ink);
     display: inline-block;
   }
-  /* destaque nítido: filete em degradê da marca sob o título, sem desfoque */
-  .login-title::after {
-    content: '';
-    display: block;
-    width: 44px;
-    height: 3px;
-    margin-top: 10px;
-    border-radius: 3px;
-    background: linear-gradient(90deg, #5966d9, #b8c0ee);
-  }
   .login-label {
     display: block;
     font-size: 13px;
