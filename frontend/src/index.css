@@ -412,11 +412,19 @@
      marca passa a escura para continuar legível. */
   :root[data-theme='light'] .login-shell::before { background: transparent; }
   :root[data-theme='light'] .login-brand-word { color: #1a0033; text-shadow: 0 2px 24px rgba(255, 255, 255, 0.5); }
-  :root[data-theme='light'] .login-brand-mark { filter: brightness(0.72) saturate(1.3) drop-shadow(0 4px 14px rgba(26, 0, 51, 0.25)); }
+  :root[data-theme='light'] .login-brand-mark { filter: drop-shadow(0 4px 14px rgba(26, 0, 51, 0.18)); }
+  /* barras do símbolo no tema claro: do índigo médio ao índigo profundo, em
+     vez dos tons pastel (que somem no fundo lavanda) */
+  :root[data-theme='light'] .login-brand-mark polygon:nth-of-type(1) { fill: #6370e4; }
+  :root[data-theme='light'] .login-brand-mark polygon:nth-of-type(2) { fill: #3f4ed6; }
+  :root[data-theme='light'] .login-brand-mark polygon:nth-of-type(3) { fill: #232c9f; }
   @media (prefers-color-scheme: light) {
     :root:not([data-theme='dark']) .login-shell::before { background: transparent; }
     :root:not([data-theme='dark']) .login-brand-word { color: #1a0033; text-shadow: 0 2px 24px rgba(255, 255, 255, 0.5); }
-    :root:not([data-theme='dark']) .login-brand-mark { filter: brightness(0.72) saturate(1.3) drop-shadow(0 4px 14px rgba(26, 0, 51, 0.25)); }
+    :root:not([data-theme='dark']) .login-brand-mark { filter: drop-shadow(0 4px 14px rgba(26, 0, 51, 0.18)); }
+    :root:not([data-theme='dark']) .login-brand-mark polygon:nth-of-type(1) { fill: #6370e4; }
+    :root:not([data-theme='dark']) .login-brand-mark polygon:nth-of-type(2) { fill: #3f4ed6; }
+    :root:not([data-theme='dark']) .login-brand-mark polygon:nth-of-type(3) { fill: #232c9f; }
   }
   .login-stack {
     position: relative;
