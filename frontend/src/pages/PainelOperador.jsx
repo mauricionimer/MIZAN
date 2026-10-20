@@ -7,6 +7,7 @@ import AppShell from '../components/AppShell'
 import DicaAjuda from '../components/DicaAjuda'
 import ErroCarga from '../components/ErroCarga'
 import StatCard from '../components/StatCard'
+import { KpiBento } from '../components/ui/stats-bento'
 import { useAuth } from '../context/AuthContext'
 import { buscarPainelOperador, buscarPainelEquipe, buscarPainelDeUmOperador, listarEmpresas } from '../api'
 
@@ -65,7 +66,7 @@ function MeusNumeros({ d }) {
           <BarraMeta feitos={d.contatos_hoje} meta={d.meta_dia} />
         </div>
       ) : null}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <KpiBento>
         <Cartao i={0} icone={PhoneOutgoing} rotulo="Contatos feitos" valor={fmtNum(d.contatos)}
           nota={d.contatos ? `${fmtNum(d.contatos_efetivos)} efetivos · ${fmtPct(d.taxa_contato_efetivo)}` : 'Nenhum contato no período'} />
         <Cartao i={1} icone={Handshake} rotulo="Acordos fechados" valor={fmtNum(d.acordos)} cor="text-warning"
@@ -75,7 +76,7 @@ function MeusNumeros({ d }) {
         <Cartao i={3} icone={Gauge} rotulo="Promessas" valor={`${fmtNum(d.promessas_cumpridas)} pagas`} cor="text-ink-2"
           nota={`${fmtNum(d.promessas_quebradas)} não pagas · ${fmtNum(d.promessas_pendentes)} pendentes`}
           link={d.promessas_pendentes > 0 ? { to: '/agenda', label: 'Ver na Agenda' } : null} />
-      </div>
+      </KpiBento>
     </>
   )
 }
@@ -101,7 +102,7 @@ function Individual({ id, periodo, empresa, onVoltar }) {
       {d && (
         <>
           <h2 className="text-base font-semibold text-ink">{d.operador.nome}</h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiBento>
             <Cartao i={0} icone={PhoneOutgoing} rotulo="Contatos" valor={fmtNum(d.contatos)}
               nota={d.contatos ? `${fmtPct(d.taxa_contato_efetivo)} efetivos` : 'Nenhum contato no período'} />
             <Cartao i={1} icone={Target} rotulo="Devedores trabalhados" valor={fmtNum(d.devedores_trabalhados)} cor="text-accent-text" nota="Devedores diferentes contatados" />
@@ -114,7 +115,7 @@ function Individual({ id, periodo, empresa, onVoltar }) {
               nota={o.ativo ? `${fmtNum(o.aceitas)} aceitas · ${fmtNum(o.vai_pensar)} a pensar · ${fmtNum(o.recusadas)} recusadas` : 'Disponível após ativar o histórico de ofertas'} />
             <Cartao i={6} icone={ArrowRight} rotulo="Retornos marcados" valor={r.ativo ? fmtNum(r.marcados) : '—'} cor="text-warning"
               nota={r.ativo ? `${fmtNum(r.feitos)} feitos · ${fmtNum(r.pendentes)} pendentes` : 'Disponível com a Agenda ativa'} />
-          </div>
+          </KpiBento>
         </>
       )}
     </section>
@@ -125,7 +126,7 @@ function Equipe({ d, comando, onAbrir }) {
   const t = d.total
   return (
     <>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <KpiBento>
         <Cartao i={0} icone={PhoneOutgoing} rotulo="Contatos da equipe" valor={fmtNum(t.contatos)}
           nota={t.contatos ? `${fmtPct(t.taxa_contato_efetivo)} efetivos` : 'Nenhum contato no período'} />
         <Cartao i={1} icone={Handshake} rotulo="Acordos fechados" valor={fmtNum(t.acordos)} cor="text-warning"
@@ -135,7 +136,7 @@ function Equipe({ d, comando, onAbrir }) {
         <Cartao i={3} icone={Gauge} rotulo="Promessas" valor={`${fmtNum(t.promessas_cumpridas)} pagas`} cor="text-ink-2"
           nota={`${fmtNum(t.promessas_quebradas)} não pagas · ${fmtNum(t.promessas_pendentes)} pendentes`}
           link={t.promessas_pendentes > 0 && !comando ? { to: '/agenda', label: 'Ver na Agenda' } : null} />
-      </div>
+      </KpiBento>
       <section className="overflow-hidden rounded-xl border border-line bg-surface">
         <div className="border-b border-line px-5 py-3">
           <h2 className="section-label">Por operador <span className="font-normal normal-case tracking-normal text-ink-2">· clique no nome para ver o desempenho individual</span></h2>

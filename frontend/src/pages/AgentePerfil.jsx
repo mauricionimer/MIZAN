@@ -5,6 +5,7 @@ import { ArrowLeft, Loader2 } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import ErroCarga from '../components/ErroCarga'
 import StatCard from '../components/StatCard'
+import { KpiBento } from '../components/ui/stats-bento'
 import { Retrato, MESAS, TIMES } from '../components/EscritorioAgentes'
 import { COR_AGENTE } from './Agente'
 import { useAuth } from '../context/AuthContext'
@@ -52,12 +53,12 @@ function SinaisEquipe({ s }) {
   return (
     <section className="mt-5 rounded-xl border border-line bg-surface p-4">
       <h2 className="text-sm font-semibold text-ink">Passagens para a equipe · {s.dias} dias</h2>
-      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <KpiBento>
         <Numero rotulo="Passagens" valor={s.passagens} />
         <Numero rotulo="Resumo ajudou" valor={s.nota_supervisor != null ? `${Math.round(s.nota_supervisor * 100)}% (${s.retornos})` : '—'} />
         <Numero rotulo="Disse quanto pode" valor={s.com_valor_dito} />
         <Numero rotulo="Nada coube" valor={s.nao_coube} />
-      </div>
+      </KpiBento>
       <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-ink-2">
         {motivos.map(([m, n]) => <span key={m}>{MOTIVO[m] || m}: <b className="text-ink">{n}</b></span>)}
         {s.valor_pedido_quando_nao_coube != null && (
@@ -105,12 +106,12 @@ export default function AgentePerfil() {
         {!d && !erro && <div className="flex items-center gap-2 p-6 text-sm text-ink-2"><Loader2 className="h-4 w-4 animate-spin" /> carregando…</div>}
         {d && (
           <>
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <KpiBento>
               <Numero rotulo="Ações (24 h)" valor={d.acoes} />
               <Numero rotulo="Bloqueios" valor={d.bloqueios} />
               <Numero rotulo={d.papel ? 'Sem IA (reserva)' : 'Erros'} valor={d.papel ? d.sem_ia : d.erros} />
               <Numero rotulo="Tempo médio" valor={d.tempo_medio_ms != null ? `${(d.tempo_medio_ms / 1000).toFixed(1).replace('.', ',')} s` : '—'} />
-            </div>
+            </KpiBento>
 
             <div className="grid gap-5 md:grid-cols-[1fr_2fr]">
               <section className="rounded-xl border border-line bg-surface p-4">

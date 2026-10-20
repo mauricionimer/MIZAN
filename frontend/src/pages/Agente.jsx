@@ -7,6 +7,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import ErroCarga from '../components/ErroCarga'
 import StatCard from '../components/StatCard'
+import { KpiBento } from '../components/ui/stats-bento'
 import EscritorioAgentes, { Retrato } from '../components/EscritorioAgentes'
 import FichaPassagem, { SeloPrioridade } from '../components/FichaPassagem'
 import { useAuth } from '../context/AuthContext'
@@ -299,7 +300,7 @@ function Central({ empresa }) {
         <span className="text-xs text-ink-2">{avisoRelogio || 'O servidor roda sozinho a cada 10 minutos: lembretes, atrasos e pagamentos.'}</span>
       </div>
       <ErroCarga erro={erro} onTentar={carregar} />
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+<KpiBento>
         <Cartao icone={Power} rotulo="Agente" valor={c.ligado ? 'Ligado' : 'Desligado'} cor={c.ligado ? 'var(--success)' : 'var(--ink-3)'}
           nota={isComando ? `IA: ${c.cliente} · triagem ${c.modelos.triagem} · conversa ${c.modelos.negociador}` : undefined} />
         {isComando && (
@@ -310,7 +311,7 @@ function Central({ empresa }) {
           nota={c.politica.regras ? `desconto até ${c.politica.regras.desconto_max_pct}% · até ${c.politica.regras.parcelas_max}x` : 'sem política, só ações de segurança passam'} />
         <Cartao icone={AlertTriangle} rotulo="Falharam" valor={ev.falhou || 0} cor={ev.falhou ? 'var(--danger)' : 'var(--ink-3)'}
           nota={`${ev.pendente || 0} na fila · ${ev.processando || 0} em andamento · ${ev.feito || 0} feitos`} />
-      </div>
+      </KpiBento>
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="rounded-xl border border-line bg-surface p-4">
           <h2 className="mb-3 text-sm font-semibold text-ink">Casos por situação</h2>
@@ -680,7 +681,7 @@ function AoVivo({ empresa }) {
   const porNome = Object.fromEntries((r?.agentes || []).map(a => [a.nome, a]))
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+<KpiBento>
         <Numero rotulo="Conversas (24 h)" valor={n ? n.conversas : '—'} detalhe={n ? `${n.respostas} respostas` : null} />
         <Numero rotulo="Acordos (24 h)" valor={n ? n.acordos : '—'} />
         <Numero rotulo="Bloqueios (24 h)" valor={n ? n.bloqueios : '—'} detalhe="Auditor e travas" />
@@ -688,7 +689,7 @@ function AoVivo({ empresa }) {
           <Numero rotulo="Gasto de IA hoje" valor={n ? usd(n.custo_hoje_usd) : '—'} detalhe={n ? `teto ${usd(n.teto_dia_usd)}` : null}
             barra={n && n.teto_dia_usd ? n.custo_hoje_usd / n.teto_dia_usd : null} />
         )}
-      </div>
+      </KpiBento>
       <EscritorioAgentes empresa={empresa} cores={COR_AGENTE} nomeEmpresa={empresaConfig?.nome_exibicao} resumos={r?.agentes} onPerfil={abrir} />
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {NOMES_AGENTES.map(nome => {

@@ -8,6 +8,7 @@
 import { Link } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { BentoStat, useVarianteKpi } from './ui/stats-bento'
 
 const ACCENT = {
   default: 'var(--text-muted)',
@@ -25,7 +26,11 @@ export default function StatCard({
   link,                 // { to, label }: atalho no rodapé do card (opcional)
   i,                    // índice para o efeito cascata de entrada (opcional)
 }) {
+  const variante = useVarianteKpi()
   const corFinal = cor ?? (ACCENT[accent] ?? ACCENT.default)
+  if (variante) {
+    return <BentoStat variante={variante} label={label} value={value} icon={Icon} cor={corFinal} corClasse={corClasse} nota={nota} barra={barra} link={link} />
+  }
   const temAnimacao = i != null
   const Wrapper = temAnimacao ? motion.div : 'div'
   const propsAnimacao = temAnimacao

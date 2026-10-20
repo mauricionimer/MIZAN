@@ -7,6 +7,7 @@ import AppShell from '../components/AppShell'
 import DicaAjuda from '../components/DicaAjuda'
 import ErroCarga from '../components/ErroCarga'
 import StatCard from '../components/StatCard'
+import { KpiBento } from '../components/ui/stats-bento'
 import { useAuth } from '../context/AuthContext'
 import { buscarResultados, listarEmpresas } from '../api'
 
@@ -214,12 +215,12 @@ export default function Resultados() {
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+                <KpiBento>
                   <Numero i={0} icone={ClipboardCheck} rotulo="Registros" valor={fmtNum(t.registros)} nota="pagou e não pagou" />
                   <Numero i={1} icone={Percent} rotulo="Taxa de pagamento" valor={fmtPct(t.taxa_pagamento)} nota={`${fmtNum(t.pagos)} pagaram`} />
                   <Numero i={2} icone={Banknote} rotulo="Recuperado" valor={fmtBRL(t.recuperado)} />
                   <Numero i={3} icone={Receipt} rotulo="Ticket médio" valor={fmtBRL(t.ticket_medio)} nota="por pagamento" />
-                </div>
+                </KpiBento>
 
                 <section className="rounded-xl border border-line bg-surface">
                   <div className="flex gap-1 overflow-x-auto border-b border-line p-1.5" role="tablist" aria-label="Corte">

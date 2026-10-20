@@ -404,6 +404,24 @@
     opacity: 0.42;
     transform: scale(1.12);
   }
+  /* ── KPIs em bento (components/ui/stats-bento.tsx) ── */
+  .bento-kpi { border-radius: 22px; padding: 24px; }
+  .bento-kpi--destaque {
+    background: linear-gradient(135deg, var(--royal), color-mix(in srgb, var(--royal) 55%, #1a0033));
+    color: #fff;
+    min-height: 11rem;
+  }
+  .bento-kpi-trama {
+    background: repeating-linear-gradient(45deg, rgba(255,255,255,.55) 0 1px, transparent 1px 10px);
+    opacity: .16;
+    -webkit-mask-image: radial-gradient(ellipse 80% 55% at 100% 0%, #000 65%, transparent 110%);
+    mask-image: radial-gradient(ellipse 80% 55% at 100% 0%, #000 65%, transparent 110%);
+  }
+  .bento-kpi-icone { display: inline-flex; padding: 6px; border-radius: 999px; background: rgba(255,255,255,.16); }
+  .bento-kpi--largo, .bento-kpi--pequeno { background: var(--card); border: 1px solid var(--border-subtle); }
+  .bento-kpi--largo { padding: 22px 24px; }
+  .bento-kpi--pequeno { padding: 18px 20px; border-radius: 18px; }
+
   /* ── Hub de entrada ── */
   .hub-titulo { font-family: var(--font-display); font-weight: 700; font-size: clamp(30px, 4vw, 44px); letter-spacing: -0.02em; color: var(--ink); }
   .hub-sub { margin-top: 6px; font-size: 18px; color: var(--ink-2); }
