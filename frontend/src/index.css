@@ -407,8 +407,8 @@
   /* ── KPIs em bento (components/ui/stats-bento.tsx) ── */
   .bento-kpi { border-radius: 22px; padding: 24px; }
   .bento-kpi--destaque {
-    background: linear-gradient(135deg, var(--royal), color-mix(in srgb, var(--royal) 55%, #1a0033));
-    color: #fff;
+    background: var(--royal);
+    color: var(--on-brand);
     min-height: 11rem;
   }
   .bento-kpi-trama {
@@ -421,6 +421,10 @@
   .bento-kpi--largo, .bento-kpi--pequeno { background: var(--card); border: 1px solid var(--border-subtle); }
   .bento-kpi--largo { padding: 22px 24px; }
   .bento-kpi--pequeno { padding: 18px 20px; border-radius: 18px; }
+  .bento-kpi { min-width: 0; }
+  .bento-kpi-value { overflow-wrap: anywhere; }
+  .bento-stats > *, .bento-stats .bento-kpi { min-width: 0; }
+  .bento-kpi:focus-within { outline: 2px solid var(--accent-text); outline-offset: 3px; }
 
   /* ── Hub de entrada ── */
   .hub-titulo { font-family: var(--font-display); font-weight: 700; font-size: clamp(30px, 4vw, 44px); letter-spacing: -0.02em; color: var(--ink); }

@@ -1,3 +1,5 @@
+import StatCard from '../components/StatCard'
+import { KpiBento } from '../components/ui/stats-bento'
 // O1 — Ofertas: o catálogo da empresa, editável, e a alçada do operador.
 import { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -250,13 +252,13 @@ export default function Ofertas() {
                           className="h-8 w-28 rounded-md border border-line bg-surface px-2 text-right text-sm tabular-nums text-ink" />
                       </div>
                     </div>
-                    <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <KpiBento aria-label="Valores da oferta simulada">
                       {[['Valor negociado', brl(conta.valor_negociado)],
                         ...(n > 1 ? [['Entrada', brl(conta.entrada)], [`${n} parcelas de`, brl(conta.parcela)]] : [['Pagamento único', brl(conta.parcela)]]),
                         ['Total pago', brl(conta.total_pago)]].map(([k, v]) => (
-                        <div key={k}><dt className="text-xs text-ink-2">{k}</dt><dd className="text-base font-semibold tabular-nums text-ink">{v}</dd></div>
+                        <StatCard key={k} label={k} value={v} />
                       ))}
-                    </dl>
+                    </KpiBento>
                     <p className="mt-3 text-xs text-ink-2">
                       Aprende junto com ofertas parecidas (<strong className="font-semibold text-ink">{NOME_FAMILIA[fam]}</strong>): a chance de pagar começa pelo histórico delas.
                       {conta.juros_total > 0 && ` Juros somam ${brl(conta.juros_total)} e não contam como recuperação.`}

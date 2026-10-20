@@ -1,3 +1,5 @@
+import StatCard from '../components/StatCard'
+import { KpiBento } from '../components/ui/stats-bento'
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -37,26 +39,7 @@ function Logo() {
   return <LogoMark className="h-5 w-5 shrink-0" />
 }
 
-function LocalStatCard({ label, value, sub, icon: Icon, accent = 'blue' }) {
-  const colors = {
-    blue:    { bg: 'rgb(var(--c-royal) / 0.15)', cor: 'rgb(var(--c-royal))' },
-    emerald: { bg: 'rgb(var(--c-success) / 0.15)', cor: 'var(--success)' },
-    amber:   { bg: 'rgb(var(--c-warning) / 0.15)', cor: 'var(--warning)' },
-    slate:   { bg: 'var(--raise-3)', cor: MUTED_LIGHT },
-  }[accent]
-  return (
-    <div className="rounded-2xl p-5 flex gap-4 items-start" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
-      <div className="rounded-xl p-2.5 shrink-0" style={{ background: colors.bg, color: colors.cor }}>
-        <Icon className="h-4 w-4" />
-      </div>
-      <div className="min-w-0">
-        <p className="section-label">{label}</p>
-        <p className="text-xl font-bold text-ink mt-1 leading-tight">{value}</p>
-        {sub && <p className="text-xs mt-0.5" style={{ color: MUTED }}>{sub}</p>}
-      </div>
-    </div>
-  )
-}
+function LocalStatCard({ label, value, sub, icon, accent }) { return <StatCard label={label} value={value} nota={sub} icon={icon} accent={accent} /> }
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
@@ -177,7 +160,7 @@ export default function BanditDashboard() {
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <KpiBento>
               <LocalStatCard
                 label="Total de interações"
                 value={dados.total_interacoes.toLocaleString('pt-BR')}
@@ -206,7 +189,7 @@ export default function BanditDashboard() {
                 icon={Award}
                 accent="amber"
               />
-            </div>
+            </KpiBento>
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               <div className="rounded-2xl p-6" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>

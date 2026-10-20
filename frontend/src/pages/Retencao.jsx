@@ -10,6 +10,8 @@ import {
   buscarRetencao, executarRetencao, eliminarTitular, putEmpresaConfig,
 } from '../api'
 import DicaAjuda from '../components/DicaAjuda'
+import StatCard from '../components/StatCard'
+import { KpiBento } from '../components/ui/stats-bento'
 
 const fmt = (v) => new Intl.NumberFormat('pt-BR').format(v ?? 0)
 
@@ -186,20 +188,10 @@ export default function Retencao() {
                 </span>
               </div>
 
-              <div className="mt-5 grid grid-cols-2 gap-4">
-                <div className="rounded-lg border border-line bg-raise-1 p-4">
-                  <p className="text-xs" style={{ color: 'var(--ink-2)' }}>Registros com CPF hoje</p>
-                  <p className="tnum mt-1 text-2xl font-semibold text-ink">{fmt(identificadosTotal)}</p>
-                </div>
-                <div className="rounded-lg border border-line bg-raise-1 p-4">
-                  <p className="text-xs" style={{ color: 'var(--ink-2)' }}>
-                    Venceriam com {ativa ? dados.politica.dias : dados?.prazo_simulado} dias
-                  </p>
-                  <p className="tnum mt-1 text-2xl font-semibold" style={{ color: 'var(--warning)' }}>
-                    {fmt(vencidasTotal)}
-                  </p>
-                </div>
-              </div>
+              <KpiBento className="mt-5" aria-label="Resumo da retenção">
+                <StatCard label="Registros com CPF hoje" value={fmt(identificadosTotal)} />
+                <StatCard label={`Venceriam com ${ativa ? dados.politica.dias : dados?.prazo_simulado} dias`} value={fmt(vencidasTotal)} valueColor="var(--warning)" />
+              </KpiBento>
 
               <table className="mt-4 w-full text-sm">
                 <thead>

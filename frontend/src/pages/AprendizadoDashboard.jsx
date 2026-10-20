@@ -1,3 +1,5 @@
+import StatCard from '../components/StatCard'
+import { KpiBento } from '../components/ui/stats-bento'
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -374,12 +376,12 @@ export default function AprendizadoDashboard() {
                           <p className="text-[11px] mt-0.5" style={{ color: MUTED }}>Previu que não pagava — não pagou</p>
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mt-3 text-center">
-                        <div><p className="text-xs" style={{ color: MUTED }}>Acurácia</p><p className="font-bold text-ink text-sm">{fmtPct(qualidade.medicao.acuracia)}</p></div>
-                        <div><p className="text-xs" style={{ color: MUTED }}>Precisão</p><p className="font-bold text-ink text-sm">{fmtPct(qualidade.medicao.precisao)}</p></div>
-                        <div><p className="text-xs" style={{ color: MUTED }}>Revocação</p><p className="font-bold text-ink text-sm">{fmtPct(qualidade.medicao.revocacao)}</p></div>
-                        <div><p className="text-xs" style={{ color: MUTED }}>F1</p><p className="font-bold text-ink text-sm">{fmtPct(qualidade.medicao.f1)}</p></div>
-                      </div>
+                      <KpiBento className="mt-3">
+                        <StatCard label={<>Acurácia</>} value={<span>{fmtPct(qualidade.medicao.acuracia)}</span>} />
+                        <StatCard label={<>Precisão</>} value={<span>{fmtPct(qualidade.medicao.precisao)}</span>} />
+                        <StatCard label={<>Revocação</>} value={<span>{fmtPct(qualidade.medicao.revocacao)}</span>} />
+                        <StatCard label={<>F1</>} value={<span>{fmtPct(qualidade.medicao.f1)}</span>} />
+                      </KpiBento>
                       <p className="text-[11px] mt-2 leading-relaxed" style={{ color: MUTED }}>
                         "Positivo" aqui = o modelo previu que o devedor paga (score 50 ou mais). Precisão: das vezes que previu
                         pagamento, quantas acertou. Revocação: dos que realmente pagaram, quantos o modelo identificou.
@@ -540,11 +542,11 @@ export default function AprendizadoDashboard() {
                 {!priceModel?.disponivel ? (
                   <p className="text-sm" style={{ color: MUTED }}>{priceModel?.mensagem || 'Indisponível.'}</p>
                 ) : (
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div><p className="text-xs" style={{ color: MUTED }}>Amostras / pagamentos</p><p className="font-bold text-ink">{priceModel.n_amostras} / {priceModel.n_pagamentos}</p></div>
-                    <div><p className="text-xs" style={{ color: MUTED }}>R² médio (CV)</p><p className="font-bold text-ink">{priceModel.r2_medio}</p></div>
-                    <div><p className="text-xs" style={{ color: MUTED }}>MAE médio</p><p className="font-bold text-ink">{priceModel.mae_medio}</p></div>
-                  </div>
+                  <KpiBento>
+                    <StatCard label={<>Amostras / pagamentos</>} value={<span>{priceModel.n_amostras} / {priceModel.n_pagamentos}</span>} />
+                    <StatCard label={<>R² médio (CV)</>} value={<span>{priceModel.r2_medio}</span>} />
+                    <StatCard label={<>MAE médio</>} value={<span>{priceModel.mae_medio}</span>} />
+                  </KpiBento>
                 )}
               </Secao>
 
@@ -600,8 +602,8 @@ export default function AprendizadoDashboard() {
               }
             >
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 text-sm">
-                <div><p className="text-xs" style={{ color: MUTED }}>Próxima verificação</p><p className="font-semibold text-ink">{fmtData(scheduler?.proxima_verificacao)}</p></div>
-                <div><p className="text-xs" style={{ color: MUTED }}>Versões treinadas (inativas)</p><p className="font-semibold text-ink">{scheduler?.n_retreinamentos ?? 0}</p></div>
+                <StatCard label={<>Próxima verificação</>} value={<span>{fmtData(scheduler?.proxima_verificacao)}</span>} />
+                <StatCard label={<>Versões treinadas (inativas)</>} value={<span>{scheduler?.n_retreinamentos ?? 0}</span>} />
                 <div>
                   <p className="text-xs" style={{ color: MUTED }}>Último resultado</p>
                   <p className="font-semibold text-ink">
@@ -618,7 +620,7 @@ export default function AprendizadoDashboard() {
               {scheduler?.ultimo_resultado?.empresas && (
                 <ul className="mt-3 space-y-1 text-xs" style={{ color: MUTED_LIGHT }}>
                   {Object.entries(scheduler.ultimo_resultado.empresas).map(([emp, r]) => (
-                    <li key={emp}><span className="font-semibold text-ink">{emp}</span>: {r.mensagem} ({r.novos} novos)</li>
+                    <li key={emp}><span>{emp}</span>: {r.mensagem} ({r.novos} novos)</li>
                   ))}
                 </ul>
               )}
@@ -646,12 +648,12 @@ export default function AprendizadoDashboard() {
               {!dbSyncCfg ? (
                 <p className="text-sm" style={{ color: MUTED }}>Configuração indisponível.</p>
               ) : (
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 text-sm">
-                  <div><p className="text-xs" style={{ color: MUTED }}>Status</p><p className="font-semibold" style={{ color: dbSyncCfg.ativo ? 'var(--success)' : MUTED_LIGHT }}>{dbSyncCfg.ativo ? 'Ativo' : 'Inativo'}</p></div>
-                  <div><p className="text-xs" style={{ color: MUTED }}>Tipo</p><p className="font-semibold text-ink uppercase">{dbSyncCfg.tipo}</p></div>
-                  <div><p className="text-xs" style={{ color: MUTED }}>Última sincronização</p><p className="font-semibold text-ink">{fmtData(dbSyncStatus?.ultimo_sync)}</p></div>
-                  <div><p className="text-xs" style={{ color: MUTED }}>Total de sincronizações</p><p className="font-semibold text-ink">{dbSyncStatus?.n_sincronizacoes ?? 0}</p></div>
-                </div>
+                <KpiBento>
+                  <StatCard label={<>Status</>} value={<span className="font-semibold" style={{ color: dbSyncCfg.ativo ? 'var(--success)' : MUTED_LIGHT }}>{dbSyncCfg.ativo ? 'Ativo' : 'Inativo'}</span>} />
+                  <StatCard label={<>Tipo</>} value={<span className="font-semibold text-ink uppercase">{dbSyncCfg.tipo}</span>} />
+                  <StatCard label={<>Última sincronização</>} value={<span>{fmtData(dbSyncStatus?.ultimo_sync)}</span>} />
+                  <StatCard label={<>Total de sincronizações</>} value={<span>{dbSyncStatus?.n_sincronizacoes ?? 0}</span>} />
+                </KpiBento>
               )}
               <p className="text-xs mt-4" style={{ color: MUTED }}>
                 Configuração de host/credenciais é feita via API (<code className="tabular-nums">POST /admin/db-sync/config</code>).

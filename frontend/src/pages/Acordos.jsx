@@ -1,3 +1,5 @@
+import StatCard from '../components/StatCard'
+import { KpiBento } from '../components/ui/stats-bento'
 // A4 — Acordos em andamento: parcelas a vencer e acordos quebrados
 // ("pagou a 1ª e parou"). Regras em backend/acordos.py.
 import { useEffect, useMemo, useState } from 'react'
@@ -37,18 +39,11 @@ function Selo({ s }) {
   )
 }
 
-function Numero({ icone: Icone, rotulo, valor, nota, cor, i, ativo, onClick }) {
-  return (
-    <motion.button type="button" onClick={onClick} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
-      className={`rounded-xl border bg-surface p-4 text-left transition-colors sm:p-5 ${ativo ? 'border-blue-500/50 ring-1 ring-blue-500/30' : 'border-line hover:border-line-2'}`}>
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-2">{rotulo}</p>
-        <Icone className="h-4 w-4" style={{ color: cor }} />
-      </div>
-      <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-ink sm:text-3xl">{valor}</p>
-      <p className="mt-1 text-xs text-ink-2">{nota}</p>
-    </motion.button>
-  )
+function Numero({ icone, rotulo, valor, nota, cor, ativo, onClick }) {
+  return <button type="button" onClick={onClick} aria-pressed={ativo}
+    className={`h-full w-full min-w-0 rounded-[22px] text-left transition-shadow focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--royal)] ${ativo ? 'ring-2 ring-[var(--royal)] ring-offset-2 ring-offset-[var(--canvas)]' : 'hover:ring-1 hover:ring-[var(--border-strong)]'}`}>
+    <StatCard label={rotulo} value={valor} nota={nota} cor={cor} icon={icone} />
+  </button>
 }
 
 // Régua de parcelas: paga (cheia), vencida (vermelha), futura (vazia), com o
@@ -230,7 +225,7 @@ export default function Acordos({ embutido = false }) {
 
         {dados?.ativo && (
           <div className={`space-y-5 transition-opacity ${carregando ? 'opacity-60' : ''}`}>
-            <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+            <KpiBento aria-label="Resumo dos acordos — selecione para filtrar">
               <Numero i={0} icone={Wallet} cor="var(--ink-2)" rotulo="Em aberto" valor={fmtBRL(r.valor_aberto)}
                 nota={plural(r.acordos - r.quitado, 'acordo ativo', 'acordos ativos')} ativo={filtro === ''} onClick={() => setFiltro('')} />
               <Numero i={1} icone={CalendarClock} cor="var(--success)" rotulo="A vencer em 7 dias" valor={fmtBRL(r.a_vencer_7d_valor)}
@@ -239,7 +234,7 @@ export default function Acordos({ embutido = false }) {
                 nota={`${plural(r.atrasado, 'acordo', 'acordos')} · até ${dados.dias_quebra} dias`} ativo={filtro === 'atrasado'} onClick={() => setFiltro('atrasado')} />
               <Numero i={3} icone={XOctagon} cor="var(--danger)" rotulo="Quebrados" valor={fmtBRL(r.quebrado_valor)}
                 nota={`${plural(r.quebrado, 'acordo', 'acordos')} · mais de ${dados.dias_quebra} dias`} ativo={filtro === 'quebrado'} onClick={() => setFiltro('quebrado')} />
-            </div>
+            </KpiBento>
 
             <div className="flex flex-wrap items-center gap-1.5">
               {FILTROS.map(([k, l]) => {
