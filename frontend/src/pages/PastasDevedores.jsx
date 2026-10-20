@@ -18,14 +18,8 @@ import { agentePastas, listarCarteiras, listarEmpresas } from '../api'
  * mais a leitura da Triagem. Dentro da pasta ficam os papéis que os agentes
  * juntaram; clicar num deles abre o caso na tela de conversa dos agentes.
  */
-// As três cores usam o mesmo mármore da pasta branca. Só a paleta muda,
-// mantendo os veios e o acabamento sem misturar tons escuros de lava.
-const MARMORE = { style: 'marble', scale: 0.62, warp: 3.0, angle: -0.5, gloss: 0.5, veins: 0.55 }
-const ARTE = {
-  branco: { ...MARMORE, colors: ['#f6f7f9', '#dfe3e8', '#b4bcc7', '#eef0f3', '#cdd3db', '#ffffff', '#99a3b1'] },
-  amarelo: { ...MARMORE, gloss: 0, veins: 0.25, colors: ['#d5b51f', '#c5a51b', '#b59618', '#ddbd32', '#cfaf25', '#e4c642', '#a98c17'] },
-  vermelho: { ...MARMORE, gloss: 0, veins: 0.25, colors: ['#cf6461', '#c45b59', '#b65050', '#d47a76', '#c96865', '#df938e', '#aa4e4e'] },
-}
+// Cores lisas, sem textura ou reflexos.
+const COR_PASTA = { branco: '#f3f4f6', amarelo: '#c5a51b', vermelho: '#cf6461' }
 const PONTO = { branco: '#cfd5e6', amarelo: '#e8b23c', vermelho: '#d92d20' }
 const FILTROS = [
   { id: '', rotulo: 'Todos', chave: 'total' },
@@ -169,7 +163,7 @@ export default function PastasDevedores() {
               <GlassFolder
                 key={`${d.id}-${d.semaforo.cor}-${d.arquivos.length}`}
                 label={d.nome || 'Sem nome'} meta={`#${d.rank ?? '–'}${d.dias_em_atraso != null ? ` · ${d.dias_em_atraso} dias` : ''}`}
-                tone={tone} finish={d.semaforo.cor === 'branco' ? 'glass' : 'matte'} art={ARTE[d.semaforo.cor]} seed={(d.rank || i) % 97}
+                tone={tone} finish="matte" art="none" solidColor={COR_PASTA[d.semaforo.cor]}
                 files={d.arquivos} action="none" width={300} appearDelay={(i % POR_PAGINA % 6) * 90}
                 onFileSelect={() => verCaso(d)}
               />
