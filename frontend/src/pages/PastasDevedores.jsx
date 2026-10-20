@@ -18,12 +18,15 @@ import { agentePastas, listarCarteiras, listarEmpresas } from '../api'
  * mais a leitura da Triagem. Dentro da pasta ficam os papéis que os agentes
  * juntaram; clicar num deles abre o caso na tela de conversa dos agentes.
  */
+// A mesma linguagem das artes do componente de pasta: tinta se dobrando na água
+// escura (vermelho = a "ember" do próprio componente), em tom âmbar para o
+// amarelo, e mármore branco com veios cinza para o branco.
 const ARTE = {
-  branco: 'glacier',
-  amarelo: { style: 'marble', colors: ['#2a1d05', '#7a5410', '#c98f1a', '#3a2a0a', '#e8b23c', '#f7d77a', '#fff4cf'],
-             scale: 0.7, warp: 3.2, angle: 0.6, gloss: 0.5, veins: 0.4 },
-  vermelho: { style: 'marble', colors: ['#1a0508', '#5c0f16', '#a3201a', '#2b0b0e', '#d92d20', '#ff6b5e', '#ffd5cf'],
-              scale: 0.65, warp: 3.4, angle: -0.4, gloss: 0.55, veins: 0.5 },
+  branco: { style: 'marble', colors: ['#f6f7f9', '#dfe3e8', '#b4bcc7', '#eef0f3', '#cdd3db', '#ffffff', '#99a3b1'],
+            scale: 0.62, warp: 3.0, angle: -0.5, gloss: 0.5, veins: 0.55 },
+  amarelo: { style: 'marble', colors: ['#080908', '#1b2420', '#4d5a4c', '#17130c', '#b8760c', '#f2a81d', '#ffd98a'],
+             scale: 0.62, warp: 3.2, angle: -0.5, gloss: 0.55, veins: 0.6 },
+  vermelho: 'ember',
 }
 const PONTO = { branco: '#cfd5e6', amarelo: '#e8b23c', vermelho: '#d92d20' }
 const FILTROS = [
