@@ -394,8 +394,13 @@
     align-items: center;
     justify-content: center;
     padding: 56px clamp(24px, 7vw, 88px);
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
   }
+  .login-fundo { position: absolute; inset: 0; z-index: -1; }
   .login-stack {
+    position: relative;
     width: 100%;
     max-width: 1060px;
     display: flex;
@@ -421,8 +426,10 @@
     font-size: clamp(56px, 9vw, 96px);
     letter-spacing: -0.03em;
     line-height: 1;
-    color: var(--panel-ink);
+    color: #f4f2fa; /* o fundo animado é sempre escuro, nos dois temas */
+    text-shadow: 0 2px 24px rgba(10, 0, 30, 0.45);
   }
+  .login-shell > button:first-of-type { color: #f4f2fa; }
   .login-brand-bloco { display: flex; flex-direction: column; gap: clamp(10px, 1.4vw, 18px); min-width: 0; }
   .login-cobrand {
     display: flex; align-items: center; gap: clamp(10px, 1.2vw, 14px); min-width: 0;

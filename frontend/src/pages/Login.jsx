@@ -5,6 +5,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { LogoMark } from '../components/Logo'
+import { GlassFold } from '../components/ui/glass-fold'
 import { getEmpresaConfigPublica, marcaPorEmail } from '../api'
 
 const BASE_API = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
@@ -79,6 +80,15 @@ export default function Login() {
 
   return (
     <div className="login-shell">
+      {/* Fundo animado (WebGL) nas cores da marca; fica parado com "reduzir movimento" */}
+      <GlassFold
+        className="login-fundo"
+        color1="#5966d9"
+        color2="#1a0033"
+        color3="#b8c0ee"
+        speed={0.35}
+        noise={0.1}
+      />
       <ThemeToggle className="fixed top-4 right-4 z-50" />
 
       <div className="login-stack">
