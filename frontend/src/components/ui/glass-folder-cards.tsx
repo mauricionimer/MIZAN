@@ -75,7 +75,7 @@ export type GlassFolderProps = {
   tone?: "light" | "dark"
   /** Matte removes reflections while preserving the folder shape and artwork. */
   finish?: "glass" | "matte"
-  /** Flat fill for the folder panels, without generated artwork. */
+  /** Flat fill for the back panel; the front retains its glass finish. */
   solidColor?: string
   /** What the back panel holds. A preset, your own recipe, or `none` for a plain frosted back. */
   art?: FolderArt
@@ -751,7 +751,7 @@ export default function GlassFolder({
             className={"gf-front" + (bump ? " gf-front--bump" : "")}
             style={{ clipPath: "path('" + FRONT_PATH + "')" }}
           >
-            <div className="gf-tint" style={solidColor ? { background: solidColor } : undefined} aria-hidden="true" />
+            <div className="gf-tint" aria-hidden="true" />
             <div className="gf-spec" aria-hidden="true" />
             <svg className="gf-rim gf-front-rim" viewBox={"0 0 " + W + " " + FRONT_H} aria-hidden="true">
               <defs>
@@ -930,7 +930,7 @@ const GF_CSS = `
   isolation: isolate;
 }
 .gf-root[data-tone="dark"] { --gf-ink: #f5f5f7; --gf-ink-soft: rgba(245, 245, 247, .58); }
-.gf-root[data-solid] { --gf-ink: #171923; --gf-ink-soft: rgba(23, 25, 35, .8); }
+.gf-root[data-solid] .gf-back-sheen { display: none; }
 .gf-root:hover, .gf-root:focus-within { --gf-hinge: -11deg; --gf-lift: -34px; --gf-spread: 8px; --gf-fan: 1.4deg; --gf-stack: 10px; }
 .gf-root[data-open] { --gf-hinge: -24deg; --gf-lift: -96px; --gf-spread: 40px; --gf-fan: 5deg; --gf-stack: 30px; }
 

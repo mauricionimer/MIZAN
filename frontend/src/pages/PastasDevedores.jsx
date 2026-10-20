@@ -18,7 +18,7 @@ import { agentePastas, listarCarteiras, listarEmpresas } from '../api'
  * mais a leitura da Triagem. Dentro da pasta ficam os papéis que os agentes
  * juntaram; clicar num deles abre o caso na tela de conversa dos agentes.
  */
-// Cores lisas, sem textura ou reflexos.
+// Apenas o painel de fundo recebe a cor lisa; a frente continua translúcida.
 const COR_PASTA = { branco: '#f3f4f6', amarelo: '#c5a51b', vermelho: '#cf6461' }
 const PONTO = { branco: '#cfd5e6', amarelo: '#e8b23c', vermelho: '#d92d20' }
 const FILTROS = [
@@ -163,7 +163,7 @@ export default function PastasDevedores() {
               <GlassFolder
                 key={`${d.id}-${d.semaforo.cor}-${d.arquivos.length}`}
                 label={d.nome || 'Sem nome'} meta={`#${d.rank ?? '–'}${d.dias_em_atraso != null ? ` · ${d.dias_em_atraso} dias` : ''}`}
-                tone={tone} finish="matte" art="none" solidColor={COR_PASTA[d.semaforo.cor]}
+                tone={tone} art="none" solidColor={COR_PASTA[d.semaforo.cor]}
                 files={d.arquivos} action="none" width={300} appearDelay={(i % POR_PAGINA % 6) * 90}
                 onFileSelect={() => verCaso(d)}
               />
