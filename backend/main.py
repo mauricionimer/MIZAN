@@ -3687,8 +3687,12 @@ def listar_carteiras(response: Response,
                      credentials: HTTPAuthorizationCredentials = Security(bearer),
                      empresa_id: Optional[str] = None,
                      limite: int = Query(50, ge=1, le=200),
-                     offset: int = Query(0, ge=0)):
+                     offset: int = Query(0, ge=0),
+                     meus: bool = False):
     """Carteiras da empresa de quem chama, das mais novas para as mais antigas.
+
+    `meus=true` restringe às que a própria pessoa analisou (o hub abre a última
+    delas direto). Continua dentro da empresa: não amplia o acesso.
 
     Antes, quem estava SEM empresa ("remover da empresa" grava empresa_id
     vazio) caía no filtro por usuario_id e seguia listando as carteiras que
@@ -3711,6 +3715,8 @@ def listar_carteiras(response: Response,
         "id, nome_arquivo, created_at, total_devedores, valor_face, valor_esperado, score_medio",
         count="exact")
     q = q.eq("empresa_id", emp) if emp else q.eq("usuario_id", usuario_id)
+    if meus and emp:
+        q = q.eq("usuario_id", usuario_id)
     res = q.order("created_at", desc=True).range(offset, offset + limite - 1).execute()
     total = getattr(res, "count", None)
     if isinstance(total, int):

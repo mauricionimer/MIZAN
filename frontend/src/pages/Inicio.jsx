@@ -1,5 +1,9 @@
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion, useReducedMotion } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
+import { useAnalysis } from '../context/AnalysisContext'
+import { listarCarteiras, carregarCarteira } from '../api'
 import useAvisoAgenda from '../components/useAvisoAgenda'
 import AppShell from '../components/AppShell'
 import { BentoCard, BentoGrid } from '../components/ui/bento'
@@ -124,6 +128,31 @@ export default function Inicio() {
   const reduzir = useReducedMotion()
   const blocos = blocosDoPerfil({ gestor: isAdmin || isComando, comando: isComando, agenda })
   const nome = (usuario?.nome || '').split(' ')[0]
+  const navigate = useNavigate()
+  const { result, setResult, setVista } = useAnalysis()
+  const [abrindo, setAbrindo] = useState(false)
+
+  // "Carteira" abre direto a última análise da própria pessoa (no painel da
+  // carteira); de lá ela troca de análise se quiser. Sem nenhuma análise ainda,
+  // cai na tela de análise para subir a primeira.
+  async function abrirCarteira(e) {
+    e.preventDefault()
+    if (abrindo) return
+    if (result) { setVista('dashboard'); navigate('/'); return }
+    setAbrindo(true)
+    try {
+      const [ultima] = await listarCarteiras({ meus: true, limite: 1 })
+      if (ultima?.id) {
+        setResult(await carregarCarteira(ultima.id))
+        setVista('dashboard')
+      } else setVista('analise')
+    } catch {
+      setVista('analise')          // servidor fora ou acesso negado: a tela de análise segue disponível
+    } finally {
+      setAbrindo(false)
+      navigate('/')
+    }
+  }
 
   return (
     <AppShell>
@@ -135,7 +164,8 @@ export default function Inicio() {
             {blocos.map(b => (
               <motion.div key={b.id} variants={reduzir ? SEM_MOVIMENTO : item} className={b.className}>
                 <BentoCard to={b.to} eyebrow={b.eyebrow} title={b.title} description={b.description}
-                  badge={b.badge} graphic={<Arte tipo={b.arte} />} className="h-full" />
+                  badge={b.badge} loading={b.id === 'carteira' && abrindo}
+                  onNavigate={b.id === 'carteira' ? abrirCarteira : undefined} graphic={<Arte tipo={b.arte} />} className="h-full" />
               </motion.div>
             ))}
           </BentoGrid>

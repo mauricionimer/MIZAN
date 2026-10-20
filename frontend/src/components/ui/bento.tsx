@@ -17,10 +17,13 @@ export interface BentoCardProps {
   /** Pílula opcional no canto (ex.: compromissos vencidos). */
   badge?: React.ReactNode
   className?: string
-  onNavigate?: () => void
+  /** Chamado ao clicar; chame e.preventDefault() para assumir a navegação. */
+  onNavigate?: (e: React.MouseEvent) => void
+  /** Mostra um indicador de carregamento no canto. */
+  loading?: boolean
 }
 
-export function BentoCard({ to, eyebrow, title, description, graphic, badge, className = "", onNavigate }: BentoCardProps) {
+export function BentoCard({ to, eyebrow, title, description, graphic, badge, className = "", onNavigate, loading }: BentoCardProps) {
   return (
     <motion.div
       whileHover={{ y: -4 }}
@@ -30,7 +33,8 @@ export function BentoCard({ to, eyebrow, title, description, graphic, badge, cla
       <Link to={to} onClick={onNavigate} className="flex h-full flex-col focus:outline-none" aria-label={`${eyebrow}: ${title}`}>
         <div className="hub-card-arte relative shrink-0">
           {graphic}
-          {badge && <span className="hub-card-badge absolute right-4 top-4 z-10">{badge}</span>}
+          {loading && <span className="hub-card-badge absolute right-4 top-4 z-10" role="status">Abrindo…</span>}
+          {badge && !loading && <span className="hub-card-badge absolute right-4 top-4 z-10">{badge}</span>}
         </div>
         <div className="hub-card-texto relative z-10">
           <p className="hub-card-eyebrow">{eyebrow}</p>

@@ -273,6 +273,14 @@ checar(ids == {"c-alfa", "c-alfa2"}, "admin vê só as carteiras da empresa", st
 checar(r.headers.get("X-Total-Count") == "2", "e o total vem no cabeçalho", str(r.headers.get("X-Total-Count")))
 r = c.get("/carteiras?limite=1&offset=1", headers=h("u-adm-a"))
 checar(r.status_code == 200 and len(r.json()) == 1, "a lista pagina")
+T["carteiras"].append({"id": "c-alfa3", "empresa_id": "alfa", "usuario_id": "u-op-a", "created_at": "2026-10-04"})
+r = c.get("/carteiras?meus=true&limite=1", headers=h("u-adm-a"))
+checar(r.status_code == 200 and [x["id"] for x in r.json()] == ["c-alfa2"],
+       "meus=true devolve a última carteira da própria pessoa", str(r.json() if r.status_code == 200 else r.status_code))
+r = c.get("/carteiras?meus=true", headers=h("u-op-a"))
+checar(r.status_code == 200 and [x["id"] for x in r.json()] == ["c-alfa3"],
+       "e não traz a de outra pessoa da mesma empresa", str(r.json() if r.status_code == 200 else r.status_code))
+T["carteiras"].pop()
 r = c.get("/carteiras", headers=h("u-sem"))
 checar(r.status_code == 403, "quem está sem empresa não cai no filtro por usuario_id", str(r.status_code))
 r = c.get("/carteiras/c-beta", headers=h("u-adm-a"))

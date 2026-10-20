@@ -199,8 +199,12 @@ export async function analisarCarteira(file, empresaId = null) {
   return pedir('/analisar?incluir_ranking=false', { metodo: 'POST', form: fd })
 }
 
-export async function listarCarteiras() {
-  return pedir('/carteiras')
+export async function listarCarteiras(opcoes = {}) {
+  // `meus`: só as que a própria pessoa analisou; `limite`: quantas trazer.
+  const query = {}
+  if (opcoes.meus) query.meus = true
+  if (opcoes.limite) query.limite = opcoes.limite
+  return pedir('/carteiras', Object.keys(query).length ? { query } : undefined)
 }
 
 export async function carregarCarteira(id) {
