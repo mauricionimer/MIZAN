@@ -2,6 +2,10 @@ import React, { createContext, useContext } from "react"
 import { Link } from "react-router-dom"
 import { ArrowRight } from "lucide-react"
 
+// Variante exclusiva da Agenda da equipe; os KPIs das demais telas não mudam.
+export { default as StatsBento } from './agenda-equipe-bento'
+export { default } from './agenda-equipe-bento'
+
 // Organização dos números (KPIs) em bento, adaptada do stats-bento do 21st.dev.
 // O original é uma vitrine de números fixos; aqui ele vira layout: o primeiro
 // número da tela é o destaque grande, o segundo é largo, e os demais ficam em

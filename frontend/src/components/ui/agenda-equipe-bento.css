@@ -1,0 +1,62 @@
+.agenda-equipe-bento {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+.agenda-equipe-bento__resumo {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 40px;
+  min-width: 0;
+  padding: clamp(24px, 3vw, 40px);
+  border-radius: 28px;
+  background: var(--royal);
+  color: var(--on-brand);
+}
+.agenda-equipe-bento__trama {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: repeating-linear-gradient(45deg, var(--on-brand) 0 1px, transparent 1px 10px);
+  opacity: .12;
+  -webkit-mask-image: radial-gradient(ellipse 80% 50% at 100% 0%, #000 70%, transparent 110%);
+  mask-image: radial-gradient(ellipse 80% 50% at 100% 0%, #000 70%, transparent 110%);
+}
+.agenda-equipe-bento__conteudo { position: relative; }
+.agenda-equipe-bento__etiqueta { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 99px; background: color-mix(in srgb, var(--on-brand) 12%, transparent); font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.agenda-equipe-bento__total { margin-top: 24px; font-size: clamp(48px, 6vw, 80px); line-height: 1; letter-spacing: -.05em; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.agenda-equipe-bento__resumo h2 { margin-top: 12px; font-size: 18px; font-weight: 500; }
+.agenda-equipe-bento__nota { max-width: 32ch; font-size: 14px; line-height: 1.7; }
+.agenda-equipe-bento__rodape { display: block; margin-top: 16px; font-size: 12px; }
+.agenda-equipe-bento__agenda { display: flex; flex-direction: column; align-items: stretch; min-width: 0; height: 100%; padding: 24px; border: 1px solid var(--border-subtle); border-radius: 28px; background: var(--card); color: var(--ink); text-align: left; transition: border-color .18s, background-color .18s; }
+.agenda-equipe-bento__agenda:hover { border-color: var(--royal); background: var(--raised); }
+.agenda-equipe-bento__agenda:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 4px; }
+.agenda-equipe-bento__cabecalho { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.agenda-equipe-bento__avatar { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%; background: var(--royal-soft); color: var(--accent-text); font-size: 12px; font-weight: 700; }
+.agenda-equipe-bento__seta { color: var(--ink-3); flex-shrink: 0; }
+.agenda-equipe-bento__nome { margin-top: 12px; font-size: 14px; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
+.agenda-equipe-bento__numero { display: block; margin-top: 8px; font-size: 32px; font-weight: 600; letter-spacing: -.04em; font-variant-numeric: tabular-nums; line-height: 1.25; overflow-wrap: anywhere; }
+.agenda-equipe-bento__numero > span { font-size: 12px; font-weight: 400; letter-spacing: 0; color: var(--ink-2); }
+.agenda-equipe-bento__prazos { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 12px; color: var(--ink-2); font-size: 12px; line-height: 1.6; }
+.agenda-equipe-bento__vencido { color: var(--danger); font-weight: 600; }
+.agenda-equipe-bento__barra { display: flex; overflow: hidden; height: 4px; margin-top: 20px; border-radius: 99px; background: var(--raised); }
+.agenda-equipe-bento__sem-pendencia { margin-top: 20px; color: var(--ink-2); font-size: 12px; }
+@media (min-width: 768px) {
+  .agenda-equipe-bento { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .agenda-equipe-bento__resumo { grid-column: span 3; grid-row: span 2; }
+  .agenda-equipe-bento__agenda--larga { grid-column: span 3; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 20px; }
+  .agenda-equipe-bento__agenda--larga .agenda-equipe-bento__cabecalho { grid-column: 1 / -1; }
+  .agenda-equipe-bento__agenda--larga .agenda-equipe-bento__nome { grid-column: 1; grid-row: 2; margin-top: 4px; }
+  .agenda-equipe-bento__agenda--larga .agenda-equipe-bento__numero { grid-column: 2; grid-row: 2 / 4; align-self: center; margin-top: 0; }
+  .agenda-equipe-bento__agenda--larga .agenda-equipe-bento__prazos { grid-column: 1; grid-row: 3; margin-top: 0; }
+  .agenda-equipe-bento__agenda--larga .agenda-equipe-bento__barra,
+  .agenda-equipe-bento__agenda--larga .agenda-equipe-bento__sem-pendencia { grid-column: 1 / -1; margin-top: 8px; }
+  .agenda-equipe-bento__agenda--compacta { grid-column: span 1; padding: 20px 16px; }
+  .agenda-equipe-bento__agenda--regular { grid-column: span 2; }
+  .agenda-equipe-bento__agenda--compacta .agenda-equipe-bento__numero > span { display: block; margin-top: 4px; }
+}
