@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, Users, CalendarClock, Check, X, CalendarDays, ExternalLink, Loader2, Banknote, PhoneCall, RotateCcw } from 'lucide-react'
 import AppShell from '../components/AppShell'
+import { LiquidGlassCard } from '../components/ui/liquid-weather-glass'
 import DicaAjuda from '../components/DicaAjuda'
 import ErroCarga from '../components/ErroCarga'
 import AvisoDesfazer from '../components/AvisoDesfazer'
@@ -328,8 +329,9 @@ export default function Agenda() {
               <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-label="Minha equipe">
                 {equipe.operadores.map(o => (
                   <li key={o.id}>
+                    <LiquidGlassCard borderRadius="22px" shadowIntensity="xs" glowIntensity="none">
                     <button type="button" onClick={() => { setDados(null); setOperador({ id: o.id, nome: o.nome }) }}
-                      className="flex w-full items-center gap-3 rounded-[22px] border border-line bg-surface p-4 text-left transition-colors hover:border-blue-500/40 hover:bg-raise-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--royal)]">
+                      className="flex h-full w-full items-center gap-3 rounded-[22px] bg-transparent p-4 text-left focus-visible:outline-none">
                       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-500/15 text-sm font-bold text-blue-300">
                         {(o.nome || '?').split(' ').map(p => p[0]).slice(0, 2).join('').toUpperCase()}
                       </span>
@@ -341,6 +343,7 @@ export default function Agenda() {
                         </span>
                       </span>
                     </button>
+                    </LiquidGlassCard>
                   </li>
                 ))}
               </ul>
