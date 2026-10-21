@@ -58,6 +58,10 @@ class FonteMemoria:
         return [copy.deepcopy(a) for a in self.agenda if a["empresa_id"] == empresa_id
                 and a["predicao_id"] == predicao_id and a["situacao"] == "pendente"]
 
+    def compromisso(self, empresa_id: str, predicao_id: str, item_id: str) -> dict | None:
+        return next((copy.deepcopy(a) for a in self.agenda if a['empresa_id'] == empresa_id
+                     and a['predicao_id'] == predicao_id and a['id'] == item_id), None)
+
     def criar_agenda(self, empresa_id: str, devedor: dict, tipo: str, data: str,
                      valor=None, observacao: str = "", hora: str | None = None, operador: tuple | None = None) -> dict:
         op_id, op_nome = operador or (devedor.get("responsavel_id") or OPERADOR_AGENTE,
@@ -194,7 +198,7 @@ class FonteSupabase:
         return catalogo_da_empresa(extra)[0]
 
     def agenda_pendente(self, empresa_id: str, predicao_id: str) -> list:
-        res = (self.db.table("agenda").select("id, tipo, data, valor, situacao")
+        res = (self.db.table("agenda").select("id, tipo, data, hora, valor, situacao, operador_id, operador_nome")
                .eq("empresa_id", empresa_id).eq("predicao_id", predicao_id)
                .eq("situacao", "pendente").order("data").limit(20).execute())
         return res.data or []
@@ -212,6 +216,11 @@ class FonteSupabase:
                  "situacao": "pendente"}
         res = self.db.table("agenda").insert({k: v for k, v in linha.items() if v is not None}).execute()
         return res.data[0]
+
+    def compromisso(self, empresa_id: str, predicao_id: str, item_id: str) -> dict | None:
+        r = (self.db.table('agenda').select('id, situacao, operador_id, operador_nome, data, hora')
+             .eq('empresa_id', empresa_id).eq('predicao_id', predicao_id).eq('id', item_id).limit(1).execute())
+        return (r.data or [None])[0]
 
     def recomendacao_bandit(self, empresa_id: str, devedor: dict) -> dict | None:
         """O que o bandit da empresa recomenda para o devedor (contexto completo da

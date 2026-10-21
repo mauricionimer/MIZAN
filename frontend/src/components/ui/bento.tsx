@@ -3,6 +3,8 @@ import { Link } from "react-router-dom"
 import { clsx } from "clsx"
 import { motion } from "framer-motion"
 
+export { AgendaBentoCard } from './agenda-bento-card'
+
 // Bloco do hub de entrada. Adaptado do bento do 21st.dev: card com arte em cima,
 // texto embaixo e leve elevação ao passar o mouse. Aqui o card é um link (vai
 // para a área) e as cores vêm das variáveis do tema, nos modos claro e escuro.

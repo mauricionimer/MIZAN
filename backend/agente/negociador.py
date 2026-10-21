@@ -149,6 +149,20 @@ def mensagem_fixa(ctx, fonte=None) -> str | None:
         if at and at.get("data") and at.get("hora"):
             dia = date.fromisoformat(at["data"]).strftime("%d/%m")
             quem = at.get("atendente") or "uma pessoa da nossa equipe"
+            if at.get('aprovacao') == 'pendente':
+                from agente.fonte import OPERADORES_DO_AGENTE
+                ag = fonte.compromisso(ctx.caso['empresa_id'], ctx.caso['predicao_id'], at.get('compromisso_id')) if fonte else None
+                if ag and ag.get('situacao') == 'cancelada':
+                    return (f"A solicitação de atendimento para {dia}, às {at['hora']}, não foi confirmada. "
+                            "Se quiser solicitar outro horário, me diga sua preferência.")
+                if ag and ag.get('situacao') == 'cumprida':
+                    return 'Esse atendimento consta como realizado pela equipe. Se precisar de outro atendimento, me diga.'
+                if not ag or ag.get('operador_id') in OPERADORES_DO_AGENTE:
+                    return (f"Registrei seu pedido de atendimento para {dia}, às {at['hora']}. "
+                            "A administração vai avaliar o horário e definir quem atende. O atendimento ainda aguarda aprovação.")
+                quem = ag.get('operador_nome') or quem
+                dia = date.fromisoformat(ag['data']).strftime('%d/%m')
+                at = {**at, 'hora': ag.get('hora') or at['hora']}
             return (f"Combinado: {quem} vai falar com você em {dia}, às {at['hora']}. "
                     "Até lá, se precisar, é só escrever por aqui.")
         prox = disponibilidade.proximo_atendimento(fonte, ctx.caso["empresa_id"], ctx.agora) if fonte else None
@@ -287,6 +301,8 @@ def _nota(nome: str, args: dict, res: dict) -> str | None:
     if nome == "agendar_retorno":
         return f"retorno agendado para {dia(res.get('data'))}{hora}"
     if nome == "marcar_atendimento_humano":
+        if res.get('aguardando_aprovacao'):
+            return f"solicitação de atendimento para {dia(res.get('data'))}{hora}, aguardando aprovação da administração"
         return f"atendimento com {res.get('atendente')} em {dia(res.get('data'))}{hora}"
     if nome == "remarcar_compromisso":
         return f"compromisso remarcado para {dia(res.get('data'))}"

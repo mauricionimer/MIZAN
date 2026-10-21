@@ -453,6 +453,16 @@ export async function listarEquipeAgenda(params = {}) {
   return pedir('/agenda/equipe', { query: params })
 }
 
+export async function listarTarefasAdministrativas(params = {}) {
+  return pedir('/agenda/administracao/tarefas', { query: params })
+}
+export async function criarTarefaAdministrativa(dados) {
+  return pedir('/agenda/administracao/tarefas', { metodo: 'POST', corpo: dados })
+}
+export async function mudarTarefaAdministrativa(id, concluir) {
+  return pedir(`/agenda/administracao/tarefas/${_id(id)}`, { metodo: 'PATCH', corpo: { concluir } })
+}
+
 export async function resumoAgenda(params = {}) {
   return pedir('/agenda/resumo', { query: params })
 }

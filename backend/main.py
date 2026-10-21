@@ -2223,6 +2223,72 @@ JANELA_DESFAZER_MIN = 10
 _SITUACAO_DA_ACAO = {"cumprir": "cumprida", "quebrar": "quebrada", "cancelar": "cancelada"}
 
 
+class TarefaAdministrativaIn(BaseModel):
+    titulo: str = Field(..., min_length=3, max_length=120)
+    descricao: str = Field('', max_length=2000)
+    data: Optional[date] = None
+
+
+class TarefaAdministrativaPatch(BaseModel):
+    concluir: bool
+
+
+def _empresa_tarefa(credentials, empresa_id=None, escrita=False):
+    import tarefas_administrativas as tarefas
+    payload = _usuario_autenticado(credentials)
+    try:
+        empresa = tarefas.autorizar(payload, empresa_id, escrita)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return payload, empresa
+
+
+@app.get('/agenda/administracao/tarefas')
+def listar_tarefas_administrativas(empresa_id: Optional[str] = None, situacao: str = 'pendente',
+                                  offset: int = Query(0, ge=0), limite: int = Query(100, ge=1, le=100),
+                                  credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    import tarefas_administrativas as tarefas
+    _, empresa = _empresa_tarefa(credentials, empresa_id)
+    try:
+        return tarefas.listar(get_db(), empresa, situacao, offset, limite)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+
+@app.post('/agenda/administracao/tarefas')
+def criar_tarefa_administrativa(body: TarefaAdministrativaIn,
+                               credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    import tarefas_administrativas as tarefas
+    from agenda import hoje, validar_data_nova
+    payload, empresa = _empresa_tarefa(credentials, escrita=True)
+    data = body.data or hoje()
+    try:
+        validar_data_nova(data)
+        item = tarefas.criar(get_db(), empresa, payload, body.titulo, body.descricao, data)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    _registrar_auditoria(acao='tarefa_administrativa_criada', entidade='agenda', entidade_id=item['id'],
+                         empresa_id=empresa, usuario_email=payload.get('email'), usuario_id=payload['sub'])
+    return {'item': item}
+
+
+@app.patch('/agenda/administracao/tarefas/{item_id}')
+def mudar_tarefa_administrativa(item_id: str, body: TarefaAdministrativaPatch,
+                               credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    import tarefas_administrativas as tarefas
+    payload, empresa = _empresa_tarefa(credentials, escrita=True)
+    try:
+        item = tarefas.mudar(get_db(), empresa, item_id, body.concluir, payload.get('email', ''))
+    except LookupError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    _registrar_auditoria(acao='tarefa_administrativa_concluida' if body.concluir else 'tarefa_administrativa_reaberta',
+                         entidade='agenda', entidade_id=item_id, empresa_id=empresa,
+                         usuario_email=payload.get('email'), usuario_id=payload['sub'])
+    return {'item': item}
+
+
 class AgendaPatch(BaseModel):
     acao: str                                  # cumprir | quebrar | cancelar | remarcar | reabrir
     data: Optional[date] = None
@@ -2272,6 +2338,9 @@ def mudar_agenda(item_id: str, body: AgendaPatch, credentials: HTTPAuthorization
         raise HTTPException(status_code=403, detail="Este compromisso é de outro operador.")
     quem = payload.get("nome", "") or payload.get("email", "")
     atual = item.get("situacao")
+    if (body.acao == 'cumprir' and item.get('operador_id') == 'a-definir'
+            and (item.get('observacao') or '').startswith('Atendimento com pessoa')):
+        raise HTTPException(status_code=409, detail='Aprove e atribua esta reunião a um operador antes de marcar como realizada.')
 
     if body.acao == "reabrir":
         if atual == "pendente":

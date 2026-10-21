@@ -98,17 +98,32 @@ def test_atendimento_sem_responsavel_vai_para_o_administrador():
     item = fonte.agenda[0]
     assert item["operador_id"] == OPERADOR_A_DEFINIR and item["hora"] == "14:00"
     assert repo.casos[caso["id"]]["situacao"] == "com_pessoa"
-    assert saidas == ["Olá, Maria! Aqui é o assistente virtual de Banco Demonstração. Combinado: uma pessoa da "
-                      "nossa equipe vai falar com você em 19/10, às 14:00. Até lá, se precisar, é só escrever por aqui."]
+    assert 'ainda aguarda aprovação' in saidas[0]
+    assert 'vai falar com você em' not in saidas[0]
 
 
-def test_atendimento_com_responsavel_vai_para_ele():
+def test_atendimento_com_responsavel_tambem_aguarda_aprovacao():
     repo, fonte, caso = montar(devedor(responsavel_id="op1", responsavel_nome="Ana"))
     saidas, _ = falar(repo, fonte, caso, "pode ser segunda às 15h com alguém?", [
         tri("outro"), F("marcar_atendimento_humano", data=SEGUNDA, hora="15:00", motivo="pedido_do_devedor",
                         resumo="Quer falar com uma pessoa.")])
-    assert (fonte.agenda[0]["operador_id"], fonte.agenda[0]["operador_nome"]) == ("op1", "Ana")
-    assert "Ana vai falar com você em 19/10, às 15:00" in saidas[0]
+    assert fonte.agenda[0]['operador_id'] == OPERADOR_A_DEFINIR
+    assert repo.casos[caso['id']]['dados']['atendimento']['operador_sugerido_id'] == 'op1'
+    assert 'ainda aguarda aprovação' in saidas[0]
+    assert 'Ana vai falar' not in saidas[0]
+
+
+def test_solicitacao_recusada_nao_continua_confirmada_ou_pendente():
+    from types import SimpleNamespace
+    from agente.negociador import mensagem_fixa
+    repo, fonte, caso = montar(devedor(responsavel_id='op1', responsavel_nome='Ana'))
+    falar(repo, fonte, caso, 'segunda 14h', [tri('outro'), F('marcar_atendimento_humano',
+          data=SEGUNDA, hora='14:00', motivo='reuniao', resumo='Solicita reunião.')])
+    item = fonte.agenda[0]
+    fonte.atualizar_agenda('emp', 'p1', item['id'], {'situacao': 'cancelada'})
+    ctx = SimpleNamespace(caso=repo.casos[caso['id']], saida={})
+    assert 'não foi confirmada' in mensagem_fixa(ctx, fonte)
+    assert 'aguarda aprovação' not in mensagem_fixa(ctx, fonte)
 
 
 def test_agenda_dos_agentes_e_atribuicao():
@@ -129,6 +144,10 @@ def test_agenda_dos_agentes_e_atribuicao():
                 pass
         assert api.atribuir("emp", ag["itens"][0]["id"], "u-ana")["operador"]["nome"] == "Ana"
         assert fonte.agenda[0]["operador_id"] == "u-ana"
+        from types import SimpleNamespace
+        from agente.negociador import mensagem_fixa
+        ctx = SimpleNamespace(caso=repo.casos[caso['id']], saida={})
+        assert 'Ana vai falar com você' in mensagem_fixa(ctx, fonte)
         try:
             api.atribuir("emp", ag["itens"][0]["id"], "u-ana")       # segundo clique
             raise AssertionError("já atribuído")
