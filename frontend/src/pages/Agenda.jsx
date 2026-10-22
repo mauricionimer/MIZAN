@@ -333,7 +333,7 @@ export default function Agenda() {
                 : gestor ? 'Seus compromissos, por prazo.' : 'Seus compromissos, por prazo.'}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             {isComando && (
               <select value={alvo} onChange={e => { setAlvo(e.target.value); setAreaEquipe(null); setOperador(null); setEquipe(null) }} aria-label="Empresa"
                 className="rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-sm text-ink focus:outline-none [color-scheme:dark]">
@@ -341,14 +341,21 @@ export default function Agenda() {
                 {empresas.map(e => <option key={e.empresa_id} value={e.empresa_id}>{e.nome_exibicao || e.empresa_id}</option>)}
               </select>
             )}
-            {!naLista && <div className="flex rounded-lg border border-line bg-surface-2 p-0.5" role="tablist" aria-label="O que mostrar">
-              {[['pendentes', 'Pendentes'], ['resolvidos', 'Resolvidos hoje']].map(([k, l]) => (
-                <button key={k} role="tab" aria-selected={vista === k} onClick={() => { if (k !== vista) { setDados(null); setVista(k) } }}
-                  className={`min-h-[36px] rounded-md px-3 py-1 text-xs font-medium transition-colors ${vista === k ? 'bg-surface text-ink shadow-sm' : 'text-ink-2 hover:text-ink'}`}>
-                  {l}
-                </button>
-              ))}
-            </div>}
+            {gestor && escopo === 'equipe' && areaEquipe === 'operadores' && (
+              <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-ink-2">
+                <label htmlFor="agenda-operador">Operador</label>
+                <select id="agenda-operador" value={operador?.id ?? ''} disabled={!listaOperadores.length}
+                  onChange={e => {
+                    const escolhido = listaOperadores.find(o => o.id === e.target.value)
+                    setDados(null); setVista('pendentes')
+                    setOperador(escolhido ? { id: escolhido.id, nome: escolhido.nome } : null)
+                  }}
+                  className="min-h-[40px] min-w-0 max-w-[240px] rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-sm text-ink disabled:opacity-50">
+                  <option value="">{listaOperadores.length ? 'Selecione um operador' : 'Nenhum operador ativo'}</option>
+                  {listaOperadores.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
+                </select>
+              </div>
+            )}
             {isAdmin && (
               <div className="flex rounded-lg border border-line bg-surface-2 p-0.5">
                 {[['minha', 'Minha agenda'], ['equipe', 'Equipe']].map(([k, l]) => (
