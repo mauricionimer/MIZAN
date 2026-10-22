@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { AGENTES, MESAS, mensagem } from './config'
-import { W, H, P, background, objects, avatar, assento, caminho } from './canvas'
+import { P, background, objects, avatar, assento, caminho } from './canvas'
+import { enquadrar, posicionarNomes } from './geometria.js'
 
 export default function SalaCanvas({ agentes, sinais, selecionado, onSelecionar, controle, seguir, nomeEmpresa, logoUrl, obsoleto, onManual }) {
   const area=useRef(null), canvas=useRef(null), dados=useRef({}), camera=useRef({s:1,x:0,y:0}), passeios=useRef(new Map())
   const vistos=useRef(null), [baloes,setBaloes]=useState([]), [hover,setHover]=useState(null)
+  const etiquetas=useRef(new Map()), larguras=useRef(new Map())
   dados.current={agentes,selecionado,seguir,obsoleto,onManual}
   useEffect(()=>{
     if(!vistos.current){vistos.current=new Set(sinais.map(e=>e.id));return}
@@ -26,7 +28,7 @@ export default function SalaCanvas({ agentes, sinais, selecionado, onSelecionar,
     let vivo=true, frame, largura=0, altura=0, cache=background(nomeEmpresa), ultimo=0, drag=null
     const reduz=window.matchMedia('(prefers-reduced-motion: reduce)').matches
     let pontos=[]
-    const centrar=()=>{const s=Math.max(1,Math.min(5,Math.floor(Math.min(largura/W,altura/H)))); camera.current={s,x:Math.round((largura-W*s)/2),y:Math.round((altura-H*s)/2)}}
+    const centrar=()=>{camera.current=enquadrar(largura,altura)}
     const resize=new ResizeObserver(([e])=>{
       largura=Math.floor(e.contentRect.width);altura=Math.floor(e.contentRect.height)
       cv.width=largura;cv.height=altura;centrar()
@@ -64,6 +66,15 @@ export default function SalaCanvas({ agentes, sinais, selecionado, onSelecionar,
         const p=P(...pos)
         return {nome:a.nome,papel:a.papel,x:p[0]*s+x,y:p[1]*s+y,raio:a.acc==='servico'?22:14,altura:a.acc==='servico'?25:43}
       })
+      const nomes=posicionarNomes(pontos.map(p=>{
+        const el=etiquetas.current.get(p.nome), medida=el?.offsetWidth || larguras.current.get(p.nome) || p.nome.length*7+20
+        larguras.current.set(p.nome,medida)
+        return {...p,largura:medida}
+      }),largura,altura)
+      const visiveis=new Set(nomes.map(n=>n.nome))
+      etiquetas.current.forEach((el,nome)=>{el.hidden=!visiveis.has(nome)})
+      nomes.forEach(n=>{const el=etiquetas.current.get(n.nome);if(el)el.style.transform=`translate(${n.x}px,${n.y}px)`})
+      cv.dataset.zoom=String(s)
     }
     const relativo=e=>{const r=cv.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top]}
     const hit=e=>{const [x,y]=relativo(e);return [...pontos].reverse().find(p=>Math.abs(x-p.x)<p.raio*camera.current.s && y<=p.y+5*camera.current.s && y>p.y-p.altura*camera.current.s)}
@@ -82,7 +93,7 @@ export default function SalaCanvas({ agentes, sinais, selecionado, onSelecionar,
   useEffect(()=>{
     if(!controle)return
     const r=area.current.getBoundingClientRect(), a=camera.current
-    if(controle.tipo==='centrar'){const s=Math.max(1,Math.min(5,Math.floor(Math.min(r.width/W,r.height/H))));camera.current={s,x:Math.round((r.width-W*s)/2),y:Math.round((r.height-H*s)/2)}}
+    if(controle.tipo==='centrar'){camera.current=enquadrar(r.width,r.height)}
     else {const s=Math.max(1,Math.min(5,a.s+controle.delta));camera.current={s,x:Math.round(r.width/2-(r.width/2-a.x)*s/a.s),y:Math.round(r.height/2-(r.height/2-a.y)*s/a.s)}}
   },[controle])
   return <div className="ao-stage" ref={area}>
@@ -91,6 +102,7 @@ export default function SalaCanvas({ agentes, sinais, selecionado, onSelecionar,
       if(passos[e.key]){e.preventDefault();onManual?.();camera.current={...a,x:a.x+passos[e.key][0],y:a.y+passos[e.key][1]}}
       else if(['+','-','='].includes(e.key)){e.preventDefault();onManual?.();const r=area.current.getBoundingClientRect(),s=Math.max(1,Math.min(5,a.s+(e.key==='-'?-1:1)));camera.current={s,x:Math.round(r.width/2-(r.width/2-a.x)*s/a.s),y:Math.round(r.height/2-(r.height/2-a.y)*s/a.s)}}
     }}/>
+    {agentes.map(a=><button type="button" key={a.nome} hidden ref={el=>el?etiquetas.current.set(a.nome,el):etiquetas.current.delete(a.nome)} className="ao-agent-label" style={{'--ao-agent':a.cor}} onClick={()=>onSelecionar(a.nome)} aria-pressed={selecionado===a.nome} title={`${a.nome} · ${a.papel}`}>{a.nome}</button>)}
     <div className="ao-bubbles" aria-live="polite">{baloes.map((b,i)=><div key={b.id} className="ao-bubble" style={{opacity:1-i*.25}}>{b.msg.slice(0,80)}</div>)}</div>
     <div className="ao-scene-caption">{hover ? `${hover.nome} · ${hover.papel}` : 'Arraste para explorar · Role para ampliar'}</div>
   </div>

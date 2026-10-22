@@ -1,4 +1,5 @@
 import { AGENTES } from './config'
+import { PAREDES, texturaNome } from './marca.js'
 
 export const W = 544, H = 380
 export const P = (x, y, z = 0) => [240 + (x - y) * 16, 110 + (x + y) * 8 - z]
@@ -45,13 +46,13 @@ const letras = {
  C:['01111','10000','10000','10000','10000','10000','01111'], D:['11110','10001','10001','10001','10001','10001','11110'],
  E:['11111','10000','10000','11110','10000','10000','11111'], F:['11111','10000','10000','11110','10000','10000','10000'],
  G:['01111','10000','10000','10111','10001','10001','01110'], H:['10001','10001','10001','11111','10001','10001','10001'],
- I:['111','010','010','010','010','010','111'], J:['00111','00010','00010','00010','10010','10010','01100'],
+  I:['111','010','010','010','010','010','111'], J:['00111','00010','00010','00010','10010','10010','01100'], K:['10001','10010','10100','11000','10100','10010','10001'],
  L:['10000','10000','10000','10000','10000','10000','11111'], M:['10001','11011','10101','10101','10001','10001','10001'],
  N:['10001','11001','11001','10101','10011','10011','10001'], O:['01110','10001','10001','10001','10001','10001','01110'],
  P:['11110','10001','10001','11110','10000','10000','10000'], Q:['01110','10001','10001','10001','10101','10010','01101'],
  R:['11110','10001','10001','11110','10100','10010','10001'], S:['01111','10000','10000','01110','00001','00001','11110'],
  T:['11111','00100','00100','00100','00100','00100','00100'], U:['10001','10001','10001','10001','10001','10001','01110'],
- V:['10001','10001','10001','10001','10001','01010','00100'], X:['10001','10001','01010','00100','01010','10001','10001'],
+  V:['10001','10001','10001','10001','10001','01010','00100'], W:['10001','10001','10001','10101','10101','11011','10001'], X:['10001','10001','01010','00100','01010','10001','10001'],
  Y:['10001','10001','01010','00100','00100','00100','00100'], Z:['11111','00001','00010','00100','01000','10000','11111'],
 }
 export function pixelText(c, texto, x, y, cor = '#f5eee4') {
@@ -76,16 +77,16 @@ function janela(c, y) {
 export function background(nomeEmpresa, logo) {
   const cv=document.createElement('canvas'); cv.width=W; cv.height=H
   const c=cv.getContext('2d'); c.imageSmoothingEnabled=false
-  box(c,0,0,16,13,9,'#b5835a','#78563e','#624532',-2)
-  poly(c,[P(0,0),P(16,0),P(16,13),P(0,13)],'#b5835a')
-  for(let x=0;x<=16;x+=1/3) {
+  box(c,0,0,15.6,13,9,'#b5835a','#78563e','#624532',-2)
+  poly(c,[P(0,0),P(15.6,0),P(15.6,13),P(0,13)],'#b5835a')
+  for(let x=0;x<=15.6;x+=1/3) {
     line(c,P(x,0),P(x,13),'#a67652')
-    for(let y=(Math.round(x*3)%3);y<13;y+=3) line(c,P(x,y),P(Math.min(x+1/3,16),y),'#8f6549')
+    for(let y=(Math.round(x*3)%3);y<13;y+=3) line(c,P(x,y),P(Math.min(x+1/3,15.6),y),'#8f6549')
   }
-  poly(c,[P(0,13),P(0,0),P(0,0,84),P(0,13,84)],'#fba93c')
-  poly(c,[P(0,0),P(16,0),P(16,0,84),P(0,0,84)],'#da9334')
-  poly(c,[P(0,13),P(0,0),P(0,0,5),P(0,13,5)],'#96602c')
-  poly(c,[P(0,0),P(16,0),P(16,0,5),P(0,0,5)],'#88512a')
+  poly(c,[P(0,13),P(0,0),P(0,0,84),P(0,13,84)],PAREDES.esquerda)
+  poly(c,[P(0,0),P(15.6,0),P(15.6,0,84),P(0,0,84)],PAREDES.direita)
+  poly(c,[P(0,13),P(0,0),P(0,0,5),P(0,13,5)],PAREDES.rodapeEsquerdo)
+  poly(c,[P(0,0),P(15.6,0),P(15.6,0,5),P(0,0,5)],PAREDES.rodapeDireito)
   for(const y of [1.4,4.2,7.2,10]) janela(c,y)
   // Mural de cortiça e papéis presos na parede direita.
   poly(c,[P(7,0,72),P(10.3,0,72),P(10.3,0,34),P(7,0,34)],'#8a603b')
@@ -93,12 +94,15 @@ export function background(nomeEmpresa, logo) {
     poly(c,[P(x,0,z+9),P(x+.65,0,z+9),P(x+.65,0,z),P(x,0,z)],'#f6eee0','#d0b486')
     line(c,P(x+.1,0,z+5),P(x+.52,0,z+5),'#a9b0a8')
   }
-  poly(c,[P(11.3,0,75),P(15.4,0,75),P(15.4,0,32),P(11.3,0,32)],'#f4f0df','#b67e33')
-  const [lx,ly]=P(11.5,0,68)
+  const placaEmpresa=[P(10.9,0,76),P(15.3,0,76),P(15.3,0,30),P(10.9,0,30)]
+  poly(c,placaEmpresa,'#f4f0df','#374594')
+  c.save();c.beginPath();placaEmpresa.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.closePath();c.clip()
+  const [lx,ly]=P(11.1,0,72)
   c.save(); c.setTransform(1,.5,0,1,lx,ly)
-  if (logo) c.drawImage(logo,0,0,23,23)
-  else { c.fillStyle='#6975d8'; c.fillRect(1,12,4,10); c.fillRect(7,6,4,16); c.fillRect(13,0,4,22) }
-  pixelText(c,(nomeEmpresa||'MIZAN').slice(0,9),25,10,'#25384c'); c.restore()
+  if (logo) {const escala=Math.min(18/logo.width,18/logo.height);c.drawImage(logo,0,10+(18-logo.height*escala)/2,logo.width*escala,logo.height*escala)}
+  else { c.fillStyle='#5966d9'; c.fillRect(1,22,4,10); c.fillRect(7,16,4,16); c.fillRect(13,10,4,22) }
+  const nome=texturaNome(nomeEmpresa).canvas
+  c.drawImage(nome,22,0,40,38);c.restore();c.restore()
   placa(c,'ATENDIMENTO',180,174); placa(c,'ESTRATEGIA',312,239)
   placa(c,'ACOMPANHAMENTO',62,214); placa(c,'COORDENACAO',190,294)
   return cv
@@ -170,7 +174,7 @@ export function avatar(c,a,pos,t,estado,direcao=0,andando=false,selecionado=fals
 export function objects(views,t,clock) {
   const out=views.map(a=>({depth:a.i+a.j+1,draw:c=>mesa(c,a,a.status,t)}))
   for(const [x,y] of [[.5,.5],[6.1,.7],[15,.6],[.6,6.5],[7.9,7],[15,12]]) out.push({depth:x+y+.5,draw:c=>planta(c,x,y)})
-  for(const g of [[0,5.8,4.4,5.8],[6,5.8,11,5.8],[12.5,5.8,16,5.8],[7.1,0,7.1,3.8],[7.1,5,7.1,5.8],[4.4,7.3,4.4,10],[4.4,11.5,4.4,13]]) out.push({depth:g[0]+g[1]+.1,draw:c=>vidro(c,...g)})
+  for(const g of [[0,5.8,4.4,5.8],[6,5.8,11,5.8],[12.5,5.8,15.6,5.8],[7.1,0,7.1,3.8],[7.1,5,7.1,5.8],[4.4,7.3,4.4,10],[4.4,11.5,4.4,13]]) out.push({depth:g[0]+g[1]+.1,draw:c=>vidro(c,...g)})
   // Arquivo, rack, impressora, café, bebedouro, sofá e mesa de reunião.
   out.push({depth:8.5,draw:c=>{
     box(c,5.4,.5,1,.7,33,'#9da8a8','#778285','#555f65')
@@ -208,7 +212,7 @@ export function objects(views,t,clock) {
 // Grade em meios de tile; impede cortar diagonalmente quinas de móveis/vidros.
 const obstaculos = new Set()
 for(const a of AGENTES) for(let x=Math.floor(a.i*2);x<Math.ceil((a.i+(a.acc==='servico'?1.2:2))*2);x++) for(let y=Math.floor(a.j*2);y<Math.ceil((a.j+1)*2);y++)obstaculos.add(`${x},${y}`)
-for(const [x1,y1,x2,y2] of [[0,5.8,4.4,5.8],[6,5.8,11,5.8],[12.5,5.8,16,5.8],[7.1,0,7.1,3.8],[7.1,5,7.1,5.8],[4.4,7.3,4.4,10],[4.4,11.5,4.4,13]]) {
+for(const [x1,y1,x2,y2] of [[0,5.8,4.4,5.8],[6,5.8,11,5.8],[12.5,5.8,15.6,5.8],[7.1,0,7.1,3.8],[7.1,5,7.1,5.8],[4.4,7.3,4.4,10],[4.4,11.5,4.4,13]]) {
   const n=Math.ceil(Math.hypot(x2-x1,y2-y1)*3)
   for(let k=0;k<=n;k++)obstaculos.add(`${Math.round((x1+(x2-x1)*k/n)*2)},${Math.round((y1+(y2-y1)*k/n)*2)}`)
 }

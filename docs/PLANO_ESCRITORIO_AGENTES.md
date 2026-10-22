@@ -1,5 +1,7 @@
 # Escritório dos agentes — plano aprovado e implementação
 
+Atualização de composição: a reorganização posterior, com sala ampliada e agentes em faixa horizontal abaixo da moldura, está documentada em [QA_ESCRITORIO_AGENTES.md](QA_ESCRITORIO_AGENTES.md). Essa disposição substitui a lista à esquerda descrita no levantamento original abaixo.
+
 Referências: `prompt-escritorio-agentes.md` enviado pelo usuário e a imagem da sala. O HTML `sala-dos-agentes.html`, citado no MD, não foi fornecido nem localizado com esse nome em Downloads. Plano aprovado pelo usuário em 21/10/2026: “sendo tudo na mesma página tá tudo certo pode fazer”.
 
 ## Composição proposta

@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:escritorio": "node --test tests/escritorio-model.test.mjs",
+    "test:escritorio:ui": "node tests/escritorio.ui.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

@@ -56,25 +56,34 @@ function Feed({ sinais }) {
   return sinais.length ? <ol className="ao-feed">{sinais.map(e=><li key={e.id}><time>{hora(e.t)}</time><i style={{background:e.tipo==='erro'?'#c8463b':e.resultado==='bloqueado'?'#c98c28':e.tipo==='fim'?'#47986b':e.tipo==='handoff'?'#7972bc':'#5185b5'}}/><div>{mensagem(e)}<small>{e.tipo==='handoff'?'Passagem registrada':e.tipo==='inicio'?'Início de etapa':e.tipo==='fim'?'Fim de etapa':'Falha registrada'}</small></div></li>)}</ol> : <p className="ao-empty">Os próximos eventos registrados aparecerão aqui.</p>
 }
 export default function EscritorioAgentes({ dados, nomeEmpresa, logoUrl, onPerfil, mostrarCusto }) {
-  const [selecionado,setSelecionado]=useState('Orquestrador'),[painel,setPainel]=useState('agentes'),[seguir,setSeguir]=useState(false),[controle,setControle]=useState(null)
-  const direita=useRef(null)
+  const [selecionado,setSelecionado]=useState('Orquestrador'),[painel,setPainel]=useState('detalhes'),[seguir,setSeguir]=useState(false),[controle,setControle]=useState(null)
+  const direita=useRef(null), lista=useRef(null), montou=useRef(false)
   useEffect(()=>{
-    if(painel==='detalhes'&&direita.current?.closest('.ao-office').getBoundingClientRect().width<760) direita.current.querySelector('h3')?.focus({preventScroll:true})
+    if(!montou.current){montou.current=true;return}
+    if(direita.current?.closest('.ao-office').getBoundingClientRect().width<1240){direita.current?.querySelector('h3')?.focus({preventScroll:true});direita.current?.scrollIntoView({block:'nearest',behavior:'auto'})}
   },[painel,selecionado])
   const selecionar=useCallback(nome=>{setSelecionado(nome);setPainel('detalhes')},[])
   const a=dados.agentes.find(x=>x.nome===selecionado)
   const contagem=dados.agentes.reduce((acc,a)=>({...acc,[a.status]:(acc[a.status]||0)+1}),{})
   const mover=(tipo,delta)=>{setSeguir(false);setControle({tipo,delta,id:Date.now()})}
-  return <section className={`ao-office ao-mobile-${painel}`} aria-label="Escritório dos agentes">
+  return <section className="ao-office" aria-label="Escritório dos agentes">
+    <div className="ao-frame">
     <div className="ao-office-top"><div className="ao-office-brand"><span className="ao-brand-icon">M</span><div><h2>Sala dos Agentes</h2><p>{nomeEmpresa||'MIZAN'} · Operação de cobrança</p></div></div><div className="ao-counts">{Object.entries(ESTADOS).filter(([k])=>contagem[k]).map(([k,e])=><span key={k}><i style={{background:e.cor}}/>{contagem[k]} {e.nome.toLowerCase()}</span>)}</div><span className={`ao-connection ${dados.erro?'ao-disconnected':''}`} role="status"><Radio size={12}/>{dados.erro?'Conexão interrompida':!dados.estacao?'Conectando…':`Atualizado ${hora(dados.atualizado)}`}</span></div>
     {(dados.erro||dados.erroResumo)&&<div className="ao-warning" role="status">{dados.estacao?'Mantendo os últimos dados disponíveis. Tentando reconectar…':'Não foi possível carregar a operação. Tentando novamente…'}</div>}
     <div className="ao-layout">
-      <div className="ao-left"><Janela titulo={painel==='casos'?'Casos':painel==='atividade'?'Atividade':'Agentes'} fechar={painel==='casos'||painel==='atividade'?()=>setPainel('agentes'):null}>
-        {painel==='casos'?<Casos casos={dados.casos}/>:painel==='atividade'?<Feed sinais={dados.sinais}/>:<Lista agentes={dados.agentes} selecionado={selecionado} onSelecionar={selecionar}/>}
-      </Janela></div>
       <div className="ao-room"><SalaCanvas agentes={dados.agentes} sinais={dados.sinais} selecionado={selecionado} onSelecionar={selecionar} controle={controle} seguir={seguir} onManual={()=>setSeguir(false)} nomeEmpresa={nomeEmpresa} logoUrl={logoUrl} obsoleto={dados.erro}/><div className="ao-room-info"><Clock3 size={12}/>{dados.estacao?.ligado===false?'Automação desligada':'Eventos reais do sistema'}</div></div>
-      <div className="ao-right" ref={direita}><Janela titulo={a?`${a.nome} · Detalhes`:'Detalhes'}><Detalhe agente={a} seguir={seguir} onSeguir={()=>setSeguir(x=>!x)} onPerfil={onPerfil} mostrarCusto={mostrarCusto} resumoAntigo={dados.erroResumo} amostra={dados.amostra}/></Janela></div>
+      <div className="ao-right" ref={direita}><Janela titulo={painel==='casos'?'Casos':painel==='atividade'?'Atividade':a?`${a.nome} · Detalhes`:'Detalhes'} fechar={painel==='casos'||painel==='atividade'?()=>setPainel('detalhes'):null}>
+        {painel==='casos'?<Casos casos={dados.casos}/>:painel==='atividade'?<Feed sinais={dados.sinais}/>:<Detalhe agente={a} seguir={seguir} onSeguir={()=>setSeguir(x=>!x)} onPerfil={onPerfil} mostrarCusto={mostrarCusto} resumoAntigo={dados.erroResumo} amostra={dados.amostra}/>}
+      </Janela></div>
     </div>
-    <div className="ao-toolbar"><div>{[['agentes',Users,'Agentes'],['casos',FolderOpen,'Casos'],['atividade',Activity,'Atividade'],['detalhes',Crosshair,'Detalhes']].map(([id,Icon,label])=><button type="button" className={`${painel===id?'ao-toolbar-active':''} ${id==='detalhes'?'ao-mobile-details':''}`} key={id} onClick={()=>setPainel(id)} aria-pressed={painel===id}><Icon size={17}/><span>{label}</span></button>)}</div><div><button type="button" onClick={()=>mover('zoom',-1)} title="Diminuir zoom" aria-label="Diminuir zoom"><Minus size={18}/></button><button type="button" onClick={()=>mover('zoom',1)} title="Aumentar zoom" aria-label="Aumentar zoom"><Plus size={18}/></button><button type="button" onClick={()=>mover('centrar')} title="Centralizar sala" aria-label="Centralizar sala"><Scan size={18}/><span>Centralizar</span></button></div></div>
+    <div className="ao-toolbar"><div>
+      <button type="button" onClick={()=>{lista.current?.scrollIntoView({block:'nearest',behavior:'auto'});lista.current?.querySelector('[aria-pressed="true"]')?.focus({preventScroll:true})}}><Users size={17}/><span>Agentes</span></button>
+      {[['casos',FolderOpen,'Casos'],['atividade',Activity,'Atividade'],['detalhes',Crosshair,'Detalhes']].map(([id,Icon,label])=><button type="button" className={painel===id?'ao-toolbar-active':''} key={id} onClick={()=>setPainel(id)} aria-pressed={painel===id}><Icon size={17}/><span>{label}</span></button>)}
+    </div><div><button type="button" onClick={()=>mover('zoom',-1)} title="Diminuir zoom" aria-label="Diminuir zoom"><Minus size={18}/></button><button type="button" onClick={()=>mover('zoom',1)} title="Aumentar zoom" aria-label="Aumentar zoom"><Plus size={18}/></button><button type="button" onClick={()=>mover('centrar')} title="Centralizar sala" aria-label="Centralizar sala"><Scan size={18}/><span>Centralizar</span></button></div></div>
+    </div>
+    <section className="ao-roster" ref={lista} aria-label="Seleção de agentes">
+      <header><h3>Agentes</h3><p>Selecione um agente para acompanhar a tarefa e as últimas ações.</p></header>
+      <Lista agentes={dados.agentes} selecionado={selecionado} onSelecionar={selecionar}/>
+    </section>
   </section>
 }
