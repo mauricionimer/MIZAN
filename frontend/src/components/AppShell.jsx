@@ -14,6 +14,7 @@ import ConfirmarModal from './ConfirmarModal'
 import useModal from './useModal'
 import { saidaTravada, liberarSaida, confirmarVoltar } from './protecaoSaida'
 import { LogoMark } from './Logo'
+import FundoOndas from './FundoOndas'
 import { useAuth } from '../context/AuthContext'
 import { useAnalysis } from '../context/AnalysisContext'
 import { pagina, SEM_MOVIMENTO, TRANSICAO } from '../lib/motion'
@@ -288,6 +289,7 @@ export function ShellLayout() {
   return (
     <ShellCtx.Provider value={{ slotAcoes }}>
       <div className="relative isolate flex min-h-screen bg-canvas font-sans text-ink">
+        <FundoOndas />
 
         {/* Menu em gaveta em todas as telas: abre pelo botão ☰ e não ocupa espaço. */}
 

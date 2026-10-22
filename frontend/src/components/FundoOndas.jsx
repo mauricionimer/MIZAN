@@ -10,7 +10,7 @@ import { useTheme } from '../context/ThemeContext'
 export default function FundoOndas() {
   const { claro } = useTheme()
   return (
-    <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden" aria-hidden="true">
+    <div className="fundo-ondas-camada pointer-events-none fixed inset-0 -z-10 overflow-hidden" aria-hidden="true">
       <GlassFold
         className="fundo-ondas"
         light={claro}
