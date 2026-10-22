@@ -8889,6 +8889,57 @@ def agente_caso(predicao_id: str, empresa_id: Optional[str] = None,
     return agente_api.ver_caso(emp, predicao_id)
 
 
+def _contexto_fluxo_devedor(predicao_id, credentials):
+    payload = _usuario_autenticado(credentials)
+    if payload.get('role') not in ('operador', 'admin', 'comando'):
+        raise HTTPException(status_code=403, detail='Acesso negado.')
+    db = get_db()
+    pred = db.table('predicoes').select('id, carteira_id, cpf').eq('id', predicao_id).limit(1).execute()
+    if not pred.data:
+        raise HTTPException(status_code=404, detail='Devedor não encontrado.')
+    carteira_id = pred.data[0]['carteira_id']
+    _exige_carteira_da_empresa(db, carteira_id, payload)
+    emp = _empresa_da_carteira(db, carteira_id)
+    if not emp:
+        raise HTTPException(status_code=404, detail='Devedor não encontrado.')
+    return payload, db, pred.data[0], emp
+
+
+@app.get('/agente/casos/{predicao_id}/fluxo')
+def agente_fluxo_devedor(predicao_id: str,
+                         credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    from agente import api as agente_api, fluxo
+    _, db, pred, emp = _contexto_fluxo_devedor(predicao_id, credentials)
+    registros = fluxo.carregar_registros(db, emp, pred, falta_tabela=_falta_tabela)
+    return _sem_nan(agente_api.fluxo_devedor(emp, predicao_id, registros=registros))
+
+
+class FluxoFaseIn(BaseModel):
+    fase: Optional[str] = None
+
+
+@app.post('/agente/casos/{predicao_id}/fluxo/fase')
+def agente_definir_fase(predicao_id: str, body: FluxoFaseIn,
+                        credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    from agente import api as agente_api, fluxo
+    payload, db, pred, emp = _contexto_fluxo_devedor(predicao_id, credentials)
+    if payload.get('role') not in ('operador', 'admin'):
+        raise HTTPException(status_code=403, detail='Somente a operação da empresa pode definir a fase.')
+    try:
+        resposta = agente_api.definir_fase_devedor(emp, predicao_id, body.fase, payload,
+                                                  registros=fluxo.carregar_registros(db, emp, pred, falta_tabela=_falta_tabela))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except agente_api.CasoOcupado as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    _registrar_auditoria(acao='fluxo_fase_definida' if body.fase else 'fluxo_automatico', entidade='agente_caso',
+                         entidade_id=predicao_id, empresa_id=emp, usuario_id=payload.get('sub'),
+                         usuario_email=payload.get('email', ''), detalhes={'fase': body.fase})
+    return _sem_nan(resposta)
+
+
 @app.post("/agente/casos/{predicao_id}/mensagem")
 def agente_simular_mensagem(predicao_id: str, body: AgenteMensagemIn,
                             credentials: HTTPAuthorizationCredentials = Security(bearer)):

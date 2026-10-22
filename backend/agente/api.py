@@ -125,6 +125,45 @@ def grafos(fonte) -> dict:
             "pagamento": grafo_pagamento(fonte), "abordagem": grafo_abordagem(fonte)}
 
 
+def fluxo_devedor(empresa_id: str, predicao_id: str, repo=None, registros=None) -> dict:
+    from agente.fluxo import unificar
+    repo = repo or fabrica_repo()
+    caso = repo.caso_de(empresa_id, predicao_id)
+    mensagens = repo.ultimas_mensagens(empresa_id, caso['id'], 1) if caso else []
+    return unificar(caso, houve_contato=bool(mensagens), registros=registros)
+
+
+def definir_fase_devedor(empresa_id, predicao_id, fase, usuario, registros=None, repo=None):
+    from agente.fluxo import FASES, unificar
+    if usuario.get('role') not in ('operador', 'admin') or usuario.get('empresa_id') != empresa_id:
+        raise PermissionError('Somente a operação da empresa pode definir a fase.')
+    if fase is not None and fase not in dict(FASES):
+        raise ValueError('Fase inválida.')
+    repo = repo or fabrica_repo()
+    caso = repo.caso_de(empresa_id, predicao_id)
+    if fase == 'pagamento' and not unificar(caso, registros=registros)['pode_marcar_pagamento']:
+        raise ValueError('Pagamento em andamento exige um pagamento confirmado. Informar uma promessa não confirma o pagamento.')
+    caso = caso or repo.obter_ou_criar_caso(empresa_id, predicao_id)
+    agora = datetime.now(timezone.utc)
+    dono = f'fluxo:{uuid.uuid4().hex}'
+    if not repo.travar_caso(caso['id'], dono, agora + orq.DURACAO_TRAVA, agora):
+        raise CasoOcupado('O caso está sendo atualizado. Tente novamente em instantes.')
+    try:
+        caso = repo.obter_caso(caso['id'])
+        dados = dict(caso.get('dados') or {})
+        if fase is None:
+            dados.pop('fluxo_manual', None)
+        else:
+            dados['fluxo_manual'] = {'fase': fase, 'usuario_id': usuario['sub'],
+                                    'nome': usuario.get('nome') or usuario.get('email') or 'Operador',
+                                    'em': agora.isoformat()}
+        if not repo.salvar_caso(caso['id'], {'dados': dados}, dono=dono):
+            raise CasoOcupado('O caso mudou durante a gravação. Tente novamente.')
+    finally:
+        repo.soltar_caso(caso['id'], dono)
+    return fluxo_devedor(empresa_id, predicao_id, repo=repo, registros=registros)
+
+
 def ver_caso(empresa_id: str, predicao_id: str, repo=None) -> dict:
     repo = repo or fabrica_repo()
     caso = repo.caso_de(empresa_id, predicao_id)

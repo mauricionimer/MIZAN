@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Loader2 } from 'lucide-react'
+import { Search, Loader2, ArrowRight } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import GlassFolder from '../components/ui/glass-folder-cards'
+import FluxoDevedorModal from '../components/FluxoDevedorModal'
 import { useTheme } from '../context/ThemeContext'
 import { useAuth } from '../context/AuthContext'
 import { useAnalysis } from '../context/AnalysisContext'
@@ -103,6 +104,8 @@ export default function PastasDevedores() {
   useEffect(() => { setItens([]); buscar(0) }, [buscar])
 
   const tone = claro ? 'light' : 'dark'
+  const [fluxoAberto, setFluxoAberto] = useState(null)
+  useEffect(() => { setFluxoAberto(null) }, [carteiraId, empresaId])
   const verCaso = useMemo(() => (d) => navigate(`/agente?aba=conversas&caso=${encodeURIComponent(d.id)}&nome=${encodeURIComponent(d.nome || '')}`), [navigate])
 
   return (
@@ -164,13 +167,14 @@ export default function PastasDevedores() {
                 key={`${d.id}-${d.semaforo.cor}-${d.arquivos.length}`}
                 label={d.nome || 'Sem nome'} meta={`#${d.rank ?? '–'}${d.dias_em_atraso != null ? ` · ${d.dias_em_atraso} dias` : ''}`}
                 tone={tone} art="none" solidColor={COR_PASTA[d.semaforo.cor]}
-                files={d.arquivos} action="none" width={300} appearDelay={(i % POR_PAGINA % 6) * 90}
-                onFileSelect={() => verCaso(d)}
+                files={[{ name: 'Fluxo do devedor', meta: 'Fases e situação atual' }, ...d.arquivos]} action="none" width={300} appearDelay={(i % POR_PAGINA % 6) * 90}
+                onFileSelect={(_, index) => index === 0 ? setFluxoAberto(d) : verCaso(d)}
               />
               <p className="flex max-w-[300px] items-center gap-2 text-sm text-ink-2" title={`Cor decidida por: ${d.semaforo.origem === 'agente' ? 'avaliação do agente' : 'regras do sistema'}`}>
                 <span className="h-3 w-3 shrink-0 rounded-full ring-1 ring-black/25" style={{ background: PONTO[d.semaforo.cor] }} aria-hidden="true" />
                 <span><strong className="font-semibold text-ink">{d.semaforo.rotulo}</strong> · {d.semaforo.motivo}</span>
               </p>
+              <button type="button" onClick={() => setFluxoAberto(d)} className="btn-ghost btn-sm">Ver fluxo do devedor<ArrowRight size={15} aria-hidden="true" /></button>
             </div>
           ))}
         </div>
@@ -190,6 +194,7 @@ export default function PastasDevedores() {
           </div>
         )}
       </div>
+      <FluxoDevedorModal devedor={fluxoAberto} onFechar={() => setFluxoAberto(null)} onVerCaso={verCaso} />
     </AppShell>
   )
 }

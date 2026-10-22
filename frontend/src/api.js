@@ -729,6 +729,14 @@ export async function agenteCaso(predicaoId, empresaId) {
   return pedir(`/agente/casos/${_id(predicaoId)}`, { query: { empresa_id: empresaId } })
 }
 
+export async function agenteFluxoDevedor(predicaoId) {
+  return pedir(`/agente/casos/${_id(predicaoId)}/fluxo`)
+}
+
+export async function definirFaseDevedor(predicaoId, fase) {
+  return pedir(`/agente/casos/${_id(predicaoId)}/fluxo/fase`, { metodo: 'POST', corpo: { fase } })
+}
+
 export async function agenteSimularMensagem(predicaoId, texto, empresaId) {
   return pedir(`/agente/casos/${_id(predicaoId)}/mensagem`, { metodo: 'POST', corpo: { texto, empresa_id: empresaId || null } })
 }

@@ -17,6 +17,7 @@ import AvisoDesfazer from '../components/AvisoDesfazer'
 import RegistroRapido from '../components/RegistroRapido'
 import TituloRecolhivel from '../components/TituloRecolhivel'
 import ProximoDevedor from '../components/ProximoDevedor'
+import FluxoDevedor from '../components/FluxoDevedor'
 import { resumoConta } from '../utils/ofertas'
 
 // F1 — quem cuida deste devedor. Admin troca na hora; os demais só veem.
@@ -1102,6 +1103,8 @@ function FichaDoDevedor() {
         </div>
 
         {deAgenda && <ContextoAgenda item={deAgenda} oferta={ofertaCombinada} />}
+
+        <div className="mb-5"><FluxoDevedor predicaoId={d.id} carteiraId={carteiraId} rank={d.rank} cpf={d.cpf} versao={versaoContatos} /></div>
 
         {/* Resumo: o essencial para entender o caso antes de agir. */}
         <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
