@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { enquadrar, LIMITES_SALA, posicionarNomes } from '../src/components/escritorio/geometria.js'
 import { ajustarNomeEmpresa, AZUL_MIZAN, PAREDES } from '../src/components/escritorio/marca.js'
+import { MURAL, FOLHAS_MURAL } from '../src/components/escritorio/parede.js'
 
 test('REG-SIZE-002: ampliar a sala usando os limites desenhados e manter o zoom inteiro', () => {
   for(const [largura,altura] of [[956,730],[1190,730],[930,730]]){
@@ -44,4 +45,18 @@ test('REG-BRAND-004: marcas extensas e palavras sem espaços cabem na placa', ()
 test('REG-COLOR-006: paredes usam o azul da marca MIZAN', () => {
   assert.equal(AZUL_MIZAN,'#5966d9')
   assert.equal(PAREDES.direita,AZUL_MIZAN)
+})
+test('REG-MURAL-008: todas as folhas ficam dentro da moldura com margem', () => {
+  assert.equal(FOLHAS_MURAL.length,6)
+  for(const f of FOLHAS_MURAL){
+    assert.ok(f.x>MURAL.esquerda&&f.x+f.largura<MURAL.direita)
+    assert.ok(f.z>MURAL.baixo&&f.z+f.altura<MURAL.alto)
+  }
+})
+test('REG-BRAND-009: Goiás Bank usa duas linhas maiores, preservando nome e acento', () => {
+  const medir=(texto,fonte)=>[...texto].length*fonte*.6
+  const r=ajustarNomeEmpresa('Goiás Bank',medir,40,38,{maxFonte:11,minFonte:6,maxLinhas:3})
+  assert.equal(r.fonte,11)
+  assert.deepEqual(r.linhas,['Goiás','Bank'])
+  assert.ok(r.linhas.length*r.alturaLinha<=38)
 })

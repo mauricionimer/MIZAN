@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { AGENTES, MESAS, mensagem } from './config'
-import { P, background, objects, avatar, assento, caminho } from './canvas'
+import { P, background, objects, avatar, assento, caminho, desenharNomeEmpresa } from './canvas'
 import { enquadrar, posicionarNomes } from './geometria.js'
+import { prepararNomeEmpresa } from './marca.js'
 
 export default function SalaCanvas({ agentes, sinais, selecionado, onSelecionar, controle, seguir, nomeEmpresa, logoUrl, obsoleto, onManual }) {
   const area=useRef(null), canvas=useRef(null), dados=useRef({}), camera=useRef({s:1,x:0,y:0}), passeios=useRef(new Map())
@@ -26,6 +27,7 @@ export default function SalaCanvas({ agentes, sinais, selecionado, onSelecionar,
   useEffect(()=>{
     const el=area.current, cv=canvas.current
     let vivo=true, frame, largura=0, altura=0, cache=background(nomeEmpresa), ultimo=0, drag=null
+    const nomeLegivel=prepararNomeEmpresa(nomeEmpresa)
     const reduz=window.matchMedia('(prefers-reduced-motion: reduce)').matches
     let pontos=[]
     const centrar=()=>{camera.current=enquadrar(largura,altura)}
@@ -58,7 +60,8 @@ export default function SalaCanvas({ agentes, sinais, selecionado, onSelecionar,
       if(ds.seguir&&ds.selecionado){const a=atores.find(a=>a.nome===ds.selecionado);if(a){const p=P(...a.pos);x=Math.round(largura/2-p[0]*s);y=Math.round(altura/2-(p[1]-22)*s);camera.current={s,x,y}}}
       context.setTransform(1,0,0,1,0,0);context.fillStyle='#0d1318';context.fillRect(0,0,largura,altura)
       context.imageSmoothingEnabled=false; context.setTransform(s,0,0,s,x,y);context.drawImage(cache,0,0)
-      const desenhos=objects(ds.agentes||AGENTES,reduz?0:t,new Date())
+      desenharNomeEmpresa(context,nomeLegivel)
+      const desenhos=objects(ds.agentes||AGENTES,reduz?0:t)
       for(const a of atores)desenhos.push({depth:a.pos[0]+a.pos[1]+.1,draw:c=>avatar(c,a,a.pos,reduz?0:t,ds.obsoleto?'desconhecido':a.status,a.dir,a.andando,a.nome===ds.selecionado)})
       desenhos.sort((a,b)=>a.depth-b.depth).forEach(o=>o.draw(context))
       pontos=(ds.agentes||AGENTES).map(a=>{

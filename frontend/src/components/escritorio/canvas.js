@@ -1,5 +1,6 @@
 import { AGENTES } from './config'
-import { PAREDES, texturaNome } from './marca.js'
+import { PAREDES } from './marca.js'
+import { MURAL, FOLHAS_MURAL, PLACA } from './parede.js'
 
 export const W = 544, H = 380
 export const P = (x, y, z = 0) => [240 + (x - y) * 16, 110 + (x + y) * 8 - z]
@@ -41,32 +42,6 @@ export function box(c, x, y, w, d, h, topo, esq, dir, z = 0) {
   poly(c,[f,b,up(b),up(f)],dir)
   poly(c,[up(a),up(b),up(f),up(e)],topo)
 }
-const letras = {
- A:['01110','10001','10001','11111','10001','10001','10001'], B:['11110','10001','10001','11110','10001','10001','11110'],
- C:['01111','10000','10000','10000','10000','10000','01111'], D:['11110','10001','10001','10001','10001','10001','11110'],
- E:['11111','10000','10000','11110','10000','10000','11111'], F:['11111','10000','10000','11110','10000','10000','10000'],
- G:['01111','10000','10000','10111','10001','10001','01110'], H:['10001','10001','10001','11111','10001','10001','10001'],
-  I:['111','010','010','010','010','010','111'], J:['00111','00010','00010','00010','10010','10010','01100'], K:['10001','10010','10100','11000','10100','10010','10001'],
- L:['10000','10000','10000','10000','10000','10000','11111'], M:['10001','11011','10101','10101','10001','10001','10001'],
- N:['10001','11001','11001','10101','10011','10011','10001'], O:['01110','10001','10001','10001','10001','10001','01110'],
- P:['11110','10001','10001','11110','10000','10000','10000'], Q:['01110','10001','10001','10001','10101','10010','01101'],
- R:['11110','10001','10001','11110','10100','10010','10001'], S:['01111','10000','10000','01110','00001','00001','11110'],
- T:['11111','00100','00100','00100','00100','00100','00100'], U:['10001','10001','10001','10001','10001','10001','01110'],
-  V:['10001','10001','10001','10001','10001','01010','00100'], W:['10001','10001','10001','10101','10101','11011','10001'], X:['10001','10001','01010','00100','01010','10001','10001'],
- Y:['10001','10001','01010','00100','00100','00100','00100'], Z:['11111','00001','00010','00100','01000','10000','11111'],
-}
-export function pixelText(c, texto, x, y, cor = '#f5eee4') {
-  c.fillStyle=cor
-  for (const char of texto.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase()) {
-    const gl=letras[char]
-    if (gl) gl.forEach((row,j)=>[...row].forEach((v,i)=>{if(v==='1')c.fillRect(Math.round(x+i),Math.round(y+j),1,1)}))
-    x+=(gl?.[0].length||3)+1
-  }
-}
-function placa(c, nome, x, y) {
-  c.fillStyle='#362e29dd'; c.fillRect(x-4,y-3,nome.length*6+6,13)
-  pixelText(c,nome,x,y,'#f0d3a4')
-}
 function janela(c, y) {
   poly(c,[P(0,y,73),P(0,y+2,73),P(0,y+2,29),P(0,y,29)],'#e8e9dc')
   poly(c,[P(0,y+.13,70),P(0,y+1.87,70),P(0,y+1.87,32),P(0,y+.13,32)],'#9bd0e2','#f5f0da')
@@ -88,12 +63,15 @@ export function background(nomeEmpresa, logo) {
   poly(c,[P(0,13),P(0,0),P(0,0,5),P(0,13,5)],PAREDES.rodapeEsquerdo)
   poly(c,[P(0,0),P(15.6,0),P(15.6,0,5),P(0,0,5)],PAREDES.rodapeDireito)
   for(const y of [1.4,4.2,7.2,10]) janela(c,y)
-  // Mural de cortiça e papéis presos na parede direita.
-  poly(c,[P(7,0,72),P(10.3,0,72),P(10.3,0,34),P(7,0,34)],'#8a603b')
-  for(let x=7.2;x<10;x+=.9) for(const z of [43,59]) {
-    poly(c,[P(x,0,z+9),P(x+.65,0,z+9),P(x+.65,0,z),P(x,0,z)],'#f6eee0','#d0b486')
-    line(c,P(x+.1,0,z+5),P(x+.52,0,z+5),'#a9b0a8')
+  // Folhas decorativas contidas na área interna do mural.
+  const mural=[P(MURAL.esquerda,0,MURAL.alto),P(MURAL.direita,0,MURAL.alto),P(MURAL.direita,0,MURAL.baixo),P(MURAL.esquerda,0,MURAL.baixo)]
+  poly(c,mural,'#8a603b')
+  c.save();c.beginPath();mural.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.closePath();c.clip()
+  for(const {x,z,largura,altura} of FOLHAS_MURAL) {
+    poly(c,[P(x,0,z+altura),P(x+largura,0,z+altura),P(x+largura,0,z),P(x,0,z)],'#f6eee0','#d0b486')
+    line(c,P(x+.1,0,z+5),P(x+largura-.1,0,z+5),'#a9b0a8')
   }
+  c.restore()
   const placaEmpresa=[P(10.9,0,76),P(15.3,0,76),P(15.3,0,30),P(10.9,0,30)]
   poly(c,placaEmpresa,'#f4f0df','#374594')
   c.save();c.beginPath();placaEmpresa.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.closePath();c.clip()
@@ -101,11 +79,17 @@ export function background(nomeEmpresa, logo) {
   c.save(); c.setTransform(1,.5,0,1,lx,ly)
   if (logo) {const escala=Math.min(18/logo.width,18/logo.height);c.drawImage(logo,0,10+(18-logo.height*escala)/2,logo.width*escala,logo.height*escala)}
   else { c.fillStyle='#5966d9'; c.fillRect(1,22,4,10); c.fillRect(7,16,4,16); c.fillRect(13,10,4,22) }
-  const nome=texturaNome(nomeEmpresa).canvas
-  c.drawImage(nome,22,0,40,38);c.restore();c.restore()
-  placa(c,'ATENDIMENTO',180,174); placa(c,'ESTRATEGIA',312,239)
-  placa(c,'ACOMPANHAMENTO',62,214); placa(c,'COORDENACAO',190,294)
+  c.restore();c.restore()
   return cv
+}
+export function desenharNomeEmpresa(c,layout) {
+  const [x,y]=P(PLACA.x,0,PLACA.z)
+  c.save();c.transform(1,.5,0,1,x,y)
+  c.beginPath();c.rect(PLACA.textoX,PLACA.textoY,PLACA.largura,PLACA.altura);c.clip()
+  c.font=`700 ${layout.fonte}px system-ui, sans-serif`;c.textBaseline='middle';c.fillStyle='#18243b'
+  const topo=PLACA.textoY+(PLACA.altura-layout.linhas.length*layout.alturaLinha)/2
+  layout.linhas.forEach((l,i)=>c.fillText(l,PLACA.textoX,topo+(i+.5)*layout.alturaLinha))
+  c.restore()
 }
 function planta(c,x,y) {
   box(c,x,y,.55,.55,8,'#b87d4d','#97603a','#76482e')
@@ -171,7 +155,7 @@ export function avatar(c,a,pos,t,estado,direcao=0,andando=false,selecionado=fals
   if(selecionado){const dy=Math.floor(t/450)%2;poly(c,[[x-4,y-67+dy],[x+4,y-67+dy],[x,y-62+dy]],'#f9d569')}
 }
 
-export function objects(views,t,clock) {
+export function objects(views,t) {
   const out=views.map(a=>({depth:a.i+a.j+1,draw:c=>mesa(c,a,a.status,t)}))
   for(const [x,y] of [[.5,.5],[6.1,.7],[15,.6],[.6,6.5],[7.9,7],[15,12]]) out.push({depth:x+y+.5,draw:c=>planta(c,x,y)})
   for(const g of [[0,5.8,4.4,5.8],[6,5.8,11,5.8],[12.5,5.8,15.6,5.8],[7.1,0,7.1,3.8],[7.1,5,7.1,5.8],[4.4,7.3,4.4,10],[4.4,11.5,4.4,13]]) out.push({depth:g[0]+g[1]+.1,draw:c=>vidro(c,...g)})
@@ -198,13 +182,6 @@ export function objects(views,t,clock) {
     box(c,10.2,11.4,2,.6,8,'#716d91','#545372','#403f5b')
     box(c,10.2,11.4,2,.13,13,'#8580a3','#666486','#51506f',8)
     box(c,11,12.25,1.5,.55,6,'#e9dfbf','#cbbd98','#b0a586')
-  }})
-  out.push({depth:-1,draw:c=>{
-    const p=P(5.5,0,58); const [x,y]=p
-    poly(c,[[x-8,y-14],[x+6,y-7],[x+8,y+4],[x+2,y+12],[x-7,y+6],[x-10,y-4]],'#f1ead5')
-    const hr=clock.getHours()%12, mn=clock.getMinutes()
-    line(c,[x,y],[x+Math.sin(mn*Math.PI/30)*6,y-Math.cos(mn*Math.PI/30)*7],'#283442')
-    line(c,[x,y],[x+Math.sin(hr*Math.PI/6)*4,y-Math.cos(hr*Math.PI/6)*4],'#283442')
   }})
   return out
 }

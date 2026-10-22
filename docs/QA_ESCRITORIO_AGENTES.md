@@ -15,6 +15,8 @@ Paredes no azul MIZAN `#5966d9`, com a outra face mais clara. Nomes canônicos p
 | REG-RESP-005 | Transbordamento horizontal e seleção inacessível | 1920, 1440, 1280, 1024, 760, 390 e 320 px; seleção por Enter e permanência na mesma página. |
 | REG-COLOR-006 | Paredes voltarem à cor antiga | Cor da configuração e amostra de pixels da parede renderizada. |
 | REG-NAMES-007 | Etiquetas existirem no DOM, mas ficarem invisíveis abaixo do canvas | Todos os retângulos das etiquetas ficam dentro do cenário. A inspeção da captura revelou falta de `left:0; top:0`, corrigida e coberta por esta asserção. |
+| REG-MURAL-008 | Folhas decorativas ultrapassarem o mural | Seis folhas em posições explícitas, com largura/altura contidas na moldura e margem em todos os lados; o desenho também recorta o conteúdo ao mural. |
+| REG-BRAND-009 | Letras pequenas e pixeladas tornarem o nome da empresa ilegível | Goiás Bank em duas linhas, fonte maior e nome preservado; texto desenhado diretamente na resolução da tela, sem reduzir uma textura ao buffer pixelado. |
 
 Também verificados: Casos/Atividade/Detalhes, seguir e centralizar, preservação de dados na perda de conexão, recuperação automática, feed sem duplicação e ausência de erros de JavaScript.
 
@@ -32,4 +34,6 @@ Os testes de modelo usam somente Node. O teste de navegador precisa de Playwrigh
 
 As APIs e a autenticação são substituídas por fixtures locais no navegador isolado. Não são usadas credenciais nem sessões reais. A suite sobe e encerra seu próprio Vite. Nenhuma dependência de produção foi adicionada.
 
-Resultado nesta alteração: cinco testes de modelo passaram, suite de navegador passou e build de produção passou. As capturas de desktop e celular mostram dados de teste. A validação cobre os cenários descritos, sem afirmar ausência de qualquer possível problema em dispositivos não testados.
+Resultado atual: sete testes de modelo passaram, suite de navegador passou e build de produção passou. As capturas de desktop e celular mostram dados de teste. A validação cobre os cenários descritos, sem afirmar ausência de qualquer possível problema em dispositivos não testados.
+
+Na limpeza visual posterior, o relógio da parede e os nomes dos departamentos desenhados no piso foram removidos. A comparação de pixels da placa continua verificando que o texto, agora renderizado em resolução de tela, não ultrapassa sua área. O QA visual conferiu a placa legível e as seis folhas dentro do mural.

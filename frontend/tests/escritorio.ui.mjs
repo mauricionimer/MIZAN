@@ -88,22 +88,23 @@ try {
     await page.reload({waitUntil:'domcontentloaded'})
     await page.waitForFunction(nome=>document.querySelector('.ao-office-brand p')?.textContent.includes(nome),nome)
     const marca=await page.locator('.ao-stage canvas').evaluate(async(canvas,nome)=>{
-      const {validarPlaca}=await import('/src/components/escritorio/marca.js')
-      const {background,P}=await import('/src/components/escritorio/canvas.js')
-      const base=background('MIZAN').getContext('2d').getImageData(0,0,544,380).data
-      const atual=background(nome).getContext('2d').getImageData(0,0,544,380).data
+      const {validarPlaca,prepararNomeEmpresa}=await import('/src/components/escritorio/marca.js')
+      const {background,P,desenharNomeEmpresa}=await import('/src/components/escritorio/canvas.js')
+      const renderizar=nome=>{const cv=document.createElement('canvas');cv.width=1088;cv.height=760;const c=cv.getContext('2d');c.imageSmoothingEnabled=false;c.scale(2,2);c.drawImage(background(),0,0);desenharNomeEmpresa(c,prepararNomeEmpresa(nome));return c.getImageData(0,0,1088,760).data}
+      const base=renderizar('MIZAN'),atual=renderizar(nome)
       const [ox,oy]=P(11.1,0,72)
       let alterados=0,fora=0
       for(let k=0;k<atual.length;k+=4)if(atual[k]!==base[k]||atual[k+1]!==base[k+1]||atual[k+2]!==base[k+2]){
-        alterados++;const x=(k/4)%544-ox,y=Math.floor(k/4/544)-oy-x/2
+        alterados++;const x=((k/4)%1088)/2-ox,y=Math.floor(k/4/1088)/2-oy-x/2
         if(x< -4.2||x>68.2||y< -5||y>43)fora++
       }
-      const [sx,sy]=P(2,0,50),indice=(Math.round(sy)*544+Math.round(sx))*4
+      const [sx,sy]=P(2,0,50),indice=(Math.round(sy*2)*1088+Math.round(sx*2))*4
       return {...validarPlaca(nome),alterados,fora,cor:[...atual.slice(indice,indice+3)]}
     },nome)
     assert.ok(marca.cabe,`REG-BRAND-004: placa não contém ${nome}`)
     assert.ok(marca.alterados>0&&marca.fora===0,`REG-BRAND-004: texto fora da placa de ${nome}`)
     assert.deepEqual(marca.cor,[89,102,217],'REG-COLOR-006: azul da marca no desenho real')
+    if(nome==='Goiás Bank'){assert.equal(marca.fonte,11,'REG-BRAND-009: tamanho legível');assert.deepEqual(marca.linhas,['Goiás','Bank'])}
   }
   console.log('ok REG-BRAND-004')
   empresa='Goiás Bank';await page.reload({waitUntil:'domcontentloaded'});await page.locator('.ao-agent-row').first().waitFor()
@@ -114,7 +115,7 @@ try {
     await page.locator('.ao-agent-row').filter({hasText:'Acompanhamento'}).focus()
     await page.keyboard.press('Enter')
     await page.locator('.ao-right h4').filter({hasText:'Acompanhamento'}).waitFor()
-    if(width===390) await page.screenshot({path:join(output,'escritorio-mobile.png'),fullPage:true})
+    if(width===390){await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:join(output,'escritorio-mobile.png'),fullPage:true})}
   }
   console.log('ok REG-RESP-005 / seleção por teclado')
   await page.setViewportSize({width:1920,height:1200})
