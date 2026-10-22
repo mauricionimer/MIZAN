@@ -165,8 +165,12 @@ class Contexto:
         """Chama a IA com teto de custo do dia e soma tokens e custo ao passo atual."""
         em_andamento = self.rastreio.atual["custo_usd"] if self.rastreio.atual else 0.0
         llm.conferir_teto(self.repo.custo_do_dia(self.caso["empresa_id"], self.hoje) + em_andamento)
-        r = self.cliente.gerar(sistema=sistema, mensagens=mensagens, modelo=llm.modelo_para(papel),
-                               ferramentas=ferramentas, max_tokens=max_tokens, papel=papel)
+        self.rastreio.observar("pensando")
+        try:
+            r = self.cliente.gerar(sistema=sistema, mensagens=mensagens, modelo=llm.modelo_para(papel),
+                                   ferramentas=ferramentas, max_tokens=max_tokens, papel=papel)
+        finally:
+            self.rastreio.observar("trabalhando")
         self.rastreio.somar_ia(r)
         return r
 
@@ -431,8 +435,10 @@ def _processar(repo, grafos, ev, cliente, agora, dono) -> dict:
         caso = repo.obter_caso(ev["caso_id"])
         if caso is None:
             raise LookupError("caso não encontrado")
+        from agente.escritorio import observador
         rastreio = Rastreio(ev["empresa_id"], repo.gravar_passo, caso_id=caso["id"],
-                            evento_id=ev["id"], trace_id=trace_id)
+                            evento_id=ev["id"], trace_id=trace_id,
+                            observar=observador(repo, ev, trace_id))
         # "Hoje" do negócio é o de Brasília: às 21h o dia ainda não virou.
         ctx = Contexto(caso=caso, evento=ev, repo=repo, rastreio=rastreio,
                        cliente=cliente, hoje=agora.astimezone(auditor.BRASILIA).date(), agora=agora)

@@ -16,7 +16,7 @@ def novo_trace_id() -> str:
 
 
 class Rastreio:
-    def __init__(self, empresa_id: str, gravar, caso_id=None, evento_id=None, trace_id=None):
+    def __init__(self, empresa_id: str, gravar, caso_id=None, evento_id=None, trace_id=None, observar=None):
         self.empresa_id = empresa_id
         self.caso_id = caso_id
         self.evento_id = evento_id
@@ -24,6 +24,15 @@ class Rastreio:
         self._gravar = gravar
         self.passos: list = []
         self.atual: dict | None = None
+        self._observar = observar
+
+    def observar(self, tipo: str, passo=None):
+        """Observação opcional. Uma falha na sala nunca interfere no atendimento."""
+        if self._observar:
+            try:
+                self._observar(tipo, passo or self.atual, self.atual)
+            except Exception:
+                pass
 
     @contextmanager
     def span(self, no: str, agente: str = "codigo"):
@@ -35,6 +44,7 @@ class Rastreio:
             "tokens_entrada": 0, "tokens_saida": 0, "custo_usd": 0.0, "detalhe": {},
         }
         anterior, self.atual = self.atual, passo
+        self.observar("inicio", passo)
         inicio = time.perf_counter()
         try:
             yield passo
@@ -46,6 +56,7 @@ class Rastreio:
             passo["duracao_ms"] = int((time.perf_counter() - inicio) * 1000)
             passo["custo_usd"] = round(passo["custo_usd"], 6)
             self.atual = anterior
+            self.observar("erro" if passo["resultado"] == "erro" else "fim", passo)
             self.passos.append(passo)
             try:
                 self._gravar(passo)

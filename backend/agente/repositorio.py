@@ -199,6 +199,12 @@ class RepoMemoria:
     def situacoes_dos_casos(self, empresa_id: str) -> list:
         return [c["situacao"] for c in self.casos.values() if c["empresa_id"] == empresa_id]
 
+    def eventos_escritorio(self, empresa_id: str) -> list:
+        return [{**{k: e.get(k) for k in ("id", "caso_id", "trace_id", "tipo", "situacao", "tentativas")},
+                 "escritorio": copy.deepcopy((e.get("dados") or {}).get("_escritorio"))}
+                for e in sorted(self.eventos.values(), key=lambda e: (e["situacao"] == "processando", e["criado_em"]), reverse=True)
+                if e["empresa_id"] == empresa_id][:500]
+
     def casos_da_empresa(self, empresa_id: str, situacoes=None) -> list:
         return [copy.deepcopy(c) for c in self.casos.values() if c["empresa_id"] == empresa_id
                 and (situacoes is None or c["situacao"] in situacoes)]
@@ -457,6 +463,15 @@ class RepoSupabase:
         res = (self.db.table("agente_casos").select("situacao").eq("empresa_id", empresa_id)
                .limit(5000).execute())
         return [c["situacao"] for c in res.data or []]
+
+    def eventos_escritorio(self, empresa_id: str) -> list:
+        campos = "id,caso_id,trace_id,tipo,situacao,tentativas,escritorio:dados->_escritorio"
+        # Ativos primeiro, inclusive um evento antigo retomado pelo checkpoint.
+        ativos = (self.db.table("agente_eventos").select(campos).eq("empresa_id", empresa_id)
+                  .eq("situacao", "processando").order("criado_em", desc=True).limit(500).execute()).data or []
+        recentes = (self.db.table("agente_eventos").select(campos).eq("empresa_id", empresa_id)
+                    .neq("situacao", "processando").order("criado_em", desc=True).limit(max(1, 500-len(ativos))).execute()).data or []
+        return (ativos + recentes)[:500]
 
     def casos_da_empresa(self, empresa_id: str, situacoes=None) -> list:
         q = self.db.table("agente_casos").select("*").eq("empresa_id", empresa_id)

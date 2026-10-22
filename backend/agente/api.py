@@ -262,8 +262,10 @@ def estacao(empresa_id: str, agora: datetime | None = None) -> dict:
                 break
 
     def publico(p):
-        return {**_passo_publico(p), "trace_id": p.get("trace_id")}
+        return {**_passo_publico(p), "trace_id": p.get("trace_id"), "caso_id": p.get("caso_id"), "evento_id": p.get("evento_id")}
+    from agente.escritorio import para_tela
     return {"agora": agora.isoformat(), "janela_min": JANELA_ESTACAO_MIN, "ligado": ligado(),
+            **para_tela(repo.eventos_escritorio(empresa_id), _quem, agora),
             "ia": {papel: llm.ia_ligada(papel) for papel in llm.PAPEIS},
             "passos": [publico(p) for p in recentes],
             "ultima_conversa": [publico(p) for p in ultimo]}
@@ -328,6 +330,7 @@ def _resumo_agente(nome: str, passos: list) -> dict:
     papel = AGENTES_TELA.get(nome)
     return {"nome": nome, "papel": papel, "ia_ligada": llm.ia_ligada(papel) if papel else None,
             "acoes": len(meus),
+            "tokens": sum(int(p.get("tokens_entrada") or 0) + int(p.get("tokens_saida") or 0) for p in meus),
             "bloqueios": sum(1 for p in meus if p.get("resultado") == "bloqueado"),
             "erros": sum(1 for p in meus if p.get("resultado") == "erro"),
             "sem_ia": sum(1 for p in meus if (p.get("detalhe") or {}).get("origem") == "codigo"),
@@ -344,7 +347,7 @@ def agentes(empresa_id: str, agora: datetime | None = None) -> dict:
     agora = agora or datetime.now(timezone.utc)
     repo = fabrica_repo()
     passos = repo.passos_recentes(empresa_id, agora - timedelta(hours=24), 5000)
-    return {"agora": agora.isoformat(), "ligado": ligado(),
+    return {"agora": agora.isoformat(), "ligado": ligado(), "amostra_limitada": len(passos) >= 5000,
             "agentes": [_resumo_agente(n, passos) for n in AGENTES_TELA],
             "numeros": {
                 "respostas": sum(1 for p in passos if p.get("no") == "negociar" and p.get("resultado") == "ok"),

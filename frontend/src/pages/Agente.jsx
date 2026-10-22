@@ -8,10 +8,11 @@ import AppShell from '../components/AppShell'
 import ErroCarga from '../components/ErroCarga'
 import StatCard from '../components/StatCard'
 import { KpiBento } from '../components/ui/stats-bento'
-import EscritorioAgentes, { Retrato } from '../components/EscritorioAgentes'
+import EscritorioAgentes from '../components/EscritorioAgentes'
+import useEscritorio from '../components/escritorio/useEscritorio'
 import FichaPassagem, { SeloPrioridade } from '../components/FichaPassagem'
 import { useAuth } from '../context/AuthContext'
-import { agenteDevedores, agenteCaso, agenteSimularMensagem, agenteSimularPagamento, agenteCentral, agenteRelogio, agentePlano, agenteAplicarPlano, agentePoliticas, agenteSalvarPolitica, agenteControle, agenteAgenda, agenteAtribuir, agenteLaboratorio, agenteAnalisar, agenteDecidirRecomendacao, agenteAgentes, listarEmpresas } from '../api'
+import { agenteDevedores, agenteCaso, agenteSimularMensagem, agenteSimularPagamento, agenteCentral, agenteRelogio, agentePlano, agenteAplicarPlano, agentePoliticas, agenteSalvarPolitica, agenteControle, agenteAgenda, agenteAtribuir, agenteLaboratorio, agenteAnalisar, agenteDecidirRecomendacao, listarEmpresas } from '../api'
 
 const fmtBRL = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0)
 const fmtUSD = (v) => `US$ ${Number(v || 0).toFixed(4)}`
@@ -658,8 +659,6 @@ function Agenda({ empresa }) {
   )
 }
 
-const NOMES_AGENTES = ['Triagem', 'Negociador', 'Supervisor', 'Estrategista', 'Cientista', 'Acompanhamento', 'Orquestrador', 'Auditor']
-
 function Numero({ rotulo, valor, detalhe, barra }) {
   return <StatCard label={rotulo} value={valor} nota={detalhe} barra={barra} />
 }
@@ -667,18 +666,10 @@ function Numero({ rotulo, valor, detalhe, barra }) {
 function AoVivo({ empresa }) {
   const navigate = useNavigate()
   const { empresaConfig, isComando } = useAuth()
-  const [r, setR] = useState(null)
-  useEffect(() => {
-    let vivo = true
-    const carregar = () => agenteAgentes(empresa).then(x => vivo && setR(x)).catch(() => {})
-    carregar()
-    const t = setInterval(() => { if (!document.hidden) carregar() }, 15000)
-    return () => { vivo = false; clearInterval(t) }
-  }, [empresa])
-  const n = r?.numeros
+  const dados = useEscritorio(empresa)
+  const n = dados.numeros
   const usd = v => `US$ ${Number(v || 0).toFixed(2).replace('.', ',')}`
   const abrir = nome => navigate(`/agente/${encodeURIComponent(nome)}`)
-  const porNome = Object.fromEntries((r?.agentes || []).map(a => [a.nome, a]))
   return (
     <div className="space-y-5">
 <KpiBento>
@@ -690,24 +681,7 @@ function AoVivo({ empresa }) {
             barra={n && n.teto_dia_usd ? n.custo_hoje_usd / n.teto_dia_usd : null} />
         )}
       </KpiBento>
-      <EscritorioAgentes empresa={empresa} cores={COR_AGENTE} nomeEmpresa={empresaConfig?.nome_exibicao} resumos={r?.agentes} onPerfil={abrir} />
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        {NOMES_AGENTES.map(nome => {
-          const a = porNome[nome]
-          const cor = COR_AGENTE[nome]
-          const estado = a?.papel ? (a.ia_ligada ? 'IA' : 'IA desligada') : 'Código'
-          return (
-            <button key={nome} onClick={() => abrir(nome)}
-              className="flex items-center gap-3 rounded-xl border border-line bg-surface p-3 text-left transition-colors hover:border-blue-500/40">
-              <div className="shrink-0 rounded-lg bg-raise-1 px-1 pt-1"><Retrato nome={nome} cor={cor} tamanho={30} /></div>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold" style={{ color: cor }}>{nome}</p>
-                <p className="text-xs text-ink-2">{a ? `${a.acoes} ações` : '—'} · <span className="text-ink-3">{estado}</span></p>
-              </div>
-            </button>
-          )
-        })}
-      </div>
+      <EscritorioAgentes key={empresa || 'atual'} dados={dados} nomeEmpresa={empresaConfig?.nome_exibicao} logoUrl={empresaConfig?.foto_url} onPerfil={abrir} mostrarCusto={isComando} />
     </div>
   )
 }
