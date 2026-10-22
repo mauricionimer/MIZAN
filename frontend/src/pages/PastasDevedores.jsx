@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Loader2, ArrowRight } from 'lucide-react'
+import { Search, Loader2 } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import GlassFolder from '../components/ui/glass-folder-cards'
 import FluxoDevedorModal from '../components/FluxoDevedorModal'
@@ -174,7 +174,6 @@ export default function PastasDevedores() {
                 <span className="h-3 w-3 shrink-0 rounded-full ring-1 ring-black/25" style={{ background: PONTO[d.semaforo.cor] }} aria-hidden="true" />
                 <span><strong className="font-semibold text-ink">{d.semaforo.rotulo}</strong> · {d.semaforo.motivo}</span>
               </p>
-              <button type="button" onClick={() => setFluxoAberto(d)} className="btn-ghost btn-sm">Ver fluxo do devedor<ArrowRight size={15} aria-hidden="true" /></button>
             </div>
           ))}
         </div>

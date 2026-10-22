@@ -4,7 +4,7 @@ Composição adaptada do `BuildPipeline` fornecido: cinco blocos isométricos co
 
 Entradas:
 
-- Pastas: documento “Fluxo do devedor” e botão direto “Ver fluxo do devedor”. Os documentos anteriores continuam abrindo as conversas.
+- Pastas: documento “Fluxo do devedor” dentro da pasta. Os documentos anteriores continuam abrindo as conversas.
 - Recuperabilidade: dentro da ficha aberta pela tabela, sem acrescentar uma coluna à fila.
 
 ## Regras confirmadas
@@ -16,6 +16,8 @@ Entradas:
 5. Pagamento em andamento: exige pagamento positivo no registro `dados.pagamentos` do Acompanhamento, feedback com baixa confirmada ou parcela marcada paga. `pagamento_informado`, contato com resultado “pagou” e `pagamento_em_conferencia` não confirmam pagamento.
 
 Quitação, atraso e quebra são avisos, mantendo as cinco fases. Contestação, suspensão, atendimento pela equipe e conferência também preservam a situação real como aviso, sem virar uma sexta fase.
+
+O destaque visual é cumulativo: a fase atual e as anteriores ficam verdes, assim como as conexões entre elas. As anteriores mostram “Concluída”; a atual mantém “Fase atual”. Sem uma fase identificada, nenhum bloco aparece como alcançado. Consultar um bloco não muda o progresso.
 
 `agente/fluxo.py` reúne o caso dos agentes com contatos, ofertas, feedbacks e parcelas da operação. Contatos são isolados por empresa e CPF; informações financeiras, por empresa e predição. Tentativa sem resposta não avança. Promessa sem aceite mantém negociação. Oferta aceita ou acordo registrado indica acordo. A situação de parcelas usa a regra existente em `acordos.py`, sem criar outro prazo de atraso ou quebra.
 
