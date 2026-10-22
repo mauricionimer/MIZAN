@@ -18,7 +18,7 @@ def observador(repo, evento, trace_id):
 
     def observar(tipo, passo, atual):
         nonlocal ultimo
-        t = datetime.now(timezone.utc).isoformat()
+        t = datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
         p, ativo = publico(passo), publico(atual)
         if p and tipo in ("inicio", "fim", "erro"):
             sinais.append({"id": uuid4().hex, "t": t, "tipo": tipo, **p,
@@ -31,7 +31,12 @@ def observador(repo, evento, trace_id):
         dados["_escritorio"] = {"trace_id": trace_id, "atualizado_em": t,
                                 "atual": {**ativo, "estado": "pensando" if tipo == "pensando" else "trabalhando"} if ativo else None,
                                 "sinais": sinais[-80:]}
-        repo.atualizar_evento(evento["id"], {"dados": deepcopy(dados)})
+        publicar = getattr(repo, "publicar_escritorio", None)
+        if publicar:
+            publicar(evento["empresa_id"], evento["id"], trace_id, deepcopy(dados))
+        else:
+            # Repositório em memória: determinístico para os testes.
+            repo.atualizar_evento(evento["id"], {"dados": deepcopy(dados)})
     return observar
 
 

@@ -109,6 +109,10 @@ def _passo_publico(p: dict) -> dict:
 
 def _por_que_calou(passos: list) -> str:
     """A última rodada não mandou mensagem: o motivo, em uma frase."""
+    if any(p.get("no") == "aguardar_ia" for p in passos):
+        return "O serviço de IA está temporariamente indisponível. A mensagem continua na fila para uma nova tentativa automática."
+    if any(p.get("no") == "aguardar_teto" for p in passos):
+        return "O limite diário de IA foi atingido. A mensagem aguarda a próxima janela de processamento."
     for p in passos:
         if p.get("no") == "auditor" and not (p.get("detalhe") or {}).get("permitida", True):
             return f"O Auditor bloqueou ({p.get('regra')}): {(p.get('detalhe') or {}).get('motivo') or 'fora da política'}."
@@ -121,8 +125,13 @@ def _por_que_calou(passos: list) -> str:
 
 
 def grafos(fonte) -> dict:
-    return {"mensagem_devedor": grafo_mensagem(fonte), "vencimento": grafo_vencimento(fonte),
-            "pagamento": grafo_pagamento(fonte), "abordagem": grafo_abordagem(fonte)}
+    from agente.grafos import registrar_falha_humana
+    registro = {"mensagem_devedor": grafo_mensagem(fonte), "vencimento": grafo_vencimento(fonte),
+                "pagamento": grafo_pagamento(fonte), "abordagem": grafo_abordagem(fonte)}
+    for g in registro.values():
+        if g.preparar_falha is None:
+            g.preparar_falha = lambda ctx, erro: registrar_falha_humana(ctx, fonte, erro)
+    return registro
 
 
 def fluxo_devedor(empresa_id: str, predicao_id: str, repo=None, registros=None) -> dict:
@@ -172,8 +181,7 @@ def ver_caso(empresa_id: str, predicao_id: str, repo=None) -> dict:
     msgs = repo.ultimas_mensagens(empresa_id, caso["id"], 50)
     # A última rodada do caso, mesmo que não tenha virado mensagem (bloqueio,
     # falha): é aí que a tela precisa explicar por que o agente ficou calado.
-    ev = next((e for e in repo.eventos_recentes(empresa_id, 300) if e.get("caso_id") == caso["id"] and e.get("trace_id")),
-              None)
+    ev = repo.ultimo_evento_caso(empresa_id, caso["id"])
     ultimo_trace = (ev or {}).get("trace_id") or next((m.get("trace_id") for m in reversed(msgs) if m.get("trace_id")), None)
     passos = repo.passos_do_trace(empresa_id, ultimo_trace) if ultimo_trace else []
     d = caso.get("dados") or {}
@@ -184,6 +192,7 @@ def ver_caso(empresa_id: str, predicao_id: str, repo=None) -> dict:
         "mensagens": [{"direcao": m["direcao"], "texto": m["texto"], "criado_em": m.get("criado_em"),
                        "trace_id": m.get("trace_id")} for m in msgs],
         "trace_id": ultimo_trace,
+        "evento": {k: ev.get(k) for k in ("id", "situacao", "erro", "disponivel_em")} if ev else None,
         "passos": [_passo_publico(p) for p in passos],
         # Rodada sem mensagem de saída: a tela explica o silêncio.
         "silencio": (_por_que_calou(passos) if passos and not any(
@@ -208,11 +217,11 @@ def simular_mensagem(empresa_id: str, predicao_id: str, texto: str, agora: datet
     caso = repo.obter_ou_criar_caso(empresa_id, predicao_id)
     ev, _ = orq.registrar_evento(repo, empresa_id, caso["id"], "mensagem_devedor", f"tela:{uuid.uuid4().hex}",
                                  {"texto": texto}, origem="tela")
-    orq.processar_fila(repo, grafos(fonte), fabrica_cliente(), limite=5,
-                       agora=agora or datetime.now(timezone.utc), empresa_id=empresa_id)
+    orq.processar_fila(repo, grafos(fonte), fabrica_cliente(), limite=1,
+                       agora=agora or datetime.now(timezone.utc), empresa_id=empresa_id, caso_id=caso["id"])
     r = ver_caso(empresa_id, predicao_id, repo)
     final = repo.evento_por_chave(empresa_id, ev["chave"]) or {}
-    r["evento"] = {"situacao": final.get("situacao"), "erro": final.get("erro")}
+    r["evento"] = {k: final.get(k) for k in ("id", "situacao", "erro", "disponivel_em")}
     return r
 
 

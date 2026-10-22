@@ -264,7 +264,7 @@ def _marcar_atendimento_humano(ctx, fonte, dev, args):
     operador = (OPERADOR_A_DEFINIR, NOME_A_DEFINIR)
     from agente import supervisor
     resumo = supervisor.resumo_para_pessoa(ctx, f"atendimento marcado ({args['motivo']})", args["resumo"],
-                                           motivo_codigo="atendimento_marcado")
+                                           motivo_codigo="atendimento_marcado", usar_ia=False)
     item = fonte.criar_agenda(ctx.caso["empresa_id"], dev, "retorno", args["data"], hora=args["hora"],
                               operador=operador,
                               observacao=f"Atendimento com pessoa pedido pelo devedor ({args['motivo']}): {resumo}")
@@ -332,13 +332,16 @@ def _suspender_cobranca(ctx, fonte, dev, args):
 def _transferir_para_humano(ctx, fonte, dev, args):
     from agente import supervisor
     resumo = supervisor.resumo_para_pessoa(ctx, f"transferido ({args['motivo']})", args["resumo"],
-                                           motivo_codigo=args["motivo"])
-    fonte.criar_agenda(ctx.caso["empresa_id"], dev, "retorno", _hoje(ctx).isoformat(),
-                       observacao=f"Transferido pelo assistente ({args['motivo']}): {resumo}")
+                                           motivo_codigo=args["motivo"], usar_ia=False)
+    item = next((a for a in fonte.agenda_pendente(ctx.caso["empresa_id"], dev["id"])
+                 if (a.get("observacao") or "").startswith("Transferido pelo assistente (")), None)
+    if item is None:
+        item = fonte.criar_agenda(ctx.caso["empresa_id"], dev, "retorno", _hoje(ctx).isoformat(),
+                                  observacao=f"Transferido pelo assistente ({args['motivo']}): {resumo}")
     if ctx.caso["situacao"] not in estado.SO_PESSOA_TIRA:
         _ir_para(ctx, "com_pessoa")
     ctx.caso["resumo"] = resumo
-    return {"ok": True, "transferido": True}
+    return {"ok": True, "transferido": True, "compromisso_id": item["id"]}
 
 
 def _remarcar_compromisso(ctx, fonte, dev, args):

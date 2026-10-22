@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:escritorio": "node --test tests/escritorio-model.test.mjs",
-    "test:escritorio:ui": "node tests/escritorio.ui.mjs"
+    "test:escritorio:ui": "node tests/escritorio.ui.mjs",
+    "test:conversa:ui": "node tests/conversa.ui.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

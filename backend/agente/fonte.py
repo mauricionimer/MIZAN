@@ -198,7 +198,7 @@ class FonteSupabase:
         return catalogo_da_empresa(extra)[0]
 
     def agenda_pendente(self, empresa_id: str, predicao_id: str) -> list:
-        res = (self.db.table("agenda").select("id, tipo, data, hora, valor, situacao, operador_id, operador_nome")
+        res = (self.db.table("agenda").select("id, tipo, data, hora, valor, situacao, operador_id, operador_nome, observacao")
                .eq("empresa_id", empresa_id).eq("predicao_id", predicao_id)
                .eq("situacao", "pendente").order("data").limit(20).execute())
         return res.data or []

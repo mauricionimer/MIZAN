@@ -97,6 +97,7 @@ class Grafo:
         self.nos: dict = {}
         # Chamado depois do nó de erro (ex.: avisar o devedor que uma pessoa assume).
         self.ao_falhar = None
+        self.preparar_falha = None
 
     def no(self, nome: str, funcao, agente: str = "codigo", seguinte=FIM) -> "Grafo":
         if nome == FIM or nome in self.nos:
@@ -330,6 +331,10 @@ def executar(grafo: Grafo, ctx: Contexto, dono: str = DONO) -> dict:
             except llm.IaOcupada as e:
                 esperar_ia = e.esperar_s
                 break
+            except llm.ErroGemini as e:
+                # Pedido/chave inválidos não melhoram repetindo a mesma chamada.
+                erro = type(e).__name__
+                break
             except Exception as e:
                 erro = type(e).__name__
         if esperar_ia is not None or teto:
@@ -373,6 +378,10 @@ def executar(grafo: Grafo, ctx: Contexto, dono: str = DONO) -> dict:
             return {"ok": True, "erro": None, "situacao": ctx.caso["situacao"]}
         erro = "IaOcupada"
     if erro:
+        if grafo.preparar_falha:
+            # Registra a demanda antes de prometer uma transferência ao cliente.
+            # Falha na gravação volta à fila pelo tratamento de _processar.
+            grafo.preparar_falha(ctx, erro)
         _transferir(ctx, erro)
         if grafo.ao_falhar:
             try:
@@ -401,7 +410,7 @@ def _checkpoint(ctx: Contexto, ultimo: str | None, dono: str) -> None:
 
 
 def processar_proximo(repo, grafos: dict, cliente=None, agora: datetime | None = None,
-                      dono: str | None = None, empresa_id: str | None = None) -> dict | None:
+                      dono: str | None = None, empresa_id: str | None = None, caso_id=None) -> dict | None:
     """Pega o evento pronto de maior prioridade cujo caso está livre e processa.
 
     Com `empresa_id`, só eventos dessa empresa (a rota de uma empresa não processa
@@ -409,7 +418,10 @@ def processar_proximo(repo, grafos: dict, cliente=None, agora: datetime | None =
     """
     agora = agora or agora_real()
     dono = dono or novo_dono()
-    for ev in repo.candidatos(agora, empresa_id=empresa_id):
+    filtros = {"empresa_id": empresa_id}
+    if caso_id is not None:
+        filtros["caso_id"] = caso_id
+    for ev in repo.candidatos(agora, **filtros):
         if not repo.reservar_evento(ev["id"]):
             continue                                    # outro processo pegou
         real = agora_real()
@@ -468,7 +480,7 @@ def _processar(repo, grafos, ev, cliente, agora, dono) -> dict:
 
 def processar_fila(repo, grafos: dict, cliente=None, limite: int = 20,
                    agora: datetime | None = None, dono: str | None = None,
-                   empresa_id: str | None = None) -> list:
+                   empresa_id: str | None = None, caso_id=None) -> list:
     """Processa até `limite` eventos prontos. Para o agendador chamar.
 
     Antes, devolve à fila o que ficou preso em "processando" com a reserva vencida.
@@ -479,7 +491,7 @@ def processar_fila(repo, grafos: dict, cliente=None, limite: int = 20,
         print(f"[Agente] não devolveu eventos presos: {type(e).__name__}")
     feitos = []
     for _ in range(limite):
-        r = processar_proximo(repo, grafos, cliente, agora, dono, empresa_id=empresa_id)
+        r = processar_proximo(repo, grafos, cliente, agora, dono, empresa_id=empresa_id, caso_id=caso_id)
         if r is None:
             break
         feitos.append(r)

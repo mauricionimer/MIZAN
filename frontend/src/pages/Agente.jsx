@@ -109,6 +109,7 @@ function Conversa({ empresa }) {
   const [erro, setErro] = useState(null)
   const [valorPago, setValorPago] = useState('')
   const fim = useRef(null)
+  const aguardando = ['pendente', 'processando'].includes(dados?.evento?.situacao)
 
   async function controlar(acao) {
     setEnviando(true); setErro(null)
@@ -133,9 +134,27 @@ function Conversa({ empresa }) {
 
   useEffect(() => {
     if (!escolhido) return
+    let vivo = true
     setDados(null); setErro(null)
-    agenteCaso(escolhido.id, empresa).then(setDados).catch(setErro)
+    agenteCaso(escolhido.id, empresa).then(d => vivo && setDados(d)).catch(e => vivo && setErro(e))
+    return () => { vivo = false }
   }, [escolhido, empresa])
+
+  useEffect(() => {
+    if (!escolhido || !aguardando) return
+    let vivo = true, ocupado = false
+    const atualizar = async () => {
+      if (ocupado || document.hidden) return
+      ocupado = true
+      try {
+        const d = await agenteCaso(escolhido.id, empresa)
+        if (vivo) { setDados(d); setErro(null) }
+      } catch (e) { if (vivo) setErro(e) }
+      finally { ocupado = false }
+    }
+    const t = setInterval(atualizar, 5000)
+    return () => { vivo = false; clearInterval(t) }
+  }, [escolhido, empresa, aguardando])
 
   useEffect(() => { fim.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) }, [dados?.mensagens?.length])
 
@@ -189,6 +208,12 @@ function Conversa({ empresa }) {
                 ? <button onClick={() => controlar('devolver')} disabled={enviando} className="ml-auto flex items-center gap-1 rounded-md border border-line bg-raise-1 px-2 py-1 text-xs font-medium text-ink hover:bg-raise-2"><Undo2 className="h-3.5 w-3.5" /> Devolver ao agente</button>
                 : <button onClick={() => controlar('assumir')} disabled={enviando} className="ml-auto flex items-center gap-1 rounded-md border border-line bg-raise-1 px-2 py-1 text-xs font-medium text-ink hover:bg-raise-2"><Hand className="h-3.5 w-3.5" /> Assumir o caso</button>)}
             </header>
+            {!enviando && aguardando && <p role="status" className="border-b border-line px-4 py-2 text-xs text-ink-2">
+              {dados.evento.situacao === 'processando' ? 'O agente está processando a mensagem.' : 'Mensagem na fila. A resposta aparecerá aqui automaticamente após o processamento.'}
+            </p>}
+            {dados?.caso?.situacao === 'com_pessoa' && <p role="status" className="border-b border-line px-4 py-2 text-xs text-ink-2">
+              Este caso está com a equipe. As novas mensagens são encaminhadas para atendimento humano.
+            </p>}
             <div className="flex-1 space-y-2 overflow-y-auto p-4">
               {(dados?.mensagens || []).map((m, i) => (
                 <div key={i} className={`flex ${m.direcao === 'entrada' ? 'justify-start' : 'justify-end'}`}>
@@ -198,7 +223,7 @@ function Conversa({ empresa }) {
                   </div>
                 </div>
               ))}
-              {!enviando && dados?.silencio && (
+              {!enviando && !aguardando && dados?.caso?.situacao !== 'com_pessoa' && dados?.silencio && (
                 <div className="flex justify-center">
                   <p className="flex max-w-[90%] items-start gap-1.5 rounded-lg border px-3 py-1.5 text-xs" style={{ color: 'var(--warning)', borderColor: 'var(--warning)' }}>
                     <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" /> O agente não respondeu. {dados.silencio}

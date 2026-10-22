@@ -118,10 +118,11 @@ class RepoMemoria:
                 return copy.deepcopy(e)
         return None
 
-    def candidatos(self, agora: datetime, limite: int = 10, empresa_id: str | None = None) -> list:
+    def candidatos(self, agora: datetime, limite: int = 10, empresa_id: str | None = None, caso_id=None) -> list:
         prontos = [e for e in self.eventos.values()
                    if e["situacao"] == "pendente" and e["disponivel_em"] <= agora
-                   and (empresa_id is None or e["empresa_id"] == empresa_id)]
+                   and (empresa_id is None or e["empresa_id"] == empresa_id)
+                   and (caso_id is None or e["caso_id"] == caso_id)]
         prontos.sort(key=lambda e: (-e["prioridade"], e["criado_em"]))
         return [copy.deepcopy(e) for e in prontos[:limite]]
 
@@ -195,6 +196,10 @@ class RepoMemoria:
         evs = [e for e in self.eventos.values() if e["empresa_id"] == empresa_id]
         evs.sort(key=lambda e: e["criado_em"], reverse=True)
         return [copy.deepcopy(e) for e in evs[:n]]
+
+    def ultimo_evento_caso(self, empresa_id, caso_id):
+        evs = [e for e in self.eventos.values() if e["empresa_id"] == empresa_id and e["caso_id"] == caso_id]
+        return copy.deepcopy(max(evs, key=lambda e: e["criado_em"])) if evs else None
 
     def situacoes_dos_casos(self, empresa_id: str) -> list:
         return [c["situacao"] for c in self.casos.values() if c["empresa_id"] == empresa_id]
@@ -373,11 +378,13 @@ class RepoSupabase:
                .eq("empresa_id", empresa_id).eq("chave", chave).limit(1).execute())
         return res.data[0] if res.data else None
 
-    def candidatos(self, agora: datetime, limite: int = 10, empresa_id: str | None = None) -> list:
+    def candidatos(self, agora: datetime, limite: int = 10, empresa_id: str | None = None, caso_id=None) -> list:
         q = (self.db.table("agente_eventos").select("*")
              .eq("situacao", "pendente").lte("disponivel_em", agora.isoformat()))
         if empresa_id is not None:
             q = q.eq("empresa_id", empresa_id)
+        if caso_id is not None:
+            q = q.eq("caso_id", caso_id)
         res = q.order("prioridade", desc=True).order("criado_em").limit(limite).execute()
         return res.data or []
 
@@ -413,6 +420,16 @@ class RepoSupabase:
     def atualizar_evento(self, evento_id: str, campos: dict) -> None:
         dados = {k: self._iso(v) for k, v in campos.items()}
         self.db.table("agente_eventos").update(dados).eq("id", evento_id).execute()
+
+    def publicar_escritorio(self, empresa_id, evento_id, trace_id, dados):
+        from agente.publicador import publicador
+        def gravar(snapshot):
+            t = snapshot["_escritorio"]["atualizado_em"]
+            (self.db.table("agente_eventos").update({"dados": snapshot})
+             .eq("id", evento_id).eq("empresa_id", empresa_id).eq("trace_id", trace_id)
+             .or_(f"dados->_escritorio->>atualizado_em.is.null,dados->_escritorio->>atualizado_em.lte.{t}")
+             .execute())
+        return publicador.publicar((empresa_id, evento_id), gravar, dados)
 
     # ── mensagens ──
     # Retenção: apagar_em fica nulo por enquanto; a regra entra com o
@@ -458,6 +475,13 @@ class RepoSupabase:
                .select("id, caso_id, tipo, origem, situacao, tentativas, erro, trace_id, criado_em, concluido_em")
                .eq("empresa_id", empresa_id).order("criado_em", desc=True).limit(n).execute())
         return res.data or []
+
+    def ultimo_evento_caso(self, empresa_id, caso_id):
+        res = (self.db.table("agente_eventos")
+               .select("id,caso_id,tipo,situacao,erro,trace_id,disponivel_em,criado_em")
+               .eq("empresa_id", empresa_id).eq("caso_id", caso_id)
+               .order("criado_em", desc=True).limit(1).execute())
+        return (res.data or [None])[0]
 
     def situacoes_dos_casos(self, empresa_id: str) -> list:
         res = (self.db.table("agente_casos").select("situacao").eq("empresa_id", empresa_id)
