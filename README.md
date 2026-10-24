@@ -10,6 +10,11 @@ Sistema de gestão de carteiras, predição de pagamentos e recomendações (ban
 
 ## Documentação
 
+- [`docs/FLUXO_AGENTES.md`](docs/FLUXO_AGENTES.md) — fluxos dos agentes com
+  entradas, lógica, saídas, limites, passagem para equipe e monitoramento.
+- [`docs/FLUXO_AGENTES_MIZAN.pdf`](docs/FLUXO_AGENTES_MIZAN.pdf) — versão em
+  PDF da documentação operacional dos agentes.
+
 - [`docs/MODELO.md`](docs/MODELO.md) — documentação do modelo para validação
   independente: dados de treino, variáveis, algoritmo, métricas, versionamento,
   monitoramento e limitações conhecidas.
