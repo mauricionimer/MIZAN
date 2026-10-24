@@ -22,6 +22,12 @@ Sistema de gestão de carteiras, predição de pagamentos e recomendações (ban
   Mizan, framework próprio dos agentes, camadas, integrações e controles.
 - [`docs/ARQUITETURA_MIZAN.pdf`](docs/ARQUITETURA_MIZAN.pdf) — versão visual
   em PDF da arquitetura técnica do sistema.
+- [`docs/Mizan_Fluxos_e_Framework_dos_Agentes.pdf`](docs/Mizan_Fluxos_e_Framework_dos_Agentes.pdf) —
+  guia visual consolidado do framework próprio, fluxos, guardrails, falhas e
+  atendimento humano.
+
+- [`ENTREGAVEIS_AKCIT_2026.md`](ENTREGAVEIS_AKCIT_2026.md) — índice do pitch,
+  demonstração gravada e documentação para a entrega do AKCIT Camp 2026.
 
 - [`docs/COMPARATIVO_CONCORRENTES.md`](docs/COMPARATIVO_CONCORRENTES.md) —
   critérios e fontes do comparativo competitivo do Mizan.
