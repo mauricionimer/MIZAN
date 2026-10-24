@@ -25,8 +25,7 @@ def montar(n=1, pct=0):
 
 def dec(**d):
     base = {"decisao": "abordar", "tom": "acolhedor", "oferta_inicial": "parcelado_12x", "concorda_bandit": False,
-            "raciocinio": "atraso longo e dívida alta: parcelar cabe mais no bolso que desconto à vista",
-            "mensagem": "Temos condições para regularizar a sua pendência. Podemos conversar?"}
+            "raciocinio": "atraso longo e dívida alta: parcelar cabe mais no bolso que desconto à vista"}
     return json.dumps({**base, **d})
 
 
@@ -63,8 +62,10 @@ def test_abordagem_com_ia_e_estrategia_no_caso():
     caso = repo.caso_de("emp", "p0")
     assert caso["situacao"] == "em_contato"
     s = saidas(repo)[0]
-    assert s.startswith("Olá, Maria! Aqui é o assistente virtual de Banco Demonstração. Temos condições")
-    assert s.endswith("Se preferir falar com uma pessoa, é só dizer.")
+    assert s.startswith("Olá, Maria! Aqui é o assistente virtual de Banco Demonstração. Tudo bem?")
+    assert "posso confirmar se estou falando com você" in s
+    assert "proteger sua privacidade" in s
+    assert all(t not in s.lower() for t in ("pendência", "regularizar", "condições", "r$"))
     est = caso["dados"]["estrategia"]
     assert est["oferta_inicial"] == "parcelado_12x" and est["concorda_bandit"] is False and est["bandit_oferta"] == "desconto_30pct"
     assert any(n["agente"] == "estrategista" and n["decisao"].startswith("abordar") for n in caso["dados"]["caderno"])
@@ -72,13 +73,13 @@ def test_abordagem_com_ia_e_estrategia_no_caso():
     assert passo["detalhe"]["concorda_bandit"] is False and passo["detalhe"]["origem"] == "ia"
 
 
-def test_oferta_fora_da_politica_ou_valor_na_mensagem_vira_padrao():
-    for ruim in (dec(oferta_inicial="desconto_90pct"), dec(mensagem="Pague hoje R$ 100,00 com desconto!"),
-                 dec(mensagem="Vamos te processar se não pagar."), dec(decisao="adiar", adiar_dias=30), "isso não é json"):
+def test_decisao_invalida_vira_abertura_reservada():
+    for ruim in (dec(oferta_inicial="desconto_90pct"), dec(decisao="adiar", adiar_dias=30), "isso não é json"):
         repo, fonte = montar()
         aplicar(repo, fonte, [ruim])
-        assert saidas(repo)[0].startswith("Olá, Maria! Aqui é o assistente virtual de Banco Demonstração. Temos condições "
-                                          "para você regularizar"), ruim          # texto pronto de hoje
+        saida = saidas(repo)[0]
+        assert "posso confirmar se estou falando com você" in saida, ruim
+        assert "pendência" not in saida.lower(), ruim
         assert "estrategia" not in repo.caso_de("emp", "p0")["dados"]
 
 
@@ -117,7 +118,7 @@ def test_lotes_de_dez():
 def test_desligado_e_igual_a_hoje():
     repo, fonte = montar()
     cli = aplicar(repo, fonte, [dec()], papeis="triagem,negociador")
-    assert not cli.chamadas and "Temos condições para você regularizar" in saidas(repo)[0]
+    assert not cli.chamadas and "posso confirmar se estou falando com você" in saidas(repo)[0]
 
 
 if __name__ == "__main__":

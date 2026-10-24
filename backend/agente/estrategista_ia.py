@@ -5,7 +5,7 @@ grupo de comparação (agente/estrategista.py). A IA entra só para os primeiros
 do grupo "contato" do dia (padrão 20) e decide, devedor a devedor:
 
 - abordar agora ou adiar (até 7 dias);
-- o tom da primeira mensagem;
+- o tom da conversa depois da abertura reservada;
 - a oferta para começar (uma das quatro famílias que o bandit do Mizan aprende),
   podendo discordar do bandit, com motivo.
 
@@ -20,7 +20,7 @@ from datetime import timedelta
 
 from agente import estado, guardrails
 
-VERSAO_PROMPT = "estrategista-v2"            # v2: bandit com nº de resultados; concorda_bandit em código
+VERSAO_PROMPT = "estrategista-v3"            # v3: abertura reservada fixa; IA decide tom e próximo degrau
 FAMILIAS = ("avista_10pct", "parcelado_4x", "desconto_30pct", "parcelado_12x")
 TONS = ("direto", "acolhedor", "informativo")
 MAX_ADIAR_DIAS = 7
@@ -83,10 +83,10 @@ def ficha(dev: dict, caso: dict, rec: dict | None, pol: dict | None, hoje=None, 
 
 
 SISTEMA = """Você é o Estrategista de cobrança de uma instituição financeira. Recebe a ficha de UM devedor que
-o sistema já decidiu procurar e escolhe como começar. Responda APENAS com um objeto JSON:
+o sistema já decidiu procurar e escolhe como conduzir a conversa depois da abertura reservada. Responda APENAS com um objeto JSON:
 {"decisao": "abordar" ou "adiar", "adiar_dias": 0 a 7, "tom": "direto" | "acolhedor" | "informativo",
  "oferta_inicial": uma das "ofertas_na_politica" ou null,
- "raciocinio": até 300 caracteres, para a equipe, "mensagem": 1 ou 2 frases para a pessoa}
+ "raciocinio": até 300 caracteres, para a equipe}
 
 Como decidir:
 - "bandit" é a recomendação do modelo que aprende com os pagamentos registrados da empresa.
@@ -100,9 +100,9 @@ Como decidir:
 - Adie só com motivo claro no histórico (ex.: a pessoa pediu para falar depois); conte os dias a partir de "hoje".
 - Tom: acolhedor para atraso longo ou histórico difícil; direto para atraso curto; informativo quando
   não há histórico.
-- "mensagem": o corpo da primeira mensagem, depois da apresentação (que o sistema já escreve). Convide a
-  conversar sobre a pendência. NÃO escreva valores, percentuais, número de parcelas, datas, nomes ou
-  ameaças, e não diga que fez algo. O Negociador apresenta valores depois, com o simulador.
+- A primeira mensagem é escrita pelo sistema: ela se apresenta, pergunta se fala com a pessoa certa e protege
+  a privacidade. Não escreva uma mensagem para ela e não antecipe cobrança, pendência, valores, propostas ou
+  pressão. O Negociador só apresenta condições depois que a pessoa se identifica e demonstra querer tratar do assunto.
 - Escreva em português do Brasil com acentuação correta.
 - "orientacao_do_cientista" (quando houver) foi aprovada por uma pessoa da equipe a partir dos resultados
   da empresa; leve em conta, respeitando o selo de evidência que vem entre colchetes.
@@ -147,14 +147,6 @@ def decidir(ctx, dev: dict, rec: dict | None) -> dict:
             raise ValueError("adiamento fora do prazo")
         saida["adiar_dias"] = dias
         return saida
-    msg = " ".join(str(dec.get("mensagem") or "").split())
-    sem_numero = guardrails.permitidos_de([])
-    motivos = guardrails.conferir(msg, sem_numero, feitas=set()) if msg else ["mensagem vazia"]
-    if any(ch.isdigit() for ch in msg):
-        motivos.append("número na primeira mensagem")
-    if motivos or len(msg) > 400:
-        raise ValueError("mensagem reprovada: " + "; ".join(motivos or ["longa demais"]))
-    saida["mensagem"] = msg
     return saida
 
 

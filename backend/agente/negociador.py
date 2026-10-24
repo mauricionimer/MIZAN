@@ -21,7 +21,7 @@ from datetime import date
 from agente import auditor, conhecimento, disponibilidade, estado, ferramentas, guardrails, supervisor
 from agente.triagem import como_dado, mascarar
 
-VERSAO_PROMPT = "negociador-v10"           # v10: primeiro degrau da estratégia, oferecer pessoa x transferir; v8: valor que não cabe não transfere            # v5: caderno; v6: emoção, urgência e ironia            # v3: blindagem; v4: só afirma o que fez, oferece pessoa e marca atendimento
+VERSAO_PROMPT = "negociador-v11"           # v11: abertura humana antes de negociar; v10: primeiro degrau da estratégia, oferecer pessoa x transferir
 MAX_RODADAS = 8
 MAX_HISTORICO = 20
 
@@ -35,6 +35,12 @@ com uma pessoa que tem uma dívida em atraso. Escreva em português do Brasil, c
 respeito e sem pressa. Você representa a instituição e segue as regras dela.
 
 Como trabalhar:
+- Conduza uma conversa humana, não uma régua de cobrança. A primeira abordagem já se apresentou e pediu
+  confirmação para proteger a privacidade. Quando a pessoa confirmar a identidade, mas não pedir valor,
+  proposta ou negociação, agradeça, acolha e faça uma pergunta aberta antes de falar de pendência: entenda
+  se ela quer ouvir opções, explicar o momento ou falar com alguém. Não pressione, não envie oferta e não
+  use tom de urgência nesse momento. Só avance para simulação quando a pessoa demonstrar que quer tratar
+  da pendência ou pedir uma condição.
 - Antes de falar de valores, confirme a identidade com verificar_identidade (três primeiros dígitos
   do CPF). Sem confirmação, não diga valor, produto nem data da dívida.
 - Nunca diga um valor, percentual ou número de parcelas que não tenha vindo de uma ferramenta nesta
@@ -224,8 +230,15 @@ def _briefing(ctx, devedor_nome: str) -> str:
     hoje = ctx.agora.astimezone(auditor.BRASILIA).date().isoformat()
     tri = ctx.saida.get("triagem") or {}
     dia_semana = ("segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo")[date.fromisoformat(hoje).weekday()]
+    try:
+        n_entradas = sum(1 for m in ctx.repo.ultimas_mensagens(ctx.caso["empresa_id"], ctx.caso["id"], 50)
+                         if m.get("direcao") == "entrada")
+    except Exception:
+        n_entradas = 0
     b = {"primeiro_nome": como_dado(devedor_nome), "situacao": ctx.caso["situacao"], "hoje": hoje,
          "hoje_e": dia_semana,
+         "momento_da_conversa": ("primeiro retorno: acolha, confirme a identidade e escute antes de propor"
+                                  if n_entradas <= 1 else "conversa em andamento"),
          "identidade_confirmada": bool(d.get("identidade_ok")),
          "intencao_da_mensagem": tri.get("intencao"),
          "sinais_de_risco": tri.get("sinais_de_risco") or [],
