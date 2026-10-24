@@ -38,6 +38,7 @@ CARTEIRAS = [{"id": "cart-1", "empresa_id": "banco_alfa"}, {"id": "cart-outra", 
 class Q:
     def __init__(self, linhas):
         self.linhas, self._neg, self._faixa, self._lim = list(linhas), False, None, None
+        self._ordens = []
 
     def select(self, *a, **k): return self
     def limit(self, n): self._lim = n; return self
@@ -58,12 +59,14 @@ class Q:
         return self
 
     def order(self, col, desc=False):
-        self.linhas.sort(key=lambda l: (l.get(col) is None, l.get(col) or 0), reverse=desc); return self
+        self._ordens.append((col, desc)); return self
 
     def range(self, a, b): self._faixa = (a, b); return self
 
     def execute(self):
         total, dados = len(self.linhas), self.linhas
+        for col, desc in reversed(self._ordens):
+            dados = sorted(dados, key=lambda l: (l.get(col) is None, l.get(col) or 0), reverse=desc)
         if self._faixa:
             dados = dados[self._faixa[0]:self._faixa[1] + 1]
         if self._lim is not None:

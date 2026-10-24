@@ -120,7 +120,7 @@ function _sinalComPrazo(sinal) {
   return { sinal: undefined, limpar: () => {} }
 }
 
-function pedir(caminho, opcoes = {}) {
+export function pedir(caminho, opcoes = {}) {
   const metodo = opcoes.metodo || 'GET'
   if (metodo !== 'GET') {
     invalidarLeiturasEmCurso()

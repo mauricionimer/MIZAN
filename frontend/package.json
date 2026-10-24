@@ -10,8 +10,9 @@
     "test:escritorio": "node --test tests/escritorio-model.test.mjs",
     "test:escritorio:ui": "node tests/escritorio.ui.mjs",
     "test:conversa:ui": "node tests/conversa.ui.mjs",
-    "test:performance": "node --test tests/performance-api.test.mjs",
-    "test:performance:ui": "node tests/performance.ui.mjs"
+    "test:performance": "node --test tests/performance-api.test.mjs tests/polling.test.mjs",
+    "test:performance:ui": "node tests/performance.ui.mjs",
+    "test:aprendizado:ui": "node tests/aprendizado-performance.ui.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

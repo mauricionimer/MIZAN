@@ -374,6 +374,8 @@ _erros.instalar_captura(app)
 _erros.instalar_handlers(app)
 
 app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=4)
+from desempenho import MedirDesempenho
+app.add_middleware(MedirDesempenho)
 
 app.add_middleware(
     CORSMiddleware,
@@ -381,6 +383,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Server-Timing", "X-Request-ID"],
 )
 
 bearer          = HTTPBearer()
@@ -575,9 +578,21 @@ def _feedbacks_das_predicoes(db, colunas: str, pred_ids) -> list:
     saida: list = []
     for i in range(0, len(ids), ITENS_POR_IN):
         lote = ids[i:i + ITENS_POR_IN]
-        saida.extend(_todas_as_linhas(
-            lambda lote=lote: db.table("feedbacks").select(colunas).in_("predicao_id", lote)
-                                .order("created_at", desc=True)))
+        # A contagem do lote evita uma segunda ida vazia ao banco. Continuamos
+        # pelo número de linhas recebido, inclusive quando o servidor limita
+        # a resposta abaixo de LOTE_LEITURA.
+        offset, total = 0, None
+        while total is None or offset < total:
+            q = db.table("feedbacks").select(colunas, **({"count": "exact"} if offset == 0 else {})).in_("predicao_id", lote)
+            res = (q.order("created_at", desc=True).order("id")
+                   .range(offset, offset + LOTE_LEITURA - 1).execute())
+            pagina = res.data or []
+            if not pagina:
+                break
+            saida.extend(pagina)
+            offset += len(pagina)
+            if offset == len(pagina):
+                total = getattr(res, "count", None)
     saida.sort(key=lambda f: f.get("created_at") or "", reverse=True)
     return saida
 
@@ -6565,9 +6580,10 @@ def performance(
     pred_ids = [f["predicao_id"] for f in feedbacks if f.get("predicao_id")]
     scores_map: dict[str, float] = {}
 
-    for i in range(0, len(pred_ids), ITENS_POR_IN):
+    ids_unicos = list(dict.fromkeys(pred_ids))
+    for i in range(0, len(ids_unicos), ITENS_POR_IN):
         for p in _todas_as_linhas(
-                lambda lote=pred_ids[i:i + ITENS_POR_IN]:
+                lambda lote=ids_unicos[i:i + ITENS_POR_IN]:
                     db.table("predicoes").select("id, score_recuperabilidade").in_("id", lote)):
             scores_map[p["id"]] = p["score_recuperabilidade"]
 
@@ -6704,7 +6720,7 @@ def performance_pagamentos(
     if not feedbacks:
         return []
 
-    pred_ids = [f["predicao_id"] for f in feedbacks if f.get("predicao_id")]
+    pred_ids = list(dict.fromkeys(f["predicao_id"] for f in feedbacks if f.get("predicao_id")))
     pred_map: dict = {}
     if pred_ids:
         for i in range(0, len(pred_ids), 100):
@@ -8826,7 +8842,7 @@ def agente_pastas(carteira_id: str, busca: Optional[str] = None, cor: Optional[s
         from agente import api as agente_api
         ligado = agente_api.ligado()
         if ligado:
-            for c in agente_api.fabrica_repo().casos_da_empresa(emp):
+            for c in agente_api.fabrica_repo().casos_semaforo(emp):
                 casos[str(c["predicao_id"])] = c
     except Exception as e:                       # sem a tabela dos agentes, todos aparecem como brancos
         print(f"[Pastas] casos dos agentes indisponíveis: {type(e).__name__}")
@@ -8848,9 +8864,9 @@ def agente_pastas(carteira_id: str, busca: Optional[str] = None, cor: Optional[s
     linhas_d = []
     ids = list(destaque)
     for i in range(0, len(ids), ITENS_POR_IN):
-        linhas_d += (com_busca(db.table("predicoes").select(_COLUNAS_PASTA).eq("carteira_id", carteira_id)
+        linhas_d += (com_busca(db.table("predicoes").select("id, rank").eq("carteira_id", carteira_id)
                                .in_("id", ids[i:i + ITENS_POR_IN])).execute().data or [])
-    ordem = lambda l: (-sem.ORDEM[destaque[l["id"]]["cor"]], l.get("rank") is None, l.get("rank") or 0)
+    ordem = lambda l: (-sem.ORDEM[destaque[l["id"]]["cor"]], l.get("rank") is None, l.get("rank") or 0, l["id"])
     linhas_d.sort(key=ordem)
     n_v = sum(1 for l in linhas_d if destaque[l["id"]]["cor"] == "vermelho")
     n_a = sum(1 for l in linhas_d if destaque[l["id"]]["cor"] == "amarelo")
@@ -8861,18 +8877,28 @@ def agente_pastas(carteira_id: str, busca: Optional[str] = None, cor: Optional[s
             return []
         achados = {l["id"] for l in linhas_d}
         if len(achados) <= 100:                  # poucos destaques: o banco já tira da página
-            q = base(_COLUNAS_PASTA)
+            q = base("id, rank")
             if achados:
                 q = q.not_.in_("id", list(achados))
-            return q.order("rank").range(off, off + lim - 1).execute().data or []
-        # Muitos destaques: lê só id/rank da fila, tira os destacados e fatia.
-        leves = _todas_as_linhas(lambda: base("id, rank"))
-        leves.sort(key=lambda l: (l.get("rank") is None, l.get("rank") or 0, l["id"]))
-        pagina = [l["id"] for l in leves if l["id"] not in achados][off:off + lim]
-        saida = []
-        for i in range(0, len(pagina), ITENS_POR_IN):
-            saida += db.table("predicoes").select(_COLUNAS_PASTA).in_("id", pagina[i:i + ITENS_POR_IN]).execute().data or []
-        saida.sort(key=lambda l: (l.get("rank") is None, l.get("rank") or 0, l["id"]))
+            return q.order("rank").order("id").range(off, off + lim - 1).execute().data or []
+        # Muitos destaques não cabem em NOT IN. Percorre só até completar a
+        # página pedida, em vez de transferir a carteira inteira a cada clique.
+        saida, cursor, ignorados = [], 0, 0
+        while len(saida) < lim:
+            leves = (base("id, rank").order("rank").order("id")
+                     .range(cursor, cursor + 255).execute()).data or []
+            if not leves:
+                break
+            cursor += len(leves)
+            for l in leves:
+                if l["id"] in achados:
+                    continue
+                if ignorados < off:
+                    ignorados += 1
+                else:
+                    saida.append(l)
+                    if len(saida) == lim:
+                        break
         return saida
 
     if cor in ("vermelho", "amarelo"):
@@ -8884,6 +8910,20 @@ def agente_pastas(carteira_id: str, busca: Optional[str] = None, cor: Optional[s
         pagina = linhas_d[offset:offset + limit]
         pagina += brancos(max(0, offset - len(linhas_d)), limit - len(pagina))
         filtrado = total_busca
+
+    # Detalhes pessoais e cadernos completos somente das pastas desta página.
+    pagina_ids = [l["id"] for l in pagina]
+    if pagina_ids:
+        detalhes = (db.table("predicoes").select(_COLUNAS_PASTA).eq("carteira_id", carteira_id)
+                    .in_("id", pagina_ids).execute()).data or []
+        por_id = {l["id"]: l for l in detalhes}
+        pagina = [por_id[pid] for pid in pagina_ids if pid in por_id]
+        if ligado:
+            try:
+                casos.update({str(c["predicao_id"]): c for c in
+                              agente_api.fabrica_repo().casos_por_predicoes(emp, pagina_ids)})
+            except Exception as e:
+                print(f"[Pastas] detalhes indisponíveis: {type(e).__name__}")
 
     itens = []
     for l in pagina:

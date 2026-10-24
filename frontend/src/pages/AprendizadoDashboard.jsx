@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   RefreshCw, Loader2, GitBranch, AlertTriangle, CheckCircle2, Zap, Sliders, Database, Clock, PlayCircle, ShieldCheck, BarChart3, Award, Microscope, Target,
@@ -6,6 +6,7 @@ import {
 import AppShell from '../components/AppShell'
 import { useAuth } from '../context/AuthContext'
 import DicaAjuda from '../components/DicaAjuda'
+import { pedir } from '../api'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001'
 const MUTED = 'var(--ink-3)'
@@ -17,7 +18,7 @@ const fmtData = iso => iso
   ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(iso))
   : '—'
 
-function Secao({ icon: Icon, titulo, sub, children, right, ajuda }) {
+function Secao({ icon: Icon, titulo, sub, children, right, ajuda, carregando = false }) {
   return (
     <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
       <div className="px-6 py-4 border-b flex items-center justify-between flex-wrap gap-3" style={{ borderColor: 'var(--line)' }}>
@@ -30,9 +31,11 @@ function Secao({ icon: Icon, titulo, sub, children, right, ajuda }) {
             {sub && <p className="text-xs mt-0.5" style={{ color: MUTED }}>{sub}</p>}
           </div>
         </div>
-        {right}
+        {!carregando && right}
       </div>
-      <div className="p-6">{children}</div>
+      <div className="p-6" aria-busy={carregando}>{carregando
+        ? <p className="flex items-center gap-2 text-sm text-ink-3" role="status"><Loader2 className="h-4 w-4 animate-spin" /> Carregando...</p>
+        : children}</div>
     </div>
   )
 }
@@ -66,9 +69,7 @@ function Barra({ pct, cor = 'rgb(var(--c-royal))' }) {
 }
 
 async function _get(path, token) {
-  const res = await fetch(`${API_URL}${path}`, { headers: { Authorization: `Bearer ${token}` } })
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  return res.json()
+  return pedir(path, { token })
 }
 async function _post(path, token, body) {
   const res = await fetch(`${API_URL}${path}`, {
@@ -96,6 +97,10 @@ export default function AprendizadoDashboard() {
   const [dbSyncStatus, setDbSyncStatus] = useState(null)
 
   const [loading, setLoading] = useState(true)
+  const [pendentes, setPendentes] = useState(() => Object.fromEntries(
+    ['qualidade', 'modelos', 'importancia', 'drift', 'priceModel', 'convergencia',
+      'scheduler', 'dbSyncCfg', 'dbSyncStatus'].map(chave => [chave, true])))
+  const geracao = useRef(0)
   const [erro, setErro]       = useState('')
   const [acao, setAcao]       = useState('')   // ação em andamento (retreinar/promover/sync/etc.)
   const [msg, setMsg]         = useState('')
@@ -106,32 +111,38 @@ export default function AprendizadoDashboard() {
   const [empresas, setEmpresas]         = useState([])
 
   const carregar = useCallback(async () => {
+    const atual = ++geracao.current
     setLoading(true)
     setErro('')
-    try {
-      const [q, m, fi, d, pm, cv, sc, dc, ds] = await Promise.all([
-        _get('/admin/modelo/qualidade', token).catch(() => null),
-        _get('/admin/modelos', token).catch(() => null),
-        _get('/admin/feature-importance', token).catch(() => null),
-        _get('/admin/drift', token).catch(() => null),
-        _get('/admin/price-model', token).catch(() => null),
-        _get('/admin/bandit/convergencia', token).catch(() => null),
-        _get('/admin/scheduler/status', token).catch(() => null),
-        _get('/admin/db-sync/config', token).catch(() => null),
-        _get('/admin/db-sync/status', token).catch(() => null),
-      ])
-      setQualidade(q)
-      setModelos(m); setImportancia(fi); setDrift(d); setPriceModel(pm)
-      setConvergencia(cv); setScheduler(sc); setDbSyncCfg(dc); setDbSyncStatus(ds)
-      if (cv) setAlphaInput(cv.alpha)
-    } catch (e) {
-      setErro('Erro ao carregar dados de aprendizado: ' + e.message)
-    } finally {
-      setLoading(false)
-    }
+    const leituras = [
+      ['qualidade', '/admin/modelo/qualidade', setQualidade],
+      ['modelos', '/admin/modelos', setModelos],
+      ['importancia', '/admin/feature-importance', setImportancia],
+      ['drift', '/admin/drift', setDrift],
+      ['priceModel', '/admin/price-model', setPriceModel],
+      ['convergencia', '/admin/bandit/convergencia', d => { setConvergencia(d); if (d) setAlphaInput(d.alpha) }],
+      ['scheduler', '/admin/scheduler/status', setScheduler],
+      ['dbSyncCfg', '/admin/db-sync/config', setDbSyncCfg],
+      ['dbSyncStatus', '/admin/db-sync/status', setDbSyncStatus],
+    ]
+    setPendentes(Object.fromEntries(leituras.map(([chave]) => [chave, true])))
+    await Promise.all(leituras.map(async ([chave, caminho, definir]) => {
+      try {
+        const dado = await _get(caminho, token)
+        if (geracao.current === atual) definir(dado)
+      } catch {
+        if (geracao.current === atual) {
+          definir(null)
+          setErro('Algumas informações não puderam ser carregadas. Você pode tentar Atualizar.')
+        }
+      } finally {
+        if (geracao.current === atual) setPendentes(p => ({ ...p, [chave]: false }))
+      }
+    }))
+    if (geracao.current === atual) setLoading(false)
   }, [token])
 
-  useEffect(() => { carregar() }, [carregar])
+  useEffect(() => { carregar(); return () => { geracao.current++ } }, [carregar])
 
   async function executar(nome, fn, recarregar = true) {
     setAcao(nome); setMsg(''); setErro('')
@@ -210,12 +221,6 @@ export default function AprendizadoDashboard() {
     <AppShell titulo="Aprendizado" acoes={<button onClick={carregar} disabled={loading} className="nav-link disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> <span className="hidden sm:inline">Atualizar</span></button>}>
 
       <div className="w-full max-w-6xl mx-auto space-y-6">
-        {loading && !modelos && (
-          <div className="flex flex-col items-center justify-center py-28 gap-3" style={{ color: MUTED }}>
-            <Loader2 className="h-8 w-8 animate-spin" />
-            <p className="text-sm">Carregando painel de aprendizado...</p>
-          </div>
-        )}
 
         {erro && (
           <div className="rounded-2xl px-5 py-4 text-sm text-red-300" style={{ background: 'rgb(var(--c-danger) / 0.10)', border: '1px solid rgb(var(--c-danger) / 0.25)' }}>{erro}</div>
@@ -226,7 +231,7 @@ export default function AprendizadoDashboard() {
           </div>
         )}
 
-        {!loading && (
+        {(
           <>
             <div>
               <h1 className="text-xl font-bold text-ink tracking-tight">Gestão do Aprendizado</h1>
@@ -278,14 +283,14 @@ export default function AprendizadoDashboard() {
                 pontua a empresa nos pagamentos reais dela, não um modelo retreinado. */}
             <Secao
               icon={Microscope}
-              titulo="Qualidade do modelo em uso" ajuda="overfitting"
+              titulo="Qualidade do modelo em uso" ajuda="overfitting" carregando={pendentes.qualidade}
               sub="O modelo que pontua esta empresa separa quem paga de quem não paga?"
               right={
                 <div className="flex items-center gap-2">
                   <input list="aprendizado-empresas" value={empresaSel} onChange={e => setEmpresaSel(e.target.value)}
                     placeholder="empresa_id" aria-label="Empresa" className="input-base w-40 text-xs py-1.5 px-2" />
                   <datalist id="aprendizado-empresas">{empresas.map(e => <option key={e} value={e} />)}</datalist>
-                  <Botao variante="secundario" onClick={verEmpresa} disabled={!empresaSel.trim() || acao === 'empresa'}>
+                  <Botao variante="secundario" onClick={verEmpresa} disabled={loading || !empresaSel.trim() || acao === 'empresa'}>
                     {acao === 'empresa' ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Medir'}
                   </Botao>
                 </div>
@@ -438,7 +443,7 @@ export default function AprendizadoDashboard() {
             {/* Versões do modelo */}
             <Secao
               icon={GitBranch}
-              titulo="Versões do modelo de crédito" ajuda="versoes-e-promocao"
+              titulo="Versões do modelo de crédito" ajuda="versoes-e-promocao" carregando={pendentes.modelos}
               sub={modelos ? `Ativa: ${modelos.versao_ativa} · ${modelos.total_versoes} versão(ões)` : ''}
               right={
                 <Botao variante="secundario" onClick={() => navigate('/comando/treino')}>
@@ -505,7 +510,7 @@ export default function AprendizadoDashboard() {
             {/* Peso das variáveis no modelo que pontua a empresa escolhida */}
             <Secao
               icon={BarChart3}
-              titulo="O que mais pesa no score" ajuda="peso-das-variaveis"
+              titulo="O que mais pesa no score" ajuda="peso-das-variaveis" carregando={pendentes.importancia}
               sub={importancia?.ok
                 ? `${importancia.empresa_id} · modelo ${importancia.modelo?.origem === 'proprio' ? 'próprio' : 'geral'} · ${importancia.n_devedores} devedores da análise mais recente`
                 : 'Escolha a empresa em "Qualidade do modelo em uso" e clique em Medir'}
@@ -533,7 +538,7 @@ export default function AprendizadoDashboard() {
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               {/* Price model */}
-              <Secao icon={Award} ajuda="taxa-de-recuperacao" titulo="Modelo de precificação" sub="Estima quanto da dívida deve voltar, já contando quem não paga. É por empresa.">
+              <Secao icon={Award} ajuda="taxa-de-recuperacao" titulo="Modelo de precificação" carregando={pendentes.priceModel} sub="Estima quanto da dívida deve voltar, já contando quem não paga. É por empresa.">
                 <p className="mb-3 text-xs" style={{ color: MUTED }}>
                   Empresa: {priceModel?.empresa_id || 'escolha em "Qualidade do modelo em uso" e clique em Medir'}
                 </p>
@@ -551,7 +556,7 @@ export default function AprendizadoDashboard() {
               {/* Bandit: convergência + alpha */}
               <Secao
                 icon={Zap}
-                titulo="Bandit de abordagem (LinUCB)" ajuda="estatisticas-do-bandit"
+                titulo="Bandit de abordagem (LinUCB)" ajuda="estatisticas-do-bandit" carregando={pendentes.convergencia}
                 sub={convergencia ? `${convergencia.acoes_convergidas}/${convergencia.acoes_total} ações convergidas` : ''}
                 right={<Botao variante="secundario" onClick={() => navigate('/bandit')}>Ver detalhes</Botao>}
               >
@@ -590,7 +595,7 @@ export default function AprendizadoDashboard() {
             {/* Retreinamento automático */}
             <Secao
               icon={Clock}
-              titulo="Treino automático por empresa" ajuda="como-o-sistema-aprende"
+              titulo="Treino automático por empresa" ajuda="como-o-sistema-aprende" carregando={pendentes.scheduler}
               sub={scheduler ? `Última verificação: ${fmtData(scheduler.ultima_verificacao)}` : ''}
               right={
                 <Botao variante="secundario" onClick={verificarSchedulerAgora} disabled={acao === 'scheduler'}>
@@ -627,7 +632,7 @@ export default function AprendizadoDashboard() {
             {/* Conexão de sincronização de pagamentos */}
             <Secao
               icon={Database}
-              titulo="Sincronização com banco de dados do cliente"
+              titulo="Sincronização com banco de dados do cliente" carregando={pendentes.dbSyncCfg || pendentes.dbSyncStatus}
               sub="Busca pagamentos confirmados de um banco externo para realimentar o aprendizado (closed-loop)"
               right={
                 dbSyncCfg && (

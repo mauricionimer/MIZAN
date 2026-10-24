@@ -214,6 +214,15 @@ class RepoMemoria:
         return [copy.deepcopy(c) for c in self.casos.values() if c["empresa_id"] == empresa_id
                 and (situacoes is None or c["situacao"] in situacoes)]
 
+    def casos_semaforo(self, empresa_id: str) -> list:
+        return [{"predicao_id": c["predicao_id"], "situacao": c["situacao"],
+                 "dados": {k: copy.deepcopy((c.get("dados") or {}).get(k))
+                           for k in ("leitura", "passagem")}}
+                for c in self.casos.values() if c["empresa_id"] == empresa_id]
+
+    def passos_metricas(self, empresa_id: str, desde: datetime, n: int = 5000) -> list:
+        return self.passos_recentes(empresa_id, desde, n)
+
     def empresas_com_politica(self) -> list:
         return sorted({p["empresa_id"] for p in self.politicas if p["ativa"]})
 
@@ -470,6 +479,22 @@ class RepoSupabase:
                .gte("criado_em", desde.isoformat()).order("criado_em", desc=True).limit(n).execute())
         return list(reversed(res.data or []))
 
+    def passos_metricas(self, empresa_id: str, desde: datetime, n: int = 5000) -> list:
+        """Resumo sem transportar o detalhe de cada decisão. Respeita o teto por resposta."""
+        campos = ("id,no,agente,caso_id,resultado,duracao_ms,modelo,versao_prompt,"
+                  "tokens_entrada,tokens_saida,custo_usd,criado_em,"
+                  "origem:detalhe->origem,ok:detalhe->ok")
+        linhas = []
+        while len(linhas) < n:
+            pagina = (self.db.table("agente_passos").select(campos).eq("empresa_id", empresa_id)
+                      .gte("criado_em", desde.isoformat()).order("criado_em", desc=True).order("id")
+                      .range(len(linhas), min(n, len(linhas) + self.PAGINA) - 1).execute()).data or []
+            if not pagina:
+                break
+            linhas.extend({**p, "detalhe": {"origem": p.get("origem"), "ok": p.get("ok")}}
+                          for p in pagina)
+        return list(reversed(linhas))
+
     def eventos_recentes(self, empresa_id: str, n: int = 500) -> list:
         res = (self.db.table("agente_eventos")
                .select("id, caso_id, tipo, origem, situacao, tentativas, erro, trace_id, criado_em, concluido_em")
@@ -502,6 +527,20 @@ class RepoSupabase:
         if situacoes is not None:
             q = q.in_("situacao", list(situacoes))
         return [self._caso(c) for c in (q.limit(5000).execute().data or [])]
+
+    def casos_semaforo(self, empresa_id: str) -> list:
+        """Só as entradas das regras de cor; cadernos/acordos vêm com a página exibida."""
+        saida = []
+        while True:
+            linhas = (self.db.table("agente_casos")
+                      .select("predicao_id,situacao,leitura:dados->leitura,passagem:dados->passagem")
+                      .eq("empresa_id", empresa_id).order("predicao_id")
+                      .range(len(saida), len(saida) + self.PAGINA - 1).execute()).data or []
+            if not linhas:
+                return saida
+            saida.extend({"predicao_id": c["predicao_id"], "situacao": c["situacao"],
+                          "dados": {"leitura": c.get("leitura"), "passagem": c.get("passagem")}}
+                         for c in linhas)
 
     def empresas_com_politica(self) -> list:
         res = self.db.table("agente_politicas").select("empresa_id").eq("ativa", True).limit(1000).execute()

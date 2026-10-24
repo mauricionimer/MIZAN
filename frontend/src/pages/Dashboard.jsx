@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion'
 import { lista, item } from '../lib/motion'
+import { iniciarAtualizacaoVisivel } from '../lib/atualizacaoVisivel'
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -293,34 +294,31 @@ export default function Dashboard({ onIrPara }) {
   // Carrega dados iniciais + polling periódico de status a cada 15s
   useEffect(() => {
     if (!token) return
+    let ativo = true
+    const controller = new AbortController()
+    setLoadingPerf(true)
+    setPerf(null)
+    setPagamentos([])
+    setStatusMap({})
 
     const perfUrl = carteiraId
       ? `${BASE}/performance?carteira_id=${encodeURIComponent(carteiraId)}`
       : `${BASE}/performance`
-    fetch(perfUrl, { headers: { Authorization: `Bearer ${token}` } })
+    fetch(perfUrl, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal })
       .then(r => r.ok ? r.json() : null)
-      .then(setPerf)
+      .then(p => { if (ativo) setPerf(p) })
       .catch(() => {})
-      .finally(() => setLoadingPerf(false))
+      .finally(() => { if (ativo) setLoadingPerf(false) })
 
-    buscarPagamentos(carteiraId).then(setPagamentos).catch(() => {})
-    buscarStatusFeedbacks(carteiraId).then(setStatusMap).catch(() => {})
-
-    // Polling a cada 15s — para após 3 erros consecutivos para não sobrecarregar servidor em outage
-    let errosConsecutivos = 0
-    const intervalo = setInterval(() => {
-      Promise.all([
-        buscarStatusFeedbacks(carteiraId).then(setStatusMap),
-        buscarPagamentos(carteiraId).then(setPagamentos),
+    const parar = iniciarAtualizacaoVisivel(async () => {
+      // allSettled aguarda também a leitura lenta quando a outra falha.
+      const respostas = await Promise.allSettled([
+        buscarStatusFeedbacks(carteiraId).then(d => { if (ativo) setStatusMap(d) }),
+        buscarPagamentos(carteiraId).then(d => { if (ativo) setPagamentos(d) }),
       ])
-        .then(() => { errosConsecutivos = 0 })
-        .catch(() => {
-          errosConsecutivos++
-          if (errosConsecutivos >= 3) clearInterval(intervalo)
-        })
-    }, 15000)
-
-    return () => clearInterval(intervalo)
+      if (respostas.some(r => r.status === 'rejected')) throw new Error('Atualização indisponível')
+    })
+    return () => { ativo = false; controller.abort(); parar() }
   }, [token, carteiraId])
 
   // Os seletores vêm prontos do servidor. Montá-los percorrendo o ranking só

@@ -67,6 +67,50 @@ try {
   await page.setViewportSize({width:390,height:844});await page.waitForTimeout(200)
   assert.ok(await page.evaluate(()=>window.__quadros)>parado,'Quadro estático redesenha após resize')
   assert.deepEqual(erros,[])
+  // Painel real: rede lenta não sobrepõe ciclos e aba oculta não consulta.
+  const painel=await browser.newPage({viewport:{width:1440,height:1000}})
+  const consultas={},emCurso={},maximo={}
+  painel.on('pageerror',e=>erros.push(e.message))
+  await painel.route('**/*',async route=>{
+    const url=new URL(route.request().url())
+    if(url.origin===origin)return route.continue()
+    if(url.origin!=='http://127.0.0.1:8001')return route.abort()
+    let json={}
+    if(url.pathname==='/auth/refresh')json={token:'qa',usuario}
+    if(url.pathname.includes('/ranking'))json={itens:[],filtrado:0}
+    if(url.pathname==='/performance/pagamentos'||url.pathname==='/feedbacks/status') {
+      const chave=url.pathname
+      consultas[chave]=(consultas[chave]||0)+1
+      emCurso[chave]=(emCurso[chave]||0)+1
+      maximo[chave]=Math.max(maximo[chave]||0,emCurso[chave])
+      await new Promise(r=>setTimeout(r,150))
+      json=chave==='/performance/pagamentos'?[]:{}
+      await route.fulfill({status:200,json});emCurso[chave]--;return
+    }
+    return route.fulfill({status:200,json})
+  })
+  await painel.addInitScript(usuario=>{
+    sessionStorage.setItem('mizan_token','qa');sessionStorage.setItem('mizan_user',JSON.stringify(usuario))
+    sessionStorage.setItem('mizan_analysis',JSON.stringify({resumo:{carteira_id:'qa-carteira',total_devedores:0,
+      total_em_risco:0,score_medio:0},distribuicao_aging:[],distribuicao_cluster:[],top_10:[]}))
+    const original=window.setTimeout
+    window.setTimeout=(fn,ms,...args)=>original(fn,ms===15000?50:ms,...args)
+  },usuario)
+  await painel.goto(origin+'/',{waitUntil:'domcontentloaded'})
+  await painel.getByText('Total de Devedores',{exact:false}).first().waitFor()
+  await painel.waitForTimeout(800)
+  assert.ok(consultas['/performance/pagamentos']>=2)
+  assert.equal(maximo['/performance/pagamentos'],1)
+  assert.equal(maximo['/feedbacks/status'],1)
+  await painel.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'))})
+  await painel.waitForTimeout(200)
+  const pausa={...consultas};await painel.waitForTimeout(300)
+  assert.deepEqual(consultas,pausa,'Painel oculto não consulta pagamentos/status')
+  await painel.evaluate(()=>{delete document.hidden;document.dispatchEvent(new Event('visibilitychange'))})
+  await painel.waitForTimeout(200)
+  assert.ok(consultas['/performance/pagamentos']>pausa['/performance/pagamentos'])
+  assert.deepEqual(erros,[])
+  await painel.close()
   console.log(JSON.stringify({ok:true,consultasResumo:contagem['/agenda/resumo'],quadrosEm2s:quadros,
-    regressoes:['consulta compartilhada','código antecipado sem dados','limite de quadros','aba oculta','movimento reduzido','resize']}))
+    regressoes:['consulta compartilhada','código antecipado sem dados','limite de quadros','aba oculta','movimento reduzido','resize','painel sem sobreposição ou polling oculto']}))
 } finally {await browser.close();await server.close()}

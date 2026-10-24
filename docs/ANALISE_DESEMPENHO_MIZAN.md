@@ -2,6 +2,8 @@
 
 Revisão realizada em 22–23/10/2026. Escopo: estrutura das rotas, carregamento do frontend, consultas principais, animação compartilhada, servidor e hospedagem.
 
+**Atualização:** a seção “Continuação — 23/10/2026”, ao final, registra as correções adicionais. O mapa e os próximos passos da primeira revisão abaixo retratam o diagnóstico anterior a essa continuação.
+
 ## Conclusão
 
 A lentidão tem causas diferentes: espera pelo servidor/banco, volume de dados desnecessário e trabalho contínuo do navegador. As páginas já eram divididas em arquivos carregados sob demanda; baixar o aplicativo inteiro não era o principal problema da entrada. A revisão corrigiu seis pontos reproduzíveis e identificou os próximos trabalhos de maior impacto.
@@ -73,3 +75,28 @@ Esta tabela resume a revisão de código das áreas e componentes compartilhados
 - Build de produção aprovado. QA não alterou dados reais nem dependências de produção; bibliotecas necessárias ao servidor de teste foram instaladas em diretório temporário.
 
 Execução: `python test_otimizacao_paginas.py` em `backend`; `npm run test:performance`, `npm run test:performance:ui` e `node test_api.mjs` em `frontend`. O teste de navegador segue as variáveis `MIZAN_PLAYWRIGHT_MODULE` / `MIZAN_BROWSER_CHANNEL` usadas pelas outras regressões de UI.
+
+## Continuação — 23/10/2026
+
+### Mudanças adicionais
+
+- **Pastas:** as regras de cores recebem apenas situação, leitura da triagem e passagem. Cadernos, acordos e demais dados completos são buscados para os itens exibidos. A consulta de candidatos usa somente id/rank; a página final preserva CPF parcial, valores, ordem, motivos e arquivos. Com muitos destaques, a fila branca é percorrida em blocos até completar a página, sem transferir toda a carteira. Casos são paginados para não desaparecerem no teto de resposta da API.
+- **Pagamentos/performance:** contagem exata no primeiro pedido de cada lote permite terminar a leitura sem outro pedido vazio. O código continua avançando pelo número efetivamente recebido se o servidor impuser um teto menor. IDs de predições são consultados uma vez por devedor, mesmo com vários feedbacks. Autorizações continuam antes dos caches; não foi criado cache de dados financeiros.
+- **Métricas dos agentes:** até 5.000 passos continuam disponíveis para o resumo, mas sem os textos extensos dos detalhes. Apenas origem/ok são extraídos do JSON para os cálculos. Paginação garante a amostra mesmo quando o banco limita uma resposta a menos de 5.000 linhas. A projeção segue os recursos de [seleção de colunas/JSON do PostgREST](https://docs.postgrest.org/en/stable/references/api/tables_views.html#json-columns).
+- **Painel da carteira:** primeira leitura e atualizações periódicas usam um único ciclo. Uma rodada só termina depois das duas respostas, inclusive quando uma falha antes da outra. Pausa oculta, retomada ao voltar, interrupção após três erros consecutivos e descarte de respostas de uma carteira abandonada.
+- **Aprendizado:** seções carregam independentemente. Uma sincronização lenta não mantém modelos e diagnósticos prontos atrás de um carregamento global. Erros ficam sinalizados e as outras seções continuam disponíveis. Recarregamentos antigos não substituem os mais recentes.
+- **Medição na API:** respostas incluem `Server-Timing` e `X-Request-ID`; chamadas acima de 1 s e erros 5xx geram log estruturado de duração total, status e template da rota. Não registra parâmetros, identificadores de devedores, corpos ou credenciais. Isso mede execução da API, não espera anterior à chegada ao processo nem tempo de renderização no navegador. Não instrumenta cada consulta SQL.
+
+### Evidências desta rodada
+
+- Carteira sintética de 6.000 devedores, 240 coloridos: a página branca com offset 24 leu **256 posições da fila em vez de 6.000**, mais os candidatos leves e os detalhes de 24 itens. A redução não representa o tempo total da página nem inclui todas as consultas.
+- As mesmas cores, contagens, arquivos, busca, transição entre vermelho/amarelo e fim de lista foram verificados. Nenhum caderno fora da página precisou ser hidratado.
+- Lote de 350 feedbacks: **uma consulta**, em vez da leitura seguida de chamada vazia. Com teto artificial de 37 linhas, recupera os mesmos 350 em dez chamadas, sem truncamento.
+- Métricas: 1.100 passos, teto artificial de 137 por resposta, resumo idêntico ao cálculo sobre registros completos e volume transferido menor que 15% da massa artificial com detalhes de 5 KB por passo.
+- Navegador real com rede simulada: no máximo uma requisição por recurso do painel em andamento; nenhuma nova consulta com a aba oculta; retomada ao voltar. Modelos aparecem mesmo com sincronização pendente e outra seção respondendo 503; teste também em largura de 390 px.
+
+### Regressões e limites
+
+Novos testes: sete em `backend/test_desempenho_escala.py`, quatro em `frontend/tests/polling.test.mjs`, ampliação de `frontend/tests/performance.ui.mjs` e novo `frontend/tests/aprendizado-performance.ui.mjs` (`npm run test:aprendizado:ui`). O banco falso projeta campos, acumula ordenações, aplica filtros, paginação, contagens e tetos por resposta. Regressões existentes de pastas, resultados em escala, resultados do administrador, escopo da carteira, feedbacks, API/estação/escritório dos agentes e cliente HTTP também foram executadas.
+
+Não houve acesso administrativo ao Render nesta rodada: não foram confirmados plano efetivo, CPU/RAM ou região do banco e não foi feita contratação/migração. Não houve medição autenticada em produção. As otimizações preservam cálculos em Python; não foi instalada agregação SQL ou materialização de resultados. Os tópicos anteriores de hospedagem, medições reais e agregações são próximos passos condicionados aos acessos/evidências, não correções declaradas como concluídas.

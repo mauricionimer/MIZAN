@@ -355,7 +355,7 @@ def agentes(empresa_id: str, agora: datetime | None = None) -> dict:
     from datetime import timedelta
     agora = agora or datetime.now(timezone.utc)
     repo = fabrica_repo()
-    passos = repo.passos_recentes(empresa_id, agora - timedelta(hours=24), 5000)
+    passos = repo.passos_metricas(empresa_id, agora - timedelta(hours=24), 5000)
     return {"agora": agora.isoformat(), "ligado": ligado(), "amostra_limitada": len(passos) >= 5000,
             "agentes": [_resumo_agente(n, passos) for n in AGENTES_TELA],
             "numeros": {
