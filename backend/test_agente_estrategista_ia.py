@@ -64,8 +64,9 @@ def test_abordagem_com_ia_e_estrategia_no_caso():
     s = saidas(repo)[0]
     assert s.startswith("Olá, Maria! Aqui é o assistente virtual de Banco Demonstração. Tudo bem?")
     assert "posso confirmar se estou falando com você" in s
-    assert "proteger sua privacidade" in s
-    assert all(t not in s.lower() for t in ("pendência", "regularizar", "condições", "r$"))
+    assert "tratar com privacidade" in s
+    assert all(t not in s.lower() for t in ("pendência", "regularizar", "r$"))
+    assert "opções para organizar a situação" in s.lower()
     est = caso["dados"]["estrategia"]
     assert est["oferta_inicial"] == "parcelado_12x" and est["concorda_bandit"] is False and est["bandit_oferta"] == "desconto_30pct"
     assert any(n["agente"] == "estrategista" and n["decisao"].startswith("abordar") for n in caso["dados"]["caderno"])

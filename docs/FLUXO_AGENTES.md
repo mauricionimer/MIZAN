@@ -55,7 +55,7 @@ As intenções incluem negociar, informar pagamento, contestar, parar contato, p
 
 Ele não inventa valores, leis ou ações. A resposta passa por Travas e Auditor. Se a resposta é barrada, há reescrita; se o problema se repete, o caso é encaminhado.
 
-A primeira abordagem não fala de dívida, pendência, valor ou proposta. Ela se apresenta como assistente virtual, confirma se está falando com a pessoa certa e explica que a pergunta protege a privacidade. Depois da confirmação, o Negociador acolhe e pergunta como pode ajudar antes de apresentar condições; só simula quando a pessoa demonstra que quer tratar da pendência ou pede uma opção.
+A primeira abordagem não fala de dívida, pendência, valor ou proposta. Ela se apresenta como assistente virtual, confirma se está falando com a pessoa certa e explica que a pergunta protege a privacidade. Depois da confirmação, o Negociador conduz para o pagamento de forma respeitosa: pergunta se a pessoa prefere entender o que está em aberto ou ver uma opção que caiba no momento dela. Só então simula e apresenta condições.
 
 ## Auditor
 

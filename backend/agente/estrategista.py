@@ -134,8 +134,8 @@ def plano(repo, fonte, empresa_id: str, aplicar: bool = False, agora=None) -> di
 
 def texto_abordagem(nome: str, empresa: str) -> str:
     return (f"Olá, {nome}! Aqui é o assistente virtual de {empresa}. Tudo bem? Antes de seguirmos, "
-            "posso confirmar se estou falando com você? É só para proteger sua privacidade. "
-            "Se preferir, uma pessoa da equipe pode continuar por aqui.")
+            "posso confirmar se estou falando com você? É um assunto do banco e quero tratar com privacidade. "
+            "Depois disso, consigo te explicar opções para organizar a situação. Se preferir, uma pessoa da equipe pode continuar por aqui.")
 
 
 def grafo_abordagem(fonte) -> Grafo:
