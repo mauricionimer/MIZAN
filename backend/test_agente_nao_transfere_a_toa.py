@@ -102,19 +102,43 @@ class Ocupado(ClienteFalso):
 
 def test_cota_estourada_espera_e_nao_transfere():
     from datetime import timedelta
+    from agente import api as agente_api
     c = Cenario("t", "t", "t", dados=dict(ID_OK), passos=[("mensagem", "quanto fica à vista?")], conferir=[])
     cli = Ocupado({"triagem": [tri("pagar_negociar")], "negociador": [T("Posso simular para você.")]})
     r = executar(c, cli)
     caso = r.repo.casos[r.caso["id"]]
     assert caso["situacao"] != "com_pessoa", caso["situacao"]
     assert any(p["no"] == "aguardar_ia" for p in r.repo.passos)
+    # REG-IA-OCUPADA-001: uma tentativa transitória continua em recuperação;
+    # ela não pode aparecer como erro nem vazar o nome interno da exceção.
+    tentativa = next(p for p in r.repo.passos if p["no"] == "negociar")
+    assert tentativa["resultado"] == "aguardando"
+    assert tentativa["detalhe"]["codigo"] == "ia_ocupada"
+    publico = agente_api._passo_publico(tentativa)
+    assert publico["resultado"] == "aguardando"
+    assert "IaOcupada" not in str(publico)
     pend = [e for e in r.repo.eventos.values() if e["situacao"] == "pendente"]
     assert pend, "evento devia voltar para a fila"
-    # depois da espera, o mesmo evento termina a conversa
+    # REG-IA-OCUPADA-002: a conversa aberta retoma o evento pronto sem
+    # depender do próximo ciclo do agendador.
     depois = pend[0]["disponivel_em"] + timedelta(seconds=1)
-    orq.processar_fila(r.repo, grafos(r.fonte), cli, limite=5, agora=depois)
+    antigo_ativo = os.environ.get("MIZAN_AGENTE_ATIVO")
+    antigas_fabricas = agente_api.fabrica_repo, agente_api.fabrica_fonte, agente_api.fabrica_cliente
+    os.environ["MIZAN_AGENTE_ATIVO"] = "1"
+    agente_api.fabrica_repo = lambda: r.repo
+    agente_api.fabrica_fonte = lambda: r.fonte
+    agente_api.fabrica_cliente = lambda: cli
+    try:
+        resposta = agente_api.retomar_caso("emp", "p1", agora=depois)
+    finally:
+        agente_api.fabrica_repo, agente_api.fabrica_fonte, agente_api.fabrica_cliente = antigas_fabricas
+        if antigo_ativo is None:
+            os.environ.pop("MIZAN_AGENTE_ATIVO", None)
+        else:
+            os.environ["MIZAN_AGENTE_ATIVO"] = antigo_ativo
     saidas = [m["texto"] for m in r.repo.mensagens if m["direcao"] == "saida"]
     assert saidas and saidas[-1].endswith("Posso simular para você.")
+    assert resposta["evento"]["situacao"] == "feito"
 
 
 if __name__ == "__main__":

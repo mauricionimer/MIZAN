@@ -31,7 +31,7 @@ const SOBRE = {
 }
 
 const hora = s => (s ? new Date(s).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '')
-const COR_RES = { ok: 'text-success', bloqueado: 'text-danger', erro: 'text-danger' }
+const COR_RES = { ok: 'text-success', bloqueado: 'text-danger', erro: 'text-danger', aguardando: 'text-warning' }
 
 function Numero({ rotulo, valor }) {
   return <StatCard label={rotulo} value={valor} />
@@ -127,7 +127,7 @@ export default function AgentePerfil() {
                   {(d.ultimas || []).map((p, k) => (
                     <li key={k} className="flex items-baseline justify-between gap-3 py-2 text-sm">
                       <span className="text-ink-2">{p.explicacao}
-                        {p.resultado !== 'ok' && <span className={`ml-1 ${COR_RES[p.resultado] || ''}`}>· {p.regra || p.resultado}</span>}</span>
+                        {p.resultado !== 'ok' && <span className={`ml-1 ${COR_RES[p.resultado] || ''}`}>· {p.regra || (p.resultado === 'aguardando' ? 'nova tentativa agendada' : p.resultado)}</span>}</span>
                       <span className="shrink-0 text-xs text-ink-3">{hora(p.criado_em)}</span>
                     </li>
                   ))}

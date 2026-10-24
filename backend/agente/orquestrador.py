@@ -327,7 +327,17 @@ def executar(grafo: Grafo, ctx: Contexto, dono: str = DONO) -> dict:
             try:
                 with ctx.rastreio.span(no.nome, no.agente) as p:
                     p["detalhe"] = {"tentativa": tentativa}
-                    no.funcao(ctx)
+                    try:
+                        no.funcao(ctx)
+                    except llm.IaOcupada as e:
+                        # Indisponibilidade transitória não é uma falha do nó. Ela
+                        # será retomada do mesmo checkpoint; registrar como erro
+                        # aqui fazia a tela expor "IaOcupada" e inflar os erros do
+                        # agente apesar de a conversa ainda estar em recuperação.
+                        esperar_ia = e.esperar_s
+                        p["resultado"] = "aguardando"
+                        p["detalhe"] = {**dict(p.get("detalhe") or {}),
+                                        "codigo": "ia_ocupada"}
                 erro = None
                 break
             except _SEM_NOVA_TENTATIVA as e:
@@ -335,9 +345,6 @@ def executar(grafo: Grafo, ctx: Contexto, dono: str = DONO) -> dict:
                 break
             except llm.TetoExcedido:
                 teto = True
-                break
-            except llm.IaOcupada as e:
-                esperar_ia = e.esperar_s
                 break
             except llm.ErroGemini as e:
                 # Pedido/chave inválidos não melhoram repetindo a mesma chamada.

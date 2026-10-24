@@ -44,7 +44,7 @@ function Detalhe({ agente:a, seguir, onSeguir, onPerfil, mostrarCusto, resumoAnt
     {m?.modelo&&<p className="ao-model" title={m.modelo}>Modelo: {m.modelo}{m.versao_prompt?` · prompt ${m.versao_prompt}`:''}</p>}
     <div className="ao-detail-buttons"><button type="button" className={seguir?'ao-follow-active':''} onClick={onSeguir} aria-pressed={seguir}><Crosshair size={13}/>{seguir?'Seguindo':'Seguir na sala'}</button><button type="button" onClick={()=>onPerfil(a.nome)} title="Abrir o perfil completo do agente"><ArrowUpRight size={14}/>Perfil</button></div>
     <div className="ao-section-label">Últimas ações · 15 min</div>
-    <div className="ao-actions">{a.ultimas.length?a.ultimas.map((p,i)=><div key={`${p.trace_id}-${p.no}-${p.criado_em}-${i}`}><time>{hora(p.criado_em)}</time><i style={{background:p.resultado==='erro'?'#cf453c':p.resultado==='bloqueado'?'#c98c28':'#47986b'}}/><span>{p.explicacao||p.expli||p.no}<small>{p.duracao_ms??0} ms · {(p.tokens_entrada||0)+(p.tokens_saida||0)} tokens</small></span></div>):<p className="ao-empty">Nenhuma etapa registrada nesta janela.</p>}</div>
+    <div className="ao-actions">{a.ultimas.length?a.ultimas.map((p,i)=><div key={`${p.trace_id}-${p.no}-${p.criado_em}-${i}`}><time>{hora(p.criado_em)}</time><i style={{background:p.resultado==='erro'?'#cf453c':p.resultado==='bloqueado'||p.resultado==='aguardando'?'#c98c28':'#47986b'}}/><span>{p.explicacao||p.expli||p.no}<small>{p.duracao_ms??0} ms · {(p.tokens_entrada||0)+(p.tokens_saida||0)} tokens</small></span></div>):<p className="ao-empty">Nenhuma etapa registrada nesta janela.</p>}</div>
   </>
 }
 function Casos({ casos }) {

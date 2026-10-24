@@ -93,6 +93,8 @@ def _explicar(p: dict) -> str:
         nome = no.split(":", 1)[1].replace("_", " ")
         return f"{nome}: {'feito' if d.get('ok') else 'não feito'}"
     if no == "negociar":
+        if p.get("resultado") == "aguardando" or d.get("codigo") == "ia_ocupada" or d.get("erro") == "IaOcupada":
+            return "a resposta está sendo preparada novamente"
         return "escreveu a resposta" if p.get("resultado") == "ok" else f"falhou ({d.get('erro') or p.get('resultado')})"
     return {"receber": "recebeu o evento", "enviar": "enviou a mensagem", "transferir": "passou para a equipe",
             "resposta_fixa": "mandou a resposta padrão", "avisar_equipe": "avisou a equipe (caso com pessoa)",
@@ -103,6 +105,13 @@ def _passo_publico(p: dict) -> dict:
     saida = {k: p.get(k) for k in ("no", "agente", "resultado", "duracao_ms", "regra", "versao_politica",
                                    "modelo", "versao_prompt", "tokens_entrada", "tokens_saida", "custo_usd",
                                    "detalhe", "criado_em")}
+    # Registros criados antes da normalização tinham IaOcupada como erro do
+    # passo. O evento continua pendente e será retomado, então a interface não
+    # deve tratar nem revelar esse código técnico como uma falha definitiva.
+    if (saida.get("detalhe") or {}).get("erro") == "IaOcupada":
+        saida["resultado"] = "aguardando"
+        saida["detalhe"] = {k: v for k, v in saida["detalhe"].items() if k != "erro"}
+        saida["detalhe"]["codigo"] = "ia_ocupada"
     saida["quem"], saida["explicacao"] = _quem(p), _explicar(p)
     return saida
 
@@ -223,6 +232,25 @@ def simular_mensagem(empresa_id: str, predicao_id: str, texto: str, agora: datet
     final = repo.evento_por_chave(empresa_id, ev["chave"]) or {}
     r["evento"] = {k: final.get(k) for k in ("id", "situacao", "erro", "disponivel_em")}
     return r
+
+
+def retomar_caso(empresa_id: str, predicao_id: str, agora: datetime | None = None) -> dict:
+    """Processa uma tentativa já pronta do caso aberto na conversa.
+
+    O agendador continua sendo a garantia para todos os canais. Esta retomada
+    curta impede que uma mensagem vista na tela espere o próximo ciclo do
+    servidor depois de uma indisponibilidade temporária da IA.
+    """
+    if not ligado():
+        raise AgenteDesligado("O agente está desligado (MIZAN_AGENTE_ATIVO).")
+    agora = agora or datetime.now(timezone.utc)
+    repo, fonte = fabrica_repo(), fabrica_fonte()
+    caso = repo.caso_de(empresa_id, predicao_id)
+    if caso is None:
+        raise LookupError("Este devedor ainda não tem conversa com o agente.")
+    orq.processar_fila(repo, grafos(fonte), fabrica_cliente(), limite=1, agora=agora,
+                       empresa_id=empresa_id, caso_id=caso["id"])
+    return ver_caso(empresa_id, predicao_id, repo)
 
 
 def central(empresa_id: str, agora: datetime | None = None) -> dict:

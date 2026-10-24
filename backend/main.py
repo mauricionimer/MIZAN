@@ -199,7 +199,9 @@ async def lifespan(app: FastAPI):
     from agente.api import ciclo_agendado as _ciclo_agente
     _scheduler.add_job(
         _ciclo_agente,
-        IntervalTrigger(minutes=int(os.getenv("MIZAN_AGENTE_CICLO_MIN", 10))),
+        # A fila de mensagens também tem retomada pela conversa aberta, mas o
+        # ciclo cobre os outros canais e casos sem tela acompanhando.
+        IntervalTrigger(minutes=int(os.getenv("MIZAN_AGENTE_CICLO_MIN", 1))),
         id="agente_ciclo",
         replace_existing=True,
     )
@@ -9017,6 +9019,27 @@ def agente_simular_mensagem(predicao_id: str, body: AgenteMensagemIn,
         raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
+
+
+class AgenteRetomarIn(BaseModel):
+    empresa_id: Optional[str] = None
+
+
+@app.post("/agente/casos/{predicao_id}/retomar")
+def agente_retomar_caso(predicao_id: str, body: AgenteRetomarIn,
+                        credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Retoma, na conversa aberta, uma tentativa cujo horário já chegou."""
+    from agente import api as agente_api
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") not in ("admin", "comando"):
+        raise HTTPException(status_code=403, detail="Só administradores retomam conversas do agente.")
+    emp = _empresa_do_agente(payload, body.empresa_id)
+    try:
+        return agente_api.retomar_caso(emp, predicao_id)
+    except agente_api.AgenteDesligado as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 class AgentePagamentoIn(BaseModel):

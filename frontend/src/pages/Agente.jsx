@@ -12,7 +12,7 @@ import EscritorioAgentes from '../components/EscritorioAgentes'
 import useEscritorio from '../components/escritorio/useEscritorio'
 import FichaPassagem, { SeloPrioridade } from '../components/FichaPassagem'
 import { useAuth } from '../context/AuthContext'
-import { agenteDevedores, agenteCaso, agenteSimularMensagem, agenteSimularPagamento, agenteCentral, agenteRelogio, agentePlano, agenteAplicarPlano, agentePoliticas, agenteSalvarPolitica, agenteControle, agenteAgenda, agenteAtribuir, agenteLaboratorio, agenteAnalisar, agenteDecidirRecomendacao, listarEmpresas } from '../api'
+import { agenteDevedores, agenteCaso, agenteSimularMensagem, agenteRetomar, agenteSimularPagamento, agenteCentral, agenteRelogio, agentePlano, agenteAplicarPlano, agentePoliticas, agenteSalvarPolitica, agenteControle, agenteAgenda, agenteAtribuir, agenteLaboratorio, agenteAnalisar, agenteDecidirRecomendacao, listarEmpresas } from '../api'
 
 const fmtBRL = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0)
 const fmtUSD = (v) => `US$ ${Number(v || 0).toFixed(4)}`
@@ -79,21 +79,28 @@ function Passos({ passos }) {
   return (
     <div className="space-y-2">
       <ol className="space-y-1">
-        {passos.map((p, i) => (
+        {passos.map((p, i) => {
+          // Também protege a leitura de registros antigos, quando IaOcupada
+          // ainda era persistido como erro antes de a nova tentativa.
+          const aguardandoNovaTentativa = p.resultado === 'aguardando' || p.detalhe?.codigo === 'ia_ocupada' || p.detalhe?.erro === 'IaOcupada'
+          const resultado = aguardandoNovaTentativa ? 'aguardando' : p.resultado
+          return (
           <li key={i} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-lg px-2 py-1.5 text-xs hover:bg-raise-1">
-            <span className="h-2 w-2 shrink-0 translate-y-[-1px] rounded-full" style={{ background: COR_RES[p.resultado] || 'var(--ink-3)' }} />
+            <span className="h-2 w-2 shrink-0 translate-y-[-1px] rounded-full" style={{ background: resultado === 'aguardando' ? 'var(--warning)' : COR_RES[resultado] || 'var(--ink-3)' }} />
             {p.quem && <span className="rounded px-1.5 py-px text-[11px] font-semibold" style={{ color: COR_AGENTE[p.quem] || 'var(--ink-2)', background: 'color-mix(in srgb, currentColor 14%, transparent)' }}>{p.quem}</span>}
-            <span className="font-medium text-ink">{p.explicacao || nomeNo(p.no)}</span>
+            <span className="font-medium text-ink">{aguardandoNovaTentativa ? 'A resposta será tentada novamente' : p.explicacao || nomeNo(p.no)}</span>
             {p.regra && <span className="rounded bg-raise-2 px-1.5 py-px font-mono text-[11px] text-ink-2">{p.regra}{p.versao_politica ? ` · v${p.versao_politica}` : ''}</span>}
             {p.detalhe?.fontes?.map((f) => (
               <span key={f} className="rounded border border-line px-1.5 py-px text-[11px] text-ink" title="Fonte consultada na base de conhecimento">Fonte: {f}</span>
             ))}
             {p.detalhe?.certeza === false && <span style={{ color: 'var(--warning)' }}>sem resposta segura na base</span>}
             {p.resultado === 'bloqueado' && !p.explicacao && <span style={{ color: 'var(--warning)' }}>bloqueado</span>}
-            {p.resultado === 'erro' && <span style={{ color: 'var(--danger)' }}>erro{p.detalhe?.erro ? `: ${p.detalhe.erro}` : ''}</span>}
+            {resultado === 'aguardando' && <span style={{ color: 'var(--warning)' }}>nova tentativa agendada</span>}
+            {resultado === 'erro' && <span style={{ color: 'var(--danger)' }}>erro{p.detalhe?.erro ? `: ${p.detalhe.erro}` : ''}</span>}
             <span className="ml-auto tabular-nums text-ink-3">{p.duracao_ms} ms{p.tokens_entrada ? ` · ${p.tokens_entrada + p.tokens_saida} tokens` : ''}</span>
           </li>
-        ))}
+          )
+        })}
       </ol>
       <p className="border-t border-line pt-2 text-xs text-ink-2">{passos.length} passos · {tokens} tokens · {fmtUSD(custo)}</p>
     </div>
@@ -113,6 +120,7 @@ function Conversa({ empresa }) {
   const [valorPago, setValorPago] = useState('')
   const fim = useRef(null)
   const aguardando = ['pendente', 'processando'].includes(dados?.evento?.situacao)
+  const quandoRetomar = dados?.evento?.situacao === 'pendente' ? Date.parse(dados.evento.disponivel_em || '') : NaN
 
   async function controlar(acao) {
     setEnviando(true); setErro(null)
@@ -150,14 +158,18 @@ function Conversa({ empresa }) {
       if (ocupado || document.hidden) return
       ocupado = true
       try {
-        const d = await agenteCaso(escolhido.id, empresa)
+        // Se a fila já liberou o evento, a própria conversa o retoma. Assim a
+        // resposta não espera o próximo ciclo do servidor para aparecer.
+        const d = Number.isFinite(quandoRetomar) && Date.now() >= quandoRetomar
+          ? await agenteRetomar(escolhido.id, empresa)
+          : await agenteCaso(escolhido.id, empresa)
         if (vivo) { setDados(d); setErro(null) }
       } catch (e) { if (vivo) setErro(e) }
       finally { ocupado = false }
     }
     const t = setInterval(atualizar, 5000)
     return () => { vivo = false; clearInterval(t) }
-  }, [escolhido, empresa, aguardando])
+  }, [escolhido, empresa, aguardando, quandoRetomar])
 
   useEffect(() => { fim.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) }, [dados?.mensagens?.length])
 
@@ -212,7 +224,7 @@ function Conversa({ empresa }) {
                 : <button onClick={() => controlar('assumir')} disabled={enviando} className="ml-auto flex items-center gap-1 rounded-md border border-line bg-raise-1 px-2 py-1 text-xs font-medium text-ink hover:bg-raise-2"><Hand className="h-3.5 w-3.5" /> Assumir o caso</button>)}
             </header>
             {!enviando && aguardando && <p role="status" className="border-b border-line px-4 py-2 text-xs text-ink-2">
-              {dados.evento.situacao === 'processando' ? 'O agente está processando a mensagem.' : 'Mensagem na fila. A resposta aparecerá aqui automaticamente após o processamento.'}
+              {dados.evento.situacao === 'processando' ? 'O agente está processando a mensagem.' : 'O agente tentará responder novamente automaticamente. A mensagem permanece na fila.'}
             </p>}
             {dados?.caso?.situacao === 'com_pessoa' && <p role="status" className="border-b border-line px-4 py-2 text-xs text-ink-2">
               Este caso está com a equipe. As novas mensagens são encaminhadas para atendimento humano.

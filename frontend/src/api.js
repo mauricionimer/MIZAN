@@ -756,6 +756,10 @@ export async function agenteSimularMensagem(predicaoId, texto, empresaId) {
   return pedir(`/agente/casos/${_id(predicaoId)}/mensagem`, { metodo: 'POST', corpo: { texto, empresa_id: empresaId || null } })
 }
 
+export async function agenteRetomar(predicaoId, empresaId) {
+  return pedir(`/agente/casos/${_id(predicaoId)}/retomar`, { metodo: 'POST', corpo: { empresa_id: empresaId || null } })
+}
+
 export async function agenteCentral(empresaId) {
   return pedir('/agente/central', { query: { empresa_id: empresaId } })
 }
