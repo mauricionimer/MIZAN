@@ -15,6 +15,11 @@ Sistema de gestão de carteiras, predição de pagamentos e recomendações (ban
 - [`docs/FLUXO_AGENTES_MIZAN.pdf`](docs/FLUXO_AGENTES_MIZAN.pdf) — versão em
   PDF da documentação operacional dos agentes.
 
+- [`docs/ARQUITETURA_MIZAN.md`](docs/ARQUITETURA_MIZAN.md) — arquitetura do
+  Mizan, framework próprio dos agentes, camadas, integrações e controles.
+- [`docs/ARQUITETURA_MIZAN.pdf`](docs/ARQUITETURA_MIZAN.pdf) — versão visual
+  em PDF da arquitetura técnica do sistema.
+
 - [`docs/BMC_MIZAN.md`](docs/BMC_MIZAN.md) — modelo de negócio do Mizan em
   Business Model Canvas, com hipóteses comerciais e plano de validação.
 - [`docs/BMC_MIZAN.pdf`](docs/BMC_MIZAN.pdf) — versão visual em PDF do Business
