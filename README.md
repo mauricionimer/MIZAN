@@ -15,6 +15,9 @@ Sistema de gestão de carteiras, predição de pagamentos e recomendações (ban
 - [`docs/FLUXO_AGENTES_MIZAN.pdf`](docs/FLUXO_AGENTES_MIZAN.pdf) — versão em
   PDF da documentação operacional dos agentes.
 
+- [`docs/PLANO_HARNESS_QUALIDADE.md`](docs/PLANO_HARNESS_QUALIDADE.md) —
+  evolução planejada para avaliação, aprovação e qualidade contínua dos agentes.
+
 - [`docs/ARQUITETURA_MIZAN.md`](docs/ARQUITETURA_MIZAN.md) — arquitetura do
   Mizan, framework próprio dos agentes, camadas, integrações e controles.
 - [`docs/ARQUITETURA_MIZAN.pdf`](docs/ARQUITETURA_MIZAN.pdf) — versão visual
