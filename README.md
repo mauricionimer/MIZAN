@@ -20,6 +20,11 @@ Sistema de gestão de carteiras, predição de pagamentos e recomendações (ban
 - [`docs/ARQUITETURA_MIZAN.pdf`](docs/ARQUITETURA_MIZAN.pdf) — versão visual
   em PDF da arquitetura técnica do sistema.
 
+- [`docs/COMPARATIVO_CONCORRENTES.md`](docs/COMPARATIVO_CONCORRENTES.md) —
+  critérios e fontes do comparativo competitivo do Mizan.
+- [`docs/COMPARATIVO_CONCORRENTES_MIZAN.pdf`](docs/COMPARATIVO_CONCORRENTES_MIZAN.pdf) —
+  quadro visual de concorrentes e diferenciais atuais.
+
 - [`docs/BMC_MIZAN.md`](docs/BMC_MIZAN.md) — modelo de negócio do Mizan em
   Business Model Canvas, com hipóteses comerciais e plano de validação.
 - [`docs/BMC_MIZAN.pdf`](docs/BMC_MIZAN.pdf) — versão visual em PDF do Business
