@@ -24,4 +24,4 @@ Sistema de gestão de carteiras, predição de pagamentos e recomendações (ban
   independente: dados de treino, variáveis, algoritmo, métricas, versionamento,
   monitoramento e limitações conhecidas.
 - [`docs/CARTEIRA_PARA_BACKTEST.md`](docs/CARTEIRA_PARA_BACKTEST.md) — o que
-  pedir ao cliente para rodar um backtest com dado real.
+  pedir ao cliente para rodar um backtest com dado real..
