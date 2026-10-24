@@ -12,7 +12,9 @@ const DURACAO_MS = 8000
  * página rolada e no celular. Some sozinho em 8 s; "Desfazer" chama
  * `aviso.desfazer()` (que deve reverter no servidor) e não dispara duas vezes.
  *
- * `aviso`: { id, texto, desfeito?, desfazer: async () => void } | null
+ * `aviso`: { id, texto, desfeito?, desfazer?: async () => void, acao?: { rotulo, onClick } } | null
+ * Sem `desfazer`, é só a confirmação do que foi feito. `acao` é o próximo passo
+ * natural ("Registrar pagamento") e fecha o aviso ao ser usada.
  */
 export default function AvisoDesfazer({ aviso, onFechar }) {
   const [estado, setEstado] = useState('aberto')    // aberto | desfazendo | desfeito | erro
@@ -46,14 +48,21 @@ export default function AvisoDesfazer({ aviso, onFechar }) {
       {aviso && (
         <motion.div key={aviso.id} role="status" aria-live="polite"
           initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 24 }}
-          className="fixed inset-x-3 bottom-4 z-[60] mx-auto max-w-lg overflow-hidden rounded-xl shadow-2xl"
+          className={`fixed inset-x-3 bottom-4 z-[60] mx-auto ${aviso.acao ? 'max-w-xl' : 'max-w-lg'} overflow-hidden rounded-xl shadow-2xl`}
           style={{ background: 'var(--ink)', color: 'var(--surface)' }}>
           <div className="flex items-center gap-3 px-4 py-3">
-            {estado === 'desfeito' ? <Check className="h-4 w-4 shrink-0" /> : null}
+            {estado === 'desfeito' || !aviso.desfazer ? <Check className="h-4 w-4 shrink-0" /> : null}
             <p className="min-w-0 flex-1 text-sm">
               {estado === 'desfeito' ? (aviso.desfeito || 'Desfeito.') : estado === 'erro' ? erro : aviso.texto}
             </p>
-            {(estado === 'aberto' || estado === 'desfazendo') && (
+            {aviso.acao && estado === 'aberto' && (
+              <button type="button" onClick={() => { aviso.acao.onClick(); onFechar() }}
+                className="inline-flex min-h-[40px] shrink-0 items-center rounded-lg px-3 text-sm font-bold"
+                style={{ background: 'rgb(255 255 255 / 0.14)' }}>
+                {aviso.acao.rotulo}
+              </button>
+            )}
+            {aviso.desfazer && (estado === 'aberto' || estado === 'desfazendo') && (
               <button type="button" onClick={desfazer} disabled={estado === 'desfazendo'}
                 className="inline-flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-bold disabled:opacity-60"
                 style={{ background: 'rgb(255 255 255 / 0.14)' }}>

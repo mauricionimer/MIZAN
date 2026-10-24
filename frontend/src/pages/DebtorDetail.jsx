@@ -942,7 +942,10 @@ export default function DebtorDetail() {
 function FichaDoDevedor() {
   const { rank } = useParams()
   const navigate = useNavigate()
-  const deAgenda = useLocation().state?.deAgenda ?? null
+  const location = useLocation()
+  const deAgenda = location.state?.deAgenda ?? null
+  // Quem abriu a ficha diz para onde voltar ({ para, rotulo }); sem isso, é a fila.
+  const origem = location.state?.voltar ?? null
   const { result, setVista } = useAnalysis()
   const { isAdmin, isComando } = useAuth()
   // O3: oferta registrada cria um contato; a lista de contatos recarrega.
@@ -957,6 +960,15 @@ function FichaDoDevedor() {
   const [ofertaCombinada, setOfertaCombinada] = useState(null)
   // A tela inicial é uma só: dizer "Dashboard" é escolher a vista dela.
   const voltarAoDashboard = () => { setVista('dashboard'); navigate('/') }
+  // Voltar pelo histórico devolve a tela de origem como estava (operador, filtros,
+  // posição na lista). Aberta por link direto, não há histórico: vai pelo endereço.
+  const voltar = () => {
+    if (!origem) return voltarAoDashboard()
+    if (origem.para === '/') setVista('dashboard')
+    if ((window.history.state?.idx ?? 0) > 0) navigate(-1)
+    else navigate(origem.para)
+  }
+  const rotuloVoltar = origem?.rotulo ?? 'Voltar à fila'
 
   // O devedor vinha do ranking inteiro em memória. Sem ele, a posição é
   // buscada no servidor: a fila está ordenada por rank, então a posição N é a
@@ -1068,9 +1080,9 @@ function FichaDoDevedor() {
     return (
       <AppShell>
         <div className="w-full max-w-5xl mx-auto">
-          <button onClick={voltarAoDashboard}
+          <button onClick={voltar}
             className="mb-4 inline-flex min-h-[40px] items-center gap-1.5 rounded-lg px-2 py-1 -ml-2 text-sm text-ink-2 transition-colors hover:bg-raise-1 hover:text-ink">
-            <ArrowLeft className="h-4 w-4" /> Voltar à fila
+            <ArrowLeft className="h-4 w-4" /> {rotuloVoltar}
           </button>
           <ErroCarga erro={erroBusca} ocupado={procurando} onTentar={() => setTentativa(t => t + 1)} />
         </div>
@@ -1088,9 +1100,9 @@ function FichaDoDevedor() {
   return (
     <AppShell titulo="Devedor">
       <div className="w-full max-w-5xl mx-auto">
-        <button onClick={voltarAoDashboard}
+        <button onClick={voltar}
           className="mb-4 inline-flex min-h-[40px] items-center gap-1.5 rounded-lg px-2 py-1 -ml-2 text-sm text-ink-2 transition-colors hover:bg-raise-1 hover:text-ink">
-          <ArrowLeft className="h-4 w-4" /> Voltar à fila
+          <ArrowLeft className="h-4 w-4" /> {rotuloVoltar}
         </button>
         {/* Cabeçalho: só quem é, a posição na fila e o responsável. O resto está nos cartões abaixo. */}
         <div className="mb-7">

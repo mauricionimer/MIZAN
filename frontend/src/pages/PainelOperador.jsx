@@ -1,6 +1,7 @@
 // F3 — "Meu painel" (operador) e "Painel da equipe" (admin, COMANDO).
 // Só contagens do que foi registrado; nada estimado (backend/painel.py).
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ChevronLeft, Gauge, PhoneOutgoing, Handshake, Banknote, Target, Loader2, Info, ArrowRight } from 'lucide-react'
 import AppShell from '../components/AppShell'
@@ -181,14 +182,24 @@ function Equipe({ d, comando, onAbrir }) {
 export default function PainelOperador() {
   const { token, isOperador, isComando } = useAuth()
   const equipe = !isOperador
-  const [periodo, setPeriodo] = useState('hoje')
+  // Período e operador aberto moram na URL: o voltar do navegador sai do
+  // individual para a equipe, e o link abre direto no mesmo lugar.
+  const [params, setParams] = useSearchParams()
+  const periodo = PERIODOS.some(([k]) => k === params.get('periodo')) ? params.get('periodo') : 'hoje'
+  const opSel = equipe ? params.get('op') : null
+  const irPara = useCallback((mudancas, { substituir = false } = {}) => {
+    setParams(atual => {
+      const novo = new URLSearchParams(atual)
+      for (const [k, v] of Object.entries(mudancas)) v == null ? novo.delete(k) : novo.set(k, v)
+      return novo
+    }, { replace: substituir })
+  }, [setParams])
   const [dados, setDados] = useState(null)
   const [erro, setErro] = useState(null)
   const [tentativa, setTentativa] = useState(0)
   const [carregando, setCarregando] = useState(true)
   const [empresas, setEmpresas] = useState([])
   const [alvo, setAlvo] = useState('')
-  const [opSel, setOpSel] = useState(null)
 
   useEffect(() => {
     if (!isComando) return
@@ -228,7 +239,7 @@ export default function PainelOperador() {
             )}
             <div className="flex rounded-lg border border-line bg-surface-2 p-0.5" role="tablist" aria-label="Período">
               {PERIODOS.map(([k, l]) => (
-                <button key={k} role="tab" aria-selected={periodo === k} onClick={() => setPeriodo(k)}
+                <button key={k} role="tab" aria-selected={periodo === k} onClick={() => irPara({ periodo: k === 'hoje' ? null : k }, { substituir: true })}
                   className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${periodo === k ? 'bg-surface text-ink shadow-sm' : 'text-ink-2 hover:text-ink'}`}>
                   {l}
                 </button>
@@ -248,8 +259,8 @@ export default function PainelOperador() {
           <div className={`space-y-4 transition-opacity ${carregando ? 'opacity-60' : ''}`}>
             <Avisos d={dados} />
             {equipe ? (opSel
-              ? <Individual id={opSel} periodo={periodo} empresa={isComando ? alvo : undefined} onVoltar={() => setOpSel(null)} />
-              : <Equipe d={dados} comando={isComando} onAbrir={setOpSel} />) : <MeusNumeros d={dados} />}
+              ? <Individual id={opSel} periodo={periodo} empresa={isComando ? alvo : undefined} onVoltar={() => irPara({ op: null })} />
+              : <Equipe d={dados} comando={isComando} onAbrir={(id) => irPara({ op: id })} />) : <MeusNumeros d={dados} />}
           </div>
         )}
       </div>

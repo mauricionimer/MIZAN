@@ -11,6 +11,15 @@ import { useAuth } from '../context/AuthContext'
 import { buscarOfertas, salvarOfertas, listarEmpresas } from '../api'
 import { calcularOferta, familia, NOME_FAMILIA, resumoOferta, brl } from '../utils/ofertas'
 
+const MARCA_NO_NOME = { desconto_pct: '%', n_parcelas: 'x' }
+const numero = (v) => (v === '' || v == null ? NaN : Number(String(v).replace(',', '.')))
+function trocarNoNome(nome, antes, depois, marca) {
+  const a = numero(antes), d = numero(depois)
+  if (!nome || Number.isNaN(a) || Number.isNaN(d) || a === d) return nome
+  // O número inteiro (não o "10" de "110%"), seguido da marca e de nada colado ("6x", não "6xis").
+  const re = new RegExp('(^|[^\\d.,])(' + String(a).replace('.', '[.,]') + ')(\\s?' + marca + ')(?![\\wÀ-ú])', 'i')
+  return nome.replace(re, (_, antes, num, fim) => antes + (num.includes(',') ? String(d).replace('.', ',') : String(d)) + fim)
+}
 const NOVA = () => ({ id: '', nome: 'Nova oferta', descricao: '', desconto_pct: 0, entrada_pct: 0, n_parcelas: 6, juros_mensal_pct: 0, ativa: true })
 
 function Campo({ rotulo, sufixo, value, onChange, min, max, step = 'any', inteiro = false, nota, disabled }) {
@@ -92,7 +101,12 @@ export default function Ofertas() {
   const conta = useMemo(() => atual ? calcularOferta(exemplo, efetiva(atual)) : null, [atual, exemplo])
 
   function mudar(campo, valor) {
-    setCatalogo(c => c.map((o, i) => i === sel ? { ...o, [campo]: valor } : o)); setSujo(true); setMsg(null)
+    setCatalogo(c => c.map((o, i) => {
+      if (i !== sel) return o
+      // O nome que cita o número acompanha a mudança ("10% à vista" → "15% à vista").
+      const marca = MARCA_NO_NOME[campo]
+      return { ...o, [campo]: valor, ...(marca ? { nome: trocarNoNome(o.nome, o[campo], valor, marca) } : {}) }
+    })); setSujo(true); setMsg(null)
   }
   function nova() {
     if (catalogo.length >= (dados?.max_ofertas ?? 20)) return

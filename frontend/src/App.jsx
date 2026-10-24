@@ -128,6 +128,13 @@ function TelaCarregando() {
   )
 }
 
+// Endereço que não existe (link antigo, digitado errado) cai no Início, que
+// avisa o que aconteceu em vez de trocar de tela em silêncio.
+function RotaInexistente() {
+  const { pathname } = useLocation()
+  return <Navigate to="/inicio" replace state={{ naoEncontrada: pathname }} />
+}
+
 // Atalho para rota com papéis: função comum (não componente).
 const P = (roles, el) => <RotaProtegida roles={roles}>{el}</RotaProtegida>
 
@@ -174,7 +181,7 @@ function RotasAnimadas() {
           <Route path="/auditoria" element={P(['admin', 'comando'], <Auditoria />)} />
           <Route path="/ia" element={P(['operador', 'admin', 'comando'], <PerformanceIA />)} />
         </Route>
-        <Route path="*" element={<Navigate to="/inicio" replace />} />
+        <Route path="*" element={<RotaInexistente />} />
       </Routes>
     </Suspense>
   )
