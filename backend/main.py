@@ -21,6 +21,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Security, BackgroundTasks, Request
 from fastapi import Query, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field, field_validator
 
@@ -371,6 +372,8 @@ import travas as _travas                                   # noqa: E402
 _limite.instalar(app)
 _erros.instalar_captura(app)
 _erros.instalar_handlers(app)
+
+app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=4)
 
 app.add_middleware(
     CORSMiddleware,
@@ -2067,8 +2070,8 @@ def criar_agenda(body: AgendaIn, credentials: HTTPAuthorizationCredentials = Sec
     return {"ok": True, "item": _criar_item_agenda(get_db(), payload, body.cpf, body)}
 
 
-def _consulta_agenda(db, payload: dict, emp: str, escopo: str):
-    q = db.table("agenda").select("*").eq("empresa_id", emp)
+def _consulta_agenda(db, payload: dict, emp: str, escopo: str, colunas: str = "*"):
+    q = db.table("agenda").select(colunas).eq("empresa_id", emp)
     # Operador vê só os seus, peça o que pedir.
     if escopo != "equipe" or payload.get("role") == "operador":
         q = q.eq("operador_id", payload["sub"])
@@ -2172,7 +2175,7 @@ def resumo_agenda(escopo: str = "minha", empresa_id: Optional[str] = None,
     if payload.get("role") == "comando":
         escopo = "equipe"
     try:
-        linhas = _todas_as_linhas(lambda: _consulta_agenda(db, payload, emp, escopo).eq("situacao", "pendente"))
+        linhas = _todas_as_linhas(lambda: _consulta_agenda(db, payload, emp, escopo, "data").eq("situacao", "pendente"))
     except Exception as e:
         if _falta_tabela(e, "agenda"):
             return {"ativo": False, "alto": 0, "medio": 0, "safe": 0}
@@ -2193,7 +2196,7 @@ def agenda_da_equipe(empresa_id: Optional[str] = None,
     db = get_db()
     ops = [u for u in listar_usuarios(emp) if u.get("role") == "operador" and u.get("ativo", True)]
     try:
-        linhas = _todas_as_linhas(lambda: _consulta_agenda(db, payload, emp, "equipe").eq("situacao", "pendente"))
+        linhas = _todas_as_linhas(lambda: _consulta_agenda(db, payload, emp, "equipe", "operador_id, data").eq("situacao", "pendente"))
     except Exception as e:
         if _falta_tabela(e, "agenda"):
             return {"ativo": False, "mensagem": _MSG_SEM_MIGRACAO_AGENDA, "operadores": []}
@@ -4342,8 +4345,13 @@ def carregar_carteira(carteira_id: str, incluir_ranking: bool = True,
         raise HTTPException(status_code=404, detail="Carteira não encontrada.")
     empresa_id = cart_res.data[0].get("empresa_id") or payload.get("empresa_id", "")
 
+    # O resumo precisa dos números da carteira, não de CPF, renda e todos os
+    # detalhes de cada devedor. Só os dez destaques são hidratados por inteiro.
+    colunas = "*" if incluir_ranking else (
+        "id,rank,valor_divida,score_recuperabilidade,valor_esperado_recuperacao,"
+        "valor_esperado_liquido,dias_em_atraso,perfil_cluster,produto,uf")
     predicoes = _todas_as_linhas(
-        lambda: db.table("predicoes").select("*").eq("carteira_id", carteira_id).order("rank"))
+        lambda: db.table("predicoes").select(colunas).eq("carteira_id", carteira_id).order("rank"))
     if not predicoes:
         raise HTTPException(status_code=404, detail="Nenhuma predição encontrada para esta carteira.")
 
@@ -4363,7 +4371,9 @@ def carregar_carteira(carteira_id: str, incluir_ranking: bool = True,
         "taxa_recuperacao_esperada": round(total_ver / total_face * 100, 1) if total_face else 0,
         "criado_por": _cart_row.get("usuario_email") or "",
         "criado_em":  _cart_row.get("created_at") or "",
-        **_valores_de_filtro(db, carteira_id),
+        # As mesmas linhas já estão em memória: evitar reler a carteira inteira.
+        "produtos": sorted({p["produto"] for p in predicoes if p.get("produto")}),
+        "ufs": sorted({p["uf"] for p in predicoes if p.get("uf")}),
     }
 
     # Distribuição aging
@@ -4398,11 +4408,21 @@ def carregar_carteira(carteira_id: str, incluir_ranking: bool = True,
         b["valor_total"] = round(b["valor_total"], 2)
         cluster_dist.append(b)
 
+    top10 = ranking[:10]
+    if not incluir_ranking:
+        ids = [p["id"] for p in top10]
+        completas = (db.table("predicoes").select("*").eq("carteira_id", carteira_id)
+                     .in_("id", ids).execute().data or [])
+        por_id = {p["id"]: p for p in completas}
+        top10 = [{**por_id[p["id"]], "rank": p["rank"],
+                  "valor_esperado_recuperacao": p.get("valor_esperado_recuperacao")}
+                 for p in top10 if p["id"] in por_id]
+
     return {
         "resumo": resumo,
         "distribuicao_aging": aging_dist,
         "distribuicao_cluster": cluster_dist,
-        "top10_prioritarios": ranking[:10],
+        "top10_prioritarios": top10,
         **({"ranking_completo": ranking} if incluir_ranking else {}),
     }
 

@@ -2,6 +2,7 @@ import React from "react"
 import { Link } from "react-router-dom"
 import { clsx } from "clsx"
 import { motion } from "framer-motion"
+import { prepararPagina } from '../../lib/paginas'
 
 export { AgendaBentoCard } from './agenda-bento-card'
 
@@ -32,7 +33,8 @@ export function BentoCard({ to, eyebrow, title, description, graphic, badge, cla
       transition={{ type: "spring", stiffness: 380, damping: 30 }}
       className={clsx("hub-card group relative flex flex-col overflow-hidden transform-gpu", className)}
     >
-      <Link to={to} onClick={onNavigate} className="flex h-full flex-col focus:outline-none" aria-label={`${eyebrow}: ${title}`}>
+      <Link to={to} onClick={onNavigate} onPointerEnter={() => prepararPagina(to)} onFocus={() => prepararPagina(to)}
+        className="flex h-full flex-col focus:outline-none" aria-label={`${eyebrow}: ${title}`}>
         <div className="hub-card-arte relative shrink-0">
           {graphic}
           {loading && <span className="hub-card-badge absolute right-4 top-4 z-10" role="status">Abrindo…</span>}

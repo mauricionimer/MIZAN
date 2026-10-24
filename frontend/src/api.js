@@ -1,4 +1,5 @@
 import { liberarSaida } from './components/protecaoSaida'
+import { leituraEmCurso, invalidarLeiturasEmCurso } from './lib/pedidosEmCurso'
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
 
@@ -14,6 +15,7 @@ function _getToken() {
 // vez só.
 // Apaga todas as chaves mizan_* da aba (token, usuário, marca, análise...).
 export function limparSessaoLocal() {
+  invalidarLeiturasEmCurso()
   try {
     const chaves = []
     for (let i = 0; i < sessionStorage.length; i++) {
@@ -118,7 +120,20 @@ function _sinalComPrazo(sinal) {
   return { sinal: undefined, limpar: () => {} }
 }
 
-async function pedir(caminho, { metodo = 'GET', corpo, form, token, query, sinal, publico = false, sessao = true } = {}) {
+function pedir(caminho, opcoes = {}) {
+  const metodo = opcoes.metodo || 'GET'
+  if (metodo !== 'GET') {
+    invalidarLeiturasEmCurso()
+    return executarPedido(caminho, opcoes).finally(invalidarLeiturasEmCurso)
+  }
+  // Sinais próprios pertencem ao chamador: cancelar um não cancela o outro.
+  if (opcoes.sinal) return executarPedido(caminho, opcoes)
+  const token = opcoes.publico ? '' : (opcoes.token ?? _getToken())
+  const chave = JSON.stringify([caminho, _qs(opcoes.query), token, !!opcoes.publico, opcoes.sessao !== false])
+  return leituraEmCurso(chave, () => executarPedido(caminho, { ...opcoes, token }))
+}
+
+async function executarPedido(caminho, { metodo = 'GET', corpo, form, token, query, sinal, publico = false, sessao = true } = {}) {
   const tok = publico ? '' : (token ?? _getToken())
   const headers = {}
   if (tok) headers.Authorization = `Bearer ${tok}`
