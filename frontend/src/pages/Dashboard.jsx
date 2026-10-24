@@ -1,8 +1,8 @@
 import { motion } from 'framer-motion'
 import { lista, item } from '../lib/motion'
 import { iniciarAtualizacaoVisivel } from '../lib/atualizacaoVisivel'
-import { useState, useMemo, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useMemo, useEffect, useRef } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   PieChart, Pie, Cell,
@@ -27,6 +27,7 @@ import AppShell from '../components/AppShell'
 import DicaAjuda from '../components/DicaAjuda'
 import DistribuirFila from '../components/DistribuirFila'
 import useModal from '../components/useModal'
+import AvisoDesfazer from '../components/AvisoDesfazer'
 import { NIVEL_CFG, seloFila } from '../utils/agenda'
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
@@ -39,6 +40,8 @@ const CLUSTER_COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'v
 
 const fmtBRL = (v) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v)
+const fmtCentavos = (v) =>
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
 const fmtNum  = (v) => new Intl.NumberFormat('pt-BR').format(v)
 const fmtPct  = (v) => `${v.toFixed(1)}%`
 
@@ -236,14 +239,20 @@ export default function Dashboard({ onIrPara }) {
   const { result, setResult, setVista, setAviso } = useAnalysis()
   const { token, isAdmin, isComando, isOperador } = useAuth()
   const navigate    = useNavigate()
-  const [search, setSearch]               = useState('')
+  const location    = useLocation()
+  // Ao abrir um devedor, a fila (busca, filtros, página e rolagem) fica guardada
+  // na própria entrada do histórico; o voltar a devolve como estava.
+  const [filaSalva] = useState(() => location.state?.fila ?? null)
+  const restaurando = useRef(!!filaSalva?.carteiraId)
+  const tabelaRef   = useRef(null)
+  const [search, setSearch]               = useState(filaSalva?.search ?? '')
   const [exporting, setExporting]         = useState(false)
   const [custoCobranca, setCustoCobranca] = useState(25)
   const [retornoAlvo, setRetornoAlvo]     = useState(30)
-  const [filtroPrio, setFiltroPrio]       = useState('todos')
-  const [filtroProduto, setFiltroProduto] = useState('todos')
-  const [filtroUF, setFiltroUF]           = useState('todas')
-  const [page, setPage]                   = useState(1)
+  const [filtroPrio, setFiltroPrio]       = useState(filaSalva?.filtroPrio ?? 'todos')
+  const [filtroProduto, setFiltroProduto] = useState(filaSalva?.filtroProduto ?? 'todos')
+  const [filtroUF, setFiltroUF]           = useState(filaSalva?.filtroUF ?? 'todas')
+  const [page, setPage]                   = useState(filaSalva?.page ?? 1)
 
   // useMemo deve ficar ANTES de qualquer return condicional (regra dos hooks)
   const pricing = useMemo(() => {
@@ -267,8 +276,9 @@ export default function Dashboard({ onIrPara }) {
   const [pagamentos, setPagamentos]       = useState([])
   const [searchPag, setSearchPag]         = useState('')
   const [statusMap, setStatusMap]         = useState({})
-  const [filtroStatus, setFiltroStatus]   = useState('todos')
+  const [filtroStatus, setFiltroStatus]   = useState(filaSalva?.filtroStatus ?? 'todos')
   const [confirmarModal, setConfirmarModal] = useState(null)
+  const [avisoPagamento, setAvisoPagamento] = useState(null) // confirmação no rodapé depois de registrar
   const [confirmando, setConfirmando]       = useState(false)
   const [confirmarForm, setConfirmarForm]   = useState({ valor_recuperado: '', data_pagamento: '' })
   const [confirmarErro, setConfirmarErro]   = useState('')
@@ -348,11 +358,11 @@ export default function Dashboard({ onIrPara }) {
   // F1 — divisão da fila. `distrib` é o resumo de quem tem quantos devedores;
   // `filtroResp`: 'todos' | 'me' | 'sem' | id de um operador.
   const [distrib, setDistrib]               = useState(null)
-  const [filtroResp, setFiltroResp]         = useState('todos')
+  const [filtroResp, setFiltroResp]         = useState(filaSalva?.filtroResp ?? 'todos')
   const [abrirDistribuir, setAbrirDistribuir] = useState(false)
   // Ajustes que se usam pouco ficam fechados: parâmetros da simulação e filtros da fila.
   const [verParametros, setVerParametros] = useState(false)
-  const [verFiltros, setVerFiltros] = useState(false)
+  const [verFiltros, setVerFiltros] = useState(filaSalva?.verFiltros ?? false)
   const [avisoFila, setAvisoFila]           = useState('')
   const [versaoDistrib, setVersaoDistrib]   = useState(0)
   // O operador espera o resumo antes de buscar a página: senão via a carteira
@@ -361,7 +371,9 @@ export default function Dashboard({ onIrPara }) {
   const podeDistribuir = isAdmin || isComando
 
   useEffect(() => {
-    setDistrib(null); setFiltroResp('todos'); setDistribPronto(false)
+    // Voltando de um devedor, o responsável escolhido continua.
+    const voltando = restaurando.current && filaSalva?.carteiraId === carteiraId
+    setDistrib(null); if (!voltando) setFiltroResp('todos'); setDistribPronto(false)
     if (!carteiraId) return
     let cancelado = false
     buscarDistribuicao(carteiraId)
@@ -369,7 +381,7 @@ export default function Dashboard({ onIrPara }) {
         if (cancelado) return
         setDistrib(d)
         // O operador abre na fila dele quando a fila já foi dividida.
-        if (isOperador && d.ativo && d.meus > 0) setFiltroResp('me')
+        if (!voltando && isOperador && d.ativo && d.meus > 0) setFiltroResp('me')
       })
       .catch(() => { if (!cancelado) setDistrib(null) })
       .finally(() => { if (!cancelado) setDistribPronto(true) })
@@ -381,7 +393,30 @@ export default function Dashboard({ onIrPara }) {
     buscarDistribuicao(carteiraId).then(setDistrib).catch(() => {})
   }
 
-  useEffect(() => { setPage(1) }, [buscaAdiada, filtroPrio, filtroProduto, filtroUF, filtroStatus, filtroResp])
+  useEffect(() => {
+    if (restaurando.current) return     // a página guardada vale na volta
+    setPage(1)
+  }, [buscaAdiada, filtroPrio, filtroProduto, filtroUF, filtroStatus, filtroResp])
+
+  // Com a página guardada já na tela, devolve a rolagem da janela e da tabela.
+  const paginaInicial = useRef(pagina)
+  useEffect(() => {
+    if (!restaurando.current) return
+    if (pagina === paginaInicial.current && !erroPagina) return   // ainda não chegou
+    restaurando.current = false
+    if (!pagina.itens.length) return
+    requestAnimationFrame(() => {
+      window.scrollTo(0, filaSalva.y ?? 0)
+      if (tabelaRef.current) tabelaRef.current.scrollTop = filaSalva.tabela ?? 0
+    })
+  }, [pagina, erroPagina]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function abrirDevedor(rank) {
+    const fila = carteiraId && { carteiraId, search, filtroPrio, filtroProduto, filtroUF, filtroStatus, filtroResp, page, verFiltros,
+      y: window.scrollY, tabela: tabelaRef.current?.scrollTop ?? 0 }
+    navigate(location.pathname + location.search, { replace: true, state: { ...location.state, fila } })
+    navigate(`/devedor/${rank}`, { state: { voltar: { para: '/', rotulo: 'Voltar à fila' } } })
+  }
 
   useEffect(() => {
     if (!carteiraId) return
@@ -462,6 +497,13 @@ export default function Dashboard({ onIrPara }) {
           registrado_em: res.registrado_em || new Date().toISOString(),
         },
       }))
+      const primeiro = (confirmarModal.nome || 'Devedor').split(' ')[0]
+      setAvisoPagamento({
+        id: `${cpfKey}-${Date.now()}`,
+        texto: dados.valor_recuperado
+          ? `${primeiro}: pagamento de ${fmtCentavos(dados.valor_recuperado)} registrado.`
+          : `${primeiro}: pagamento registrado, sem valor informado.`,
+      })
       setConfirmarModal(null)
       setConfirmarForm({ valor_recuperado: '', data_pagamento: '' })
       // Refetch imediato para confirmar com dados reais do servidor
@@ -596,24 +638,28 @@ export default function Dashboard({ onIrPara }) {
 
             <form onSubmit={handleConfirmarPagamento} className="space-y-4">
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-ink-2">
+                <label htmlFor="confirmar-pag-valor" className="mb-1.5 block text-xs font-semibold text-ink-2">
                   Valor recuperado <span className="font-normal text-ink-2">(opcional)</span>
                 </label>
                 <div className="relative">
                   <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-ink-2">R$</span>
-                  <input
+                  <input id="confirmar-pag-valor" aria-describedby="confirmar-pag-valor-dica"
                     type="number" min="0" step="0.01" placeholder="0,00"
                     value={confirmarForm.valor_recuperado}
                     onChange={e => setConfirmarForm(f => ({ ...f, valor_recuperado: e.target.value }))}
                     className="h-10 w-full rounded-lg border border-line bg-surface-2 pl-9 pr-3 text-sm text-ink placeholder-ink-4 transition-colors focus:border-blue-500/50 focus:outline-none"
                   />
                 </div>
+                {/* Sem valor, o servidor grava R$ 0: dizer antes, não depois. */}
+                {!Number(confirmarForm.valor_recuperado) && (
+                  <p id="confirmar-pag-valor-dica" className="mt-1.5 text-xs text-ink-2">Sem valor, o pagamento entra como R$ 0 nos resultados.</p>
+                )}
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-ink-2">
+                <label htmlFor="confirmar-pag-data" className="mb-1.5 block text-xs font-semibold text-ink-2">
                   Data do pagamento <span className="font-normal text-ink-2">(opcional)</span>
                 </label>
-                <input
+                <input id="confirmar-pag-data"
                   type="date"
                   max={new Date().toISOString().split('T')[0]}
                   value={confirmarForm.data_pagamento}
@@ -638,13 +684,15 @@ export default function Dashboard({ onIrPara }) {
                 <button type="submit" disabled={confirmando} className="btn-primary flex-1">
                   {confirmando
                     ? <><Loader2 className="h-4 w-4 animate-spin" /> Confirmando...</>
-                    : <><CheckCircle2 className="h-4 w-4" /> Confirmar pagamento</>}
+                    : <><CheckCircle2 className="h-4 w-4" /> {Number(confirmarForm.valor_recuperado) > 0
+                        ? `Confirmar ${fmtCentavos(Number(confirmarForm.valor_recuperado))}` : 'Confirmar pagamento'}</>}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
+      <AvisoDesfazer aviso={avisoPagamento} onFechar={() => setAvisoPagamento(null)} />
 
 
           <div className="mb-7">
@@ -1180,7 +1228,7 @@ export default function Dashboard({ onIrPara }) {
               )}
             </div>
 
-            <div className="max-h-[520px] overflow-auto">
+            <div ref={tabelaRef} className="max-h-[520px] overflow-auto">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 z-10 border-b border-line bg-surface-2">
                   <tr>
@@ -1217,7 +1265,7 @@ export default function Dashboard({ onIrPara }) {
                   {paginated.map((d) => (
                     <tr
                       key={d.rank}
-                      onClick={() => navigate(`/devedor/${d.rank}`)}
+                      onClick={() => abrirDevedor(d.rank)}
                       className="group cursor-pointer border-b border-line transition-colors last:border-0 hover:bg-blue-500/[0.06]"
                     >
                       <td className="w-10 px-4 py-3 tabular-nums text-xs text-ink-2">

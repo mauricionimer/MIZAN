@@ -19,9 +19,50 @@ const ACAO_LABEL = {
   role_alterado:          'Permissão alterada',
   senha_alterada:         'Senha alterada',
   conexao_criada:         'Conexão criada',
-  pagamento_confirmado:   'Pagamento confirmado',
+  pagamento_confirmado:   'Pagamento confirmado (registro antigo)',
   config_empresa_atualizada: 'Configuração da empresa alterada',
+  // Demais ações que o servidor registra (backend/main.py, _registrar_auditoria).
+  confirmar_pagamento:    'Pagamento confirmado',
+  parcela_paga:           'Parcela paga',
+  oferta_desfeita:        'Oferta desfeita',
+  ofertas_atualizadas:    'Ofertas alteradas',
+  premissas_atualizadas:  'Política de cobrança alterada',
+  politica_agente_alterada: 'Regras dos agentes alteradas',
+  fila_distribuida:       'Fila distribuída',
+  responsavel_alterado:   'Responsável alterado',
+  agenda_atribuida:       'Atendimento atribuído',
+  agenda_reaberta:        'Compromisso reaberto',
+  fluxo_fase_definida:    'Fase do devedor definida',
+  passagem_retorno:       'Resumo do Supervisor avaliado',
+  recomendacao_gerada:    'Recomendação gerada',
+  tarefa_administrativa_criada:   'Demanda administrativa criada',
+  tarefa_administrativa_concluida: 'Demanda administrativa concluída',
+  disponibilidade_criada:   'Disponibilidade criada',
+  disponibilidade_editada:  'Disponibilidade alterada',
+  disponibilidade_removida: 'Disponibilidade removida',
+  usuario_movido_para_empresa: 'Usuário movido de empresa',
+  usuario_removido_da_empresa: 'Usuário removido da empresa',
+  conta_excluida:         'Conta excluída',
+  dominios_atualizados:   'Domínios atualizados',
+  foto_empresa_atualizada: 'Logo da empresa alterado',
+  empresa_esvaziada:      'Empresa excluída',
+  chave_api_criada:       'Chave de API criada',
+  chave_api_revogada:     'Chave de API revogada',
+  duvida_respondida:      'Dúvida respondida',
+  duvida_publicada_faq:   'Dúvida publicada na Ajuda',
+  duvida_sugerida_para_ajuda: 'Dúvida sugerida para a Ajuda',
+  lacuna_tratada:         'Lacuna da Ajuda tratada',
+  lacunas_limpas:         'Lacunas da Ajuda limpas',
+  modelo_treinado:        'Modelo treinado',
+  modelo_promovido:       'Modelo promovido',
+  modelo_ativado:         'Modelo ativado',
+  modelo_desativado:      'Modelo desativado',
+  bandit_zerado:          'Aprendizado das ofertas reiniciado',
+  retencao_executada:     'Limpeza por retenção executada',
+  titular_eliminado:      'Dados do titular eliminados (LGPD)',
 }
+// Código novo, ainda sem nome aqui: vira frase ("lacuna_reaberta" → "Lacuna reaberta"), nunca o código cru.
+const nomeDaAcao = (acao) => ACAO_LABEL[acao] || (acao ? (acao.charAt(0).toUpperCase() + acao.slice(1)).replace(/_/g, ' ') : '—')
 
 const ACAO_COR = {
   carteira_criada:       'bg-blue-500/10 text-blue-300 ring-blue-500/20',
@@ -156,7 +197,7 @@ export default function Auditoria() {
             <select value={filtros.acao} onChange={e => setFiltros(f => ({ ...f, acao: e.target.value }))}
               className="input-base text-xs py-1.5 w-48">
               <option value="">Todas</option>
-              {Object.entries(ACAO_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              {Object.entries(ACAO_LABEL).sort((a, b) => a[1].localeCompare(b[1], 'pt-BR')).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
           </div>
           {isComando && (
@@ -213,7 +254,7 @@ export default function Auditoria() {
                     onClick={() => setExpandido(prev => prev === l.id ? null : l.id)}
                   >
                     <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ring-1 shrink-0 ${ACAO_COR[l.acao] || 'bg-slate-500/10 text-ink-2 ring-slate-500/20'}`}>
-                      {ACAO_LABEL[l.acao] || l.acao}
+                      {nomeDaAcao(l.acao)}
                     </span>
                     {isComando && (
                       <span className="text-[11px] px-2 py-0.5 rounded-full shrink-0"

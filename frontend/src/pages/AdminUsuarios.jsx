@@ -886,6 +886,17 @@ export default function AdminUsuarios() {
                 <p className="text-sm mt-1" style={{ color: 'var(--ink-2)' }}>
                   {isComando ? 'Gerencie todos os usuários e empresas.' : 'Gerencie os operadores da sua empresa.'}
                 </p>
+                {/* Só o Comando cria contas: o admin precisa saber o caminho. */}
+                {!isComando && (
+                  <p className="mt-1 text-sm" style={{ color: 'var(--ink-3)' }}>
+                    Para incluir alguém, peça ao Comando.{' '}
+                    <button type="button" className="font-semibold text-accent-text hover:underline"
+                      onClick={() => navigate('/ajuda', { state: { de: '/admin/usuarios',
+                        pedir: 'Quero incluir uma pessoa na minha empresa como operador. Como passo os dados de acesso dela?' } })}>
+                      Pedir ao Comando
+                    </button>
+                  </p>
+                )}
               </div>
               {isComando && (
                 <button type="button" onClick={() => { setShowForm(!showForm); setFormErro('') }} className="btn-primary">

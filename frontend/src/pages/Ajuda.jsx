@@ -163,7 +163,7 @@ export default function Ajuda() {
   useEffect(() => { buscarFaq(token).then(d => setFaq(Array.isArray(d) ? d : [])).catch(() => {}) }, [token])
   const [novas, setNovas]         = useState(new Set())
   const [equipe, setEquipe]       = useState([])
-  const [pedindo, setPedindo]     = useState(false)
+  const [pedindo, setPedindo]     = useState(!!location.state?.pedir)   // vindo de "Pedir ao Comando" de outra tela
   const [registrou, setRegistrou] = useState(false)   // 'isto não resolveu' já enviado para esta busca
   const [params] = useSearchParams()
 
@@ -278,7 +278,7 @@ export default function Ajuda() {
 
         {navegada && <Resposta e={navegada} aberta={!!abertas[navegada.id]} onAlternar={() => alternar(navegada.id)} />}
 
-        <PedirAoComando token={token} inicial={busca?.pergunta || pergunta} tela={location.state?.de} buscou={busca?.pergunta}
+        <PedirAoComando token={token} inicial={busca?.pergunta || pergunta || location.state?.pedir || ''} tela={location.state?.de} buscou={busca?.pergunta}
           aberto={pedindo || (!!busca && !busca.certeza)} onAbrir={() => setPedindo(true)} onEnviada={carregarDuvidas} />
 
 

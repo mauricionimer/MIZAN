@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext'
 import { useAnalysis } from '../context/AnalysisContext'
 import { buscarPremissas, gravarPremissas, listarEmpresas } from '../api'
 import DicaAjuda from '../components/DicaAjuda'
+import { useProtegerSaida } from '../components/protecaoSaida'
 
 const ROTULO_ESCOLHA = {
   valor_esperado: 'Maior valor esperado (recupera mais)',
@@ -102,6 +103,12 @@ export default function Premissas() {
 
   const mudou = (p) => texto[p.chave] !== (p.definida ? paraTela(p, p.valor) : '')
   const alteradas = dados ? dados.premissas.filter(mudou) : []
+  // Igual a Ofertas: sair (menu, aba, voltar, fechar a aba) com alteração pendente pergunta antes.
+  useProtegerSaida(alteradas.length > 0, 'Você tem alterações não salvas na política de cobrança. Deseja sair?')
+  const descartar = () => {
+    setErros({}); setErroGeral('')
+    setTexto(Object.fromEntries(dados.premissas.map(p => [p.chave, p.definida ? paraTela(p, p.valor) : ''])))
+  }
 
   async function salvar(e) {
     e.preventDefault()
@@ -111,7 +118,7 @@ export default function Premissas() {
       const r = await gravarPremissas(token, valores, isComando ? alvo : undefined)
       setDados(r)
       setTexto(Object.fromEntries(r.premissas.map(p => [p.chave, p.definida ? paraTela(p, p.valor) : ''])))
-      setMsg('Premissas salvas. Valem para as próximas análises; as carteiras já analisadas não mudam.')
+      setMsg('Política de cobrança salva. Vale para as próximas análises; as carteiras já analisadas não mudam.')
     } catch (e2) {
       if (e2.erros) setErros(e2.erros)
       setErroGeral(e2.message)
@@ -119,11 +126,11 @@ export default function Premissas() {
   }
 
   return (
-    <AppShell secao="premissas" onIrPara={setVista} temResultado={!!result} titulo="Premissas">
+    <AppShell secao="premissas" onIrPara={setVista} temResultado={!!result} titulo="Política de cobrança">
       <div className="mx-auto w-full max-w-3xl space-y-6">
         <div>
           <p className="section-label">Configuração da empresa</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">Premissas<DicaAjuda id="como-configurar-premissas" /></h1>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">Política de cobrança<DicaAjuda id="como-configurar-premissas" /></h1>
         </div>
 
         {isComando && (
@@ -162,13 +169,20 @@ export default function Premissas() {
                 onAjuda={id => navigate(`/ajuda?id=${encodeURIComponent(id)}`)} />
             ))}
             <div className="sticky bottom-4 flex items-center justify-between gap-3 rounded-xl border border-line bg-surface p-3 shadow-lg">
-              <span className="text-xs text-ink-3">
-                {alteradas.length ? `${alteradas.length} alteração(ões) por salvar` : 'Nada alterado'}
+              <span role="status" className={`inline-flex items-center gap-1.5 text-xs ${alteradas.length ? 'font-medium text-amber-400' : msg ? 'text-emerald-400' : 'text-ink-3'}`}>
+                {alteradas.length
+                  ? <><AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" /> {alteradas.length === 1 ? '1 alteração não salva' : `${alteradas.length} alterações não salvas`}</>
+                  : msg ? <><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" /> Tudo salvo</> : 'Nada alterado'}
               </span>
-              <button type="submit" disabled={salvando || !alteradas.length}
-                className="btn-primary">
-                {salvando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Salvar
-              </button>
+              <div className="flex items-center gap-2">
+                {alteradas.length > 0 && !salvando && (
+                  <button type="button" onClick={descartar} className="btn-ghost btn-sm">Descartar</button>
+                )}
+                <button type="submit" disabled={salvando || !alteradas.length}
+                  className="btn-primary">
+                  {salvando ? <><Loader2 className="h-4 w-4 animate-spin" /> Salvando…</> : <><Save className="h-4 w-4" /> Salvar</>}
+                </button>
+              </div>
             </div>
           </form>
         )}

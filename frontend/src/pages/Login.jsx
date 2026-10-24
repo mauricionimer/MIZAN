@@ -1,7 +1,7 @@
 import ThemeToggle from '../components/ThemeToggle'
 import { useState, useEffect } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { Eye, EyeOff, Loader2, Mail, Lock } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { LogoMark } from '../components/Logo'
@@ -15,6 +15,7 @@ const BASE_API = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
 
 export default function Login() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { claro } = useTheme()
   const [searchParams] = useSearchParams()
   const sessionExpirada = searchParams.get('expired') === '1'
@@ -59,8 +60,11 @@ export default function Login() {
     const user = await login(email, senha)
     if (!user) return
     // Todo login começa no Início, inclusive após expiração da sessão
-    // ou quando a pessoa chega por um link de outra área.
-    navigate('/inicio', { replace: true })
+    // ou quando a pessoa chega por um link de outra área. O Início oferece
+    // "Continuar de onde parou" com a tela que ela tinha aberta.
+    const de = searchParams.get('de') ?? (location.state?.from ? location.state.from.pathname + location.state.from.search : null)
+    const retomar = de && de.startsWith('/') && !de.startsWith('//') && !/^\/(login|inicio)\b/.test(de) ? de : null
+    navigate('/inicio', { replace: true, state: retomar ? { retomar } : undefined })
   }
 
   // O link `?empresa=` vale primeiro; sem ele, a marca do domínio digitado.

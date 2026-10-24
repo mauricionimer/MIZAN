@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { lazy, Suspense } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { saidaTravada } from '../components/protecaoSaida'
 import ConfirmarModal, { useConfirmar } from '../components/ConfirmarModal'
 const Roteiros = lazy(() => import('./Roteiros'))
@@ -84,12 +84,14 @@ function BuscaDevedor({ escolhido, onEscolher, empresaAlvo, exigeEmpresa }) {
         <div className="min-w-0">
           <p className="text-sm font-semibold text-ink truncate">{escolhido.nome || 'Sem nome'}</p>
           <p className="text-xs tabular-nums mt-0.5" style={{ color: 'var(--ink-2)' }}>
-            {fmtCPF(escolhido.cpf)} · {escolhido.produto || '—'}
+            {fmtCPF(escolhido.cpf)}{escolhido.produto && <> · {escolhido.produto}</>}
             {escolhido.valor_divida != null && <> · {fmtBRL(escolhido.valor_divida)}</>}
           </p>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
-            Carteira: {escolhido.carteira_nome || '—'}{escolhido.carteira_data && <> · {fmtData(escolhido.carteira_data)}</>}
-          </p>
+          {escolhido.carteira_nome && (
+            <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
+              Carteira: {escolhido.carteira_nome}{escolhido.carteira_data && <> · {fmtData(escolhido.carteira_data)}</>}
+            </p>
+          )}
         </div>
         <button type="button" onClick={() => onEscolher(null)} aria-label="Trocar devedor"
           className="shrink-0 rounded-md p-1 text-ink-3 hover:bg-raise-2 hover:text-ink">
@@ -310,12 +312,14 @@ export default function Feedback() {
       confirmar: 'Trocar de aba', perigo: true }))) return
     setParams(k === 'pagamentos' ? {} : { secao: k })
   }
-  const [form, setForm]           = useState(EMPTY)
+  // Vindo do "Registrar pagamento" da Agenda: devedor e valor prometido já preenchidos.
+  const registrar = useLocation().state?.registrar ?? null
+  const [form, setForm]           = useState(() => registrar?.valor > 0 ? { ...EMPTY, valor_recuperado: String(registrar.valor) } : EMPTY)
   const [loading, setLoading]     = useState(false)
   const [historico, setHistorico] = useState([])
   const [erro, setErro]           = useState('')
   const [sucesso, setSucesso]     = useState('')
-  const [devedor, setDevedor]     = useState(null)
+  const [devedor, setDevedor]     = useState(registrar?.devedor ?? null)
   // COMANDO não pertence a uma empresa: escolhe em qual registrar.
   const [empresas, setEmpresas]   = useState([])
   const [empresaAlvo, setEmpresaAlvo] = useState('')

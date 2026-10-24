@@ -92,7 +92,7 @@ export default function Backtest() {
   return (
     <AppShell>
       <div className="w-full mx-auto max-w-5xl space-y-5">
-        <h1 className="text-xl font-bold tracking-tight text-ink">Backtest de carteira histórica<DicaAjuda id="backtest" /></h1>
+        <h1 className="text-xl font-bold tracking-tight text-ink">Simulação histórica<DicaAjuda id="backtest" /></h1>
         {/* Entrada */}
         <section className="card p-5">
           <p className="text-sm leading-relaxed" style={{ color: 'var(--ink-2)' }}>
