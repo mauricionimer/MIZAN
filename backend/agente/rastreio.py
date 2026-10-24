@@ -16,7 +16,8 @@ def novo_trace_id() -> str:
 
 
 class Rastreio:
-    def __init__(self, empresa_id: str, gravar, caso_id=None, evento_id=None, trace_id=None, observar=None):
+    def __init__(self, empresa_id: str, gravar, caso_id=None, evento_id=None, trace_id=None, observar=None,
+                 registrar_operacional=None):
         self.empresa_id = empresa_id
         self.caso_id = caso_id
         self.evento_id = evento_id
@@ -25,6 +26,18 @@ class Rastreio:
         self.passos: list = []
         self.atual: dict | None = None
         self._observar = observar
+        self._registrar_operacional = registrar_operacional
+
+    def registrar_operacional(self, nivel: str, categoria: str, agente: str = "orquestrador",
+                               tentativa=None, detalhe=None) -> None:
+        """Registra uma falha técnica sem permitir que o log derrube o atendimento."""
+        if not self._registrar_operacional:
+            return
+        try:
+            self._registrar_operacional(nivel=nivel, categoria=categoria, agente=agente,
+                                        tentativa=tentativa, detalhe=detalhe or {})
+        except Exception:
+            pass
 
     def observar(self, tipo: str, passo=None):
         """Observação opcional. Uma falha na sala nunca interfere no atendimento."""
@@ -51,6 +64,9 @@ class Rastreio:
         except Exception as e:
             passo["resultado"] = "erro"
             passo["detalhe"] = {**passo["detalhe"], "erro": type(e).__name__}
+            self.registrar_operacional("aviso", "no_falhou", agente=agente,
+                                       tentativa=passo["detalhe"].get("tentativa"),
+                                       detalhe={"no": no, "erro": type(e).__name__})
             raise
         finally:
             passo["duracao_ms"] = int((time.perf_counter() - inicio) * 1000)

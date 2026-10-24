@@ -52,6 +52,7 @@ class RepoMemoria:
         self.casos: dict = {}
         self.eventos: dict = {}
         self.passos: list = []
+        self.logs_agentes: list = []
         self.politicas: list = []
         self.mensagens: list = []
         self._lock = threading.Lock()
@@ -258,6 +259,15 @@ class RepoMemoria:
     def gravar_passo(self, passo: dict) -> None:
         with self._lock:
             self.passos.append({**copy.deepcopy(passo), "criado_em": agora_utc()})
+
+    def gravar_log_agente(self, log: dict) -> None:
+        with self._lock:
+            self.logs_agentes.append({"id": str(uuid.uuid4()), **copy.deepcopy(log), "criado_em": log.get("criado_em") or agora_utc()})
+
+    def logs_operacionais(self, empresa_id: str, n: int = 100) -> list:
+        logs = [copy.deepcopy(l) for l in self.logs_agentes if l["empresa_id"] == empresa_id]
+        logs.sort(key=lambda l: str(l.get("criado_em") or ""), reverse=True)
+        return logs[:n]
 
     # ── recomendações do Cientista ──
     def gravar_recomendacao(self, empresa_id: str, rec: dict) -> dict:
@@ -598,6 +608,16 @@ class RepoSupabase:
     # ── passos ──
     def gravar_passo(self, passo: dict) -> None:
         self.db.table("agente_passos").insert(passo).execute()
+
+    def gravar_log_agente(self, log: dict) -> None:
+        linha = {k: self._iso(v) for k, v in log.items() if k != "criado_em"}
+        self.db.table("agente_logs").insert(linha).execute()
+
+    def logs_operacionais(self, empresa_id: str, n: int = 100) -> list:
+        campos = "id,criado_em,nivel,categoria,mensagem,agente,evento_id,caso_id,trace_id,tentativa,detalhe"
+        res = (self.db.table("agente_logs").select(campos).eq("empresa_id", empresa_id)
+               .order("criado_em", desc=True).limit(n).execute())
+        return res.data or []
 
     def custo_do_dia(self, empresa_id: str, dia: date) -> float:
         """Gasto do dia de Brasília, somado em páginas (sem .range o PostgREST para

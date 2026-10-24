@@ -226,7 +226,7 @@ def simular_mensagem(empresa_id: str, predicao_id: str, texto: str, agora: datet
 
 
 def central(empresa_id: str, agora: datetime | None = None) -> dict:
-    """Central de orquestração: fila, falhas, casos por situação e custo do dia."""
+    """Central de orquestração: fila, falhas e monitoramento técnico seguro."""
     agora = agora or datetime.now(timezone.utc)
     repo = fabrica_repo()
     eventos = repo.eventos_recentes(empresa_id, 500)
@@ -237,6 +237,13 @@ def central(empresa_id: str, agora: datetime | None = None) -> dict:
             regras, versao = auditor.validar_politica(achada["regras"]), achada["versao"]
         except ValueError:
             pass
+    try:
+        logs_operacionais = repo.logs_operacionais(empresa_id, 100)
+        logs_disponiveis = True
+    except Exception:
+        # Durante a instalação da nova migration, a Central segue disponível.
+        logs_operacionais, logs_disponiveis = [], False
+    por_agente = Counter(l.get("agente") or "orquestrador" for l in logs_operacionais)
     return {
         "ligado": ligado(),
         "cliente": os.getenv("MIZAN_AGENTE_CLIENTE", "falso"),
@@ -247,6 +254,13 @@ def central(empresa_id: str, agora: datetime | None = None) -> dict:
         "eventos": dict(Counter(e["situacao"] for e in eventos)),
         "falhas": [{k: e.get(k) for k in ("id", "caso_id", "tipo", "erro", "tentativas", "criado_em", "trace_id")}
                    for e in eventos if e["situacao"] == "falhou"][:20],
+        "monitoramento": {
+            "disponivel": logs_disponiveis,
+            "ocorrencias": len(logs_operacionais),
+            "por_agente": dict(por_agente),
+            "logs": [{k: l.get(k) for k in ("id", "criado_em", "nivel", "categoria", "mensagem", "agente", "evento_id", "caso_id", "trace_id", "tentativa", "detalhe")}
+                     for l in logs_operacionais[:30]],
+        },
         "recentes": [{k: e.get(k) for k in ("caso_id", "tipo", "origem", "situacao", "erro", "criado_em", "trace_id")}
                      for e in eventos[:20]],
         "casos": dict(Counter(repo.situacoes_dos_casos(empresa_id))),

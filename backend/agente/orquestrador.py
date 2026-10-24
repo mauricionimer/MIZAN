@@ -31,7 +31,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
-from agente import auditor, estado, llm
+from agente import auditor, estado, llm, logs
 from agente.rastreio import Rastreio, novo_trace_id
 from agente.repositorio import PRONTO_JA, EventoDuplicado
 
@@ -201,6 +201,11 @@ class Contexto:
             except Exception as e:                       # falha da IA (rede, cota): o código segue
                 motivo = type(e).__name__
         self._marcar_origem("codigo", motivo)
+        # IA desligada é configuração, não incidente. Os demais motivos entram
+        # no monitoramento para cada papel que acionou a reserva segura.
+        if motivo and motivo != "desligado":
+            self.rastreio.registrar_operacional("aviso", "ia_reserva", agente=papel,
+                                                detalhe={"erro": motivo})
         return reserva()
 
     def _marcar_origem(self, origem: str, motivo):
@@ -235,6 +240,8 @@ def _transferir(ctx: Contexto, motivo: str) -> None:
         p["detalhe"] = {"motivo": motivo}
         if ctx.caso["situacao"] not in estado.SO_PESSOA_TIRA | estado.FINAIS:
             ctx.mudar_situacao("com_pessoa")
+            ctx.rastreio.registrar_operacional("erro", "encaminhado_equipe", agente="orquestrador",
+                                                detalhe={"erro": motivo})
 
 
 def _ler_checkpoint(caso: dict, evento_id) -> dict | None:
@@ -309,6 +316,7 @@ def executar(grafo: Grafo, ctx: Contexto, dono: str = DONO) -> dict:
     erro = None
     esperar_ia = None
     teto = False
+    no = None
     while atual != FIM:
         passos += 1
         if passos > MAX_PASSOS:
@@ -357,6 +365,8 @@ def executar(grafo: Grafo, ctx: Contexto, dono: str = DONO) -> dict:
         ctx.saida["adiar_para"] = proxima_meia_noite(agora)
         with ctx.rastreio.span("aguardar_teto", "orquestrador") as p:
             p["detalhe"] = {"ate": ctx.saida["adiar_para"].isoformat()}
+        ctx.rastreio.registrar_operacional("aviso", "teto_ia", agente="orquestrador",
+                                            detalhe={"evento_tipo": ctx.evento.get("tipo")})
         _checkpoint(ctx, "aguardando teto do dia", dono)
         return {"ok": True, "erro": None, "situacao": ctx.caso["situacao"]}
     if esperar_ia is not None:
@@ -374,10 +384,17 @@ def executar(grafo: Grafo, ctx: Contexto, dono: str = DONO) -> dict:
             ctx.saida["adiar_para"] = agora + timedelta(seconds=max(30.0, esperar_ia))
             with ctx.rastreio.span("aguardar_ia", "orquestrador") as p:
                 p["detalhe"] = {"esperar_s": round(esperar_ia), "vez": n}
+            ctx.rastreio.registrar_operacional("aviso", "ia_aguardando", agente=no.agente,
+                                                tentativa=n, detalhe={"no": no.nome,
+                                                                       "esperar_s": round(esperar_ia), "vez": n})
             _checkpoint(ctx, "aguardando IA", dono)
             return {"ok": True, "erro": None, "situacao": ctx.caso["situacao"]}
         erro = "IaOcupada"
     if erro:
+        agente_falha = no.agente if no else "orquestrador"
+        no_falha = no.nome if no else "orquestrador"
+        ctx.rastreio.registrar_operacional("erro", "falha_final", agente=agente_falha,
+                                            detalhe={"no": no_falha, "erro": erro})
         if grafo.preparar_falha:
             # Registra a demanda antes de prometer uma transferência ao cliente.
             # Falha na gravação volta à fila pelo tratamento de _processar.
@@ -450,7 +467,10 @@ def _processar(repo, grafos, ev, cliente, agora, dono) -> dict:
         from agente.escritorio import observador
         rastreio = Rastreio(ev["empresa_id"], repo.gravar_passo, caso_id=caso["id"],
                             evento_id=ev["id"], trace_id=trace_id,
-                            observar=observador(repo, ev, trace_id))
+                            observar=observador(repo, ev, trace_id),
+                            registrar_operacional=lambda **dados: logs.registrar(
+                                repo, empresa_id=ev["empresa_id"], evento_id=ev["id"],
+                                caso_id=caso["id"], trace_id=trace_id, **dados))
         # "Hoje" do negócio é o de Brasília: às 21h o dia ainda não virou.
         ctx = Contexto(caso=caso, evento=ev, repo=repo, rastreio=rastreio,
                        cliente=cliente, hoje=agora.astimezone(auditor.BRASILIA).date(), agora=agora)
@@ -465,6 +485,10 @@ def _processar(repo, grafos, ev, cliente, agora, dono) -> dict:
             "disponivel_em": agora + ESPERA_NOVA_TENTATIVA,
             "concluido_em": agora if final else None,
         })
+        logs.registrar(repo, empresa_id=ev["empresa_id"], evento_id=ev["id"], caso_id=ev.get("caso_id"),
+                       trace_id=trace_id, nivel="erro" if final else "aviso",
+                       categoria="evento_falhou" if final else "evento_retentativa", agente="orquestrador",
+                       tentativa=falhas, detalhe={"evento_tipo": ev.get("tipo"), "erro": type(e).__name__})
         return {"evento_id": ev["id"], "trace_id": trace_id, "ok": False,
                 "erro": type(e).__name__, "situacao_evento": "falhou" if final else "pendente"}
     adiar = ctx.saida.get("adiar_para")
@@ -486,7 +510,11 @@ def processar_fila(repo, grafos: dict, cliente=None, limite: int = 20,
     Antes, devolve à fila o que ficou preso em "processando" com a reserva vencida.
     """
     try:
-        repo.devolver_presos(agora_real(), MAX_FALHAS_EVENTO, empresa_id=empresa_id)
+        presos = repo.devolver_presos(agora_real(), MAX_FALHAS_EVENTO, empresa_id=empresa_id)
+        if presos:
+            # Sem caso/evento individual: o repositório só devolve a contagem.
+            logs.registrar(repo, empresa_id=empresa_id or "sistema", nivel="aviso", categoria="reservas_vencidas",
+                           agente="orquestrador", detalhe={"quantidade": presos})
     except Exception as e:                               # não pode travar a fila
         print(f"[Agente] não devolveu eventos presos: {type(e).__name__}")
     feitos = []

@@ -32,6 +32,9 @@ const EVENTO = { mensagem_devedor: 'Mensagem do devedor', pagamento: 'Pagamento'
   relogio: 'Relógio', contestacao: 'Contestação', pedido_parar: 'Pedido para parar' }
 const SIT_EVENTO = { pendente: 'Na fila', processando: 'Em andamento', feito: 'Feito', falhou: 'Falhou' }
 const COR_RES = { ok: 'var(--success)', bloqueado: 'var(--warning)', erro: 'var(--danger)' }
+const NOME_LOG_AGENTE = { triagem: 'Triagem', negociador: 'Negociador', estrategista: 'Estrategista',
+  acompanhamento: 'Acompanhamento', supervisor: 'Supervisor', cientista: 'Cientista', auditor: 'Auditor',
+  orquestrador: 'Orquestrador', codigo: 'Travas', ferramenta: 'Ferramenta' }
 const NOME_NO = {
   receber: 'Recebeu a mensagem', triagem: 'Triagem: entendeu a intenção', negociar: 'Negociador', enviar: 'Enviou a resposta',
   auditor: 'Auditor', guardrails: 'Travas do texto', resposta_fixa: 'Resposta fixa (sem IA)', suspender: 'Suspendeu a cobrança',
@@ -312,6 +315,7 @@ function Central({ empresa }) {
   if (carregando && !c) return <div className="flex items-center gap-2 py-10 text-sm text-ink-2"><Loader2 className="h-4 w-4 animate-spin" /> Carregando…</div>
   if (!c) return <ErroCarga erro={erro} onTentar={carregar} />
   const ev = c.eventos || {}
+  const monitoramento = c.monitoramento || { disponivel: false, ocorrencias: 0, logs: [], por_agente: {} }
   async function relogio() {
     setRodando(true); setErro(null)
     try { const r = await agenteRelogio(empresa); setAvisoRelogio(`${r.eventos_criados} evento(s) de data criados, ${r.processados} processado(s).`); await carregar() }
@@ -335,8 +339,11 @@ function Central({ empresa }) {
         <Cartao icone={ShieldCheck} rotulo="Política" valor={c.politica.versao ? `Versão ${c.politica.versao}` : 'Sem política'}
           cor={c.politica.versao ? 'var(--success)' : 'var(--warning)'}
           nota={c.politica.regras ? `desconto até ${c.politica.regras.desconto_max_pct}% · até ${c.politica.regras.parcelas_max}x` : 'sem política, só ações de segurança passam'} />
-        <Cartao icone={AlertTriangle} rotulo="Falharam" valor={ev.falhou || 0} cor={ev.falhou ? 'var(--danger)' : 'var(--ink-3)'}
+        <Cartao icone={AlertTriangle} rotulo="Falhas finais" valor={ev.falhou || 0} cor={ev.falhou ? 'var(--danger)' : 'var(--ink-3)'}
           nota={`${ev.pendente || 0} na fila · ${ev.processando || 0} em andamento · ${ev.feito || 0} feitos`} />
+        <Cartao icone={Activity} rotulo="Monitoramento" valor={monitoramento.ocorrencias || 'Sem ocorrências'}
+          cor={monitoramento.ocorrencias ? 'var(--warning)' : 'var(--success)'}
+          nota={monitoramento.disponivel ? 'Falhas, esperas e encaminhamentos registrados.' : 'Aguardando instalar os logs operacionais.'} />
       </KpiBento>
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="rounded-xl border border-line bg-surface p-4">
@@ -360,6 +367,25 @@ function Central({ empresa }) {
           )}
         </section>
       </div>
+      <section className="rounded-xl border border-line bg-surface p-4">
+        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+          <div><h2 className="text-sm font-semibold text-ink">Monitoramento dos agentes</h2>
+            <p className="mt-1 text-xs text-ink-2">Registra cada falha técnica, nova tentativa, espera da IA e encaminhamento para a equipe. Não inclui conteúdo de conversas.</p></div>
+          <span className="text-xs text-ink-3">{monitoramento.disponivel ? 'Últimas 100 ocorrências' : 'Migration pendente'}</span>
+        </div>
+        {monitoramento.logs?.length === 0 ? <p className="text-xs text-ink-2">Nenhuma ocorrência operacional registrada.</p> : (
+          <ul className="divide-y divide-line text-xs">
+            {monitoramento.logs.map(log => (
+              <li key={log.id || `${log.criado_em}-${log.categoria}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-ink-2">
+                <span className="font-medium text-ink">{NOME_LOG_AGENTE[log.agente] || log.agente}</span>
+                <span style={{ color: log.nivel === 'erro' || log.nivel === 'critico' ? 'var(--danger)' : 'var(--warning)' }}>{log.mensagem}</span>
+                {log.tentativa && <span>{log.tentativa}ª tentativa</span>}
+                <span className="ml-auto tabular-nums text-ink-3">{fmtHora(log.criado_em)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
       <section className="rounded-xl border border-line bg-surface p-4">
         <h2 className="mb-3 text-sm font-semibold text-ink">Últimos eventos</h2>
         {c.recentes.length === 0 ? <p className="text-xs text-ink-2">Nenhum evento ainda.</p> : (
