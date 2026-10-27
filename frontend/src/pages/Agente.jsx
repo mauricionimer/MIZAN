@@ -11,7 +11,7 @@ import { KpiBento } from '../components/ui/stats-bento'
 import EscritorioAgentes, { Retrato } from '../components/EscritorioAgentes'
 import FichaPassagem, { SeloPrioridade } from '../components/FichaPassagem'
 import { useAuth } from '../context/AuthContext'
-import { agenteDevedores, agenteCaso, agenteSimularMensagem, agenteSimularPagamento, agenteCentral, agenteRelogio, agentePlano, agenteAplicarPlano, agentePoliticas, agenteSalvarPolitica, agenteControle, agenteAgenda, agenteAtribuir, agenteLaboratorio, agenteAnalisar, agenteDecidirRecomendacao, agenteAgentes, listarEmpresas } from '../api'
+import { agenteDevedores, agenteCaso, agenteSimularMensagem, agenteSimularPagamento, agenteCentral, agenteRelogio, agentePlano, agenteAplicarPlano, agentePoliticas, agenteSalvarPolitica, agenteControle, agenteTelegramConvite, agenteAgenda, agenteAtribuir, agenteLaboratorio, agenteAnalisar, agenteDecidirRecomendacao, agenteAgentes, listarEmpresas } from '../api'
 
 const fmtBRL = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0)
 const fmtUSD = (v) => `US$ ${Number(v || 0).toFixed(4)}`
@@ -109,6 +109,13 @@ function Conversa({ empresa }) {
   const [valorPago, setValorPago] = useState('')
   const fim = useRef(null)
 
+  const [convite, setConvite] = useState(null)
+  useEffect(() => { setConvite(null) }, [escolhido])
+  async function gerarConvite() {
+    setEnviando(true); setErro(null)
+    try { setConvite(await agenteTelegramConvite(escolhido.id, empresa)) } catch (err) { setErro(err) } finally { setEnviando(false) }
+  }
+
   async function controlar(acao) {
     setEnviando(true); setErro(null)
     try { setDados(await agenteControle(escolhido.id, acao, empresa)) } catch (err) { setErro(err) } finally { setEnviando(false) }
@@ -184,10 +191,24 @@ function Conversa({ empresa }) {
               <p className="text-sm font-semibold text-ink">{escolhido.nome}</p>
               <Selo situacao={dados?.caso?.situacao} />
               {dados?.caso?.identidade_confirmada && <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--success)' }}><ShieldCheck className="h-3.5 w-3.5" /> identidade confirmada</span>}
+              <button onClick={gerarConvite} disabled={enviando} title="Gera o link para o devedor conversar com o agente pelo Telegram"
+                className="ml-auto flex items-center gap-1 rounded-md border border-line bg-raise-1 px-2 py-1 text-xs font-medium text-ink hover:bg-raise-2"><Send className="h-3.5 w-3.5" /> Convite Telegram</button>
               {dados?.caso && (dados.caso.situacao === 'com_pessoa'
-                ? <button onClick={() => controlar('devolver')} disabled={enviando} className="ml-auto flex items-center gap-1 rounded-md border border-line bg-raise-1 px-2 py-1 text-xs font-medium text-ink hover:bg-raise-2"><Undo2 className="h-3.5 w-3.5" /> Devolver ao agente</button>
-                : <button onClick={() => controlar('assumir')} disabled={enviando} className="ml-auto flex items-center gap-1 rounded-md border border-line bg-raise-1 px-2 py-1 text-xs font-medium text-ink hover:bg-raise-2"><Hand className="h-3.5 w-3.5" /> Assumir o caso</button>)}
+                ? <button onClick={() => controlar('devolver')} disabled={enviando} className="flex items-center gap-1 rounded-md border border-line bg-raise-1 px-2 py-1 text-xs font-medium text-ink hover:bg-raise-2"><Undo2 className="h-3.5 w-3.5" /> Devolver ao agente</button>
+                : <button onClick={() => controlar('assumir')} disabled={enviando} className="flex items-center gap-1 rounded-md border border-line bg-raise-1 px-2 py-1 text-xs font-medium text-ink hover:bg-raise-2"><Hand className="h-3.5 w-3.5" /> Assumir o caso</button>)}
             </header>
+            {convite && (
+              <div className="flex flex-wrap items-center gap-2 border-b border-line bg-raise-1 px-4 py-2 text-xs text-ink-2" role="status">
+                {convite.configurado && convite.link ? (
+                  <>
+                    <span>Envie este link ao devedor (vale uma vez, até {new Date(convite.expira_em).toLocaleDateString('pt-BR')}):</span>
+                    <input readOnly value={convite.link} onFocus={e => e.target.select()} aria-label="Link do convite"
+                      className="min-w-[16rem] flex-1 rounded border border-line bg-surface-2 px-2 py-1 text-ink" />
+                    <button onClick={() => navigator.clipboard?.writeText(convite.link)} className="rounded-md border border-line bg-raise-1 px-2 py-1 font-medium text-ink hover:bg-raise-2">Copiar</button>
+                  </>
+                ) : <span>O Telegram ainda não está configurado no servidor (variáveis TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET e TELEGRAM_BOT_USERNAME).</span>}
+              </div>
+            )}
             <div className="flex-1 space-y-2 overflow-y-auto p-4">
               {(dados?.mensagens || []).map((m, i) => (
                 <div key={i} className={`flex ${m.direcao === 'entrada' ? 'justify-start' : 'justify-end'}`}>

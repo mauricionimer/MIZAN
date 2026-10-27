@@ -789,6 +789,11 @@ export async function agenteAtribuir(itemId, operadorId, empresaId) {
   return pedir(`/agente/agenda/${_id(itemId)}/atribuir`, { metodo: 'POST', corpo: { operador_id: operadorId, empresa_id: empresaId || null } })
 }
 
+// Link do bot do Telegram ligado a este caso (vale 7 dias, uma vez).
+export async function agenteTelegramConvite(predicaoId, empresaId) {
+  return pedir(`/agente/casos/${_id(predicaoId)}/telegram-convite`, { metodo: 'POST', query: { empresa_id: empresaId } })
+}
+
 export async function agenteControle(predicaoId, acao, empresaId) {
   return pedir(`/agente/casos/${_id(predicaoId)}/controle`, { metodo: 'POST', corpo: { acao, empresa_id: empresaId || null } })
 }

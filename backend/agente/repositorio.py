@@ -73,6 +73,13 @@ class RepoMemoria:
         c = self.casos.get(caso_id)
         return copy.deepcopy(c) if c else None
 
+    def caso_por_telegram(self, chat_id) -> dict | None:
+        """O caso ligado a este chat do Telegram, se houver."""
+        for c in self.casos.values():
+            if str(((c.get("dados") or {}).get("telegram") or {}).get("chat_id") or "") == str(chat_id):
+                return copy.deepcopy(c)
+        return None
+
     def salvar_caso(self, caso_id: str, campos: dict, dono: str | None = None) -> bool:
         """Grava o checkpoint. Com `dono`, só grava se a trava ainda for dele."""
         with self._lock:
@@ -329,6 +336,12 @@ class RepoSupabase:
 
     def obter_caso(self, caso_id: str) -> dict | None:
         res = self.db.table("agente_casos").select("*").eq("id", caso_id).limit(1).execute()
+        return self._caso(res.data[0]) if res.data else None
+
+    def caso_por_telegram(self, chat_id) -> dict | None:
+        """O caso ligado a este chat do Telegram (dados->telegram->chat_id), se houver."""
+        res = (self.db.table("agente_casos").select("*")
+               .eq("dados->telegram->>chat_id", str(chat_id)).limit(1).execute())
         return self._caso(res.data[0]) if res.data else None
 
     def salvar_caso(self, caso_id: str, campos: dict, dono: str | None = None) -> bool:

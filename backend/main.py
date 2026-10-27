@@ -8812,6 +8812,46 @@ def agente_pastas(carteira_id: str, busca: Optional[str] = None, cor: Optional[s
                      "agente_ligado": ligado})
 
 
+@app.post("/canal/telegram/webhook")
+async def telegram_webhook(request: Request, tarefas: BackgroundTasks):
+    """Recebe as mensagens do bot do Telegram. Sem login: quem garante a origem é o
+    segredo do webhook (cabeçalho X-Telegram-Bot-Api-Secret-Token)."""
+    from agente import canal_telegram
+    if not canal_telegram.configurado():
+        raise HTTPException(status_code=503, detail="Telegram não configurado.")
+    if not canal_telegram.segredo_confere(request.headers.get("X-Telegram-Bot-Api-Secret-Token")):
+        raise HTTPException(status_code=403, detail="Acesso negado.")
+    try:
+        update = await request.json()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Corpo inválido.")
+
+    def tratar():
+        try:
+            canal_telegram.receber(update)
+        except Exception as e:                       # o Telegram só precisa do 200; o erro fica no log, sem dados
+            print(f"[Telegram] update não tratado: {type(e).__name__}")
+    tarefas.add_task(tratar)                         # responde 200 já: a IA pode demorar
+    return {"ok": True}
+
+
+@app.post("/agente/casos/{predicao_id}/telegram-convite")
+def agente_telegram_convite(predicao_id: str, empresa_id: Optional[str] = None,
+                            credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Link para o devedor abrir o bot do Telegram já ligado a este caso (vale 7 dias, uma vez)."""
+    from agente import api as agente_api, canal_telegram
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") not in ("admin", "comando"):
+        raise HTTPException(status_code=403, detail="Só o administrador gera convites.")
+    emp = _empresa_do_agente(payload, empresa_id)
+    if not agente_api.ligado():
+        raise HTTPException(status_code=409, detail="O agente está desligado (MIZAN_AGENTE_ATIVO).")
+    if agente_api.fabrica_fonte().devedor(emp, predicao_id) is None:
+        raise HTTPException(status_code=404, detail="Devedor não encontrado nas carteiras da empresa.")
+    repo = agente_api.fabrica_repo()
+    return canal_telegram.gerar_convite(repo, repo.obter_ou_criar_caso(emp, predicao_id))
+
+
 @app.get("/agente/casos/{predicao_id}")
 def agente_caso(predicao_id: str, empresa_id: Optional[str] = None,
                 credentials: HTTPAuthorizationCredentials = Security(bearer)):
