@@ -148,6 +148,7 @@ export function GlassFold({
   className,
 }: GlassFoldProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const repintar = useRef<(() => void) | null>(null)
   // the draw loop reads the latest props from here, so changing one never
   // rebuilds the WebGL program
   const props = useRef({ color1, color2, color3, speed, scale, noise, light, resolution })
@@ -209,7 +210,6 @@ export function GlassFold({
       if (last !== null) elapsed += Math.min((now - last) / 1000, 0.1) * p.speed
       last = now
 
-      resize()
       gl.uniform1f(u.time, elapsed)
       gl.uniform3fv(u.color1, hexToVec3(p.color1))
       gl.uniform3fv(u.color2, hexToVec3(p.color2))
@@ -221,26 +221,47 @@ export function GlassFold({
       gl.drawArrays(gl.TRIANGLES, 0, 6)
     }
 
-    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)")
+    let ultimoQuadro = -Infinity
     const loop = (now: number) => {
-      draw(now)
-      if (!still) frame = requestAnimationFrame(loop)
+      frame = 0
+      if (document.hidden) return
+      // Fundo decorativo: não disputar 60/120 quadros por segundo com a tela.
+      if (now - ultimoQuadro >= 1000 / 24) {
+        draw(now)
+        ultimoQuadro = now
+      }
+      if (!motion.matches && props.current.speed !== 0) frame = requestAnimationFrame(loop)
     }
-    frame = requestAnimationFrame(loop)
+    const atualizar = () => {
+      cancelAnimationFrame(frame)
+      frame = 0
+      last = null
+      ultimoQuadro = -Infinity
+      if (!document.hidden) { resize(); frame = requestAnimationFrame(loop) }
+    }
+    repintar.current = atualizar
+    atualizar()
 
-    // with motion off there is no loop, so repaint the still frame on resize
-    const observer = new ResizeObserver(() => {
-      if (still) draw(performance.now())
-    })
+    // Mede o canvas ao redimensionar, sem forçar leitura de layout a cada quadro.
+    const observer = new ResizeObserver(atualizar)
     observer.observe(canvas)
+    document.addEventListener('visibilitychange', atualizar)
+    motion.addEventListener('change', atualizar)
 
     return () => {
+      repintar.current = null
       cancelAnimationFrame(frame)
       observer.disconnect()
+      document.removeEventListener('visibilitychange', atualizar)
+      motion.removeEventListener('change', atualizar)
       gl.deleteBuffer(buffer)
       gl.deleteProgram(program)
     }
   }, [])
+
+  // Tema/cor também precisam atualizar o quadro com movimento reduzido.
+  useEffect(() => { repintar.current?.() }, [color1, color2, color3, speed, scale, noise, light, resolution])
 
   return (
     <canvas

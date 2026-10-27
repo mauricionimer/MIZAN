@@ -133,8 +133,9 @@ def plano(repo, fonte, empresa_id: str, aplicar: bool = False, agora=None) -> di
 
 
 def texto_abordagem(nome: str, empresa: str) -> str:
-    return (f"Olá, {nome}! Aqui é o assistente virtual de {empresa}. Temos condições para você regularizar "
-            "uma pendência com a gente. Posso te mostrar? Se preferir falar com uma pessoa, é só dizer.")
+    return (f"Olá, {nome}! Aqui é o assistente virtual de {empresa}. Tudo bem? Antes de seguirmos, "
+            "posso confirmar se estou falando com você? É um assunto do banco e quero tratar com privacidade. "
+            "Depois disso, consigo te explicar opções para organizar a situação. Se preferir, uma pessoa da equipe pode continuar por aqui.")
 
 
 def grafo_abordagem(fonte) -> Grafo:
@@ -183,8 +184,11 @@ def grafo_abordagem(fonte) -> Grafo:
             ctx.caso["dados"] = dados
             ctx.anotar("estrategista", f"abordar ({dec['tom']}" + (f", {dec['oferta_inicial']}" if dec["oferta_inicial"] else "")
                        + ")", dec["raciocinio"])
-            texto = (f"Olá, {nome}! Aqui é o assistente virtual de {empresa}. {dec['mensagem']} "
-                     "Se preferir falar com uma pessoa, é só dizer.")
+            # A primeira fala é sempre a abertura reservada escrita pelo sistema.
+            # A estratégia de IA escolhe tom e primeiro degrau para o momento em
+            # que a pessoa demonstrar querer conversar sobre a pendência; ela não
+            # despeja uma oferta no primeiro contato.
+            texto = texto_abordagem(nome, empresa)
         else:
             texto = texto_abordagem(nome, empresa)
         ctx.repo.gravar_mensagem(ctx.caso["empresa_id"], ctx.caso["id"], "saida", texto, ctx.rastreio.trace_id,

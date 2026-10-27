@@ -18,6 +18,7 @@ import FundoOndas from './FundoOndas'
 import { useAuth } from '../context/AuthContext'
 import { useAnalysis } from '../context/AnalysisContext'
 import { pagina, SEM_MOVIMENTO, TRANSICAO } from '../lib/motion'
+import { prepararPagina } from '../lib/paginas'
 
 /**
  * A casca da plataforma: navegação fixa à esquerda, cabeçalho em cima, e só o
@@ -130,6 +131,7 @@ function AbasDaArea({ item, ativoExato, acionar }) {
         const on = ativoExato(aba)
         return (
           <button key={aba.id} role="tab" aria-selected={on} onClick={() => acionar(aba)}
+            onPointerEnter={() => prepararPagina(aba.rota)} onFocus={() => prepararPagina(aba.rota)}
             className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
               on ? 'border-blue-500 text-ink' : 'border-transparent text-ink-2 hover:text-ink'}`}>
             {aba.label}
@@ -153,6 +155,7 @@ function Navegacao({ grupos, ativo, acionar, sair, idDestaque }) {
                 const on = ativo(it)
                 return (
                   <button key={it.id} onClick={() => acionar(it)} aria-current={on ? 'page' : undefined}
+                    onPointerEnter={() => prepararPagina(it.rota)} onFocus={() => prepararPagina(it.rota)}
                     className={`relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-150 ${
                       on ? 'text-ink' : 'text-ink-2 hover:bg-raise-1 hover:text-ink'}`}>
                     {/* O destaque é um só e desliza até o item ativo. */}
@@ -288,7 +291,7 @@ export function ShellLayout() {
 
   return (
     <ShellCtx.Provider value={{ slotAcoes }}>
-      <div className="relative isolate flex min-h-screen bg-surface-2 font-sans text-ink">
+      <div className="relative isolate flex min-h-screen bg-canvas font-sans text-ink">
         <FundoOndas />
 
         {/* Menu em gaveta em todas as telas: abre pelo botão ☰ e não ocupa espaço. */}

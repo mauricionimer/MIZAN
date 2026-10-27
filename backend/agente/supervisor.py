@@ -85,7 +85,7 @@ def _numeros_do_passo(texto: str, rascunho: dict) -> list:
     return soltos
 
 
-def resumo_para_pessoa(ctx, motivo: str, resumo_atual: str, motivo_codigo: str | None = None) -> str:
+def resumo_para_pessoa(ctx, motivo: str, resumo_atual: str, motivo_codigo: str | None = None, usar_ia: bool = True) -> str:
     """Resumo que vai para a Agenda e para o caso, e a ficha da passagem em
     `caso.dados.passagem` (docs/PLANO_PASSAGEM_EQUIPE.md). Reserva: `resumo_atual`."""
     regras, versao = ctx.politica()
@@ -123,7 +123,11 @@ def resumo_para_pessoa(ctx, motivo: str, resumo_atual: str, motivo_codigo: str |
         return " | ".join(partes)
 
     with ctx.rastreio.span("resumo", "supervisor") as p:
-        texto = ctx.ia_ou_codigo("supervisor", gerar, lambda: resumo_atual)
+        if usar_ia:
+            texto = ctx.ia_ou_codigo("supervisor", gerar, lambda: resumo_atual)
+        else:
+            texto = resumo_atual
+            p["detalhe"] = {"origem": "codigo", "sem_ia": "passagem prioritária"}
         ficha = passagem.montar_ficha(ctx.caso, motivo_codigo or motivo, ia or None, regras, versao, ctx.agora,
                                     leitura=ctx.saida.get("triagem"))
         if not ia:

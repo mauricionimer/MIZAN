@@ -525,16 +525,18 @@ def _supervisor() -> list:
                          "o_que_quer": "falar com uma pessoa", "emocao": "irritado",
                          "proximo_passo": "ligar hoje e ouvir antes de oferecer"})
     return [
-        Cenario("sup-1", "Supervisor", "Transferência leva um resumo em cinco partes para a equipe",
+        Cenario("sup-1", "Supervisor", "Transferência leva ficha e resumo imediatos sem esperar IA opcional",
             dados=ID_OK, papeis=("supervisor",),
             passos=[("mensagem", "isso é um absurdo, quero falar com alguém de verdade")],
             roteiro={"triagem": [tri("outro", emocao="irritado")],
                      "negociador": [F("transferir_para_humano", motivo="dificuldade_grave", resumo="quer uma pessoa")],
                      "supervisor": [resumo]},
             conferir=[situacao("com_pessoa"),
-                      ("contexto", "resumo com próximo passo no caso e na Agenda",
-                       lambda r: "Próximo passo" in (r.repo.casos[r.caso["id"]].get("resumo") or "")
-                       and any("Próximo passo" in (a.get("observacao") or "") for a in r.fonte.agenda))]),
+                      ("contexto", "ficha e resumo no caso e na Agenda sem chamada opcional de IA",
+                       lambda r: bool((r.repo.casos[r.caso["id"]].get("dados") or {}).get("passagem"))
+                       and bool(r.repo.casos[r.caso["id"]].get("resumo"))
+                       and any("Transferido pelo assistente" in (a.get("observacao") or "") for a in r.fonte.agenda)
+                       and not any(c.get("papel") == "supervisor" for c in r.cliente.chamadas))]),
         Cenario("sup-2", "Supervisor", "Resposta fria para pessoa irritada: o Supervisor pede reescrita",
             dados=ID_OK, papeis=("supervisor",),
             passos=[("mensagem", "vocês só sabem cobrar, que saco")],

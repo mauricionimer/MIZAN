@@ -342,7 +342,7 @@ def t_estrategista_ia():
     checar(ficha["bandit"]["resultados_desta_oferta"] == 4 and ficha["bandit"]["dentro_da_politica"] is True,
            "6. ficha traz nº de resultados da oferta e se ela cabe na política", str(ficha["bandit"]))
     checar("centenas" not in estrategista_ia.SISTEMA and "pelo menos 3" in estrategista_ia.SISTEMA
-           and estrategista_ia.VERSAO_PROMPT == "estrategista-v2", "6. prompt honesto sobre 'calibrado' (estrategista-v2)")
+           and estrategista_ia.VERSAO_PROMPT == "estrategista-v3", "6. prompt honesto sobre 'calibrado' (estrategista-v3)")
     # bandit com oferta fora da política
     repo, fonte = _mundo_est(["p0"], politica={"desconto_max_pct": 20.0})
     estrategista.plano(repo, fonte, "emp", aplicar=True, agora=em(DIA))

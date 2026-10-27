@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -398,10 +397,13 @@
     isolation: isolate;
     overflow: hidden;
   }
+  .fundo-ondas-camada {
+    /* A transparência fica na camada, sem combinar opacity e blur no canvas WebGL. */
+    opacity: 0.32;
+  }
   .fundo-ondas {
-    /* pano de fundo: desfoque grande e pouca opacidade (escala esconde a borda do blur) */
+    /* Mesmas ondas do login, difusas sobre o canvas do tema. */
     filter: blur(48px);
-    opacity: 0.42;
     transform: scale(1.12);
   }
   /* ── KPIs em bento (components/ui/stats-bento.tsx) ── */

@@ -93,6 +93,8 @@ def _explicar(p: dict) -> str:
         nome = no.split(":", 1)[1].replace("_", " ")
         return f"{nome}: {'feito' if d.get('ok') else 'não feito'}"
     if no == "negociar":
+        if p.get("resultado") == "aguardando" or d.get("codigo") == "ia_ocupada" or d.get("erro") == "IaOcupada":
+            return "a resposta está sendo preparada novamente"
         return "escreveu a resposta" if p.get("resultado") == "ok" else f"falhou ({d.get('erro') or p.get('resultado')})"
     return {"receber": "recebeu o evento", "enviar": "enviou a mensagem", "transferir": "passou para a equipe",
             "resposta_fixa": "mandou a resposta padrão", "avisar_equipe": "avisou a equipe (caso com pessoa)",
@@ -103,12 +105,23 @@ def _passo_publico(p: dict) -> dict:
     saida = {k: p.get(k) for k in ("no", "agente", "resultado", "duracao_ms", "regra", "versao_politica",
                                    "modelo", "versao_prompt", "tokens_entrada", "tokens_saida", "custo_usd",
                                    "detalhe", "criado_em")}
+    # Registros criados antes da normalização tinham IaOcupada como erro do
+    # passo. O evento continua pendente e será retomado, então a interface não
+    # deve tratar nem revelar esse código técnico como uma falha definitiva.
+    if (saida.get("detalhe") or {}).get("erro") == "IaOcupada":
+        saida["resultado"] = "aguardando"
+        saida["detalhe"] = {k: v for k, v in saida["detalhe"].items() if k != "erro"}
+        saida["detalhe"]["codigo"] = "ia_ocupada"
     saida["quem"], saida["explicacao"] = _quem(p), _explicar(p)
     return saida
 
 
 def _por_que_calou(passos: list) -> str:
     """A última rodada não mandou mensagem: o motivo, em uma frase."""
+    if any(p.get("no") == "aguardar_ia" for p in passos):
+        return "O serviço de IA está temporariamente indisponível. A mensagem continua na fila para uma nova tentativa automática."
+    if any(p.get("no") == "aguardar_teto" for p in passos):
+        return "O limite diário de IA foi atingido. A mensagem aguarda a próxima janela de processamento."
     for p in passos:
         if p.get("no") == "auditor" and not (p.get("detalhe") or {}).get("permitida", True):
             return f"O Auditor bloqueou ({p.get('regra')}): {(p.get('detalhe') or {}).get('motivo') or 'fora da política'}."
@@ -121,8 +134,52 @@ def _por_que_calou(passos: list) -> str:
 
 
 def grafos(fonte) -> dict:
-    return {"mensagem_devedor": grafo_mensagem(fonte), "vencimento": grafo_vencimento(fonte),
-            "pagamento": grafo_pagamento(fonte), "abordagem": grafo_abordagem(fonte)}
+    from agente.grafos import registrar_falha_humana
+    registro = {"mensagem_devedor": grafo_mensagem(fonte), "vencimento": grafo_vencimento(fonte),
+                "pagamento": grafo_pagamento(fonte), "abordagem": grafo_abordagem(fonte)}
+    for g in registro.values():
+        if g.preparar_falha is None:
+            g.preparar_falha = lambda ctx, erro: registrar_falha_humana(ctx, fonte, erro)
+    return registro
+
+
+def fluxo_devedor(empresa_id: str, predicao_id: str, repo=None, registros=None) -> dict:
+    from agente.fluxo import unificar
+    repo = repo or fabrica_repo()
+    caso = repo.caso_de(empresa_id, predicao_id)
+    mensagens = repo.ultimas_mensagens(empresa_id, caso['id'], 1) if caso else []
+    return unificar(caso, houve_contato=bool(mensagens), registros=registros)
+
+
+def definir_fase_devedor(empresa_id, predicao_id, fase, usuario, registros=None, repo=None):
+    from agente.fluxo import FASES, unificar
+    if usuario.get('role') not in ('operador', 'admin') or usuario.get('empresa_id') != empresa_id:
+        raise PermissionError('Somente a operação da empresa pode definir a fase.')
+    if fase is not None and fase not in dict(FASES):
+        raise ValueError('Fase inválida.')
+    repo = repo or fabrica_repo()
+    caso = repo.caso_de(empresa_id, predicao_id)
+    if fase == 'pagamento' and not unificar(caso, registros=registros)['pode_marcar_pagamento']:
+        raise ValueError('Pagamento em andamento exige um pagamento confirmado. Informar uma promessa não confirma o pagamento.')
+    caso = caso or repo.obter_ou_criar_caso(empresa_id, predicao_id)
+    agora = datetime.now(timezone.utc)
+    dono = f'fluxo:{uuid.uuid4().hex}'
+    if not repo.travar_caso(caso['id'], dono, agora + orq.DURACAO_TRAVA, agora):
+        raise CasoOcupado('O caso está sendo atualizado. Tente novamente em instantes.')
+    try:
+        caso = repo.obter_caso(caso['id'])
+        dados = dict(caso.get('dados') or {})
+        if fase is None:
+            dados.pop('fluxo_manual', None)
+        else:
+            dados['fluxo_manual'] = {'fase': fase, 'usuario_id': usuario['sub'],
+                                    'nome': usuario.get('nome') or usuario.get('email') or 'Operador',
+                                    'em': agora.isoformat()}
+        if not repo.salvar_caso(caso['id'], {'dados': dados}, dono=dono):
+            raise CasoOcupado('O caso mudou durante a gravação. Tente novamente.')
+    finally:
+        repo.soltar_caso(caso['id'], dono)
+    return fluxo_devedor(empresa_id, predicao_id, repo=repo, registros=registros)
 
 
 def ver_caso(empresa_id: str, predicao_id: str, repo=None) -> dict:
@@ -133,8 +190,7 @@ def ver_caso(empresa_id: str, predicao_id: str, repo=None) -> dict:
     msgs = repo.ultimas_mensagens(empresa_id, caso["id"], 50)
     # A última rodada do caso, mesmo que não tenha virado mensagem (bloqueio,
     # falha): é aí que a tela precisa explicar por que o agente ficou calado.
-    ev = next((e for e in repo.eventos_recentes(empresa_id, 300) if e.get("caso_id") == caso["id"] and e.get("trace_id")),
-              None)
+    ev = repo.ultimo_evento_caso(empresa_id, caso["id"])
     ultimo_trace = (ev or {}).get("trace_id") or next((m.get("trace_id") for m in reversed(msgs) if m.get("trace_id")), None)
     passos = repo.passos_do_trace(empresa_id, ultimo_trace) if ultimo_trace else []
     d = caso.get("dados") or {}
@@ -145,6 +201,7 @@ def ver_caso(empresa_id: str, predicao_id: str, repo=None) -> dict:
         "mensagens": [{"direcao": m["direcao"], "texto": m["texto"], "criado_em": m.get("criado_em"),
                        "trace_id": m.get("trace_id")} for m in msgs],
         "trace_id": ultimo_trace,
+        "evento": {k: ev.get(k) for k in ("id", "situacao", "erro", "disponivel_em")} if ev else None,
         "passos": [_passo_publico(p) for p in passos],
         # Rodada sem mensagem de saída: a tela explica o silêncio.
         "silencio": (_por_que_calou(passos) if passos and not any(
@@ -169,16 +226,35 @@ def simular_mensagem(empresa_id: str, predicao_id: str, texto: str, agora: datet
     caso = repo.obter_ou_criar_caso(empresa_id, predicao_id)
     ev, _ = orq.registrar_evento(repo, empresa_id, caso["id"], "mensagem_devedor", f"tela:{uuid.uuid4().hex}",
                                  {"texto": texto}, origem="tela")
-    orq.processar_fila(repo, grafos(fonte), fabrica_cliente(), limite=5,
-                       agora=agora or datetime.now(timezone.utc), empresa_id=empresa_id)
+    orq.processar_fila(repo, grafos(fonte), fabrica_cliente(), limite=1,
+                       agora=agora or datetime.now(timezone.utc), empresa_id=empresa_id, caso_id=caso["id"])
     r = ver_caso(empresa_id, predicao_id, repo)
     final = repo.evento_por_chave(empresa_id, ev["chave"]) or {}
-    r["evento"] = {"situacao": final.get("situacao"), "erro": final.get("erro")}
+    r["evento"] = {k: final.get(k) for k in ("id", "situacao", "erro", "disponivel_em")}
     return r
 
 
+def retomar_caso(empresa_id: str, predicao_id: str, agora: datetime | None = None) -> dict:
+    """Processa uma tentativa já pronta do caso aberto na conversa.
+
+    O agendador continua sendo a garantia para todos os canais. Esta retomada
+    curta impede que uma mensagem vista na tela espere o próximo ciclo do
+    servidor depois de uma indisponibilidade temporária da IA.
+    """
+    if not ligado():
+        raise AgenteDesligado("O agente está desligado (MIZAN_AGENTE_ATIVO).")
+    agora = agora or datetime.now(timezone.utc)
+    repo, fonte = fabrica_repo(), fabrica_fonte()
+    caso = repo.caso_de(empresa_id, predicao_id)
+    if caso is None:
+        raise LookupError("Este devedor ainda não tem conversa com o agente.")
+    orq.processar_fila(repo, grafos(fonte), fabrica_cliente(), limite=1, agora=agora,
+                       empresa_id=empresa_id, caso_id=caso["id"])
+    return ver_caso(empresa_id, predicao_id, repo)
+
+
 def central(empresa_id: str, agora: datetime | None = None) -> dict:
-    """Central de orquestração: fila, falhas, casos por situação e custo do dia."""
+    """Central de orquestração: fila, falhas e monitoramento técnico seguro."""
     agora = agora or datetime.now(timezone.utc)
     repo = fabrica_repo()
     eventos = repo.eventos_recentes(empresa_id, 500)
@@ -189,6 +265,13 @@ def central(empresa_id: str, agora: datetime | None = None) -> dict:
             regras, versao = auditor.validar_politica(achada["regras"]), achada["versao"]
         except ValueError:
             pass
+    try:
+        logs_operacionais = repo.logs_operacionais(empresa_id, 100)
+        logs_disponiveis = True
+    except Exception:
+        # Durante a instalação da nova migration, a Central segue disponível.
+        logs_operacionais, logs_disponiveis = [], False
+    por_agente = Counter(l.get("agente") or "orquestrador" for l in logs_operacionais)
     return {
         "ligado": ligado(),
         "cliente": os.getenv("MIZAN_AGENTE_CLIENTE", "falso"),
@@ -199,6 +282,13 @@ def central(empresa_id: str, agora: datetime | None = None) -> dict:
         "eventos": dict(Counter(e["situacao"] for e in eventos)),
         "falhas": [{k: e.get(k) for k in ("id", "caso_id", "tipo", "erro", "tentativas", "criado_em", "trace_id")}
                    for e in eventos if e["situacao"] == "falhou"][:20],
+        "monitoramento": {
+            "disponivel": logs_disponiveis,
+            "ocorrencias": len(logs_operacionais),
+            "por_agente": dict(por_agente),
+            "logs": [{k: l.get(k) for k in ("id", "criado_em", "nivel", "categoria", "mensagem", "agente", "evento_id", "caso_id", "trace_id", "tentativa", "detalhe")}
+                     for l in logs_operacionais[:30]],
+        },
         "recentes": [{k: e.get(k) for k in ("caso_id", "tipo", "origem", "situacao", "erro", "criado_em", "trace_id")}
                      for e in eventos[:20]],
         "casos": dict(Counter(repo.situacoes_dos_casos(empresa_id))),
@@ -223,8 +313,10 @@ def estacao(empresa_id: str, agora: datetime | None = None) -> dict:
                 break
 
     def publico(p):
-        return {**_passo_publico(p), "trace_id": p.get("trace_id")}
+        return {**_passo_publico(p), "trace_id": p.get("trace_id"), "caso_id": p.get("caso_id"), "evento_id": p.get("evento_id")}
+    from agente.escritorio import para_tela
     return {"agora": agora.isoformat(), "janela_min": JANELA_ESTACAO_MIN, "ligado": ligado(),
+            **para_tela(repo.eventos_escritorio(empresa_id), _quem, agora),
             "ia": {papel: llm.ia_ligada(papel) for papel in llm.PAPEIS},
             "passos": [publico(p) for p in recentes],
             "ultima_conversa": [publico(p) for p in ultimo]}
@@ -289,6 +381,7 @@ def _resumo_agente(nome: str, passos: list) -> dict:
     papel = AGENTES_TELA.get(nome)
     return {"nome": nome, "papel": papel, "ia_ligada": llm.ia_ligada(papel) if papel else None,
             "acoes": len(meus),
+            "tokens": sum(int(p.get("tokens_entrada") or 0) + int(p.get("tokens_saida") or 0) for p in meus),
             "bloqueios": sum(1 for p in meus if p.get("resultado") == "bloqueado"),
             "erros": sum(1 for p in meus if p.get("resultado") == "erro"),
             "sem_ia": sum(1 for p in meus if (p.get("detalhe") or {}).get("origem") == "codigo"),
@@ -304,8 +397,8 @@ def agentes(empresa_id: str, agora: datetime | None = None) -> dict:
     from datetime import timedelta
     agora = agora or datetime.now(timezone.utc)
     repo = fabrica_repo()
-    passos = repo.passos_recentes(empresa_id, agora - timedelta(hours=24), 5000)
-    return {"agora": agora.isoformat(), "ligado": ligado(),
+    passos = repo.passos_metricas(empresa_id, agora - timedelta(hours=24), 5000)
+    return {"agora": agora.isoformat(), "ligado": ligado(), "amostra_limitada": len(passos) >= 5000,
             "agentes": [_resumo_agente(n, passos) for n in AGENTES_TELA],
             "numeros": {
                 "respostas": sum(1 for p in passos if p.get("no") == "negociar" and p.get("resultado") == "ok"),

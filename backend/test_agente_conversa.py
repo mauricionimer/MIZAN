@@ -86,8 +86,23 @@ checar("Consigo entrada" in hist and "quero negociar" in hist, "o histórico da 
 checar(m.fonte.agenda[0]["tipo"] == "promessa" and m.fonte.agenda[0]["valor"] == 270, "promessa na agenda")
 passos = [p for p in m.repo.passos if p["no"] in ("triagem", "negociar")]
 checar(all(p["modelo"] == "falso" and p["tokens_entrada"] > 0 for p in passos)
-       and {p["versao_prompt"] for p in passos} == {"triagem-v6", "negociador-v10"},
+       and {p["versao_prompt"] for p in passos} == {"triagem-v6", "negociador-v11"},
        "rastreio com modelo, tokens e versão do prompt")
+
+print("— abertura humana antes da negociação —")
+m = Mundo()
+m.escreve("Sim, sou eu. Meu CPF começa com 123.", [
+    tri("outro"),
+    F("verificar_identidade", tres_primeiros_digitos_cpf="123"),
+    Resposta(texto="Obrigada por confirmar, Maria. Você prefere entender o que está em aberto ou ver uma opção de pagamento que caiba no seu momento?"),
+])
+s = m.saidas()
+checar(len(s) == 1 and "opção de pagamento" in s[0] and "R$" not in s[0],
+       "primeiro retorno confirmado acolhe e conduz para uma opção de pagamento", str(s))
+briefing_abertura = json.dumps(m.cliente.chamadas[1]["mensagens"], ensure_ascii=False)
+checar("primeiro retorno: acolha, confirme a identidade e escute antes de propor" in briefing_abertura
+       and "opção de pagamento que caiba" in m.cliente.chamadas[1]["sistema"],
+       "briefing conduz para pagamento, sem despejar oferta")
 
 print("— travas de saída —")
 m = Mundo(dados={"identidade_ok": True, "divida": 3000.0})

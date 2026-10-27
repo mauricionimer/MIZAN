@@ -21,6 +21,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Security, BackgroundTasks, Request
 from fastapi import Query, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field, field_validator
 
@@ -198,7 +199,9 @@ async def lifespan(app: FastAPI):
     from agente.api import ciclo_agendado as _ciclo_agente
     _scheduler.add_job(
         _ciclo_agente,
-        IntervalTrigger(minutes=int(os.getenv("MIZAN_AGENTE_CICLO_MIN", 10))),
+        # A fila de mensagens também tem retomada pela conversa aberta, mas o
+        # ciclo cobre os outros canais e casos sem tela acompanhando.
+        IntervalTrigger(minutes=int(os.getenv("MIZAN_AGENTE_CICLO_MIN", 1))),
         id="agente_ciclo",
         replace_existing=True,
     )
@@ -372,12 +375,17 @@ _limite.instalar(app)
 _erros.instalar_captura(app)
 _erros.instalar_handlers(app)
 
+app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=4)
+from desempenho import MedirDesempenho
+app.add_middleware(MedirDesempenho)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Server-Timing", "X-Request-ID"],
 )
 
 bearer          = HTTPBearer()
@@ -572,9 +580,21 @@ def _feedbacks_das_predicoes(db, colunas: str, pred_ids) -> list:
     saida: list = []
     for i in range(0, len(ids), ITENS_POR_IN):
         lote = ids[i:i + ITENS_POR_IN]
-        saida.extend(_todas_as_linhas(
-            lambda lote=lote: db.table("feedbacks").select(colunas).in_("predicao_id", lote)
-                                .order("created_at", desc=True)))
+        # A contagem do lote evita uma segunda ida vazia ao banco. Continuamos
+        # pelo número de linhas recebido, inclusive quando o servidor limita
+        # a resposta abaixo de LOTE_LEITURA.
+        offset, total = 0, None
+        while total is None or offset < total:
+            q = db.table("feedbacks").select(colunas, **({"count": "exact"} if offset == 0 else {})).in_("predicao_id", lote)
+            res = (q.order("created_at", desc=True).order("id")
+                   .range(offset, offset + LOTE_LEITURA - 1).execute())
+            pagina = res.data or []
+            if not pagina:
+                break
+            saida.extend(pagina)
+            offset += len(pagina)
+            if offset == len(pagina):
+                total = getattr(res, "count", None)
     saida.sort(key=lambda f: f.get("created_at") or "", reverse=True)
     return saida
 
@@ -2067,8 +2087,8 @@ def criar_agenda(body: AgendaIn, credentials: HTTPAuthorizationCredentials = Sec
     return {"ok": True, "item": _criar_item_agenda(get_db(), payload, body.cpf, body)}
 
 
-def _consulta_agenda(db, payload: dict, emp: str, escopo: str):
-    q = db.table("agenda").select("*").eq("empresa_id", emp)
+def _consulta_agenda(db, payload: dict, emp: str, escopo: str, colunas: str = "*"):
+    q = db.table("agenda").select(colunas).eq("empresa_id", emp)
     # Operador vê só os seus, peça o que pedir.
     if escopo != "equipe" or payload.get("role") == "operador":
         q = q.eq("operador_id", payload["sub"])
@@ -2172,7 +2192,7 @@ def resumo_agenda(escopo: str = "minha", empresa_id: Optional[str] = None,
     if payload.get("role") == "comando":
         escopo = "equipe"
     try:
-        linhas = _todas_as_linhas(lambda: _consulta_agenda(db, payload, emp, escopo).eq("situacao", "pendente"))
+        linhas = _todas_as_linhas(lambda: _consulta_agenda(db, payload, emp, escopo, "data").eq("situacao", "pendente"))
     except Exception as e:
         if _falta_tabela(e, "agenda"):
             return {"ativo": False, "alto": 0, "medio": 0, "safe": 0}
@@ -2193,7 +2213,7 @@ def agenda_da_equipe(empresa_id: Optional[str] = None,
     db = get_db()
     ops = [u for u in listar_usuarios(emp) if u.get("role") == "operador" and u.get("ativo", True)]
     try:
-        linhas = _todas_as_linhas(lambda: _consulta_agenda(db, payload, emp, "equipe").eq("situacao", "pendente"))
+        linhas = _todas_as_linhas(lambda: _consulta_agenda(db, payload, emp, "equipe", "operador_id, data").eq("situacao", "pendente"))
     except Exception as e:
         if _falta_tabela(e, "agenda"):
             return {"ativo": False, "mensagem": _MSG_SEM_MIGRACAO_AGENDA, "operadores": []}
@@ -2221,6 +2241,72 @@ def agenda_da_equipe(empresa_id: Optional[str] = None,
 # pagamento confirmado não reabre por aqui: o certo é corrigir o pagamento.
 JANELA_DESFAZER_MIN = 10
 _SITUACAO_DA_ACAO = {"cumprir": "cumprida", "quebrar": "quebrada", "cancelar": "cancelada"}
+
+
+class TarefaAdministrativaIn(BaseModel):
+    titulo: str = Field(..., min_length=3, max_length=120)
+    descricao: str = Field('', max_length=2000)
+    data: Optional[date] = None
+
+
+class TarefaAdministrativaPatch(BaseModel):
+    concluir: bool
+
+
+def _empresa_tarefa(credentials, empresa_id=None, escrita=False):
+    import tarefas_administrativas as tarefas
+    payload = _usuario_autenticado(credentials)
+    try:
+        empresa = tarefas.autorizar(payload, empresa_id, escrita)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return payload, empresa
+
+
+@app.get('/agenda/administracao/tarefas')
+def listar_tarefas_administrativas(empresa_id: Optional[str] = None, situacao: str = 'pendente',
+                                  offset: int = Query(0, ge=0), limite: int = Query(100, ge=1, le=100),
+                                  credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    import tarefas_administrativas as tarefas
+    _, empresa = _empresa_tarefa(credentials, empresa_id)
+    try:
+        return tarefas.listar(get_db(), empresa, situacao, offset, limite)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+
+@app.post('/agenda/administracao/tarefas')
+def criar_tarefa_administrativa(body: TarefaAdministrativaIn,
+                               credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    import tarefas_administrativas as tarefas
+    from agenda import hoje, validar_data_nova
+    payload, empresa = _empresa_tarefa(credentials, escrita=True)
+    data = body.data or hoje()
+    try:
+        validar_data_nova(data)
+        item = tarefas.criar(get_db(), empresa, payload, body.titulo, body.descricao, data)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    _registrar_auditoria(acao='tarefa_administrativa_criada', entidade='agenda', entidade_id=item['id'],
+                         empresa_id=empresa, usuario_email=payload.get('email'), usuario_id=payload['sub'])
+    return {'item': item}
+
+
+@app.patch('/agenda/administracao/tarefas/{item_id}')
+def mudar_tarefa_administrativa(item_id: str, body: TarefaAdministrativaPatch,
+                               credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    import tarefas_administrativas as tarefas
+    payload, empresa = _empresa_tarefa(credentials, escrita=True)
+    try:
+        item = tarefas.mudar(get_db(), empresa, item_id, body.concluir, payload.get('email', ''))
+    except LookupError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    _registrar_auditoria(acao='tarefa_administrativa_concluida' if body.concluir else 'tarefa_administrativa_reaberta',
+                         entidade='agenda', entidade_id=item_id, empresa_id=empresa,
+                         usuario_email=payload.get('email'), usuario_id=payload['sub'])
+    return {'item': item}
 
 
 class AgendaPatch(BaseModel):
@@ -2272,6 +2358,9 @@ def mudar_agenda(item_id: str, body: AgendaPatch, credentials: HTTPAuthorization
         raise HTTPException(status_code=403, detail="Este compromisso é de outro operador.")
     quem = payload.get("nome", "") or payload.get("email", "")
     atual = item.get("situacao")
+    if (body.acao == 'cumprir' and item.get('operador_id') == 'a-definir'
+            and (item.get('observacao') or '').startswith('Atendimento com pessoa')):
+        raise HTTPException(status_code=409, detail='Aprove e atribua esta reunião a um operador antes de marcar como realizada.')
 
     if body.acao == "reabrir":
         if atual == "pendente":
@@ -4273,8 +4362,13 @@ def carregar_carteira(carteira_id: str, incluir_ranking: bool = True,
         raise HTTPException(status_code=404, detail="Carteira não encontrada.")
     empresa_id = cart_res.data[0].get("empresa_id") or payload.get("empresa_id", "")
 
+    # O resumo precisa dos números da carteira, não de CPF, renda e todos os
+    # detalhes de cada devedor. Só os dez destaques são hidratados por inteiro.
+    colunas = "*" if incluir_ranking else (
+        "id,rank,valor_divida,score_recuperabilidade,valor_esperado_recuperacao,"
+        "valor_esperado_liquido,dias_em_atraso,perfil_cluster,produto,uf")
     predicoes = _todas_as_linhas(
-        lambda: db.table("predicoes").select("*").eq("carteira_id", carteira_id).order("rank"))
+        lambda: db.table("predicoes").select(colunas).eq("carteira_id", carteira_id).order("rank"))
     if not predicoes:
         raise HTTPException(status_code=404, detail="Nenhuma predição encontrada para esta carteira.")
 
@@ -4294,7 +4388,9 @@ def carregar_carteira(carteira_id: str, incluir_ranking: bool = True,
         "taxa_recuperacao_esperada": round(total_ver / total_face * 100, 1) if total_face else 0,
         "criado_por": _cart_row.get("usuario_email") or "",
         "criado_em":  _cart_row.get("created_at") or "",
-        **_valores_de_filtro(db, carteira_id),
+        # As mesmas linhas já estão em memória: evitar reler a carteira inteira.
+        "produtos": sorted({p["produto"] for p in predicoes if p.get("produto")}),
+        "ufs": sorted({p["uf"] for p in predicoes if p.get("uf")}),
     }
 
     # Distribuição aging
@@ -4329,11 +4425,21 @@ def carregar_carteira(carteira_id: str, incluir_ranking: bool = True,
         b["valor_total"] = round(b["valor_total"], 2)
         cluster_dist.append(b)
 
+    top10 = ranking[:10]
+    if not incluir_ranking:
+        ids = [p["id"] for p in top10]
+        completas = (db.table("predicoes").select("*").eq("carteira_id", carteira_id)
+                     .in_("id", ids).execute().data or [])
+        por_id = {p["id"]: p for p in completas}
+        top10 = [{**por_id[p["id"]], "rank": p["rank"],
+                  "valor_esperado_recuperacao": p.get("valor_esperado_recuperacao")}
+                 for p in top10 if p["id"] in por_id]
+
     return {
         "resumo": resumo,
         "distribuicao_aging": aging_dist,
         "distribuicao_cluster": cluster_dist,
-        "top10_prioritarios": ranking[:10],
+        "top10_prioritarios": top10,
         **({"ranking_completo": ranking} if incluir_ranking else {}),
     }
 
@@ -6476,9 +6582,10 @@ def performance(
     pred_ids = [f["predicao_id"] for f in feedbacks if f.get("predicao_id")]
     scores_map: dict[str, float] = {}
 
-    for i in range(0, len(pred_ids), ITENS_POR_IN):
+    ids_unicos = list(dict.fromkeys(pred_ids))
+    for i in range(0, len(ids_unicos), ITENS_POR_IN):
         for p in _todas_as_linhas(
-                lambda lote=pred_ids[i:i + ITENS_POR_IN]:
+                lambda lote=ids_unicos[i:i + ITENS_POR_IN]:
                     db.table("predicoes").select("id, score_recuperabilidade").in_("id", lote)):
             scores_map[p["id"]] = p["score_recuperabilidade"]
 
@@ -6615,7 +6722,7 @@ def performance_pagamentos(
     if not feedbacks:
         return []
 
-    pred_ids = [f["predicao_id"] for f in feedbacks if f.get("predicao_id")]
+    pred_ids = list(dict.fromkeys(f["predicao_id"] for f in feedbacks if f.get("predicao_id")))
     pred_map: dict = {}
     if pred_ids:
         for i in range(0, len(pred_ids), 100):
@@ -8737,7 +8844,7 @@ def agente_pastas(carteira_id: str, busca: Optional[str] = None, cor: Optional[s
         from agente import api as agente_api
         ligado = agente_api.ligado()
         if ligado:
-            for c in agente_api.fabrica_repo().casos_da_empresa(emp):
+            for c in agente_api.fabrica_repo().casos_semaforo(emp):
                 casos[str(c["predicao_id"])] = c
     except Exception as e:                       # sem a tabela dos agentes, todos aparecem como brancos
         print(f"[Pastas] casos dos agentes indisponíveis: {type(e).__name__}")
@@ -8759,9 +8866,9 @@ def agente_pastas(carteira_id: str, busca: Optional[str] = None, cor: Optional[s
     linhas_d = []
     ids = list(destaque)
     for i in range(0, len(ids), ITENS_POR_IN):
-        linhas_d += (com_busca(db.table("predicoes").select(_COLUNAS_PASTA).eq("carteira_id", carteira_id)
+        linhas_d += (com_busca(db.table("predicoes").select("id, rank").eq("carteira_id", carteira_id)
                                .in_("id", ids[i:i + ITENS_POR_IN])).execute().data or [])
-    ordem = lambda l: (-sem.ORDEM[destaque[l["id"]]["cor"]], l.get("rank") is None, l.get("rank") or 0)
+    ordem = lambda l: (-sem.ORDEM[destaque[l["id"]]["cor"]], l.get("rank") is None, l.get("rank") or 0, l["id"])
     linhas_d.sort(key=ordem)
     n_v = sum(1 for l in linhas_d if destaque[l["id"]]["cor"] == "vermelho")
     n_a = sum(1 for l in linhas_d if destaque[l["id"]]["cor"] == "amarelo")
@@ -8772,18 +8879,28 @@ def agente_pastas(carteira_id: str, busca: Optional[str] = None, cor: Optional[s
             return []
         achados = {l["id"] for l in linhas_d}
         if len(achados) <= 100:                  # poucos destaques: o banco já tira da página
-            q = base(_COLUNAS_PASTA)
+            q = base("id, rank")
             if achados:
                 q = q.not_.in_("id", list(achados))
-            return q.order("rank").range(off, off + lim - 1).execute().data or []
-        # Muitos destaques: lê só id/rank da fila, tira os destacados e fatia.
-        leves = _todas_as_linhas(lambda: base("id, rank"))
-        leves.sort(key=lambda l: (l.get("rank") is None, l.get("rank") or 0, l["id"]))
-        pagina = [l["id"] for l in leves if l["id"] not in achados][off:off + lim]
-        saida = []
-        for i in range(0, len(pagina), ITENS_POR_IN):
-            saida += db.table("predicoes").select(_COLUNAS_PASTA).in_("id", pagina[i:i + ITENS_POR_IN]).execute().data or []
-        saida.sort(key=lambda l: (l.get("rank") is None, l.get("rank") or 0, l["id"]))
+            return q.order("rank").order("id").range(off, off + lim - 1).execute().data or []
+        # Muitos destaques não cabem em NOT IN. Percorre só até completar a
+        # página pedida, em vez de transferir a carteira inteira a cada clique.
+        saida, cursor, ignorados = [], 0, 0
+        while len(saida) < lim:
+            leves = (base("id, rank").order("rank").order("id")
+                     .range(cursor, cursor + 255).execute()).data or []
+            if not leves:
+                break
+            cursor += len(leves)
+            for l in leves:
+                if l["id"] in achados:
+                    continue
+                if ignorados < off:
+                    ignorados += 1
+                else:
+                    saida.append(l)
+                    if len(saida) == lim:
+                        break
         return saida
 
     if cor in ("vermelho", "amarelo"):
@@ -8795,6 +8912,20 @@ def agente_pastas(carteira_id: str, busca: Optional[str] = None, cor: Optional[s
         pagina = linhas_d[offset:offset + limit]
         pagina += brancos(max(0, offset - len(linhas_d)), limit - len(pagina))
         filtrado = total_busca
+
+    # Detalhes pessoais e cadernos completos somente das pastas desta página.
+    pagina_ids = [l["id"] for l in pagina]
+    if pagina_ids:
+        detalhes = (db.table("predicoes").select(_COLUNAS_PASTA).eq("carteira_id", carteira_id)
+                    .in_("id", pagina_ids).execute()).data or []
+        por_id = {l["id"]: l for l in detalhes}
+        pagina = [por_id[pid] for pid in pagina_ids if pid in por_id]
+        if ligado:
+            try:
+                casos.update({str(c["predicao_id"]): c for c in
+                              agente_api.fabrica_repo().casos_por_predicoes(emp, pagina_ids)})
+            except Exception as e:
+                print(f"[Pastas] detalhes indisponíveis: {type(e).__name__}")
 
     itens = []
     for l in pagina:
@@ -8860,6 +8991,57 @@ def agente_caso(predicao_id: str, empresa_id: Optional[str] = None,
     return agente_api.ver_caso(emp, predicao_id)
 
 
+def _contexto_fluxo_devedor(predicao_id, credentials):
+    payload = _usuario_autenticado(credentials)
+    if payload.get('role') not in ('operador', 'admin', 'comando'):
+        raise HTTPException(status_code=403, detail='Acesso negado.')
+    db = get_db()
+    pred = db.table('predicoes').select('id, carteira_id, cpf').eq('id', predicao_id).limit(1).execute()
+    if not pred.data:
+        raise HTTPException(status_code=404, detail='Devedor não encontrado.')
+    carteira_id = pred.data[0]['carteira_id']
+    _exige_carteira_da_empresa(db, carteira_id, payload)
+    emp = _empresa_da_carteira(db, carteira_id)
+    if not emp:
+        raise HTTPException(status_code=404, detail='Devedor não encontrado.')
+    return payload, db, pred.data[0], emp
+
+
+@app.get('/agente/casos/{predicao_id}/fluxo')
+def agente_fluxo_devedor(predicao_id: str,
+                         credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    from agente import api as agente_api, fluxo
+    _, db, pred, emp = _contexto_fluxo_devedor(predicao_id, credentials)
+    registros = fluxo.carregar_registros(db, emp, pred, falta_tabela=_falta_tabela)
+    return _sem_nan(agente_api.fluxo_devedor(emp, predicao_id, registros=registros))
+
+
+class FluxoFaseIn(BaseModel):
+    fase: Optional[str] = None
+
+
+@app.post('/agente/casos/{predicao_id}/fluxo/fase')
+def agente_definir_fase(predicao_id: str, body: FluxoFaseIn,
+                        credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    from agente import api as agente_api, fluxo
+    payload, db, pred, emp = _contexto_fluxo_devedor(predicao_id, credentials)
+    if payload.get('role') not in ('operador', 'admin'):
+        raise HTTPException(status_code=403, detail='Somente a operação da empresa pode definir a fase.')
+    try:
+        resposta = agente_api.definir_fase_devedor(emp, predicao_id, body.fase, payload,
+                                                  registros=fluxo.carregar_registros(db, emp, pred, falta_tabela=_falta_tabela))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except agente_api.CasoOcupado as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    _registrar_auditoria(acao='fluxo_fase_definida' if body.fase else 'fluxo_automatico', entidade='agente_caso',
+                         entidade_id=predicao_id, empresa_id=emp, usuario_id=payload.get('sub'),
+                         usuario_email=payload.get('email', ''), detalhes={'fase': body.fase})
+    return _sem_nan(resposta)
+
+
 @app.post("/agente/casos/{predicao_id}/mensagem")
 def agente_simular_mensagem(predicao_id: str, body: AgenteMensagemIn,
                             credentials: HTTPAuthorizationCredentials = Security(bearer)):
@@ -8877,6 +9059,27 @@ def agente_simular_mensagem(predicao_id: str, body: AgenteMensagemIn,
         raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
+
+
+class AgenteRetomarIn(BaseModel):
+    empresa_id: Optional[str] = None
+
+
+@app.post("/agente/casos/{predicao_id}/retomar")
+def agente_retomar_caso(predicao_id: str, body: AgenteRetomarIn,
+                        credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Retoma, na conversa aberta, uma tentativa cujo horário já chegou."""
+    from agente import api as agente_api
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") not in ("admin", "comando"):
+        raise HTTPException(status_code=403, detail="Só administradores retomam conversas do agente.")
+    emp = _empresa_do_agente(payload, body.empresa_id)
+    try:
+        return agente_api.retomar_caso(emp, predicao_id)
+    except agente_api.AgenteDesligado as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 class AgentePagamentoIn(BaseModel):

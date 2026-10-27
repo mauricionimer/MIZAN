@@ -21,7 +21,7 @@ from datetime import date
 from agente import auditor, conhecimento, disponibilidade, estado, ferramentas, guardrails, supervisor
 from agente.triagem import como_dado, mascarar
 
-VERSAO_PROMPT = "negociador-v10"           # v10: primeiro degrau da estratégia, oferecer pessoa x transferir; v8: valor que não cabe não transfere            # v5: caderno; v6: emoção, urgência e ironia            # v3: blindagem; v4: só afirma o que fez, oferece pessoa e marca atendimento
+VERSAO_PROMPT = "negociador-v11"           # v11: abertura humana antes de negociar; v10: primeiro degrau da estratégia, oferecer pessoa x transferir
 MAX_RODADAS = 8
 MAX_HISTORICO = 20
 
@@ -35,6 +35,13 @@ com uma pessoa que tem uma dívida em atraso. Escreva em português do Brasil, c
 respeito e sem pressa. Você representa a instituição e segue as regras dela.
 
 Como trabalhar:
+- Conduza uma conversa humana com objetivo claro: ajudar a pessoa a chegar a um pagamento viável, não manter
+  conversa sem direção. A primeira abordagem já se apresentou e pediu confirmação para proteger a privacidade.
+  Quando a pessoa confirmar a identidade, mas não pedir valor, proposta ou negociação, agradeça e faça UMA
+  pergunta de avanço antes de falar de valores: pergunte se ela prefere entender o que está em aberto ou ver
+  uma opção de pagamento que caiba no momento dela. Não pressione nem envie oferta nessa resposta. Depois da
+  escolha, apresente as condições de forma simples e conduza para uma simulação. Só avance para simulação
+  quando a pessoa demonstrar que quer tratar da pendência ou pedir uma condição.
 - Antes de falar de valores, confirme a identidade com verificar_identidade (três primeiros dígitos
   do CPF). Sem confirmação, não diga valor, produto nem data da dívida.
 - Nunca diga um valor, percentual ou número de parcelas que não tenha vindo de uma ferramenta nesta
@@ -149,6 +156,20 @@ def mensagem_fixa(ctx, fonte=None) -> str | None:
         if at and at.get("data") and at.get("hora"):
             dia = date.fromisoformat(at["data"]).strftime("%d/%m")
             quem = at.get("atendente") or "uma pessoa da nossa equipe"
+            if at.get('aprovacao') == 'pendente':
+                from agente.fonte import OPERADORES_DO_AGENTE
+                ag = fonte.compromisso(ctx.caso['empresa_id'], ctx.caso['predicao_id'], at.get('compromisso_id')) if fonte else None
+                if ag and ag.get('situacao') == 'cancelada':
+                    return (f"A solicitação de atendimento para {dia}, às {at['hora']}, não foi confirmada. "
+                            "Se quiser solicitar outro horário, me diga sua preferência.")
+                if ag and ag.get('situacao') == 'cumprida':
+                    return 'Esse atendimento consta como realizado pela equipe. Se precisar de outro atendimento, me diga.'
+                if not ag or ag.get('operador_id') in OPERADORES_DO_AGENTE:
+                    return (f"Registrei seu pedido de atendimento para {dia}, às {at['hora']}. "
+                            "A administração vai avaliar o horário e definir quem atende. O atendimento ainda aguarda aprovação.")
+                quem = ag.get('operador_nome') or quem
+                dia = date.fromisoformat(ag['data']).strftime('%d/%m')
+                at = {**at, 'hora': ag.get('hora') or at['hora']}
             return (f"Combinado: {quem} vai falar com você em {dia}, às {at['hora']}. "
                     "Até lá, se precisar, é só escrever por aqui.")
         prox = disponibilidade.proximo_atendimento(fonte, ctx.caso["empresa_id"], ctx.agora) if fonte else None
@@ -210,8 +231,15 @@ def _briefing(ctx, devedor_nome: str) -> str:
     hoje = ctx.agora.astimezone(auditor.BRASILIA).date().isoformat()
     tri = ctx.saida.get("triagem") or {}
     dia_semana = ("segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo")[date.fromisoformat(hoje).weekday()]
+    try:
+        n_entradas = sum(1 for m in ctx.repo.ultimas_mensagens(ctx.caso["empresa_id"], ctx.caso["id"], 50)
+                         if m.get("direcao") == "entrada")
+    except Exception:
+        n_entradas = 0
     b = {"primeiro_nome": como_dado(devedor_nome), "situacao": ctx.caso["situacao"], "hoje": hoje,
          "hoje_e": dia_semana,
+         "momento_da_conversa": ("primeiro retorno: acolha, confirme a identidade e escute antes de propor"
+                                  if n_entradas <= 1 else "conversa em andamento"),
          "identidade_confirmada": bool(d.get("identidade_ok")),
          "intencao_da_mensagem": tri.get("intencao"),
          "sinais_de_risco": tri.get("sinais_de_risco") or [],
@@ -287,6 +315,8 @@ def _nota(nome: str, args: dict, res: dict) -> str | None:
     if nome == "agendar_retorno":
         return f"retorno agendado para {dia(res.get('data'))}{hora}"
     if nome == "marcar_atendimento_humano":
+        if res.get('aguardando_aprovacao'):
+            return f"solicitação de atendimento para {dia(res.get('data'))}{hora}, aguardando aprovação da administração"
         return f"atendimento com {res.get('atendente')} em {dia(res.get('data'))}{hora}"
     if nome == "remarcar_compromisso":
         return f"compromisso remarcado para {dia(res.get('data'))}"

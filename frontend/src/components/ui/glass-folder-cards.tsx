@@ -73,6 +73,10 @@ export type GlassFolderProps = {
   meta?: string
   /** `light` is milk glass, `dark` is smoked glass. */
   tone?: "light" | "dark"
+  /** Matte removes reflections while preserving the folder shape and artwork. */
+  finish?: "glass" | "matte"
+  /** Flat fill for the back panel; the front retains its glass finish. */
+  solidColor?: string
   /** What the back panel holds. A preset, your own recipe, or `none` for a plain frosted back. */
   art?: FolderArt
   /** A different arrangement of the same recipe. */
@@ -531,6 +535,8 @@ export default function GlassFolder({
   label = "My Files",
   meta,
   tone = "light",
+  finish = "glass",
+  solidColor,
   art = "aurora",
   seed = 3,
   image,
@@ -685,7 +691,7 @@ export default function GlassFolder({
   }
 
   const menuItems: FolderMenuItem[] = [
-    { label: open ? "Close folder" : "Open folder", onSelect: () => setOpen(!open) },
+    { label: open ? "Fechar pasta" : "Abrir pasta", onSelect: () => setOpen(!open) },
     ...menu,
   ]
 
@@ -707,13 +713,15 @@ export default function GlassFolder({
   const start = Math.max(0, files.length - MAX_VISIBLE)
   const visible = files.slice(start)
   const count = files.length
-  const metaLine = meta ?? count + (count === 1 ? " item" : " items")
+  const metaLine = meta ?? count + (count === 1 ? " item" : " itens")
 
   return (
     <div
       ref={rootRef}
       className={"gf-root" + (className ? " " + className : "")}
       data-tone={tone}
+      data-finish={finish}
+      data-solid={solidColor ? true : undefined}
       data-open={open || undefined}
       data-entered={entered || undefined}
       data-place={labelPlacement}
@@ -725,7 +733,7 @@ export default function GlassFolder({
           <div className="gf-shadow" aria-hidden="true" />
 
           {/* back panel and its artwork */}
-          <div className="gf-back" style={{ clipPath: "path('" + BACK_PATH + "')" }} aria-hidden="true">
+          <div className="gf-back" style={{ clipPath: "path('" + BACK_PATH + "')", background: solidColor }} aria-hidden="true">
             {image ? (
               <img className="gf-art" src={image} alt="" width={W + 24} height={H + 24} draggable={false} />
             ) : art !== "none" ? (
@@ -760,7 +768,7 @@ export default function GlassFolder({
               type="button"
               className="gf-hit"
               aria-expanded={open}
-              aria-label={(open ? "Close " : "Open ") + label + ", " + count + (count === 1 ? " item" : " items")}
+              aria-label={(open ? "Fechar pasta de " : "Abrir pasta de ") + label + ", " + count + (count === 1 ? " papel" : " papéis")}
               onClick={() => {
                 setMenuOpen(false)
                 setOpen(!open)
@@ -775,7 +783,7 @@ export default function GlassFolder({
           </div>
 
           {/* the contents: after the glass in tab order, beneath it on screen */}
-          <div ref={filesRef} className="gf-files" role="list" aria-label={label + " contents"}>
+          <div ref={filesRef} className="gf-files" role="list" aria-label={"Papéis de " + label}>
             {visible.map((file, v) => {
               const id = ids.current[start + v]
               const slot = fanSlot(v, visible.length)
@@ -844,7 +852,7 @@ export default function GlassFolder({
               ref={keyRef}
               type="button"
               className={"gf-key gf-key--" + action}
-              aria-label={action === "add" ? "Add a file to " + label : "More options for " + label}
+              aria-label={action === "add" ? "Adicionar papel à pasta de " + label : "Mais opções da pasta de " + label}
               aria-haspopup={action === "more" ? "menu" : undefined}
               aria-expanded={action === "more" ? menuOpen : undefined}
               aria-controls={action === "more" ? "gf-menu-" + uid : undefined}
@@ -869,7 +877,7 @@ export default function GlassFolder({
               ref={menuRef}
               id={"gf-menu-" + uid}
               role="menu"
-              aria-label={label + " options"}
+              aria-label={"Opções da pasta de " + label}
               className="gf-menu"
               data-open={menuOpen || undefined}
               onKeyDown={onMenuKey}
@@ -922,6 +930,7 @@ const GF_CSS = `
   isolation: isolate;
 }
 .gf-root[data-tone="dark"] { --gf-ink: #f5f5f7; --gf-ink-soft: rgba(245, 245, 247, .58); }
+.gf-root[data-solid] .gf-back-sheen { display: none; }
 .gf-root:hover, .gf-root:focus-within { --gf-hinge: -11deg; --gf-lift: -34px; --gf-spread: 8px; --gf-fan: 1.4deg; --gf-stack: 10px; }
 .gf-root[data-open] { --gf-hinge: -24deg; --gf-lift: -96px; --gf-spread: 40px; --gf-fan: 5deg; --gf-stack: 30px; }
 
@@ -1162,6 +1171,10 @@ canvas.gf-sheet-art[data-ready] { opacity: 1; filter: none; }
 .gf-front-rim { width: 340px; height: 198px; }
 .gf-front-rim path { stroke-width: 2.4; transition: stroke-width .3s var(--gf-ease); }
 .gf-root[data-tone="dark"] .gf-front-rim { opacity: .55; }
+.gf-root[data-finish="matte"] .gf-back-sheen,
+.gf-root[data-finish="matte"] .gf-spec { display: none; }
+.gf-root[data-finish="matte"] .gf-back-rim,
+.gf-root[data-finish="matte"] .gf-front-rim { opacity: .12; }
 
 .gf-hit {
   all: unset;

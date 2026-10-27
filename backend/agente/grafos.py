@@ -21,6 +21,12 @@ def _executar_seguro(ctx, fonte, nome: str, args: dict) -> None:
         raise RuntimeError(f"{nome} não executou")
 
 
+def registrar_falha_humana(ctx, fonte, erro):
+    if ctx.caso["situacao"] not in estado.SO_PESSOA_TIRA | estado.FINAIS:
+        _executar_seguro(ctx, fonte, "transferir_para_humano", {
+            "motivo": "falha", "resumo": f"Falha técnica no atendimento automático ({erro}). A equipe precisa revisar o caso."})
+
+
 def grafo_mensagem(fonte) -> Grafo:
     def receber(ctx):
         texto = str((ctx.evento.get("dados") or {}).get("texto") or "")[:triagem.MAX_CARACTERES]
@@ -80,6 +86,9 @@ def grafo_mensagem(fonte) -> Grafo:
         ctx.saida["resposta"] = negociador.mensagem_fixa(ctx, fonte)
 
     def negociar(ctx):
+        if not ctx.pode_falar:
+            ctx.saida["resposta"] = negociador.mensagem_fixa(ctx, fonte)
+            return
         ctx.saida["resposta"] = negociador.conversar(ctx, fonte, ctx.saida.get("texto", ""))
 
     def enviar(ctx):
@@ -135,5 +144,8 @@ def grafo_mensagem(fonte) -> Grafo:
             enviar(ctx)
 
     g.ao_falhar = ao_falhar
+    def preparar_falha(ctx, erro):
+        registrar_falha_humana(ctx, fonte, erro)
+    g.preparar_falha = preparar_falha
     g.validar()
     return g

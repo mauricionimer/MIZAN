@@ -52,6 +52,7 @@ class RepoMemoria:
         self.casos: dict = {}
         self.eventos: dict = {}
         self.passos: list = []
+        self.logs_agentes: list = []
         self.politicas: list = []
         self.mensagens: list = []
         self._lock = threading.Lock()
@@ -125,10 +126,11 @@ class RepoMemoria:
                 return copy.deepcopy(e)
         return None
 
-    def candidatos(self, agora: datetime, limite: int = 10, empresa_id: str | None = None) -> list:
+    def candidatos(self, agora: datetime, limite: int = 10, empresa_id: str | None = None, caso_id=None) -> list:
         prontos = [e for e in self.eventos.values()
                    if e["situacao"] == "pendente" and e["disponivel_em"] <= agora
-                   and (empresa_id is None or e["empresa_id"] == empresa_id)]
+                   and (empresa_id is None or e["empresa_id"] == empresa_id)
+                   and (caso_id is None or e["caso_id"] == caso_id)]
         prontos.sort(key=lambda e: (-e["prioridade"], e["criado_em"]))
         return [copy.deepcopy(e) for e in prontos[:limite]]
 
@@ -203,12 +205,31 @@ class RepoMemoria:
         evs.sort(key=lambda e: e["criado_em"], reverse=True)
         return [copy.deepcopy(e) for e in evs[:n]]
 
+    def ultimo_evento_caso(self, empresa_id, caso_id):
+        evs = [e for e in self.eventos.values() if e["empresa_id"] == empresa_id and e["caso_id"] == caso_id]
+        return copy.deepcopy(max(evs, key=lambda e: e["criado_em"])) if evs else None
+
     def situacoes_dos_casos(self, empresa_id: str) -> list:
         return [c["situacao"] for c in self.casos.values() if c["empresa_id"] == empresa_id]
+
+    def eventos_escritorio(self, empresa_id: str) -> list:
+        return [{**{k: e.get(k) for k in ("id", "caso_id", "trace_id", "tipo", "situacao", "tentativas")},
+                 "escritorio": copy.deepcopy((e.get("dados") or {}).get("_escritorio"))}
+                for e in sorted(self.eventos.values(), key=lambda e: (e["situacao"] == "processando", e["criado_em"]), reverse=True)
+                if e["empresa_id"] == empresa_id][:500]
 
     def casos_da_empresa(self, empresa_id: str, situacoes=None) -> list:
         return [copy.deepcopy(c) for c in self.casos.values() if c["empresa_id"] == empresa_id
                 and (situacoes is None or c["situacao"] in situacoes)]
+
+    def casos_semaforo(self, empresa_id: str) -> list:
+        return [{"predicao_id": c["predicao_id"], "situacao": c["situacao"],
+                 "dados": {k: copy.deepcopy((c.get("dados") or {}).get(k))
+                           for k in ("leitura", "passagem")}}
+                for c in self.casos.values() if c["empresa_id"] == empresa_id]
+
+    def passos_metricas(self, empresa_id: str, desde: datetime, n: int = 5000) -> list:
+        return self.passos_recentes(empresa_id, desde, n)
 
     def empresas_com_politica(self) -> list:
         return sorted({p["empresa_id"] for p in self.politicas if p["ativa"]})
@@ -245,6 +266,15 @@ class RepoMemoria:
     def gravar_passo(self, passo: dict) -> None:
         with self._lock:
             self.passos.append({**copy.deepcopy(passo), "criado_em": agora_utc()})
+
+    def gravar_log_agente(self, log: dict) -> None:
+        with self._lock:
+            self.logs_agentes.append({"id": str(uuid.uuid4()), **copy.deepcopy(log), "criado_em": log.get("criado_em") or agora_utc()})
+
+    def logs_operacionais(self, empresa_id: str, n: int = 100) -> list:
+        logs = [copy.deepcopy(l) for l in self.logs_agentes if l["empresa_id"] == empresa_id]
+        logs.sort(key=lambda l: str(l.get("criado_em") or ""), reverse=True)
+        return logs[:n]
 
     # ── recomendações do Cientista ──
     def gravar_recomendacao(self, empresa_id: str, rec: dict) -> dict:
@@ -380,11 +410,13 @@ class RepoSupabase:
                .eq("empresa_id", empresa_id).eq("chave", chave).limit(1).execute())
         return res.data[0] if res.data else None
 
-    def candidatos(self, agora: datetime, limite: int = 10, empresa_id: str | None = None) -> list:
+    def candidatos(self, agora: datetime, limite: int = 10, empresa_id: str | None = None, caso_id=None) -> list:
         q = (self.db.table("agente_eventos").select("*")
              .eq("situacao", "pendente").lte("disponivel_em", agora.isoformat()))
         if empresa_id is not None:
             q = q.eq("empresa_id", empresa_id)
+        if caso_id is not None:
+            q = q.eq("caso_id", caso_id)
         res = q.order("prioridade", desc=True).order("criado_em").limit(limite).execute()
         return res.data or []
 
@@ -420,6 +452,16 @@ class RepoSupabase:
     def atualizar_evento(self, evento_id: str, campos: dict) -> None:
         dados = {k: self._iso(v) for k, v in campos.items()}
         self.db.table("agente_eventos").update(dados).eq("id", evento_id).execute()
+
+    def publicar_escritorio(self, empresa_id, evento_id, trace_id, dados):
+        from agente.publicador import publicador
+        def gravar(snapshot):
+            t = snapshot["_escritorio"]["atualizado_em"]
+            (self.db.table("agente_eventos").update({"dados": snapshot})
+             .eq("id", evento_id).eq("empresa_id", empresa_id).eq("trace_id", trace_id)
+             .or_(f"dados->_escritorio->>atualizado_em.is.null,dados->_escritorio->>atualizado_em.lte.{t}")
+             .execute())
+        return publicador.publicar((empresa_id, evento_id), gravar, dados)
 
     # ── mensagens ──
     # Retenção: apagar_em fica nulo por enquanto; a regra entra com o
@@ -460,22 +502,68 @@ class RepoSupabase:
                .gte("criado_em", desde.isoformat()).order("criado_em", desc=True).limit(n).execute())
         return list(reversed(res.data or []))
 
+    def passos_metricas(self, empresa_id: str, desde: datetime, n: int = 5000) -> list:
+        """Resumo sem transportar o detalhe de cada decisão. Respeita o teto por resposta."""
+        campos = ("id,no,agente,caso_id,resultado,duracao_ms,modelo,versao_prompt,"
+                  "tokens_entrada,tokens_saida,custo_usd,criado_em,"
+                  "origem:detalhe->origem,ok:detalhe->ok")
+        linhas = []
+        while len(linhas) < n:
+            pagina = (self.db.table("agente_passos").select(campos).eq("empresa_id", empresa_id)
+                      .gte("criado_em", desde.isoformat()).order("criado_em", desc=True).order("id")
+                      .range(len(linhas), min(n, len(linhas) + self.PAGINA) - 1).execute()).data or []
+            if not pagina:
+                break
+            linhas.extend({**p, "detalhe": {"origem": p.get("origem"), "ok": p.get("ok")}}
+                          for p in pagina)
+        return list(reversed(linhas))
+
     def eventos_recentes(self, empresa_id: str, n: int = 500) -> list:
         res = (self.db.table("agente_eventos")
                .select("id, caso_id, tipo, origem, situacao, tentativas, erro, trace_id, criado_em, concluido_em")
                .eq("empresa_id", empresa_id).order("criado_em", desc=True).limit(n).execute())
         return res.data or []
 
+    def ultimo_evento_caso(self, empresa_id, caso_id):
+        res = (self.db.table("agente_eventos")
+               .select("id,caso_id,tipo,situacao,erro,trace_id,disponivel_em,criado_em")
+               .eq("empresa_id", empresa_id).eq("caso_id", caso_id)
+               .order("criado_em", desc=True).limit(1).execute())
+        return (res.data or [None])[0]
+
     def situacoes_dos_casos(self, empresa_id: str) -> list:
         res = (self.db.table("agente_casos").select("situacao").eq("empresa_id", empresa_id)
                .limit(5000).execute())
         return [c["situacao"] for c in res.data or []]
+
+    def eventos_escritorio(self, empresa_id: str) -> list:
+        campos = "id,caso_id,trace_id,tipo,situacao,tentativas,escritorio:dados->_escritorio"
+        # Ativos primeiro, inclusive um evento antigo retomado pelo checkpoint.
+        ativos = (self.db.table("agente_eventos").select(campos).eq("empresa_id", empresa_id)
+                  .eq("situacao", "processando").order("criado_em", desc=True).limit(500).execute()).data or []
+        recentes = (self.db.table("agente_eventos").select(campos).eq("empresa_id", empresa_id)
+                    .neq("situacao", "processando").order("criado_em", desc=True).limit(max(1, 500-len(ativos))).execute()).data or []
+        return (ativos + recentes)[:500]
 
     def casos_da_empresa(self, empresa_id: str, situacoes=None) -> list:
         q = self.db.table("agente_casos").select("*").eq("empresa_id", empresa_id)
         if situacoes is not None:
             q = q.in_("situacao", list(situacoes))
         return [self._caso(c) for c in (q.limit(5000).execute().data or [])]
+
+    def casos_semaforo(self, empresa_id: str) -> list:
+        """Só as entradas das regras de cor; cadernos/acordos vêm com a página exibida."""
+        saida = []
+        while True:
+            linhas = (self.db.table("agente_casos")
+                      .select("predicao_id,situacao,leitura:dados->leitura,passagem:dados->passagem")
+                      .eq("empresa_id", empresa_id).order("predicao_id")
+                      .range(len(saida), len(saida) + self.PAGINA - 1).execute()).data or []
+            if not linhas:
+                return saida
+            saida.extend({"predicao_id": c["predicao_id"], "situacao": c["situacao"],
+                          "dados": {"leitura": c.get("leitura"), "passagem": c.get("passagem")}}
+                         for c in linhas)
 
     def empresas_com_politica(self) -> list:
         res = self.db.table("agente_politicas").select("empresa_id").eq("ativa", True).limit(1000).execute()
@@ -533,6 +621,16 @@ class RepoSupabase:
     # ── passos ──
     def gravar_passo(self, passo: dict) -> None:
         self.db.table("agente_passos").insert(passo).execute()
+
+    def gravar_log_agente(self, log: dict) -> None:
+        linha = {k: self._iso(v) for k, v in log.items() if k != "criado_em"}
+        self.db.table("agente_logs").insert(linha).execute()
+
+    def logs_operacionais(self, empresa_id: str, n: int = 100) -> list:
+        campos = "id,criado_em,nivel,categoria,mensagem,agente,evento_id,caso_id,trace_id,tentativa,detalhe"
+        res = (self.db.table("agente_logs").select(campos).eq("empresa_id", empresa_id)
+               .order("criado_em", desc=True).limit(n).execute())
+        return res.data or []
 
     def custo_do_dia(self, empresa_id: str, dia: date) -> float:
         """Gasto do dia de Brasília, somado em páginas (sem .range o PostgREST para

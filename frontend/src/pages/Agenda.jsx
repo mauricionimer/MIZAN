@@ -1,19 +1,48 @@
 // F2 — Agenda: retornos e promessas, separados em Alto · Médio · Tranquilo.
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Users, CalendarClock, Check, X, CalendarDays, ExternalLink, Loader2, Banknote, PhoneCall, RotateCcw } from 'lucide-react'
+import { ArrowLeft, Users, ClipboardList, Bot, CalendarClock, Check, X, CalendarDays, ExternalLink, Loader2, Banknote, PhoneCall, RotateCcw } from 'lucide-react'
 import AppShell from '../components/AppShell'
+import { AgendaBentoCard } from '../components/ui/bento'
+import DemandasAdministrativas from '../components/DemandasAdministrativas'
 import DicaAjuda from '../components/DicaAjuda'
 import ErroCarga from '../components/ErroCarga'
 import AvisoDesfazer from '../components/AvisoDesfazer'
 import FichaPassagem, { SeloPrioridade } from '../components/FichaPassagem'
 import { useAuth } from '../context/AuthContext'
 import { useAnalysis } from '../context/AnalysisContext'
-import { listarAgenda, listarEquipeAgenda, mudarAgenda, buscarPaginaRanking, listarEmpresas, carregarCarteira } from '../api'
+import { classificarErro, listarAgenda, listarEquipeAgenda, mudarAgenda, buscarPaginaRanking, listarEmpresas, carregarCarteira, agenteAtribuir, listarTarefasAdministrativas } from '../api'
 import { NIVEIS, NIVEL_CFG, TIPO_LABEL, quando, hojeISO, somarDias, avisarAgendaMudou } from '../utils/agenda'
 
 const fmtBRL = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0)
+const ID_ADMINISTRACAO = 'a-definir'
+const ID_VIRTUAIS = 'agente-mizan'
+const AREAS = ['operadores', 'administracao', 'virtuais']
+const ehOperador = o =>![ID_ADMINISTRACAO, ID_VIRTUAIS].includes(o.id)
+
+function AtribuirAtendimento({ item, operadores, onAtribuir }) {
+  const [escolha, setEscolha] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState(null)
+  async function atribuir() {
+    if (!escolha || salvando) return
+    setSalvando(true); setErro(null)
+    try { await onAtribuir(item, escolha) } catch (e) { setErro(e) } finally { setSalvando(false) }
+  }
+  return <div className="mt-3 space-y-2 border-t border-line pt-3">
+    <label className="block text-xs font-medium text-ink" htmlFor={`atribuir-${item.id}`}>Qual operador vai atender este cliente?</label>
+    <div className="flex flex-wrap gap-2">
+      <select id={`atribuir-${item.id}`} value={escolha} disabled={salvando} onChange={e => setEscolha(e.target.value)} className="min-h-[40px] min-w-0 flex-1 rounded-lg border border-line bg-surface-2 px-2 text-sm text-ink">
+        <option value="">Escolha o operador</option>
+        {operadores.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
+      </select>
+      <button type="button" disabled={!escolha || salvando} onClick={atribuir} className="btn-primary btn-sm disabled:opacity-50">{salvando ? 'Aprovando…' : 'Aprovar e atribuir'}</button>
+    </div>
+    {!operadores.length && <p className="text-xs text-ink-2">Cadastre um operador ativo em Configurações → Usuários para atribuir este atendimento.</p>}
+    <ErroCarga erro={erro} compacto />
+  </div>
+}
 
 function Remarcar({ item, onSalvar, onCancelar }) {
   const [data, setData] = useState(somarDias(hojeISO(), 1))
@@ -34,25 +63,53 @@ function Remarcar({ item, onSalvar, onCancelar }) {
   )
 }
 
-function Item({ item, mostrarOperador, onAcao, onAbrir, carteiraAberta, soLeitura, meuId }) {
+const O_QUE = { cumprir: 'marcar como cumprida', quebrar: 'marcar como não paga', cancelar: 'cancelar', remarcar: 'remarcar' }
+
+// A falha de uma ação aparece no cartão do próprio devedor: o que não
+// aconteceu, o motivo e, quando faz sentido, refazer a mesma ação.
+function FalhaNoCartao({ erro }) {
+  const c = classificarErro(erro.e)
+  return (
+    <div role="alert" className="mt-3 rounded-lg px-3 py-2 text-xs"
+      style={{ background: 'var(--surface-2)', border: '1px solid var(--line)', borderLeft: '3px solid var(--danger)' }}>
+      <p className="font-semibold text-ink">Não foi possível {erro.oque}.</p>
+      <p className="mt-0.5 leading-relaxed text-ink-2">{c.mensagem}</p>
+      {c.podeTentar && (
+        <button type="button" onClick={erro.refazer}
+          className="mt-1 inline-flex min-h-[32px] items-center gap-1 font-semibold text-accent-text hover:opacity-80">
+          <RotateCcw className="h-3 w-3" aria-hidden="true" /> Tentar novamente
+        </button>
+      )}
+    </div>
+  )
+}
+
+function Item({ item, mostrarOperador, onAcao, onAbrir, carteiraAberta, soLeitura, meuId, operadores, onAtribuir }) {
   const [abrindo, setAbrindo] = useState(false)
   const outraCarteira = !!item.carteira_id && item.carteira_id !== carteiraAberta
+  // A falha fica no cartão do devedor, com "Tentar novamente" refazendo a mesma ação.
+  const [erro, setErro] = useState(null)             // { e, oque, refazer }
   async function abrir() {
     if (abrindo) return
-    setAbrindo(true)
-    try { await onAbrir(item) } finally { setAbrindo(false) }
+    setAbrindo(true); setErro(null)
+    try { await onAbrir(item) } catch (e) { setErro({ e, oque: 'abrir o devedor', refazer: abrir }) } finally { setAbrindo(false) }
   }
   const [remarcando, setRemarcando] = useState(false)
-  const [ocupado, setOcupado] = useState(false)
+  const [ocupado, setOcupado] = useState(null)      // ação em andamento: 'cumprir' | 'quebrar' | …
   const cfg = NIVEL_CFG[item.nivel] ?? NIVEL_CFG.safe
   const promessa = item.tipo === 'promessa'
+  const aguardandoAprovacao = item.operador_id === ID_ADMINISTRACAO
   // O que é meu convida a atender; o da equipe (visão do admin) só abre o devedor.
   const ligar = !!meuId && item.operador_id === meuId
 
   async function agir(acao, extra) {
-    setOcupado(true)
-    try { await onAcao(item, acao, extra); setRemarcando(false) } finally { setOcupado(false) }
+    if (ocupado) return
+    setOcupado(acao); setErro(null)
+    try { await onAcao(item, acao, extra); setRemarcando(false) }
+    catch (e) { setErro({ e, oque: O_QUE[acao] ?? 'concluir', refazer: () => agir(acao, extra) }) }
+    finally { setOcupado(null) }
   }
+  const icone = (acao, Icone) => ocupado === acao ? <Loader2 className="h-3 w-3 animate-spin" /> : <Icone className="h-3 w-3" />
 
   return (
     <motion.li layout initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97 }}
@@ -76,28 +133,30 @@ function Item({ item, mostrarOperador, onAcao, onAbrir, carteiraAberta, soLeitur
       {item.passagem
         ? <FichaPassagem passagem={item.passagem} predicaoId={item.predicao_id} />
         : item.observacao && <p className="mt-1.5 text-xs leading-relaxed text-ink-2">{item.observacao}</p>}
+      {!soLeitura && onAtribuir && item.operador_id === ID_ADMINISTRACAO && <AtribuirAtendimento item={item} operadores={operadores} onAtribuir={onAtribuir} />}
 
       {soLeitura ? null : remarcando
         ? <Remarcar item={item} onCancelar={() => setRemarcando(false)} onSalvar={(data, hora) => agir('remarcar', { data, hora })} />
         : (
           <div className="mt-3 flex flex-wrap gap-1.5">
-            <button disabled={ocupado} onClick={() => agir('cumprir')} title={promessa ? "Marca a promessa como cumprida. O pagamento só entra nos resultados quando for registrado em Pagamentos." : undefined}
+            {!aguardandoAprovacao && <button disabled={!!ocupado} aria-busy={ocupado === 'cumprir'} onClick={() => agir('cumprir')} title={promessa ? "Marca a promessa como cumprida. O pagamento só entra nos resultados quando for registrado em Pagamentos." : undefined}
               className="min-h-[40px] md:min-h-[32px] inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-40">
-              <Check className="h-3 w-3" /> {promessa ? 'Cumpriu' : 'Feito'}
-            </button>
+              {icone('cumprir', Check)} {promessa ? 'Cumpriu' : 'Feito'}
+            </button>}
             {promessa && (
-              <button disabled={ocupado} onClick={() => agir('quebrar')}
+              <button disabled={!!ocupado} aria-busy={ocupado === 'quebrar'} onClick={() => agir('quebrar')}
                 className="min-h-[40px] md:min-h-[32px] inline-flex items-center gap-1 rounded-md border border-red-500/30 bg-red-500/10 px-2.5 py-1 text-xs font-semibold text-red-400 hover:bg-red-500/20 disabled:opacity-40">
-                <X className="h-3 w-3" /> Não pagou
+                {icone('quebrar', X)} Não pagou
               </button>
             )}
-            <button disabled={ocupado} onClick={() => setRemarcando(true)}
+            <button disabled={!!ocupado} onClick={() => setRemarcando(true)}
               className="min-h-[40px] md:min-h-[32px] inline-flex items-center gap-1 rounded-md border border-line bg-raise-1 px-2.5 py-1 text-xs text-ink-2 hover:text-ink disabled:opacity-40">
               <CalendarDays className="h-3 w-3" /> Remarcar
             </button>
             {!promessa && (
-              <button disabled={ocupado} onClick={() => agir('cancelar')}
-                className="min-h-[40px] md:min-h-[32px] rounded-md px-2 py-1 text-xs text-ink-2 hover:text-ink disabled:opacity-40">Cancelar</button>
+              <button disabled={!!ocupado} aria-busy={ocupado === 'cancelar'} onClick={() => agir('cancelar')}
+                className="min-h-[40px] md:min-h-[32px] inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-ink-2 hover:text-ink disabled:opacity-40">
+                {ocupado === 'cancelar' && <Loader2 className="h-3 w-3 animate-spin" />}{aguardandoAprovacao ? 'Recusar solicitação' : 'Cancelar'}</button>
             )}
             {item.carteira_id ? (
               // De outra carteira: abre a carteira dele e entra na ficha (sem hover para explicar).
@@ -114,6 +173,7 @@ function Item({ item, mostrarOperador, onAcao, onAbrir, carteiraAberta, soLeitur
             )}
           </div>
         )}
+      {erro && <FalhaNoCartao erro={erro} />}
     </motion.li>
   )
 }
@@ -159,7 +219,14 @@ export default function Agenda() {
   const navigate = useNavigate()
   const { result, setResult } = useAnalysis()
   const carteiraAberta = result?.resumo?.carteira_id ?? result?.carteira_id ?? null
-  const [escopo, setEscopo] = useState(isAdmin || isComando ? 'equipe' : 'minha')
+  const location = useLocation()
+  const gestor = isAdmin || isComando
+  // Escopo, área e operador moram na URL (/agenda?area=operadores&op=…): o voltar do
+  // navegador sobe um nível, recarregar mantém a tela e o link pode ser enviado.
+  const [params, setParams] = useSearchParams()
+  const escopo = isAdmin && params.get('escopo') === 'minha' ? 'minha' : (gestor ? 'equipe' : 'minha')
+  const areaEquipe = gestor && escopo === 'equipe' && AREAS.includes(params.get('area')) ? params.get('area') : null
+  const operadorId = areaEquipe === 'operadores' ? params.get('op') : null
   const [dados, setDados] = useState(null)
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState(null)          // falha ao carregar a lista
@@ -169,22 +236,51 @@ export default function Agenda() {
   const [aba, setAba] = useState('alto')          // no celular, uma coluna por vez
   const [vista, setVista] = useState('pendentes')  // pendentes | resolvidos (hoje)
   // Administração: 'Equipe' mostra primeiro os operadores; só ao escolher um abre a agenda dele.
-  const [operador, setOperador] = useState(null)      // {id, nome}
   const [equipe, setEquipe] = useState(null)
-  const gestor = isAdmin || isComando
+  const [tarefasPendentes, setTarefasPendentes] = useState(0)
+  const requisicao = useRef(0)
+  const operador = useMemo(() => {
+    if (areaEquipe === 'administracao') return { id: ID_ADMINISTRACAO, nome: 'Demandas de agenda para administração' }
+    if (areaEquipe === 'virtuais') return { id: ID_VIRTUAIS, nome: 'Atendimentos virtuais' }
+    if (!operadorId) return null
+    return { id: operadorId, nome: equipe?.operadores?.find(o => o.id === operadorId)?.nome ?? '' }
+  }, [areaEquipe, operadorId, equipe])
+  // Muda o nível da Agenda empilhando no histórico. `null` apaga a chave.
+  const irPara = useCallback((mudancas, { substituir = false } = {}) => {
+    setParams(atual => {
+      const novo = new URLSearchParams(atual)
+      for (const [k, v] of Object.entries(mudancas)) v == null ? novo.delete(k) : novo.set(k, v)
+      return novo
+    }, { replace: substituir })
+  }, [setParams])
+  // Trocou de nível (por clique ou pelo voltar do navegador): a lista anterior não vale mais.
+  useEffect(() => { setDados(null); setVista('pendentes') }, [escopo, areaEquipe, operadorId])
   const naLista = gestor && escopo === 'equipe' && !operador
+  const naEntrada = naLista && !areaEquipe
+  const listaOperadores = (equipe?.operadores ?? []).filter(ehOperador)
+  const resumoAdmin = equipe?.operadores?.find(o => o.id === ID_ADMINISTRACAO)
+  const resumoVirtuais = equipe?.operadores?.find(o => o.id === ID_VIRTUAIS)
   const resolvidos = vista === 'resolvidos'
 
   const carregar = useCallback(() => {
+    const pedido = ++requisicao.current
     if (isComando && !alvo) { setDados(null); setEquipe(null); setCarregando(false); return }
     setCarregando(true); setErro(null); setErroAcao(null)
     const empresa_id = isComando ? alvo : undefined
     const busca = naLista
-      ? listarEquipeAgenda({ empresa_id }).then(setEquipe)
-      : listarAgenda({ escopo, empresa_id, operador_id: operador?.id, situacao: resolvidos ? 'resolvidos_hoje' : undefined }).then(setDados)
-    return busca.catch(e => setErro(e)).finally(() => setCarregando(false))
-  }, [escopo, isComando, alvo, resolvidos, operador, naLista])
-  useEffect(() => { carregar() }, [carregar])
+      ? Promise.all([
+          listarEquipeAgenda({ empresa_id }).then(r => { if (pedido === requisicao.current) setEquipe(r) }),
+          listarTarefasAdministrativas({ empresa_id, limite: 1 }).then(r => { if (pedido === requisicao.current) setTarefasPendentes(r.total) }),
+        ])
+      : Promise.all([
+          listarAgenda({ escopo, empresa_id, operador_id: operador?.id, situacao: resolvidos ? 'resolvidos_hoje' : undefined }).then(r => { if (pedido === requisicao.current) setDados(r) }),
+          // Entrou direto pelo link (ou voltou pelo navegador) na agenda de um operador:
+          // a equipe ainda não veio e é ela que dá o nome e a lista do seletor.
+          operadorId && !equipe ? listarEquipeAgenda({ empresa_id }).then(r => { if (pedido === requisicao.current) setEquipe(r) }) : null,
+        ])
+    return busca.catch(e => { if (pedido === requisicao.current) setErro(e) }).finally(() => { if (pedido === requisicao.current) setCarregando(false) })
+  }, [escopo, isComando, alvo, resolvidos, operador?.id, naLista]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { carregar(); return () => { requisicao.current++ } }, [carregar])
 
   const grupos = useMemo(() => {
     const g = { alto: [], medio: [], safe: [] }
@@ -195,40 +291,55 @@ export default function Agenda() {
   const ordenar = (lista) => [...lista].sort((a, b) =>
     String(a.data).localeCompare(String(b.data)) || String(a.hora || '99:99').localeCompare(String(b.hora || '99:99')))
 
+  async function atribuirAtendimento(item, operadorId) {
+    const r = await agenteAtribuir(item.id, operadorId, isComando ? alvo : undefined)
+    setDados(d => d ? ({ ...d, itens: d.itens.filter(i => i.id !== item.id) }) : d)
+    setEquipe(await listarEquipeAgenda({ empresa_id: isComando ? alvo : undefined }))
+    setAviso(`${item.nome || 'Cliente'}: reunião aprovada e atribuída a ${r.operador.nome}.`)
+    avisarAgendaMudou()
+  }
+
+  function abrirArea(area) {
+    irPara({ area, op: null })
+  }
+
   async function acao(item, acao, extra) {
     setAviso(''); setErroAcao(null)
-    try {
-      const r = await mudarAgenda(item.id, acao, extra)
-      setDados(d => ({
-        ...d,
-        itens: r.item.situacao === 'pendente'
-          ? d.itens.map(i => i.id === item.id ? { ...i, ...r.item } : i)
-          : d.itens.filter(i => i.id !== item.id),
-      }))
-      avisarAgendaMudou()
-      const nome = (item.nome || 'devedor').split(' ')[0]
-      if (acao === 'remarcar') {
-        // Remarcar não some da lista e pode ser refeito: basta a confirmação.
-        setAviso(`${nome}: remarcado para ${quando(r.item.data, r.item.hora).toLowerCase()}.`)
-        return
-      }
-      const texto = {
-        cumprir: item.tipo === 'promessa' ? `${nome}: promessa cumprida. Registre o pagamento em Pagamentos.` : `${nome}: retorno feito.`,
-        quebrar: `${nome}: promessa marcada como não paga.`,
-        cancelar: `${nome}: retorno cancelado.`,
-      }[acao]
-      // Desfazer de verdade: reabre no servidor, só se ninguém mexeu depois.
-      setDesfazer({
-        id: `${item.id}-${Date.now()}`, texto, desfeito: 'Desfeito. O compromisso voltou para a Agenda.',
-        desfazer: async () => {
-          const v = await mudarAgenda(item.id, 'reabrir', { situacao_esperada: r.item.situacao })
-          setDados(d => ({ ...d, itens: ordenar([...d.itens.filter(i => i.id !== item.id), { ...item, ...v.item }]) }))
-          avisarAgendaMudou()
-        },
-      })
-    } catch (e) {
-      setErroAcao(e)
+    // Uma falha sobe para o cartão do devedor, que mostra o erro no lugar certo.
+    const r = await mudarAgenda(item.id, acao, extra)
+    setDados(d => ({
+      ...d,
+      itens: r.item.situacao === 'pendente'
+        ? d.itens.map(i => i.id === item.id ? { ...i, ...r.item } : i)
+        : d.itens.filter(i => i.id !== item.id),
+    }))
+    avisarAgendaMudou()
+    const nome = (item.nome || 'devedor').split(' ')[0]
+    if (acao === 'remarcar') {
+      // Remarcar não some da lista e pode ser refeito: basta a confirmação.
+      setAviso(`${nome}: remarcado para ${quando(r.item.data, r.item.hora).toLowerCase()}.`)
+      return
     }
+    // Quem pode registrar o pagamento ganha o atalho já preenchido no aviso.
+    const registrar = acao === 'cumprir' && item.tipo === 'promessa' && gestor
+    const texto = {
+      cumprir: item.tipo === 'promessa'
+        ? (registrar ? `${nome}: promessa cumprida.` : `${nome}: promessa cumprida. Registre o pagamento em Pagamentos.`)
+        : `${nome}: retorno feito.`,
+      quebrar: `${nome}: promessa marcada como não paga.`,
+      cancelar: item.operador_id === ID_ADMINISTRACAO ? `${nome}: solicitação recusada.` : `${nome}: retorno cancelado.`,
+    }[acao]
+    // Desfazer de verdade: reabre no servidor, só se ninguém mexeu depois.
+    setDesfazer({
+      id: `${item.id}-${Date.now()}`, texto, desfeito: 'Desfeito. O compromisso voltou para a Agenda.',
+      acao: registrar ? { rotulo: 'Registrar pagamento', onClick: () => navigate('/feedback', {
+        state: { registrar: { devedor: { id: item.predicao_id, cpf: item.cpf, nome: item.nome }, valor: item.valor } } }) } : undefined,
+      desfazer: async () => {
+        const v = await mudarAgenda(item.id, 'reabrir', { situacao_esperada: r.item.situacao })
+        setDados(d => ({ ...d, itens: ordenar([...d.itens.filter(i => i.id !== item.id), { ...item, ...v.item }]) }))
+        avisarAgendaMudou()
+      },
+    })
   }
 
   async function desfazerResolvido(item) {
@@ -241,21 +352,20 @@ export default function Agenda() {
     } catch (e) { setErroAcao(e) }
   }
 
+  // Falhas sobem para o cartão do devedor (Item), que mostra o erro no lugar certo.
   async function abrir(item) {
     setErroAcao(null)
-    try {
-      // Devedor de outra carteira: abre a carteira dele antes (o servidor só
-      // entrega carteiras da empresa de quem pede).
-      if (item.carteira_id !== carteiraAberta) {
-        const carteira = await carregarCarteira(item.carteira_id)
-        setResult(carteira)
-      }
-      const p = await buscarPaginaRanking(item.carteira_id, { busca: item.cpf, limit: 1 })
-      const rank = p.itens?.[0]?.rank
-      // O compromisso vai junto: a ficha mostra o que foi combinado e a oferta.
-      if (rank) navigate(`/devedor/${rank}`, { state: { deAgenda: item } })
-      else setErroAcao('Este devedor não está mais nessa carteira (ela pode ter sido analisada de novo).')
-    } catch (e) { setErroAcao(e) }
+    // Devedor de outra carteira: abre a carteira dele antes (o servidor só
+    // entrega carteiras da empresa de quem pede).
+    if (item.carteira_id !== carteiraAberta) {
+      const carteira = await carregarCarteira(item.carteira_id)
+      setResult(carteira)
+    }
+    const p = await buscarPaginaRanking(item.carteira_id, { busca: item.cpf, limit: 1 })
+    const rank = p.itens?.[0]?.rank
+    // O compromisso vai junto: a ficha mostra o que foi combinado e a oferta.
+    if (rank) navigate(`/devedor/${rank}`, { state: { deAgenda: item, voltar: { para: location.pathname + location.search, rotulo: 'Voltar à agenda' } } })
+    else throw new Error('Este devedor não está mais nessa carteira (ela pode ter sido analisada de novo).')
   }
 
   const total = (dados?.itens ?? []).length
@@ -265,35 +375,42 @@ export default function Agenda() {
       <div className="mx-auto w-full max-w-6xl space-y-5">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight text-ink">
+            <p className="section-label">Hoje</p>
+            <h1 className="mt-1 flex items-center gap-2 text-xl font-bold tracking-tight text-ink">
               <CalendarClock className="h-5 w-5 text-blue-400" /> Agenda<DicaAjuda id="agenda-de-retorno" />
             </h1>
             <p className="mt-1 text-sm text-ink-2">
-              {naLista ? 'Escolha um operador para ver a agenda dele.'
-                : operador ? `Agenda de ${operador.nome}.`
+              {naEntrada ? 'Escolha uma área da agenda.'
+                : naLista ? 'Escolha um operador para ver a agenda dele.'
+                : areaEquipe === 'administracao' ? 'Aprovação de reuniões e demandas administrativas.'
+                : areaEquipe === 'virtuais' ? 'Retornos e compromissos dos atendimentos virtuais.'
+                : operador ? (operador.nome ? `Agenda de ${operador.nome}.` : 'Agenda do operador.')
                 : gestor ? 'Seus compromissos, por prazo.' : 'Seus compromissos, por prazo.'}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             {isComando && (
-              <select value={alvo} onChange={e => setAlvo(e.target.value)} aria-label="Empresa"
+              <select value={alvo} onChange={e => { setAlvo(e.target.value); setEquipe(null); irPara({ area: null, op: null }, { substituir: true }) }} aria-label="Empresa"
                 className="rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-sm text-ink focus:outline-none [color-scheme:dark]">
                 <option value="">Escolha a empresa…</option>
                 {empresas.map(e => <option key={e.empresa_id} value={e.empresa_id}>{e.nome_exibicao || e.empresa_id}</option>)}
               </select>
             )}
-            {!naLista && <div className="flex rounded-lg border border-line bg-surface-2 p-0.5" role="tablist" aria-label="O que mostrar">
-              {[['pendentes', 'Pendentes'], ['resolvidos', 'Resolvidos hoje']].map(([k, l]) => (
-                <button key={k} role="tab" aria-selected={vista === k} onClick={() => { if (k !== vista) { setDados(null); setVista(k) } }}
-                  className={`min-h-[36px] rounded-md px-3 py-1 text-xs font-medium transition-colors ${vista === k ? 'bg-surface text-ink shadow-sm' : 'text-ink-2 hover:text-ink'}`}>
-                  {l}
-                </button>
-              ))}
-            </div>}
+            {gestor && escopo === 'equipe' && areaEquipe === 'operadores' && (
+              <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-ink-2">
+                <label htmlFor="agenda-operador">Operador</label>
+                <select id="agenda-operador" value={operador?.id ?? ''} disabled={!listaOperadores.length}
+                  onChange={e => irPara({ op: e.target.value || null }, { substituir: true })}
+                  className="min-h-[40px] min-w-0 max-w-[240px] rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-sm text-ink disabled:opacity-50">
+                  <option value="">{listaOperadores.length ? 'Selecione um operador' : 'Nenhum operador ativo'}</option>
+                  {listaOperadores.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
+                </select>
+              </div>
+            )}
             {isAdmin && (
               <div className="flex rounded-lg border border-line bg-surface-2 p-0.5">
                 {[['minha', 'Minha agenda'], ['equipe', 'Equipe']].map(([k, l]) => (
-                  <button key={k} onClick={() => { setDados(null); setOperador(null); setVista('pendentes'); setEscopo(k) }}
+                  <button key={k} aria-pressed={escopo === k} onClick={() => irPara({ escopo: k === 'minha' ? 'minha' : null, area: null, op: null })}
                     className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${escopo === k ? 'bg-surface text-ink shadow-sm' : 'text-ink-2 hover:text-ink'}`}>
                     {l}
                   </button>
@@ -311,36 +428,35 @@ export default function Agenda() {
         <ErroCarga erro={erro} onTentar={carregar} />
         <ErroCarga erro={erroAcao} onTentar={carregar} compacto />
 
-        {operador && (
-          <button type="button" onClick={() => { setDados(null); setOperador(null); setVista('pendentes') }}
+        {(operador || (naLista && areaEquipe)) && (
+          <button type="button" onClick={() => irPara(areaEquipe === 'operadores' && operador ? { op: null } : { area: null, op: null })}
             className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg px-2 py-1 -ml-2 text-sm text-ink-2 hover:bg-raise-1 hover:text-ink">
-            <ArrowLeft className="h-4 w-4" /> Equipe
+            <ArrowLeft className="h-4 w-4" /> {areaEquipe === 'operadores' && operador ? 'Operadores' : 'Áreas da agenda'}
           </button>
         )}
 
         {naLista && equipe?.ativo === false && (
           <div className="rounded-xl border border-line bg-surface p-6 text-sm text-ink-2">{equipe.mensagem}</div>
         )}
-        {naLista && equipe?.ativo && (
-          equipe.operadores.length === 0
+        {naEntrada && equipe?.ativo && (
+          <ul className="agenda-equipe-bento-grid" aria-label="Áreas da agenda">
+            <li><AgendaBentoCard nome="Operadores" total={listaOperadores.reduce((s, o) => s + o.total, 0)} icone={Users}
+              acao="Ver operadores" onAbrir={() => abrirArea('operadores')} /></li>
+            <li><AgendaBentoCard nome="Demandas de agenda para administração" total={(resumoAdmin?.total ?? 0) + tarefasPendentes} icone={ClipboardList}
+              legenda="demandas pendentes" acao="Ver demandas" onAbrir={() => abrirArea('administracao')} /></li>
+            <li><AgendaBentoCard nome="Atendimentos virtuais" total={resumoVirtuais?.total ?? 0} icone={Bot}
+              acao="Ver atendimentos" onAbrir={() => abrirArea('virtuais')} /></li>
+          </ul>
+        )}
+        {naLista && areaEquipe === 'operadores' && equipe?.ativo && (
+          listaOperadores.length === 0
             ? <div className="rounded-xl border border-line bg-surface px-6 py-10 text-center text-sm text-ink-2">Nenhum operador ativo nesta empresa.</div>
             : (
-              <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-label="Minha equipe">
-                {equipe.operadores.map(o => (
+              <ul className="agenda-equipe-bento-grid" aria-label="Minha equipe">
+                {listaOperadores.map(o => (
                   <li key={o.id}>
-                    <button type="button" onClick={() => { setDados(null); setOperador({ id: o.id, nome: o.nome }) }}
-                      className="flex w-full items-center gap-3 rounded-xl border border-line bg-surface p-4 text-left transition-colors hover:border-blue-500/40">
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-500/15 text-sm font-bold text-blue-300">
-                        {(o.nome || '?').split(' ').map(p => p[0]).slice(0, 2).join('').toUpperCase()}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold text-ink">{o.nome}</span>
-                        <span className="block text-xs text-ink-2">
-                          {o.total === 0 ? 'Nada pendente'
-                            : `${o.alto ? `${o.alto} vencido${o.alto > 1 ? 's' : ''} · ` : ''}${o.medio} para hoje/amanhã · ${o.safe} depois`}
-                        </span>
-                      </span>
-                    </button>
+                    <AgendaBentoCard nome={o.nome} total={o.total} descricao="Acompanhe os compromissos e retornos deste operador."
+                      onAbrir={() => irPara({ op: o.id })} />
                   </li>
                 ))}
               </ul>
@@ -350,6 +466,10 @@ export default function Agenda() {
         {isComando && !alvo && (
           <div className="rounded-xl border border-line bg-surface p-6 text-sm text-ink-2">Escolha a empresa para ver a agenda da equipe dela.</div>
         )}
+        {areaEquipe === 'administracao' && operador && <>
+          <DemandasAdministrativas empresaId={isComando ? alvo : undefined} soLeitura={isComando} onTotal={setTarefasPendentes} />
+          <div><h2 className="text-base font-semibold text-ink">Atendimentos e reuniões aguardando aprovação</h2><p className="mt-1 text-sm text-ink-2">Confira a data e o horário solicitados pelo agente, escolha quem atende e aprove a reunião.</p></div>
+        </>}
 
         {!naLista && dados && dados.ativo === false && (
           <div className="rounded-xl border border-line bg-surface p-6 text-sm text-ink-2">{dados.mensagem}</div>
@@ -407,7 +527,8 @@ export default function Agenda() {
                     <AnimatePresence initial={false}>
                       {grupos[n].map(i => (
                         <Item key={i.id} item={i} mostrarOperador={false}
-                          onAcao={acao} onAbrir={abrir} carteiraAberta={carteiraAberta} soLeitura={isComando} meuId={usuario?.id} />
+                          onAcao={acao} onAbrir={abrir} carteiraAberta={carteiraAberta} soLeitura={isComando} meuId={usuario?.id}
+                          operadores={listaOperadores} onAtribuir={areaEquipe === 'administracao' && isAdmin ? atribuirAtendimento : undefined} />
                       ))}
                     </AnimatePresence>
                     {grupos[n].length === 0 && (

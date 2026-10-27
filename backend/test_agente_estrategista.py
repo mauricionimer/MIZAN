@@ -63,6 +63,9 @@ saidas = [m for m in repo.mensagens if m["direcao"] == "saida"]
 checar(len(saidas) == len(contato) and all(c["situacao"] == "em_contato" for c in contato),
        "grupo contato: primeira mensagem pronta e caso em contato", f"{len(saidas)} x {len(contato)}")
 checar(saidas and "assistente virtual de Banco Demonstração" in saidas[0]["texto"], "a abordagem se apresenta como assistente virtual")
+checar(saidas and "posso confirmar se estou falando com você" in saidas[0]["texto"], "a abordagem começa pela identidade e privacidade")
+checar(saidas and not any(t in saidas[0]["texto"].lower() for t in ("pendência", "regularizar", "condições", "r$")),
+       "a primeira abordagem não começa cobrando")
 ids_ctrl = {c["id"] for c in ctrl}
 checar(not any(m["caso_id"] in ids_ctrl for m in repo.mensagens), "nenhuma mensagem para quem foi sorteado")
 checar(all(c["situacao"] == "so_lembrete" for c in casos if c["grupo"] == "so_lembrete" and not c["grupo_controle"]),

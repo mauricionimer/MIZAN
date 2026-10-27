@@ -7,6 +7,7 @@ import { ThemeProvider } from './context/ThemeContext'
 import PageTransition from './components/PageTransition'
 import { ShellLayout } from './components/AppShell'
 import { AVISO_CONECTANDO } from './api'
+import { paginas } from './lib/paginas'
 
 class ErrorBoundary extends Component {
   state = { error: null }
@@ -75,37 +76,37 @@ function ServerWarmupBanner() {
 // Cada página vira um chunk próprio: o navegador baixa só a tela que o
 // usuário abriu, em vez de todo o sistema no primeiro acesso. Recharts,
 // xlsx e jspdf saem do caminho crítico junto com as telas que os usam.
-const Home = lazy(() => import('./pages/Home'))
-const Inicio = lazy(() => import('./pages/Inicio'))
-const PastasDevedores = lazy(() => import('./pages/PastasDevedores'))
-const DebtorDetail = lazy(() => import('./pages/DebtorDetail'))
-const Feedback = lazy(() => import('./pages/Feedback'))
-const BanditDashboard = lazy(() => import('./pages/BanditDashboard'))
-const AprendizadoDashboard = lazy(() => import('./pages/AprendizadoDashboard'))
-const ComandoDashboard = lazy(() => import('./pages/ComandoDashboard'))
-const AdminUsuarios = lazy(() => import('./pages/AdminUsuarios'))
-const Auditoria = lazy(() => import('./pages/Auditoria'))
-const AlterarSenha = lazy(() => import('./pages/AlterarSenha'))
-const EsqueciSenha = lazy(() => import('./pages/EsqueciSenha'))
-const RedefinirSenha = lazy(() => import('./pages/RedefinirSenha'))
-const Login = lazy(() => import('./pages/Login'))
-const Privacidade = lazy(() => import('./pages/Privacidade'))
-const Backtest = lazy(() => import('./pages/Backtest'))
-const PerformanceIA = lazy(() => import('./pages/PerformanceIA'))
-const Agenda = lazy(() => import('./pages/Agenda'))
-const PainelOperador = lazy(() => import('./pages/PainelOperador'))
-const Resultados = lazy(() => import('./pages/Resultados'))
-const Acordos = lazy(() => import('./pages/Acordos'))
-const Ofertas = lazy(() => import('./pages/Ofertas'))
-const Retencao = lazy(() => import('./pages/Retencao'))
-const TreinoModelo = lazy(() => import('./pages/TreinoModelo'))
-const ChavesApi = lazy(() => import('./pages/ChavesApi'))
-const Ajuda = lazy(() => import('./pages/Ajuda'))
-const Premissas = lazy(() => import('./pages/Premissas'))
-const DuvidasComando = lazy(() => import('./pages/DuvidasComando'))
-const Agente = lazy(() => import('./pages/Agente'))
-const AgentePerfil = lazy(() => import('./pages/AgentePerfil'))
-const LaboratorioPagina = lazy(() => import('./pages/LaboratorioPagina'))
+const Home = lazy(paginas.Home)
+const Inicio = lazy(paginas.Inicio)
+const PastasDevedores = lazy(paginas.PastasDevedores)
+const DebtorDetail = lazy(paginas.DebtorDetail)
+const Feedback = lazy(paginas.Feedback)
+const BanditDashboard = lazy(paginas.BanditDashboard)
+const AprendizadoDashboard = lazy(paginas.AprendizadoDashboard)
+const ComandoDashboard = lazy(paginas.ComandoDashboard)
+const AdminUsuarios = lazy(paginas.AdminUsuarios)
+const Auditoria = lazy(paginas.Auditoria)
+const AlterarSenha = lazy(paginas.AlterarSenha)
+const EsqueciSenha = lazy(paginas.EsqueciSenha)
+const RedefinirSenha = lazy(paginas.RedefinirSenha)
+const Login = lazy(paginas.Login)
+const Privacidade = lazy(paginas.Privacidade)
+const Backtest = lazy(paginas.Backtest)
+const PerformanceIA = lazy(paginas.PerformanceIA)
+const Agenda = lazy(paginas.Agenda)
+const PainelOperador = lazy(paginas.PainelOperador)
+const Resultados = lazy(paginas.Resultados)
+const Acordos = lazy(paginas.Acordos)
+const Ofertas = lazy(paginas.Ofertas)
+const Retencao = lazy(paginas.Retencao)
+const TreinoModelo = lazy(paginas.TreinoModelo)
+const ChavesApi = lazy(paginas.ChavesApi)
+const Ajuda = lazy(paginas.Ajuda)
+const Premissas = lazy(paginas.Premissas)
+const DuvidasComando = lazy(paginas.DuvidasComando)
+const Agente = lazy(paginas.Agente)
+const AgentePerfil = lazy(paginas.AgentePerfil)
+const LaboratorioPagina = lazy(paginas.LaboratorioPagina)
 
 function RotaProtegida({ children, roles }) {
   const { autenticado, usuario } = useAuth()
@@ -125,6 +126,13 @@ function TelaCarregando() {
       <span className="sr-only">Carregando página…</span>
     </div>
   )
+}
+
+// Endereço que não existe (link antigo, digitado errado) cai no Início, que
+// avisa o que aconteceu em vez de trocar de tela em silêncio.
+function RotaInexistente() {
+  const { pathname } = useLocation()
+  return <Navigate to="/inicio" replace state={{ naoEncontrada: pathname }} />
 }
 
 // Atalho para rota com papéis: função comum (não componente).
@@ -173,7 +181,7 @@ function RotasAnimadas() {
           <Route path="/auditoria" element={P(['admin', 'comando'], <Auditoria />)} />
           <Route path="/ia" element={P(['operador', 'admin', 'comando'], <PerformanceIA />)} />
         </Route>
-        <Route path="*" element={<Navigate to="/inicio" replace />} />
+        <Route path="*" element={<RotaInexistente />} />
       </Routes>
     </Suspense>
   )

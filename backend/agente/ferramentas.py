@@ -259,27 +259,24 @@ def _agendar_retorno(ctx, fonte, dev, args):
 
 
 def _marcar_atendimento_humano(ctx, fonte, dev, args):
-    """O devedor quer falar com uma pessoa num dia e horário: vai para a agenda de
-    quem cuida dele; sem responsável, para o administrador escolher o operador."""
+    """Solicita uma reunião; só o administrador aprova e define quem atende."""
     from agente.fonte import NOME_A_DEFINIR, OPERADOR_A_DEFINIR
-    if dev.get("responsavel_id"):
-        operador = (dev["responsavel_id"], dev.get("responsavel_nome") or "")
-    else:
-        operador = (OPERADOR_A_DEFINIR, NOME_A_DEFINIR)
+    operador = (OPERADOR_A_DEFINIR, NOME_A_DEFINIR)
     from agente import supervisor
     resumo = supervisor.resumo_para_pessoa(ctx, f"atendimento marcado ({args['motivo']})", args["resumo"],
-                                           motivo_codigo="atendimento_marcado")
+                                           motivo_codigo="atendimento_marcado", usar_ia=False)
     item = fonte.criar_agenda(ctx.caso["empresa_id"], dev, "retorno", args["data"], hora=args["hora"],
                               operador=operador,
                               observacao=f"Atendimento com pessoa pedido pelo devedor ({args['motivo']}): {resumo}")
     d = _dados(ctx)
     d["atendimento"] = {"data": args["data"], "hora": args["hora"], "compromisso_id": item["id"],
-                        "atendente": operador[1] if operador[0] != OPERADOR_A_DEFINIR else None}
+                        "atendente": None, "aprovacao": "pendente",
+                        "operador_sugerido_id": dev.get("responsavel_id")}
     if ctx.caso["situacao"] not in estado.SO_PESSOA_TIRA:
         _ir_para(ctx, "com_pessoa")
     ctx.caso["resumo"] = resumo
     ctx.caso["proxima_data"] = args["data"]
-    return {"ok": True, "marcado": True, "data": args["data"], "hora": args["hora"],
+    return {"ok": True, "marcado": False, "aguardando_aprovacao": True, "data": args["data"], "hora": args["hora"],
             "atendente": d["atendimento"]["atendente"] or "uma pessoa da equipe",
             "_rastreio": {"compromisso": "atendimento", "data": args["data"], "hora": args["hora"],
                           "a_definir": operador[0] == OPERADOR_A_DEFINIR}}
@@ -335,13 +332,16 @@ def _suspender_cobranca(ctx, fonte, dev, args):
 def _transferir_para_humano(ctx, fonte, dev, args):
     from agente import supervisor
     resumo = supervisor.resumo_para_pessoa(ctx, f"transferido ({args['motivo']})", args["resumo"],
-                                           motivo_codigo=args["motivo"])
-    fonte.criar_agenda(ctx.caso["empresa_id"], dev, "retorno", _hoje(ctx).isoformat(),
-                       observacao=f"Transferido pelo assistente ({args['motivo']}): {resumo}")
+                                           motivo_codigo=args["motivo"], usar_ia=False)
+    item = next((a for a in fonte.agenda_pendente(ctx.caso["empresa_id"], dev["id"])
+                 if (a.get("observacao") or "").startswith("Transferido pelo assistente (")), None)
+    if item is None:
+        item = fonte.criar_agenda(ctx.caso["empresa_id"], dev, "retorno", _hoje(ctx).isoformat(),
+                                  observacao=f"Transferido pelo assistente ({args['motivo']}): {resumo}")
     if ctx.caso["situacao"] not in estado.SO_PESSOA_TIRA:
         _ir_para(ctx, "com_pessoa")
     ctx.caso["resumo"] = resumo
-    return {"ok": True, "transferido": True}
+    return {"ok": True, "transferido": True, "compromisso_id": item["id"]}
 
 
 def _remarcar_compromisso(ctx, fonte, dev, args):
@@ -399,7 +399,7 @@ FERRAMENTAS = {f.nome: f for f in (
                "se combinada). Só diga que agendou depois que esta ferramenta devolver ok.",
                {"data": _DATA, "hora": _HORA, "motivo": _TEXTO}, ("data", "motivo"), "agendar_retorno", _agendar_retorno),
     Ferramenta("marcar_atendimento_humano", "O devedor aceitou falar com uma pessoa da equipe num dia e horário: "
-               "marca o atendimento na agenda da equipe, com resumo, e a pessoa assume o caso. Pergunte o dia e a "
+               "registra uma solicitação na agenda do administrador, que aprova e escolhe o operador. Não confirme a reunião antes da aprovação. Pergunte o dia e a "
                "hora antes. Para atendimento imediato, use transferir_para_humano.",
                {"data": _DATA, "hora": _HORA,
                 "motivo": {"type": "string", "enum": ["pedido_do_devedor", "reuniao", "duvida", "dificuldade"]},

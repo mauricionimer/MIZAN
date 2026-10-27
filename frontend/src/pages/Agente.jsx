@@ -8,10 +8,11 @@ import AppShell from '../components/AppShell'
 import ErroCarga from '../components/ErroCarga'
 import StatCard from '../components/StatCard'
 import { KpiBento } from '../components/ui/stats-bento'
-import EscritorioAgentes, { Retrato } from '../components/EscritorioAgentes'
+import EscritorioAgentes from '../components/EscritorioAgentes'
+import useEscritorio from '../components/escritorio/useEscritorio'
 import FichaPassagem, { SeloPrioridade } from '../components/FichaPassagem'
 import { useAuth } from '../context/AuthContext'
-import { agenteDevedores, agenteCaso, agenteSimularMensagem, agenteSimularPagamento, agenteCentral, agenteRelogio, agentePlano, agenteAplicarPlano, agentePoliticas, agenteSalvarPolitica, agenteControle, agenteTelegramConvite, agenteAgenda, agenteAtribuir, agenteLaboratorio, agenteAnalisar, agenteDecidirRecomendacao, agenteAgentes, listarEmpresas } from '../api'
+import { agenteDevedores, agenteCaso, agenteSimularMensagem, agenteRetomar, agenteSimularPagamento, agenteCentral, agenteRelogio, agentePlano, agenteAplicarPlano, agentePoliticas, agenteSalvarPolitica, agenteControle, agenteTelegramConvite, agenteAgenda, agenteAtribuir, agenteLaboratorio, agenteAnalisar, agenteDecidirRecomendacao, listarEmpresas } from '../api'
 
 const fmtBRL = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0)
 const fmtUSD = (v) => `US$ ${Number(v || 0).toFixed(4)}`
@@ -31,6 +32,9 @@ const EVENTO = { mensagem_devedor: 'Mensagem do devedor', pagamento: 'Pagamento'
   relogio: 'Relógio', contestacao: 'Contestação', pedido_parar: 'Pedido para parar' }
 const SIT_EVENTO = { pendente: 'Na fila', processando: 'Em andamento', feito: 'Feito', falhou: 'Falhou' }
 const COR_RES = { ok: 'var(--success)', bloqueado: 'var(--warning)', erro: 'var(--danger)' }
+const NOME_LOG_AGENTE = { triagem: 'Triagem', negociador: 'Negociador', estrategista: 'Estrategista',
+  acompanhamento: 'Acompanhamento', supervisor: 'Supervisor', cientista: 'Cientista', auditor: 'Auditor',
+  orquestrador: 'Orquestrador', codigo: 'Travas', ferramenta: 'Ferramenta' }
 const NOME_NO = {
   receber: 'Recebeu a mensagem', triagem: 'Triagem: entendeu a intenção', negociar: 'Negociador', enviar: 'Enviou a resposta',
   auditor: 'Auditor', guardrails: 'Travas do texto', resposta_fixa: 'Resposta fixa (sem IA)', suspender: 'Suspendeu a cobrança',
@@ -75,21 +79,28 @@ function Passos({ passos }) {
   return (
     <div className="space-y-2">
       <ol className="space-y-1">
-        {passos.map((p, i) => (
+        {passos.map((p, i) => {
+          // Também protege a leitura de registros antigos, quando IaOcupada
+          // ainda era persistido como erro antes de a nova tentativa.
+          const aguardandoNovaTentativa = p.resultado === 'aguardando' || p.detalhe?.codigo === 'ia_ocupada' || p.detalhe?.erro === 'IaOcupada'
+          const resultado = aguardandoNovaTentativa ? 'aguardando' : p.resultado
+          return (
           <li key={i} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-lg px-2 py-1.5 text-xs hover:bg-raise-1">
-            <span className="h-2 w-2 shrink-0 translate-y-[-1px] rounded-full" style={{ background: COR_RES[p.resultado] || 'var(--ink-3)' }} />
+            <span className="h-2 w-2 shrink-0 translate-y-[-1px] rounded-full" style={{ background: resultado === 'aguardando' ? 'var(--warning)' : COR_RES[resultado] || 'var(--ink-3)' }} />
             {p.quem && <span className="rounded px-1.5 py-px text-[11px] font-semibold" style={{ color: COR_AGENTE[p.quem] || 'var(--ink-2)', background: 'color-mix(in srgb, currentColor 14%, transparent)' }}>{p.quem}</span>}
-            <span className="font-medium text-ink">{p.explicacao || nomeNo(p.no)}</span>
+            <span className="font-medium text-ink">{aguardandoNovaTentativa ? 'A resposta será tentada novamente' : p.explicacao || nomeNo(p.no)}</span>
             {p.regra && <span className="rounded bg-raise-2 px-1.5 py-px font-mono text-[11px] text-ink-2">{p.regra}{p.versao_politica ? ` · v${p.versao_politica}` : ''}</span>}
             {p.detalhe?.fontes?.map((f) => (
               <span key={f} className="rounded border border-line px-1.5 py-px text-[11px] text-ink" title="Fonte consultada na base de conhecimento">Fonte: {f}</span>
             ))}
             {p.detalhe?.certeza === false && <span style={{ color: 'var(--warning)' }}>sem resposta segura na base</span>}
             {p.resultado === 'bloqueado' && !p.explicacao && <span style={{ color: 'var(--warning)' }}>bloqueado</span>}
-            {p.resultado === 'erro' && <span style={{ color: 'var(--danger)' }}>erro{p.detalhe?.erro ? `: ${p.detalhe.erro}` : ''}</span>}
+            {resultado === 'aguardando' && <span style={{ color: 'var(--warning)' }}>nova tentativa agendada</span>}
+            {resultado === 'erro' && <span style={{ color: 'var(--danger)' }}>erro{p.detalhe?.erro ? `: ${p.detalhe.erro}` : ''}</span>}
             <span className="ml-auto tabular-nums text-ink-3">{p.duracao_ms} ms{p.tokens_entrada ? ` · ${p.tokens_entrada + p.tokens_saida} tokens` : ''}</span>
           </li>
-        ))}
+          )
+        })}
       </ol>
       <p className="border-t border-line pt-2 text-xs text-ink-2">{passos.length} passos · {tokens} tokens · {fmtUSD(custo)}</p>
     </div>
@@ -108,6 +119,8 @@ function Conversa({ empresa }) {
   const [erro, setErro] = useState(null)
   const [valorPago, setValorPago] = useState('')
   const fim = useRef(null)
+  const aguardando = ['pendente', 'processando'].includes(dados?.evento?.situacao)
+  const quandoRetomar = dados?.evento?.situacao === 'pendente' ? Date.parse(dados.evento.disponivel_em || '') : NaN
 
   const [convite, setConvite] = useState(null)
   useEffect(() => { setConvite(null) }, [escolhido])
@@ -139,9 +152,31 @@ function Conversa({ empresa }) {
 
   useEffect(() => {
     if (!escolhido) return
+    let vivo = true
     setDados(null); setErro(null)
-    agenteCaso(escolhido.id, empresa).then(setDados).catch(setErro)
+    agenteCaso(escolhido.id, empresa).then(d => vivo && setDados(d)).catch(e => vivo && setErro(e))
+    return () => { vivo = false }
   }, [escolhido, empresa])
+
+  useEffect(() => {
+    if (!escolhido || !aguardando) return
+    let vivo = true, ocupado = false
+    const atualizar = async () => {
+      if (ocupado || document.hidden) return
+      ocupado = true
+      try {
+        // Se a fila já liberou o evento, a própria conversa o retoma. Assim a
+        // resposta não espera o próximo ciclo do servidor para aparecer.
+        const d = Number.isFinite(quandoRetomar) && Date.now() >= quandoRetomar
+          ? await agenteRetomar(escolhido.id, empresa)
+          : await agenteCaso(escolhido.id, empresa)
+        if (vivo) { setDados(d); setErro(null) }
+      } catch (e) { if (vivo) setErro(e) }
+      finally { ocupado = false }
+    }
+    const t = setInterval(atualizar, 5000)
+    return () => { vivo = false; clearInterval(t) }
+  }, [escolhido, empresa, aguardando, quandoRetomar])
 
   useEffect(() => { fim.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) }, [dados?.mensagens?.length])
 
@@ -209,6 +244,12 @@ function Conversa({ empresa }) {
                 ) : <span>O Telegram ainda não está configurado no servidor (variáveis TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET e TELEGRAM_BOT_USERNAME).</span>}
               </div>
             )}
+            {!enviando && aguardando && <p role="status" className="border-b border-line px-4 py-2 text-xs text-ink-2">
+              {dados.evento.situacao === 'processando' ? 'O agente está processando a mensagem.' : 'O agente tentará responder novamente automaticamente. A mensagem permanece na fila.'}
+            </p>}
+            {dados?.caso?.situacao === 'com_pessoa' && <p role="status" className="border-b border-line px-4 py-2 text-xs text-ink-2">
+              Este caso está com a equipe. As novas mensagens são encaminhadas para atendimento humano.
+            </p>}
             <div className="flex-1 space-y-2 overflow-y-auto p-4">
               {(dados?.mensagens || []).map((m, i) => (
                 <div key={i} className={`flex ${m.direcao === 'entrada' ? 'justify-start' : 'justify-end'}`}>
@@ -218,7 +259,7 @@ function Conversa({ empresa }) {
                   </div>
                 </div>
               ))}
-              {!enviando && dados?.silencio && (
+              {!enviando && !aguardando && dados?.caso?.situacao !== 'com_pessoa' && dados?.silencio && (
                 <div className="flex justify-center">
                   <p className="flex max-w-[90%] items-start gap-1.5 rounded-lg border px-3 py-1.5 text-xs" style={{ color: 'var(--warning)', borderColor: 'var(--warning)' }}>
                     <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" /> O agente não respondeu. {dados.silencio}
@@ -307,6 +348,7 @@ function Central({ empresa }) {
   if (carregando && !c) return <div className="flex items-center gap-2 py-10 text-sm text-ink-2"><Loader2 className="h-4 w-4 animate-spin" /> Carregando…</div>
   if (!c) return <ErroCarga erro={erro} onTentar={carregar} />
   const ev = c.eventos || {}
+  const monitoramento = c.monitoramento || { disponivel: false, ocorrencias: 0, logs: [], por_agente: {} }
   async function relogio() {
     setRodando(true); setErro(null)
     try { const r = await agenteRelogio(empresa); setAvisoRelogio(`${r.eventos_criados} evento(s) de data criados, ${r.processados} processado(s).`); await carregar() }
@@ -330,8 +372,11 @@ function Central({ empresa }) {
         <Cartao icone={ShieldCheck} rotulo="Política" valor={c.politica.versao ? `Versão ${c.politica.versao}` : 'Sem política'}
           cor={c.politica.versao ? 'var(--success)' : 'var(--warning)'}
           nota={c.politica.regras ? `desconto até ${c.politica.regras.desconto_max_pct}% · até ${c.politica.regras.parcelas_max}x` : 'sem política, só ações de segurança passam'} />
-        <Cartao icone={AlertTriangle} rotulo="Falharam" valor={ev.falhou || 0} cor={ev.falhou ? 'var(--danger)' : 'var(--ink-3)'}
+        <Cartao icone={AlertTriangle} rotulo="Falhas finais" valor={ev.falhou || 0} cor={ev.falhou ? 'var(--danger)' : 'var(--ink-3)'}
           nota={`${ev.pendente || 0} na fila · ${ev.processando || 0} em andamento · ${ev.feito || 0} feitos`} />
+        <Cartao icone={Activity} rotulo="Monitoramento" valor={monitoramento.ocorrencias || 'Sem ocorrências'}
+          cor={monitoramento.ocorrencias ? 'var(--warning)' : 'var(--success)'}
+          nota={monitoramento.disponivel ? 'Falhas, esperas e encaminhamentos registrados.' : 'Aguardando instalar os logs operacionais.'} />
       </KpiBento>
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="rounded-xl border border-line bg-surface p-4">
@@ -355,6 +400,25 @@ function Central({ empresa }) {
           )}
         </section>
       </div>
+      <section className="rounded-xl border border-line bg-surface p-4">
+        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+          <div><h2 className="text-sm font-semibold text-ink">Monitoramento dos agentes</h2>
+            <p className="mt-1 text-xs text-ink-2">Registra cada falha técnica, nova tentativa, espera da IA e encaminhamento para a equipe. Não inclui conteúdo de conversas.</p></div>
+          <span className="text-xs text-ink-3">{monitoramento.disponivel ? 'Últimas 100 ocorrências' : 'Migration pendente'}</span>
+        </div>
+        {monitoramento.logs?.length === 0 ? <p className="text-xs text-ink-2">Nenhuma ocorrência operacional registrada.</p> : (
+          <ul className="divide-y divide-line text-xs">
+            {monitoramento.logs.map(log => (
+              <li key={log.id || `${log.criado_em}-${log.categoria}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-ink-2">
+                <span className="font-medium text-ink">{NOME_LOG_AGENTE[log.agente] || log.agente}</span>
+                <span style={{ color: log.nivel === 'erro' || log.nivel === 'critico' ? 'var(--danger)' : 'var(--warning)' }}>{log.mensagem}</span>
+                {log.tentativa && <span>{log.tentativa}ª tentativa</span>}
+                <span className="ml-auto tabular-nums text-ink-3">{fmtHora(log.criado_em)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
       <section className="rounded-xl border border-line bg-surface p-4">
         <h2 className="mb-3 text-sm font-semibold text-ink">Últimos eventos</h2>
         {c.recentes.length === 0 ? <p className="text-xs text-ink-2">Nenhum evento ainda.</p> : (
@@ -679,8 +743,6 @@ function Agenda({ empresa }) {
   )
 }
 
-const NOMES_AGENTES = ['Triagem', 'Negociador', 'Supervisor', 'Estrategista', 'Cientista', 'Acompanhamento', 'Orquestrador', 'Auditor']
-
 function Numero({ rotulo, valor, detalhe, barra }) {
   return <StatCard label={rotulo} value={valor} nota={detalhe} barra={barra} />
 }
@@ -688,18 +750,10 @@ function Numero({ rotulo, valor, detalhe, barra }) {
 function AoVivo({ empresa }) {
   const navigate = useNavigate()
   const { empresaConfig, isComando } = useAuth()
-  const [r, setR] = useState(null)
-  useEffect(() => {
-    let vivo = true
-    const carregar = () => agenteAgentes(empresa).then(x => vivo && setR(x)).catch(() => {})
-    carregar()
-    const t = setInterval(() => { if (!document.hidden) carregar() }, 15000)
-    return () => { vivo = false; clearInterval(t) }
-  }, [empresa])
-  const n = r?.numeros
+  const dados = useEscritorio(empresa)
+  const n = dados.numeros
   const usd = v => `US$ ${Number(v || 0).toFixed(2).replace('.', ',')}`
   const abrir = nome => navigate(`/agente/${encodeURIComponent(nome)}`)
-  const porNome = Object.fromEntries((r?.agentes || []).map(a => [a.nome, a]))
   return (
     <div className="space-y-5">
 <KpiBento>
@@ -711,24 +765,7 @@ function AoVivo({ empresa }) {
             barra={n && n.teto_dia_usd ? n.custo_hoje_usd / n.teto_dia_usd : null} />
         )}
       </KpiBento>
-      <EscritorioAgentes empresa={empresa} cores={COR_AGENTE} nomeEmpresa={empresaConfig?.nome_exibicao} resumos={r?.agentes} onPerfil={abrir} />
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        {NOMES_AGENTES.map(nome => {
-          const a = porNome[nome]
-          const cor = COR_AGENTE[nome]
-          const estado = a?.papel ? (a.ia_ligada ? 'IA' : 'IA desligada') : 'Código'
-          return (
-            <button key={nome} onClick={() => abrir(nome)}
-              className="flex items-center gap-3 rounded-xl border border-line bg-surface p-3 text-left transition-colors hover:border-blue-500/40">
-              <div className="shrink-0 rounded-lg bg-raise-1 px-1 pt-1"><Retrato nome={nome} cor={cor} tamanho={30} /></div>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold" style={{ color: cor }}>{nome}</p>
-                <p className="text-xs text-ink-2">{a ? `${a.acoes} ações` : '—'} · <span className="text-ink-3">{estado}</span></p>
-              </div>
-            </button>
-          )
-        })}
-      </div>
+      <EscritorioAgentes key={empresa || 'atual'} dados={dados} nomeEmpresa={empresaConfig?.nome_exibicao} logoUrl={empresaConfig?.foto_url} onPerfil={abrir} mostrarCusto={isComando} />
     </div>
   )
 }

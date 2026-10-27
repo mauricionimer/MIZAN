@@ -1,0 +1,27 @@
+.devedor-pipeline { width:100%;min-width:0;color:var(--ink);font-family:var(--font-sans); }
+.devedor-pipeline__plot { position:relative; }
+.devedor-pipeline__chart { display:block;overflow:visible; }
+.devedor-pipeline__block { --fluxo-top:var(--raised); }
+.devedor-pipeline__block[data-reached=true] { --fluxo-top:var(--success); }
+.devedor-pipeline__ground { fill:color-mix(in srgb,var(--ink) 5%,transparent); }
+.devedor-pipeline__roof { fill:var(--fluxo-top); }
+.devedor-pipeline__left { fill:color-mix(in srgb,var(--fluxo-top) 88%,var(--ink) 12%); }
+.devedor-pipeline__right { fill:color-mix(in srgb,var(--fluxo-top) 75%,var(--ink) 25%); }
+.devedor-pipeline__block polygon { transition:fill .2s ease; }
+.devedor-pipeline__stages { list-style:none;margin:0;padding:0; }
+.devedor-pipeline__stages>li { position:absolute;width:136px; }
+.devedor-pipeline__stages button { display:flex;flex-direction:column;align-items:center;width:100%;min-height:120px;padding:0 4px 4px;border:0;border-radius:12px;background:transparent;color:var(--ink-2);cursor:pointer; }
+.devedor-pipeline__stages button:hover { background:color-mix(in srgb,var(--royal) 7%,transparent); }
+.devedor-pipeline__stages button[aria-current=step] { color:var(--ink); }
+.devedor-pipeline__icon { display:flex;align-items:center;justify-content:center;height:32px;margin-bottom:29px;color:var(--ink-2); }
+.devedor-pipeline__stages button[data-reached=true] .devedor-pipeline__icon { color:var(--card); }
+.devedor-pipeline__stages strong { font-size:13px;line-height:1.35;font-weight:600;max-width:124px; }
+.devedor-pipeline__state { display:flex;align-items:center;gap:4px;margin-top:5px;font-size:11px;line-height:16px;color:var(--ink-3); }
+.devedor-pipeline__stages button[data-reached=true] strong,
+.devedor-pipeline__stages button[data-reached=true] .devedor-pipeline__state { color:var(--success); }
+.devedor-pipeline__detail { display:flex;align-items:flex-start;gap:10px;padding:14px 16px;border-radius:12px;background:var(--surface-2); }
+.devedor-pipeline__detail>svg { flex-shrink:0;margin-top:2px;color:var(--accent-text); }
+.devedor-pipeline__detail p { margin:0;font-size:13px;line-height:1.55; }
+.devedor-pipeline__detail strong,.devedor-pipeline__detail span { display:block; }
+.devedor-pipeline__detail span { margin-top:3px;color:var(--ink-2); }
+@media(prefers-reduced-motion:reduce) { .devedor-pipeline__block polygon { transition:none; } }

@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { ArrowRight, X } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
 import { useAnalysis } from '../context/AnalysisContext'
@@ -17,6 +18,17 @@ import { lista, item, SEM_MOVIMENTO } from '../lib/motion'
  */
 
 const BARRAS = 'var(--royal, #5966d9)'
+
+// Nome da tela para o "Continuar de onde parou" (mesmos nomes do menu).
+const TELAS = [
+  [/^\/devedor\//, 'Ficha do devedor'], [/^\/agenda/, 'Hoje'], [/^\/pastas/, 'Pastas'],
+  [/^\/acordos/, 'Acordos'], [/^\/resultados/, 'Resultados'], [/^\/painel/, 'Equipe'],
+  [/^\/ofertas/, 'Ofertas'], [/^\/premissas/, 'Política de cobrança'], [/^\/admin\/usuarios/, 'Usuários'],
+  [/^\/auditoria/, 'Auditoria'], [/^\/backtest/, 'Simulação histórica'], [/^\/agente/, 'Agentes'],
+  [/^\/feedback/, 'Pagamentos'], [/^\/ia/, 'Performance da IA'], [/^\/laboratorio/, 'Laboratório'],
+  [/^\/ajuda/, 'Ajuda'], [/^\/alterar-senha/, 'Alterar senha'], [/^\/$/, 'Carteira'],
+]
+const nomeDaTela = (caminho) => TELAS.find(([re]) => re.test(caminho))?.[1] ?? 'a tela anterior'
 
 // Pequenas ilustrações, uma por área. Usam currentColor para acompanhar o tema.
 function Arte({ tipo }) {
@@ -140,6 +152,11 @@ export default function Inicio() {
   const navigate = useNavigate()
   const { result, setResult, setVista } = useAnalysis()
   const [abrindo, setAbrindo] = useState(false)
+  // Depois do login o Início vem primeiro; quem caiu aqui no meio de uma tarefa
+  // (sessão expirada, link direto) ganha o atalho de volta, uma vez.
+  const estado = useLocation().state
+  const [retomar, setRetomar] = useState(estado?.retomar ?? null)
+  const [naoEncontrada, setNaoEncontrada] = useState(estado?.naoEncontrada ?? null)
 
   // "Carteira" abre direto a última análise da própria pessoa (no painel da
   // carteira); de lá ela troca de análise se quiser. Sem nenhuma análise ainda,
@@ -168,6 +185,31 @@ export default function Inicio() {
       <div className="mx-auto max-w-6xl">
         <h1 className="hub-titulo">{nome ? `Olá, ${nome}` : 'Olá'}</h1>
         <p className="hub-sub">Para onde você quer ir?</p>
+        {naoEncontrada && (
+          <motion.div role="status" initial={reduzir ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+            className="mt-5 inline-flex max-w-full items-center gap-1 rounded-2xl border border-line bg-card py-1 pl-4 pr-1 shadow-sm sm:rounded-full">
+            <span className="min-w-0 break-words py-1.5 text-sm text-ink-2">
+              A página <code className="font-mono text-ink">{naoEncontrada}</code> não existe mais. Você está no Início.
+            </span>
+            <button type="button" onClick={() => { setNaoEncontrada(null); navigate('.', { replace: true, state: null }) }}
+              aria-label="Dispensar aviso" className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink-3 hover:text-ink">
+              <X className="h-4 w-4" />
+            </button>
+          </motion.div>
+        )}
+        {retomar && (
+          <motion.div initial={reduzir ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+            className="mt-5 inline-flex max-w-full items-center gap-1 rounded-full border border-line bg-card py-1 pl-4 pr-1 shadow-sm">
+            <span className="truncate text-sm text-ink-2">Você estava em <strong className="font-semibold text-ink">{nomeDaTela(retomar)}</strong></span>
+            <Link to={retomar} replace className="ml-2 inline-flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-full bg-royal px-3 text-sm font-bold text-on-brand transition-colors hover:bg-royal-hover">
+              Continuar <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+            <button type="button" onClick={() => { setRetomar(null); navigate('.', { replace: true, state: null }) }}
+              aria-label="Dispensar atalho" className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink-3 hover:text-ink">
+              <X className="h-4 w-4" />
+            </button>
+          </motion.div>
+        )}
         <motion.div className="mt-8" variants={reduzir ? SEM_MOVIMENTO : lista} initial="inicial" animate="entra">
           <BentoGrid>
             {blocos.map(b => (
