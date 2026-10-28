@@ -253,6 +253,40 @@ def retomar_caso(empresa_id: str, predicao_id: str, agora: datetime | None = Non
     return ver_caso(empresa_id, predicao_id, repo)
 
 
+MARCA_PESSOA = "pessoa"        # trace_id das mensagens escritas por uma pessoa da equipe
+
+
+def responder_como_pessoa(empresa_id: str, predicao_id: str, texto: str, agora: datetime | None = None) -> dict:
+    """Uma pessoa da equipe responde ao devedor, pelo chat do Mizan.
+
+    Só vale com o caso na mão da equipe (situação `com_pessoa`): é a pessoa quem fala,
+    sem o agente no meio. A mensagem fica registrada no caso e, se o devedor tem o
+    Telegram ligado, chega lá. O Auditor não passa por aqui: quem escreve responde pelo
+    que diz. Nada de IA e nada de valores gerados pelo sistema nesta rota.
+    """
+    from agente import canal_telegram
+    if not ligado():
+        raise AgenteDesligado("O agente está desligado (MIZAN_AGENTE_ATIVO).")
+    texto = (texto or "").strip()
+    if not texto:
+        raise ValueError("Escreva a mensagem.")
+    if len(texto) > MAX_TEXTO:
+        raise ValueError(f"Mensagem com mais de {MAX_TEXTO} caracteres.")
+    repo = fabrica_repo()
+    caso = repo.caso_de(empresa_id, predicao_id)
+    if caso is None:
+        raise LookupError("Este devedor ainda não tem conversa com o agente.")
+    if caso["situacao"] != "com_pessoa":
+        raise CasoOcupado("Assuma o caso antes de responder: enquanto o agente cuida dele, ele mesmo responde.")
+    repo.gravar_mensagem(empresa_id, caso["id"], "saida", texto, MARCA_PESSOA,
+                         criado_em=agora or datetime.now(timezone.utc))
+    entregue = canal_telegram.enviar_para_caso(caso, texto)
+    r = ver_caso(empresa_id, predicao_id, repo)
+    r["entregue_telegram"] = entregue
+    r["telegram_ligado"] = bool(((caso.get("dados") or {}).get("telegram") or {}).get("chat_id"))
+    return r
+
+
 def central(empresa_id: str, agora: datetime | None = None) -> dict:
     """Central de orquestração: fila, falhas e monitoramento técnico seguro."""
     agora = agora or datetime.now(timezone.utc)

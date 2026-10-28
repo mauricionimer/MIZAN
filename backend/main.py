@@ -9061,6 +9061,24 @@ def agente_simular_mensagem(predicao_id: str, body: AgenteMensagemIn,
         raise HTTPException(status_code=422, detail=str(e))
 
 
+@app.post("/agente/casos/{predicao_id}/atendente")
+def agente_responder_como_pessoa(predicao_id: str, body: AgenteMensagemIn,
+                                 credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Uma pessoa da equipe responde ao devedor de um caso que ela assumiu; chega no Telegram, se ligado."""
+    from agente import api as agente_api
+    emp = _empresa_do_agente(_usuario_autenticado(credentials), body.empresa_id)
+    try:
+        return agente_api.responder_como_pessoa(emp, predicao_id, body.texto)
+    except agente_api.AgenteDesligado as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except agente_api.CasoOcupado as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+
 class AgenteRetomarIn(BaseModel):
     empresa_id: Optional[str] = None
 

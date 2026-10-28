@@ -12,7 +12,7 @@ import EscritorioAgentes from '../components/EscritorioAgentes'
 import useEscritorio from '../components/escritorio/useEscritorio'
 import FichaPassagem, { SeloPrioridade } from '../components/FichaPassagem'
 import { useAuth } from '../context/AuthContext'
-import { agenteDevedores, agenteCaso, agenteSimularMensagem, agenteRetomar, agenteSimularPagamento, agenteCentral, agenteRelogio, agentePlano, agenteAplicarPlano, agentePoliticas, agenteSalvarPolitica, agenteControle, agenteTelegramConvite, agenteAgenda, agenteAtribuir, agenteLaboratorio, agenteAnalisar, agenteDecidirRecomendacao, listarEmpresas } from '../api'
+import { agenteDevedores, agenteCaso, agenteSimularMensagem, agenteRetomar, agenteSimularPagamento, agenteCentral, agenteRelogio, agentePlano, agenteAplicarPlano, agentePoliticas, agenteSalvarPolitica, agenteControle, agenteTelegramConvite, agenteResponderComoPessoa, agenteAgenda, agenteAtribuir, agenteLaboratorio, agenteAnalisar, agenteDecidirRecomendacao, listarEmpresas } from '../api'
 
 const fmtBRL = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0)
 const fmtUSD = (v) => `US$ ${Number(v || 0).toFixed(4)}`
@@ -180,6 +180,8 @@ function Conversa({ empresa }) {
 
   useEffect(() => { fim.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) }, [dados?.mensagens?.length])
 
+  const comPessoa = dados?.caso?.situacao === 'com_pessoa'
+
   async function enviar(e) {
     e.preventDefault()
     if (!texto.trim() || enviando) return
@@ -187,7 +189,9 @@ function Conversa({ empresa }) {
     const mensagem = texto
     setTexto('')
     try {
-      setDados(await agenteSimularMensagem(escolhido.id, mensagem, empresa))
+      // Com o caso na mão da equipe, quem escreve é a pessoa (e chega no Telegram do devedor).
+      setDados(comPessoa ? await agenteResponderComoPessoa(escolhido.id, mensagem, empresa)
+                         : await agenteSimularMensagem(escolhido.id, mensagem, empresa))
     } catch (err) { setErro(err); setTexto(mensagem) } finally { setEnviando(false) }
   }
 
@@ -255,7 +259,7 @@ function Conversa({ empresa }) {
                 <div key={i} className={`flex ${m.direcao === 'entrada' ? 'justify-start' : 'justify-end'}`}>
                   <div className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm ${m.direcao === 'entrada' ? 'rounded-bl-sm bg-raise-2 text-ink' : 'rounded-br-sm bg-blue-600 text-white'}`}>
                     <p className="whitespace-pre-wrap">{m.texto}</p>
-                    <p className={`mt-1 text-[10px] ${m.direcao === 'entrada' ? 'text-ink-3' : 'text-blue-100'}`}>{m.direcao === 'entrada' ? 'Devedor' : 'Assistente'} · {fmtHora(m.criado_em)}</p>
+                    <p className={`mt-1 text-[10px] ${m.direcao === 'entrada' ? 'text-ink-3' : 'text-blue-100'}`}>{m.direcao === 'entrada' ? 'Devedor' : m.trace_id === 'pessoa' ? 'Atendente' : 'Assistente'} · {fmtHora(m.criado_em)}</p>
                   </div>
                 </div>
               ))}
@@ -280,10 +284,11 @@ function Conversa({ empresa }) {
             )}
             <form onSubmit={enviar} className="flex gap-2 border-t border-line p-3">
               <input value={texto} onChange={e => setTexto(e.target.value)} maxLength={2000} disabled={enviando}
-                placeholder="Escreva como o devedor…" aria-label="Mensagem do devedor"
+                placeholder={comPessoa ? 'Responder como atendente (vai para o Telegram do devedor, se ligado)…' : 'Escreva como o devedor…'}
+                aria-label={comPessoa ? 'Resposta do atendente' : 'Mensagem do devedor'}
                 className="flex-1 rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm text-ink placeholder:text-ink-3 focus:outline-none" />
               <button type="submit" disabled={enviando || !texto.trim()} className="btn-primary flex items-center gap-1.5 disabled:opacity-50">
-                <Send className="h-4 w-4" /> Enviar
+                <Send className="h-4 w-4" /> {comPessoa ? 'Responder' : 'Enviar'}
               </button>
             </form>
           </>

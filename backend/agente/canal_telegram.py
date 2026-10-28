@@ -174,6 +174,12 @@ def entregar(ctx) -> int:
     return n
 
 
+def enviar_para_caso(caso: dict, texto: str) -> bool:
+    """Manda um texto ao chat ligado ao caso (usado quando uma pessoa responde). False se não há chat ou falhou."""
+    chat_id = ((caso.get("dados") or {}).get("telegram") or {}).get("chat_id")
+    return bool(chat_id and configurado() and enviar_texto(chat_id, texto))
+
+
 # ── recebimento (webhook) ───────────────────────────────────────────────────
 
 def receber(update: dict, repo=None, agora: datetime | None = None, processar=True) -> dict:

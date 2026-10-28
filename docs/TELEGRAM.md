@@ -31,6 +31,13 @@ python telegram_webhook.py ligar https://SEU-SERVIDOR.onrender.com
 python telegram_webhook.py status
 ```
 
+## Quando a equipe assume o caso
+
+Em **Agentes → Conversas**, **Assumir o caso** tira o agente. A caixa de texto passa a ser **Responder como atendente**:
+o que a pessoa escreve fica registrado no caso (marcado como "Atendente") e chega no Telegram do devedor. O que o
+devedor responde aparece no mesmo chat. O agente não responde por cima. Mensagens de pessoa **não passam pelo
+Auditor**: quem escreve responde pelo que diz. **Devolver ao agente** faz o agente voltar a conversar.
+
 ## Segurança
 
 - O webhook só aceita chamadas com o cabeçalho `X-Telegram-Bot-Api-Secret-Token` igual ao segredo; sem a variável, recusa (503).
