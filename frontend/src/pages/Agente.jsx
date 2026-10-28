@@ -12,7 +12,7 @@ import EscritorioAgentes from '../components/EscritorioAgentes'
 import useEscritorio from '../components/escritorio/useEscritorio'
 import FichaPassagem, { SeloPrioridade } from '../components/FichaPassagem'
 import { useAuth } from '../context/AuthContext'
-import { agenteDevedores, agenteCaso, agenteSimularMensagem, agenteRetomar, agenteSimularPagamento, agenteCentral, agenteRelogio, agentePlano, agenteAplicarPlano, agentePoliticas, agenteSalvarPolitica, agenteControle, agenteTelegramConvite, agenteResponderComoPessoa, agenteAgenda, agenteAtribuir, agenteLaboratorio, agenteAnalisar, agenteDecidirRecomendacao, listarEmpresas } from '../api'
+import { agenteDevedores, agenteCaso, agenteSimularMensagem, agenteRetomar, agenteSimularPagamento, agenteCentral, agenteRelogio, agentePlano, agenteAplicarPlano, agentePoliticas, agenteSalvarPolitica, agenteControle, agenteTelegramConvite, agenteResponderComoPessoa, agenteSinal, agenteAgenda, agenteAtribuir, agenteLaboratorio, agenteAnalisar, agenteDecidirRecomendacao, listarEmpresas } from '../api'
 
 const fmtBRL = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0)
 const fmtUSD = (v) => `US$ ${Number(v || 0).toFixed(4)}`
@@ -177,6 +177,29 @@ function Conversa({ empresa }) {
     const t = setInterval(atualizar, 5000)
     return () => { vivo = false; clearInterval(t) }
   }, [escolhido, empresa, aguardando, quandoRetomar])
+
+  // O devedor pode escrever pelo Telegram a qualquer hora: de 3 em 3 segundos a tela pergunta, de forma
+  // barata, se o caso mudou, e só então recarrega a conversa. Parada com a aba escondida ou enviando.
+  const sinalVisto = useRef(null)
+  useEffect(() => { sinalVisto.current = null }, [escolhido])
+  useEffect(() => {
+    if (!escolhido) return
+    let vivo = true
+    const t = setInterval(async () => {
+      if (document.hidden || enviando) return
+      try {
+        const { sinal } = await agenteSinal(escolhido.id, empresa)
+        if (!vivo) return
+        if (sinalVisto.current === null) { sinalVisto.current = sinal; return }
+        if (sinal && sinal !== sinalVisto.current) {
+          sinalVisto.current = sinal
+          const novo = await agenteCaso(escolhido.id, empresa)
+          if (vivo) setDados(novo)
+        }
+      } catch { /* a próxima volta tenta de novo */ }
+    }, 3000)
+    return () => { vivo = false; clearInterval(t) }
+  }, [escolhido, empresa, enviando])
 
   useEffect(() => { fim.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) }, [dados?.mensagens?.length])
 

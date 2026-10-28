@@ -132,5 +132,22 @@ checar(ENVIADOS == [], "e o agente não responde por cima enquanto o caso está 
 checar(c.post("/agente/casos/p1/atendente", json={"texto": ""}, headers=ADM).status_code == 422, "mensagem vazia: 422")
 checar(c.post("/agente/casos/p1/atendente", json={"texto": "oi"}, headers=jwt("beta")).status_code == 404, "outra empresa: 404")
 
+print("— sinal leve e digitando —")
+s1 = c.get("/agente/casos/p1/sinal", headers=ADM).json()["sinal"]
+ACOES = []
+canal_telegram.enviar_acao = lambda chat, acao="typing": ACOES.append(str(chat)) or True
+canal_telegram.enviar_texto = lambda chat, texto: (ENVIADOS.append((str(chat), texto)) or True)
+c.post("/canal/telegram/webhook", json=upd("Mais uma pergunta", 50), headers=H)
+checar(c.get("/agente/casos/p1/sinal", headers=ADM).json()["sinal"] != s1, "chegou mensagem: o sinal muda (a tela recarrega sozinha)")
+s2 = c.get("/agente/casos/p1/sinal", headers=ADM).json()["sinal"]
+checar(c.get("/agente/casos/p1/sinal", headers=ADM).json()["sinal"] == s2, "sem novidade, o sinal é o mesmo (a tela não recarrega à toa)")
+checar(c.get("/agente/casos/p1/sinal", headers=jwt("beta")).json()["sinal"] == "", "outra empresa não vê nada")
+os.environ["MIZAN_AGENTE_ATIVO"] = "1"
+c.post("/agente/casos/p1/controle", json={"acao": "devolver"}, headers=ADM)
+ROTEIRO[:] = [tri("duvida"), Resposta(texto="Claro.")]
+ACOES.clear()
+c.post("/canal/telegram/webhook", json=upd("Como funciona?", 51), headers=H)
+checar(ACOES == ["555"], "o Telegram mostra \"digitando…\" assim que a mensagem chega", str(ACOES))
+
 print(f"\n{falhas} falha(s)")
 sys.exit(1 if falhas else 0)

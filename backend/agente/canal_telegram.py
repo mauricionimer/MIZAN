@@ -80,6 +80,24 @@ def _enviar_texto(chat_id, texto: str) -> bool:
 enviar_texto = _enviar_texto        # os testes trocam este nome
 
 
+def _enviar_acao(chat_id, acao: str = "typing") -> bool:
+    """Mostra "digitando…" no chat (dura uns 5 s). Só para o devedor ver que o agente recebeu."""
+    token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+    if not token:
+        return False
+    req = urllib.request.Request(f"{API}/bot{token}/sendChatAction",
+                                 data=json.dumps({"chat_id": chat_id, "action": acao}).encode("utf-8"),
+                                 headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=3) as r:
+            return r.status == 200
+    except (urllib.error.URLError, OSError, ValueError):
+        return False
+
+
+enviar_acao = _enviar_acao          # os testes trocam este nome
+
+
 # ── convite e vínculo ────────────────────────────────────────────────────────
 
 def _hash(segredo: str) -> str:
@@ -213,6 +231,7 @@ def receber(update: dict, repo=None, agora: datetime | None = None, processar=Tr
                                     f"telegram:{update.get('update_id', uuid.uuid4().hex)}",
                                     {"texto": texto}, origem="telegram")
     if novo and processar:
+        enviar_acao(chat_id)            # "digitando…" já, antes da IA começar
         fonte = api.fabrica_fonte()
         orq.processar_fila(repo, api.grafos(fonte), api.fabrica_cliente(), limite=5, agora=agora,
                            empresa_id=caso["empresa_id"])

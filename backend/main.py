@@ -9061,6 +9061,15 @@ def agente_simular_mensagem(predicao_id: str, body: AgenteMensagemIn,
         raise HTTPException(status_code=422, detail=str(e))
 
 
+@app.get("/agente/casos/{predicao_id}/sinal")
+def agente_sinal_do_caso(predicao_id: str, empresa_id: Optional[str] = None,
+                         credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Barato: a tela consulta de poucos em poucos segundos e só recarrega o caso se o sinal mudou."""
+    from agente import api as agente_api
+    emp = _empresa_do_agente(_usuario_autenticado(credentials), empresa_id)
+    return agente_api.sinal_do_caso(emp, predicao_id)
+
+
 @app.post("/agente/casos/{predicao_id}/atendente")
 def agente_responder_como_pessoa(predicao_id: str, body: AgenteMensagemIn,
                                  credentials: HTTPAuthorizationCredentials = Security(bearer)):

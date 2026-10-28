@@ -826,6 +826,11 @@ export async function agenteAtribuir(itemId, operadorId, empresaId) {
   return pedir(`/agente/agenda/${_id(itemId)}/atribuir`, { metodo: 'POST', corpo: { operador_id: operadorId, empresa_id: empresaId || null } })
 }
 
+// Barato: só diz se o caso mudou (mensagem nova, outra situação). A tela consulta isto de poucos em poucos segundos.
+export async function agenteSinal(predicaoId, empresaId) {
+  return pedir(`/agente/casos/${_id(predicaoId)}/sinal`, { query: { empresa_id: empresaId } })
+}
+
 // Uma pessoa da equipe responde ao devedor de um caso que assumiu (chega no Telegram, se ligado).
 export async function agenteResponderComoPessoa(predicaoId, texto, empresaId) {
   return pedir(`/agente/casos/${_id(predicaoId)}/atendente`, { metodo: 'POST', corpo: { texto, empresa_id: empresaId || null } })

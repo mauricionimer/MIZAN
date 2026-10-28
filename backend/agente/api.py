@@ -287,6 +287,17 @@ def responder_como_pessoa(empresa_id: str, predicao_id: str, texto: str, agora: 
     return r
 
 
+def sinal_do_caso(empresa_id: str, predicao_id: str) -> dict:
+    """Resumo mínimo do caso para a tela saber se chegou algo novo (duas consultas, sem passos)."""
+    repo = fabrica_repo()
+    caso = repo.caso_de(empresa_id, predicao_id)
+    if caso is None:
+        return {"sinal": "", "situacao": None}
+    ms = repo.ultimas_mensagens(empresa_id, caso["id"], 50)
+    ultima = ms[-1] if ms else {}
+    return {"sinal": f"{len(ms)}:{ultima.get('criado_em')}:{caso['situacao']}", "situacao": caso["situacao"]}
+
+
 def central(empresa_id: str, agora: datetime | None = None) -> dict:
     """Central de orquestração: fila, falhas e monitoramento técnico seguro."""
     agora = agora or datetime.now(timezone.utc)
