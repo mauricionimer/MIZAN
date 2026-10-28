@@ -188,7 +188,19 @@ function Conversa({ empresa }) {
     const t = setInterval(async () => {
       if (document.hidden || enviando) return
       try {
-        const { sinal } = await agenteSinal(escolhido.id, empresa)
+        let sinal
+        try {
+          sinal = (await agenteSinal(escolhido.id, empresa)).sinal
+        } catch {
+          // Servidor ainda sem a rota leve (versão antiga): cai no caso inteiro, que também mostra o que chegou.
+          const inteiro = await agenteCaso(escolhido.id, empresa)
+          if (!vivo) return
+          const ms = inteiro.mensagens || []
+          sinal = `${ms.length}:${ms.length ? ms[ms.length - 1].criado_em : ''}:${inteiro.caso?.situacao}`
+          if (sinalVisto.current !== null && sinal !== sinalVisto.current) setDados(inteiro)
+          sinalVisto.current = sinalVisto.current === null ? sinal : sinal
+          return
+        }
         if (!vivo) return
         if (sinalVisto.current === null) { sinalVisto.current = sinal; return }
         if (sinal && sinal !== sinalVisto.current) {
