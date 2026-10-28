@@ -6,7 +6,9 @@ demonstração (Triagem, Negociador, Auditor...): o Telegram só traz a mensagem
 ## Como funciona
 
 1. A equipe abre o caso em **Agentes → Conversas** e toca em **Convite Telegram**: sai um link
-   `https://t.me/<bot>?start=<código>` (vale uma vez e por 7 dias).
+   `https://t.me/<bot>?start=<código>` (vale por 7 dias e liga **um** Telegram: o primeiro que abrir).
+   **Cada pessoa precisa do próprio link.** Na demonstração com duas pessoas, gere um convite em
+   dois devedores diferentes e mande um link para cada uma.
 2. O devedor abre o link e toca em **Iniciar**. O chat fica ligado àquele caso.
 3. Cada mensagem dele vira um evento `mensagem_devedor` na fila. A resposta do agente (já passada pelo
    Auditor e pelas travas de saída) volta ao mesmo chat. Lembretes do Acompanhamento seguem pelo mesmo caminho.
@@ -31,6 +33,23 @@ python telegram_webhook.py ligar https://SEU-SERVIDOR.onrender.com
 python telegram_webhook.py status
 ```
 
+## O que pode dar errado com o link (e o que a pessoa vê)
+
+| Situação | Resposta do bot | O que a equipe vê |
+|---|---|---|
+| A mesma pessoa abre o link de novo | "Você já está conectado" | nada muda |
+| Outra pessoa abre um link já usado | "Este link já foi usado em outro Telegram. Cada pessoa precisa do próprio link" | aviso amarelo no caso |
+| A equipe gerou um link mais novo | "Este link foi substituído" | o selo mostra o convite novo |
+| Passou de 7 dias | "Este link venceu" | o selo volta a "Sem Telegram" |
+| Link cortado ou alterado | "Não reconheci este link" | nada |
+| Escreve sem ter aberto um link | "Abra o link que o banco enviou" | nada |
+
+Gerar um convite com o Telegram já ligado (ou com um convite pendente) pede confirmação, porque o link novo
+substitui o anterior. **Desligar** solta o chat do caso e invalida o link.
+
+O selo ao lado do nome mostra o estado: **Telegram ligado**, **Convite enviado (vale até…)**, **Sem Telegram** ou
+**bloqueou o bot**.
+
 ## Quando a equipe assume o caso
 
 Em **Agentes → Conversas**, **Assumir o caso** tira o agente. A caixa de texto passa a ser **Responder como atendente**:
@@ -38,18 +57,41 @@ o que a pessoa escreve fica registrado no caso (marcado como "Atendente") e cheg
 devedor responde aparece no mesmo chat. O agente não responde por cima. Mensagens de pessoa **não passam pelo
 Auditor**: quem escreve responde pelo que diz. **Devolver ao agente** faz o agente voltar a conversar.
 
+- Ao **assumir** e ao **devolver**, o devedor recebe um aviso curto ("uma pessoa da equipe vai continuar…" /
+  "o assistente voltou…"). Só para quem já conversou.
+- Enquanto o caso está com a equipe, se o devedor escreve, ele recebe uma confirmação fixa de recebimento
+  (no máximo uma a cada 30 min, e nenhuma se alguém da equipe respondeu nesse intervalo). Vale também para
+  casos suspensos, contestados ou quitados.
+- A lista **Com a equipe**, no alto da coluna de devedores, mostra os casos assumidos; quem está esperando
+  resposta aparece primeiro, com ponto amarelo.
+- Depois de responder, a tela diz se a mensagem **chegou ao Telegram**, se o devedor não tem Telegram ligado,
+  se a rede falhou (o texto volta para a caixa) ou se ele bloqueou o bot.
+- No histórico, o agente sabe o que foi escrito por uma pessoa e o que foi aviso automático, e não repete nem
+  contradiz o que a equipe combinou.
+
+## Entrega
+
+- O que o agente escreve vai ao chat no fim da rodada. Se a rede falhar, vai na rodada seguinte (até 15 min),
+  na ordem certa e sem duplicar.
+- Resposta velha do agente nunca chega depois de uma mensagem da equipe ou de um aviso de passagem.
+- Se o devedor bloqueia o bot, o caso fica marcado e nada é enviado. Quando ele volta a escrever, o canal reabre
+  sem despejar mensagens antigas.
+- Com o agente desligado (`MIZAN_AGENTE_ATIVO` diferente de `1`), a mensagem fica registrada no caso e o devedor
+  recebe "o atendimento automático está pausado" (no máximo a cada 30 min).
+- Mensagens chegando em sequência esperam a anterior terminar (até 40 s) em vez de ficar paradas na fila.
+
 ## Segurança
 
 - O webhook só aceita chamadas com o cabeçalho `X-Telegram-Bot-Api-Secret-Token` igual ao segredo; sem a variável, recusa (503).
 - O token do bot nunca vai para log, rastreio ou resposta; no caso fica só o hash do segredo do convite.
-- Só conversa privada com texto. Grupos, fotos, áudios e bots são ignorados.
+- Só conversa privada. Grupos e bots são ignorados. Foto, áudio e afins recebem "só consigo ler texto" (no máximo a cada 10 min).
 - Cada update tem chave própria (`telegram:<update_id>`): reenvio do Telegram não duplica a resposta.
 - Falha de rede ao entregar não derruba o atendimento: a mensagem fica registrada no caso.
 - LGPD: o caso guarda só o `chat_id` (não o nome nem o usuário do Telegram).
 
 ## Limites desta versão
 
-- Só texto. Sem botões, áudio ou imagem.
+- Só texto. Sem botões; áudio e imagem não são lidos.
 - Um chat fica ligado a um caso por vez (ligar a outro desliga o anterior).
 - A busca do caso pelo chat usa `dados->telegram->>chat_id` em `agente_casos`; sem índice. Para volume alto,
   vale um índice nessa expressão.

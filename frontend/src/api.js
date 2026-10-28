@@ -841,6 +841,16 @@ export async function agenteTelegramConvite(predicaoId, empresaId) {
   return pedir(`/agente/casos/${_id(predicaoId)}/telegram-convite`, { metodo: 'POST', query: { empresa_id: empresaId } })
 }
 
+// Desliga o Telegram do caso (o chat para de receber; o convite pendente deixa de valer).
+export async function agenteTelegramDesligar(predicaoId, empresaId) {
+  return pedir(`/agente/casos/${_id(predicaoId)}/telegram-desligar`, { metodo: 'POST', corpo: { empresa_id: empresaId || null } })
+}
+
+// Casos com a equipe; quem está esperando resposta vem primeiro.
+export async function agenteAtendimentos(empresaId) {
+  return pedir('/agente/atendimentos', { query: { empresa_id: empresaId } })
+}
+
 export async function agenteControle(predicaoId, acao, empresaId) {
   return pedir(`/agente/casos/${_id(predicaoId)}/controle`, { metodo: 'POST', corpo: { acao, empresa_id: empresaId || null } })
 }

@@ -8,18 +8,34 @@ volta no mesmo chat. Lembretes e mensagens do Acompanhamento seguem pelo mesmo c
 Como o chat é ligado a um devedor
   1. A equipe gera um convite do caso (`gerar_convite`): um link t.me/<bot>?start=<código>.
      O código leva o id do caso e um segredo aleatório; no caso fica só o hash do
-     segredo e a validade (7 dias). Vale uma vez.
+     segredo e a validade (7 dias). Vale para UM Telegram: cada pessoa precisa do próprio link.
   2. O devedor abre o link e toca em Iniciar: o Telegram manda `/start <código>`,
      e o chat_id fica gravado no caso. Um chat fica ligado a um caso só (ligar
      de novo desliga o anterior: útil na demonstração).
   3. Ligar o chat NÃO prova quem a pessoa é. A confirmação de identidade
      continua sendo do agente (primeiros dígitos do CPF), antes de qualquer valor.
 
+O que pode dar errado no vínculo, e o que a pessoa ouve (ver `vincular`)
+  - a mesma pessoa abre o mesmo link de novo .......... "você já está conectado"
+  - outra pessoa abre um link já usado ................. "este link já foi usado em outro Telegram"
+                                                          (e a equipe vê o aviso no caso)
+  - a equipe gerou um link mais novo ................... "este link foi substituído"
+  - venceu (7 dias) .................................... "este link venceu"
+  - código adulterado ou incompleto .................... "não reconheci este link"
+
+Entrega
+  - O que o agente escreve numa rodada vai ao chat no fim da rodada (`entregar`).
+    Falhou a rede: tenta de novo na próxima rodada, por até `JANELA_REENVIO`.
+  - Mensagens da pessoa da equipe e avisos do sistema vão na hora (`enviar_para_caso`).
+  - O devedor bloqueou o bot (Telegram responde 403): o caso fica marcado e
+    não se tenta mais até ele voltar a escrever.
+
 Segurança
   - O webhook só aceita chamadas com o cabeçalho `X-Telegram-Bot-Api-Secret-Token`
     igual a TELEGRAM_WEBHOOK_SECRET (comparação em tempo constante). Sem a variável, recusa.
   - O token do bot (TELEGRAM_BOT_TOKEN) nunca vai para log, rastreio nem resposta.
-  - Só conversa privada com texto; grupos, bots, fotos e áudios são ignorados.
+  - Só conversa privada; grupos e bots são ignorados. Foto, áudio e afins recebem
+    um aviso de que só lemos texto.
   - Cada update do Telegram tem chave própria (`telegram:<update_id>`): reenvio não duplica.
   - O que vai ao Telegram é texto puro, sem formatação.
 """
@@ -28,6 +44,7 @@ import hmac
 import json
 import os
 import secrets
+import time
 import urllib.error
 import urllib.request
 import uuid
@@ -37,13 +54,34 @@ API = "https://api.telegram.org"
 VALIDADE_CONVITE = timedelta(days=7)
 MAX_TEXTO_TELEGRAM = 4096
 MAX_ENTREGUES = 60
+MAX_HASHES = 5
 TIMEOUT_S = 8
+JANELA_REENVIO = timedelta(minutes=15)   # mensagem do agente que falhou: tenta de novo nas rodadas seguintes
+ESPERA_CASO_S = 40                       # mensagem chegou com o caso ocupado: espera ele soltar, até isto
+INTERVALO_AVISO = {"pausa": timedelta(minutes=30), "so_texto": timedelta(minutes=10)}
+BLOQUEADO = "bloqueado"                  # o devedor bloqueou o bot (403)
+MARCAS_DIRETAS = ("pessoa", "aviso")    # trace_id de mensagens que vão na hora, fora das rodadas do agente
 
 MSG_BOAS_VINDAS = ("Olá! Este é o assistente virtual de negociação. Você pode escrever aqui. Por segurança, vou "
                    "confirmar quem você é antes de falar de valores. Para começar, escreva \"oi\".")
+MSG_JA_LIGADO = "Você já está conectado. Pode escrever sua mensagem aqui."
 MSG_SEM_VINCULO = ("Para falar com o assistente, abra o link que o banco enviou para você. "
                    "Se não recebeu, peça um novo convite à equipe.")
-MSG_CONVITE_INVALIDO = "Esse convite não é mais válido. Peça um novo link à equipe."
+MSG_CONVITE = {
+    "usado": ("Este link já foi usado em outro Telegram. Cada pessoa precisa do próprio link: "
+              "peça um novo à equipe."),
+    "substituido": "Este link foi substituído por um mais novo. Use o link mais recente que a equipe enviou.",
+    "vencido": "Este link venceu. Peça um novo à equipe.",
+    "invalido": "Não reconheci este link. Confira se copiou o link inteiro ou peça um novo à equipe.",
+}
+MSG_CONVITE_INVALIDO = MSG_CONVITE["invalido"]
+MSG_PAUSADO = ("Recebemos sua mensagem. O atendimento automático está pausado agora; "
+               "uma pessoa da equipe vai responder por aqui.")
+MSG_SO_TEXTO = "Por enquanto eu só consigo ler mensagens de texto. Pode escrever o que precisa?"
+AVISO_ASSUMIU = "A partir de agora, uma pessoa da equipe vai continuar o seu atendimento por aqui."
+AVISO_DEVOLVEU = "O assistente virtual voltou a acompanhar o seu atendimento. Pode escrever quando quiser."
+
+_MIDIA = ("photo", "voice", "audio", "video", "video_note", "document", "sticker", "animation", "location", "contact")
 
 
 def configurado() -> bool:
@@ -55,14 +93,31 @@ def segredo_confere(recebido: str | None) -> bool:
     return bool(esperado) and hmac.compare_digest(str(recebido or ""), esperado)
 
 
+def _agora(agora=None) -> datetime:
+    return agora or datetime.now(timezone.utc)
+
+
+def _quando(valor) -> datetime | None:
+    if isinstance(valor, datetime):
+        return valor if valor.tzinfo else valor.replace(tzinfo=timezone.utc)
+    try:
+        d = datetime.fromisoformat(str(valor).replace("Z", "+00:00"))
+        return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        return None
+
+
 # ── envio ────────────────────────────────────────────────────────────────────
 
-def _enviar_texto(chat_id, texto: str) -> bool:
-    """sendMessage na API do Telegram. Nunca levanta erro: devolve se entregou."""
+def _enviar_texto(chat_id, texto: str):
+    """sendMessage na API do Telegram. Nunca levanta erro.
+
+    Devolve True (entregou), False (falhou; dá para tentar de novo) ou BLOQUEADO
+    (o Telegram recusou com 403: o devedor bloqueou o bot ou apagou a conta).
+    """
     token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
     if not token:
         return False
-    ok = True
     for i in range(0, len(texto), MAX_TEXTO_TELEGRAM):
         corpo = json.dumps({"chat_id": chat_id, "text": texto[i:i + MAX_TEXTO_TELEGRAM],
                             "disable_web_page_preview": True}).encode("utf-8")
@@ -70,11 +125,15 @@ def _enviar_texto(chat_id, texto: str) -> bool:
                                      headers={"Content-Type": "application/json"})
         try:
             with urllib.request.urlopen(req, timeout=TIMEOUT_S) as r:
-                ok = ok and r.status == 200
+                if r.status != 200:
+                    return False
+        except urllib.error.HTTPError as e:
+            print(f"[Telegram] envio recusado: HTTP {e.code}")         # nunca imprime a URL: ela leva o token
+            return BLOQUEADO if e.code == 403 else False
         except (urllib.error.URLError, OSError, ValueError) as e:
-            print(f"[Telegram] envio falhou: {type(e).__name__}")        # nunca imprime a URL: ela leva o token
+            print(f"[Telegram] envio falhou: {type(e).__name__}")
             return False
-    return ok
+    return True
 
 
 enviar_texto = _enviar_texto        # os testes trocam este nome
@@ -98,27 +157,70 @@ def _enviar_acao(chat_id, acao: str = "typing") -> bool:
 enviar_acao = _enviar_acao          # os testes trocam este nome
 
 
-# ── convite e vínculo ────────────────────────────────────────────────────────
+# ── estado do Telegram no caso ──────────────────────────────────────────────
+
+def _tg(caso: dict | None) -> dict:
+    return dict(((caso or {}).get("dados") or {}).get("telegram") or {})
+
+
+def _gravar_tg(repo, caso: dict, tg: dict) -> None:
+    """Grava o estado do Telegram (e notas novas do caderno) sobre a versão mais recente do caso.
+
+    O webhook roda fora da trava do caso: reler antes de gravar evita apagar o que o
+    agente acabou de salvar (identidade, acordo...) com uma cópia velha de `dados`.
+    """
+    atual = (repo.obter_caso(caso["id"]) or {}).get("dados") or {}
+    dados = dict(atual)
+    dados["telegram"] = tg
+    meu = list((caso.get("dados") or {}).get("caderno") or [])
+    novas = [n for n in meu if n not in (atual.get("caderno") or [])]
+    if novas:
+        from agente import estado
+        dados["caderno"] = (list(atual.get("caderno") or []) + novas)[-estado.MAX_CADERNO:]
+    caso["dados"] = dados
+    repo.salvar_caso(caso["id"], {"dados": dados})
+
 
 def _hash(segredo: str) -> str:
     return hashlib.sha256(segredo.encode("utf-8")).hexdigest()
 
 
+def _guardar(lista, valor, n: int = MAX_HASHES) -> list:
+    return ([v for v in (lista or []) if v != valor] + [valor])[-n:]
+
+
+def status(caso: dict | None, agora: datetime | None = None) -> dict:
+    """O que a tela mostra sobre o Telegram do caso (sem o chat_id)."""
+    tg, agora = _tg(caso), _agora(agora)
+    expira = _quando(tg.get("convite_expira"))
+    return {
+        "configurado": configurado(),
+        "ligado": bool(tg.get("chat_id")),
+        "desde": tg.get("vinculado_em") if tg.get("chat_id") else None,
+        "bloqueado": bool(tg.get("chat_id") and tg.get("bloqueado_em")),
+        "convite_pendente_ate": (tg.get("convite_expira") if tg.get("convite_hash") and expira and expira > agora else None),
+        "tentativa_outro_chat_em": tg.get("tentativa_outro_chat_em"),
+    }
+
+
+# ── convite e vínculo ────────────────────────────────────────────────────────
+
 def gerar_convite(repo, caso: dict, agora: datetime | None = None) -> dict:
-    """Gera (ou renova) o convite do caso. Devolve {link, codigo, expira_em, configurado}."""
-    agora = agora or datetime.now(timezone.utc)
+    """Gera um convite novo para o caso. Um convite que ainda valia deixa de valer."""
+    agora = _agora(agora)
     segredo = secrets.token_urlsafe(9)
     expira = agora + VALIDADE_CONVITE
-    dados = dict(caso.get("dados") or {})
-    tg = dict(dados.get("telegram") or {})
+    tg = _tg(caso)
+    substituiu = bool(tg.get("convite_hash"))
+    if substituiu:
+        tg["substituidos"] = _guardar(tg.get("substituidos"), tg["convite_hash"])
     tg.update({"convite_hash": _hash(segredo), "convite_expira": expira.isoformat()})
-    dados["telegram"] = tg
-    repo.salvar_caso(caso["id"], {"dados": dados})
+    _gravar_tg(repo, caso, tg)
     codigo = caso["id"].replace("-", "") + segredo
     bot = os.getenv("TELEGRAM_BOT_USERNAME", "").strip().lstrip("@")
     return {"codigo": codigo, "expira_em": expira.isoformat(), "configurado": configurado() and bool(bot),
             "link": f"https://t.me/{bot}?start={codigo}" if bot else None,
-            "vinculado": bool(tg.get("chat_id"))}
+            "vinculado": bool(tg.get("chat_id")), "substituiu": substituiu}
 
 
 def _ler_codigo(codigo: str) -> tuple:
@@ -132,107 +234,247 @@ def _ler_codigo(codigo: str) -> tuple:
         return None, None
 
 
-def vincular(repo, codigo: str, chat_id, agora: datetime | None = None) -> dict | None:
-    """Liga o chat ao caso do convite. Devolve o caso, ou None se o convite não vale."""
-    agora = agora or datetime.now(timezone.utc)
+def _bate(lista, h: str) -> bool:
+    return any(hmac.compare_digest(str(x), h) for x in (lista or []))
+
+
+def vincular(repo, codigo: str, chat_id, agora: datetime | None = None) -> tuple:
+    """Liga o chat ao caso do convite. Devolve (caso, motivo).
+
+    motivo: "ligado", "ja_ligado" (o mesmo chat abriu o link de novo) ou, sem caso,
+    "usado", "substituido", "vencido", "invalido".
+    """
+    from agente import estado
+    agora, chat = _agora(agora), str(chat_id)
     caso_id, segredo = _ler_codigo(codigo)
-    if not caso_id:
-        return None
-    caso = repo.obter_caso(caso_id)
-    tg = ((caso or {}).get("dados") or {}).get("telegram") or {}
-    if not caso or not tg.get("convite_hash") or not hmac.compare_digest(tg["convite_hash"], _hash(segredo)):
-        return None
-    try:
-        if agora > datetime.fromisoformat(tg["convite_expira"]):
-            return None
-    except (KeyError, ValueError, TypeError):
-        return None
-    anterior = repo.caso_por_telegram(chat_id)
+    caso = repo.obter_caso(caso_id) if caso_id else None
+    if not caso:
+        return None, "invalido"
+    tg, h = _tg(caso), _hash(segredo)
+    if not (tg.get("convite_hash") and hmac.compare_digest(tg["convite_hash"], h)):
+        if _bate(tg.get("usados"), h):
+            if tg.get("chat_id") == chat:
+                return caso, "ja_ligado"
+            # Outra pessoa com um link já usado: não liga, e a equipe fica sabendo.
+            tg["tentativa_outro_chat_em"] = agora.isoformat()
+            tg["tentativas_outro_chat"] = int(tg.get("tentativas_outro_chat") or 0) + 1
+            _gravar_tg(repo, caso, tg)
+            return None, "usado"
+        return None, "substituido" if _bate(tg.get("substituidos"), h) else "invalido"
+    expira = _quando(tg.get("convite_expira"))
+    if not expira or agora > expira:
+        return None, "vencido"
+    anterior = repo.caso_por_telegram(chat)
     if anterior and anterior["id"] != caso["id"]:
-        dados_a = dict(anterior.get("dados") or {})
-        dados_a["telegram"] = {k: v for k, v in (dados_a.get("telegram") or {}).items() if k != "chat_id"}
-        repo.salvar_caso(anterior["id"], {"dados": dados_a})
-    dados = dict(caso.get("dados") or {})
-    dados["telegram"] = {"chat_id": str(chat_id), "vinculado_em": agora.isoformat(), "entregues": []}   # convite gasto
-    repo.salvar_caso(caso["id"], {"dados": dados})
-    caso["dados"] = dados
-    return caso
+        tg_a = _tg(anterior)
+        tg_a.pop("chat_id", None)
+        estado.anotar(anterior, "equipe", "Telegram desligado", "o mesmo Telegram foi ligado a outro devedor",
+                      quando=agora)
+        _gravar_tg(repo, anterior, tg_a)
+    tg.update({"chat_id": chat, "vinculado_em": agora.isoformat(), "entregues": [],
+               "usados": _guardar(tg.get("usados"), h), "convite_hash": None, "convite_expira": None})
+    for k in ("bloqueado_em", "tentativa_outro_chat_em", "tentativas_outro_chat"):
+        tg.pop(k, None)
+    estado.anotar(caso, "equipe", "Telegram ligado", "o devedor abriu o convite", quando=agora)
+    _gravar_tg(repo, caso, tg)
+    return caso, "ligado"
 
 
-# ── entrega das respostas ───────────────────────────────────────────────────
+def desvincular(repo, caso: dict, agora: datetime | None = None) -> dict:
+    """A equipe desliga o Telegram do caso (o convite pendente também deixa de valer)."""
+    from agente import estado
+    tg = _tg(caso)
+    if tg.get("convite_hash"):
+        tg["substituidos"] = _guardar(tg.get("substituidos"), tg["convite_hash"])
+    for k in ("chat_id", "vinculado_em", "convite_hash", "convite_expira", "bloqueado_em",
+              "tentativa_outro_chat_em", "tentativas_outro_chat"):
+        tg.pop(k, None)
+    estado.anotar(caso, "equipe", "Telegram desligado", "desligado pela equipe", quando=_agora(agora))
+    _gravar_tg(repo, caso, tg)
+    return status(caso, agora)
+
+
+# ── entrega ──────────────────────────────────────────────────────────────────
+
+def _chave(m: dict) -> str:
+    q = _quando(m.get("criado_em"))
+    base = f"{int(q.timestamp()) if q else m.get('criado_em')}|{m.get('texto')}"
+    return hashlib.sha1(base.encode("utf-8")).hexdigest()[:16]
+
 
 def entregar(ctx) -> int:
-    """Manda ao Telegram o que o agente escreveu nesta rodada. Devolve quantas entregou.
+    """Manda ao Telegram o que o agente escreveu e ainda não chegou lá. Devolve quantas entregou.
 
-    Chamado pelo orquestrador no fim de cada rodada; sem vínculo ou sem
-    configuração, não faz nada. Falha de rede nunca derruba o atendimento: a
-    mensagem continua registrada no caso e a próxima rodada tenta de novo.
+    Chamado pelo orquestrador no fim de cada rodada. Considera as mensagens do
+    agente desde que o chat foi ligado e dentro de `JANELA_REENVIO`: o que falhou
+    numa rodada vai na próxima. Falha de rede nunca derruba o atendimento.
     """
-    tg = (ctx.caso.get("dados") or {}).get("telegram") or {}
+    tg = _tg(ctx.caso)
     chat_id = tg.get("chat_id")
-    if not chat_id or not configurado():
+    if not chat_id or tg.get("bloqueado_em") or not configurado():
         return 0
-    trace = ctx.rastreio.trace_id
+    from agente import estado
+    agora = _agora(getattr(ctx, "agora", None))
+    desde = max(filter(None, [_quando(tg.get("vinculado_em")), agora - JANELA_REENVIO]))
+    trace = getattr(ctx.rastreio, "trace_id", None)
+    # Com o caso na mão de uma pessoa, só vai o que foi escrito nesta rodada (ex.: o aviso de
+    # transferência); uma resposta antiga do agente que tinha falhado não chega atrasada por cima dela.
+    so_desta_rodada = ctx.caso.get("situacao") in estado.SO_PESSOA_TIRA
     entregues = list(tg.get("entregues") or [])
-    n = 0
-    novas = [m for m in ctx.repo.ultimas_mensagens(ctx.caso["empresa_id"], ctx.caso["id"], 20)
-             if m.get("direcao") == "saida" and m.get("trace_id") == trace]
-    for i, m in enumerate(novas):
-        chave = f"{trace}:{i}"
-        if chave in entregues:
+    mensagens = ctx.repo.ultimas_mensagens(ctx.caso["empresa_id"], ctx.caso["id"], 20)
+    # Depois que uma pessoa da equipe falou (ou houve um aviso de passagem), resposta velha
+    # do agente que tinha falhado não vai mais: ficaria fora de ordem.
+    corte = max([q for m in mensagens if m.get("direcao") == "saida" and m.get("trace_id") in MARCAS_DIRETAS
+                 and (q := _quando(m.get("criado_em")))] or [desde])
+    pendentes = []
+    for m in mensagens:
+        q = _quando(m.get("criado_em"))
+        desta_rodada = m.get("trace_id") == trace
+        if (m.get("direcao") != "saida" or m.get("trace_id") in MARCAS_DIRETAS or not q or q < desde
+                or _chave(m) in entregues or (not desta_rodada and (so_desta_rodada or q < corte))):
             continue
-        if enviar_texto(chat_id, m["texto"]):
-            entregues.append(chave)
+        pendentes.append(m)
+    n = 0
+    for i, m in enumerate(pendentes):
+        r = enviar_texto(chat_id, m["texto"])
+        if r is True:
+            entregues.append(_chave(m))
             n += 1
-        else:
-            break
+            continue
+        if r == BLOQUEADO:
+            # Bloqueou o bot: o que estava na fila é descartado (ficou no caso). Quando ele voltar
+            # a escrever, a conversa recomeça dali, sem respostas velhas chegando de uma vez.
+            tg["bloqueado_em"] = agora.isoformat()
+            entregues.extend(_chave(x) for x in pendentes[i:])
+        break
+    tg["entregues"] = entregues[-MAX_ENTREGUES:]
     dados = dict(ctx.caso.get("dados") or {})
-    dados["telegram"] = {**tg, "entregues": entregues[-MAX_ENTREGUES:]}
+    dados["telegram"] = tg
     ctx.caso["dados"] = dados
     return n
 
 
-def enviar_para_caso(caso: dict, texto: str) -> bool:
-    """Manda um texto ao chat ligado ao caso (usado quando uma pessoa responde). False se não há chat ou falhou."""
-    chat_id = ((caso.get("dados") or {}).get("telegram") or {}).get("chat_id")
-    return bool(chat_id and configurado() and enviar_texto(chat_id, texto))
+def enviar_para_caso(repo, caso: dict, texto: str, agora: datetime | None = None) -> str:
+    """Manda um texto já registrado no caso (pessoa da equipe ou aviso) ao chat ligado.
+
+    Devolve "entregue", "sem_telegram", "nao_configurado", "falhou" ou "bloqueado".
+    """
+    tg = _tg(caso)
+    if not tg.get("chat_id"):
+        return "sem_telegram"
+    if not configurado():
+        return "nao_configurado"
+    if tg.get("bloqueado_em"):
+        return "bloqueado"
+    r = enviar_texto(tg["chat_id"], texto)
+    if r == BLOQUEADO:
+        tg["bloqueado_em"] = _agora(agora).isoformat()
+        _gravar_tg(repo, caso, tg)
+        return "bloqueado"
+    return "entregue" if r is True else "falhou"
+
+
+def avisar(repo, caso: dict, texto: str, agora: datetime | None = None) -> str:
+    """Aviso do sistema ao devedor (ex.: uma pessoa assumiu): fica no caso e vai ao Telegram, se ligado."""
+    repo.gravar_mensagem(caso["empresa_id"], caso["id"], "saida", texto, "aviso", criado_em=_agora(agora))
+    return enviar_para_caso(repo, caso, texto, agora)
+
+
+def _pode_avisar(repo, caso: dict, tipo: str, agora: datetime) -> bool:
+    """Avisos automáticos (pausa, só texto) no máximo uma vez por intervalo."""
+    tg = _tg(caso)
+    avisos = dict(tg.get("avisos") or {})
+    ultimo = _quando(avisos.get(tipo))
+    if ultimo and agora - ultimo < INTERVALO_AVISO[tipo]:
+        return False
+    avisos[tipo] = agora.isoformat()
+    tg["avisos"] = avisos
+    _gravar_tg(repo, caso, tg)
+    return True
 
 
 # ── recebimento (webhook) ───────────────────────────────────────────────────
+
+def _processar_caso(repo, caso: dict, chave: str, agora: datetime) -> None:
+    """Processa a fila só deste caso. Se ele estiver ocupado (o agente ainda está
+    respondendo a mensagem anterior), espera soltar em vez de deixar a mensagem
+    parada até o agendador passar."""
+    from agente import api, orquestrador as orq
+    fonte = api.fabrica_fonte()
+    grafos, cliente = api.grafos(fonte), api.fabrica_cliente()
+    limite = time.monotonic() + ESPERA_CASO_S
+    while True:
+        orq.processar_fila(repo, grafos, cliente, limite=5, agora=max(agora, datetime.now(timezone.utc)),
+                           empresa_id=caso["empresa_id"], caso_id=caso["id"])
+        ev = repo.evento_por_chave(caso["empresa_id"], chave) or {}
+        pronto_em = _quando(ev.get("disponivel_em"))
+        adiado = pronto_em is not None and pronto_em > datetime.now(timezone.utc) + timedelta(seconds=5)
+        if ev.get("situacao") != "pendente" or adiado or time.monotonic() > limite:
+            return
+        time.sleep(1)
+
 
 def receber(update: dict, repo=None, agora: datetime | None = None, processar=True) -> dict:
     """Trata um update do Telegram. Devolve {"acao": ...} (usado nos testes e no log)."""
     from agente import api, orquestrador as orq
     msg = (update or {}).get("message") or {}
-    chat, texto = msg.get("chat") or {}, (msg.get("text") or "").strip()
-    if chat.get("type") != "private" or (msg.get("from") or {}).get("is_bot") or not texto or chat.get("id") is None:
+    chat = msg.get("chat") or {}
+    if chat.get("type") != "private" or (msg.get("from") or {}).get("is_bot") or chat.get("id") is None:
         return {"acao": "ignorado"}
-    chat_id = chat["id"]
+    chat_id, texto = chat["id"], (msg.get("text") or "").strip()
     repo = repo or api.fabrica_repo()
-    agora = agora or datetime.now(timezone.utc)
+    agora = _agora(agora)
+
+    if not texto:
+        if not any(k in msg for k in _MIDIA):
+            return {"acao": "ignorado"}
+        caso = repo.caso_por_telegram(chat_id)
+        if not caso:
+            enviar_texto(chat_id, MSG_SEM_VINCULO)
+            return {"acao": "sem_vinculo"}
+        if _pode_avisar(repo, caso, "so_texto", agora):
+            enviar_texto(chat_id, MSG_SO_TEXTO)
+        return {"acao": "midia", "caso_id": caso["id"]}
 
     if texto.startswith("/start"):
         partes = texto.split(maxsplit=1)
-        caso = vincular(repo, partes[1], chat_id, agora) if len(partes) == 2 else None
-        if caso:
+        if len(partes) < 2:
+            caso = repo.caso_por_telegram(chat_id)
+            enviar_texto(chat_id, MSG_JA_LIGADO if caso else MSG_SEM_VINCULO)
+            return {"acao": "ja_ligado" if caso else "sem_vinculo"}
+        caso, motivo = vincular(repo, partes[1], chat_id, agora)
+        if motivo == "ligado":
             enviar_texto(chat_id, MSG_BOAS_VINDAS)
             return {"acao": "vinculado", "caso_id": caso["id"]}
-        enviar_texto(chat_id, MSG_CONVITE_INVALIDO if len(partes) == 2 else MSG_SEM_VINCULO)
-        return {"acao": "convite_invalido" if len(partes) == 2 else "sem_vinculo"}
+        if motivo == "ja_ligado":
+            enviar_texto(chat_id, MSG_JA_LIGADO)
+            return {"acao": "ja_ligado", "caso_id": caso["id"]}
+        enviar_texto(chat_id, MSG_CONVITE[motivo])
+        return {"acao": f"convite_{motivo}"}
 
     caso = repo.caso_por_telegram(chat_id)
     if not caso:
         enviar_texto(chat_id, MSG_SEM_VINCULO)
         return {"acao": "sem_vinculo"}
-    if not api.ligado():
-        return {"acao": "agente_desligado"}
+    tg = _tg(caso)
+    if tg.get("bloqueado_em"):
+        tg.pop("bloqueado_em")                  # escreveu de novo: desbloqueou o bot
+        _gravar_tg(repo, caso, tg)
     texto = texto[:api.MAX_TEXTO]
-    ev, novo = orq.registrar_evento(repo, caso["empresa_id"], caso["id"], "mensagem_devedor",
-                                    f"telegram:{update.get('update_id', uuid.uuid4().hex)}",
+    chave = f"telegram:{update.get('update_id', uuid.uuid4().hex)}"
+
+    if not api.ligado():
+        # Agente desligado: a mensagem não se perde (a equipe vê no caso) e o devedor sabe que foi recebida.
+        if any(m.get("trace_id") == chave for m in repo.ultimas_mensagens(caso["empresa_id"], caso["id"], 20)):
+            return {"acao": "repetido", "caso_id": caso["id"]}
+        repo.gravar_mensagem(caso["empresa_id"], caso["id"], "entrada", texto, chave, criado_em=agora)
+        if _pode_avisar(repo, caso, "pausa", agora):
+            avisar(repo, caso, MSG_PAUSADO, agora)
+        return {"acao": "agente_desligado", "caso_id": caso["id"]}
+
+    ev, novo = orq.registrar_evento(repo, caso["empresa_id"], caso["id"], "mensagem_devedor", chave,
                                     {"texto": texto}, origem="telegram")
     if novo and processar:
-        enviar_acao(chat_id)            # "digitando…" já, antes da IA começar
-        fonte = api.fabrica_fonte()
-        orq.processar_fila(repo, api.grafos(fonte), api.fabrica_cliente(), limite=5, agora=agora,
-                           empresa_id=caso["empresa_id"])
+        enviar_acao(chat_id)                    # "digitando…" já, antes da IA começar
+        _processar_caso(repo, caso, chave, agora)
     return {"acao": "mensagem" if novo else "repetido", "caso_id": caso["id"]}

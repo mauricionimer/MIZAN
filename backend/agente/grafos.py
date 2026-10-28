@@ -11,8 +11,32 @@ As decisões de segurança são código; só "negociar" usa a IA de conversa.
 """
 import re
 
+from datetime import datetime, timedelta, timezone
+
 from agente import estado, ferramentas, negociador, triagem
 from agente.orquestrador import FIM, Grafo
+
+# O devedor escreve num caso que está com a equipe (ou suspenso, contestado, quitado):
+# o agente não conversa, mas o devedor sabe que a mensagem chegou. No máximo um aviso
+# por janela, e nenhum se alguém já respondeu nesse intervalo.
+JANELA_AVISO_RECEBIDO = timedelta(minutes=30)
+AVISO_RECEBIDO = {
+    "com_pessoa": "Recebi sua mensagem e passei para a equipe. Uma pessoa vai te responder por aqui.",
+    "contestado": "Recebemos sua mensagem. Sua contestação está com a equipe, que vai te responder por aqui.",
+    "suspenso": "Recebemos sua mensagem. A equipe vai ler e, se for o caso, te responder por aqui.",
+    "quitado": "Recebemos sua mensagem. Uma pessoa da equipe vai te responder por aqui.",
+}
+
+
+def _quando(m):
+    q = m.get("criado_em")
+    if isinstance(q, datetime):
+        return q if q.tzinfo else q.replace(tzinfo=timezone.utc)
+    try:
+        d = datetime.fromisoformat(str(q).replace("Z", "+00:00"))
+        return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        return None
 
 
 def _executar_seguro(ctx, fonte, nome: str, args: dict) -> None:
@@ -125,6 +149,13 @@ def grafo_mensagem(fonte) -> Grafo:
         if not any(aviso == (a.get("observacao") or "") for a in pendentes):
             hoje = ctx.agora.astimezone(negociador.auditor.BRASILIA).date().isoformat()
             fonte.criar_agenda(ctx.caso["empresa_id"], dev, "retorno", hoje, observacao=aviso)
+        texto = AVISO_RECEBIDO.get(ctx.caso["situacao"])
+        limite = ctx.agora - JANELA_AVISO_RECEBIDO
+        recentes = [m for m in ctx.repo.ultimas_mensagens(ctx.caso["empresa_id"], ctx.caso["id"], 20)
+                    if m["direcao"] == "saida" and (_quando(m) or limite) > limite]
+        if texto and not recentes:
+            ctx.saida["resposta"] = texto
+            ctx.saida["_seguranca"] = True      # confirmação de recebimento: passa fora do horário (R9)
 
     g = (Grafo("mensagem", "receber")
          .no("receber", receber, seguinte=depois_de_receber)
@@ -135,7 +166,7 @@ def grafo_mensagem(fonte) -> Grafo:
          .no("resposta_fixa", resposta_fixa, seguinte="enviar")
          .no("negociar", negociar, agente="negociador", seguinte="enviar")
          .no("enviar", enviar)
-         .no("avisar_equipe", avisar_equipe))
+         .no("avisar_equipe", avisar_equipe, seguinte="enviar"))
     def ao_falhar(ctx):
         # Algo quebrou depois de receber a mensagem: o devedor não fica sem
         # resposta. Mensagem fixa, sem IA, só se nada foi enviado ainda.

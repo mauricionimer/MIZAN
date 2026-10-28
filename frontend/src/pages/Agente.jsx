@@ -2,7 +2,7 @@
 // orquestração. Na demonstração, quem está na tela escreve como o devedor.
 // Regras em backend/agente/ (docs/PLANO_EXECUCAO_AGENTES.md).
 import { useEffect, useRef, useState } from 'react'
-import { Bot, Send, Search, Loader2, Activity, ShieldCheck, AlertTriangle, Power, UserRound, Coins, ListChecks, Landmark, Clock, Shuffle, CalendarDays, Scale, Hand, Undo2, CalendarClock, Users, BookOpen, FlaskConical } from 'lucide-react'
+import { Bot, Send, Search, Loader2, Activity, ShieldCheck, AlertTriangle, Power, UserRound, Coins, ListChecks, Landmark, Clock, Shuffle, CalendarDays, Scale, Hand, Undo2, CalendarClock, Users, BookOpen, FlaskConical, Headset, Unlink } from 'lucide-react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import ErroCarga from '../components/ErroCarga'
@@ -12,7 +12,7 @@ import EscritorioAgentes from '../components/EscritorioAgentes'
 import useEscritorio from '../components/escritorio/useEscritorio'
 import FichaPassagem, { SeloPrioridade } from '../components/FichaPassagem'
 import { useAuth } from '../context/AuthContext'
-import { agenteDevedores, agenteCaso, agenteSimularMensagem, agenteRetomar, agenteSimularPagamento, agenteCentral, agenteRelogio, agentePlano, agenteAplicarPlano, agentePoliticas, agenteSalvarPolitica, agenteControle, agenteTelegramConvite, agenteResponderComoPessoa, agenteSinal, agenteAgenda, agenteAtribuir, agenteLaboratorio, agenteAnalisar, agenteDecidirRecomendacao, listarEmpresas } from '../api'
+import { agenteDevedores, agenteCaso, agenteSimularMensagem, agenteRetomar, agenteSimularPagamento, agenteCentral, agenteRelogio, agentePlano, agenteAplicarPlano, agentePoliticas, agenteSalvarPolitica, agenteControle, agenteTelegramConvite, agenteTelegramDesligar, agenteAtendimentos, agenteResponderComoPessoa, agenteSinal, agenteAgenda, agenteAtribuir, agenteLaboratorio, agenteAnalisar, agenteDecidirRecomendacao, listarEmpresas } from '../api'
 
 const fmtBRL = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0)
 const fmtUSD = (v) => `US$ ${Number(v || 0).toFixed(4)}`
@@ -107,6 +107,64 @@ function Passos({ passos }) {
   )
 }
 
+// O que aconteceu com uma mensagem da equipe (ou um aviso) a caminho do Telegram do devedor.
+const ENTREGA = {
+  entregue: ['ok', 'Entregue no Telegram do devedor.'],
+  sem_telegram: ['info', 'Registrado no caso. O devedor não tem Telegram ligado: gere um convite para ele receber.'],
+  nao_configurado: ['aviso', 'Registrado no caso, mas o Telegram não está configurado no servidor.'],
+  falhou: ['aviso', 'Registrado no caso, mas não chegou ao Telegram (falha de rede). Tente enviar de novo.'],
+  bloqueado: ['aviso', 'O devedor bloqueou o bot: a mensagem ficou só no caso. Quando ele voltar a escrever, o canal reabre.'],
+}
+
+const fmtDiaHora = v => (v ? new Date(v).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '')
+
+// Estado do Telegram do caso, num selo só.
+function SeloTelegram({ tg }) {
+  if (!tg?.configurado) return null
+  const [cor, texto, dica] = tg.bloqueado
+    ? ['var(--warning)', 'Telegram: bloqueou o bot', 'O devedor bloqueou o bot. Nada é enviado até ele voltar a escrever.']
+    : tg.ligado
+      ? ['var(--success)', 'Telegram ligado', `Ligado desde ${fmtDiaHora(tg.desde)}`]
+      : tg.convite_pendente_ate
+        ? ['var(--ink-2)', `Convite enviado (vale até ${new Date(tg.convite_pendente_ate).toLocaleDateString('pt-BR')})`, 'O devedor ainda não abriu o link.']
+        : ['var(--ink-3)', 'Sem Telegram', 'Gere um convite para o devedor conversar pelo Telegram.']
+  return <span title={dica} className="rounded-full border px-2 py-0.5 text-xs font-medium" style={{ color: cor, borderColor: cor }}>{texto}</span>
+}
+
+// Casos com a equipe, quem espera resposta primeiro. Atualiza sozinho.
+function Atendimentos({ empresa, escolhido, onEscolher }) {
+  const [itens, setItens] = useState([])
+  useEffect(() => {
+    let vivo = true
+    const ler = () => { if (!document.hidden) agenteAtendimentos(empresa).then(d => vivo && setItens(d.itens || [])).catch(() => {}) }
+    ler()
+    const t = setInterval(ler, 4000)
+    return () => { vivo = false; clearInterval(t) }
+  }, [empresa])
+  if (!itens.length) return null
+  const esperando = itens.filter(i => i.esperando).length
+  return (
+    <div className="mb-3 rounded-lg border border-line bg-raise-1 p-2">
+      <p className="mb-1 flex items-center gap-1.5 px-1 text-xs font-semibold text-ink">
+        <Headset className="h-3.5 w-3.5 text-accent-text" /> Com a equipe
+        {esperando > 0 && <span className="ml-auto rounded-full px-1.5 text-[11px] font-bold" style={{ color: 'var(--warning)', border: '1px solid var(--warning)' }}>{esperando} esperando</span>}
+      </p>
+      <ul className="max-h-40 space-y-0.5 overflow-y-auto">
+        {itens.map(i => (
+          <li key={i.predicao_id}>
+            <button onClick={() => onEscolher({ id: i.predicao_id, nome: i.nome })}
+              className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors ${escolhido?.id === i.predicao_id ? 'bg-blue-500/15' : 'hover:bg-raise-2'}`}>
+              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: i.esperando ? 'var(--warning)' : 'var(--ink-4)' }} />
+              <span className="min-w-0 flex-1 truncate text-ink">{i.nome}</span>
+              <span className="shrink-0 text-[11px] text-ink-3" title={i.esperando ? 'Esperando resposta da equipe desde este horário' : 'A equipe já respondeu'}>{i.esperando ? fmtHora(i.desde) : 'respondido'}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 function Conversa({ empresa }) {
   const [params] = useSearchParams()
   const [busca, setBusca] = useState('')
@@ -123,15 +181,39 @@ function Conversa({ empresa }) {
   const quandoRetomar = dados?.evento?.situacao === 'pendente' ? Date.parse(dados.evento.disponivel_em || '') : NaN
 
   const [convite, setConvite] = useState(null)
-  useEffect(() => { setConvite(null) }, [escolhido])
+  const [entrega, setEntrega] = useState(null)       // [tipo, texto] da última mensagem da equipe
+  const [copiado, setCopiado] = useState(false)
+  useEffect(() => { setConvite(null); setEntrega(null) }, [escolhido])
+  const tg = dados?.telegram
   async function gerarConvite() {
+    // Um link vale para UM Telegram. Gerar outro desliga o anterior: confirma antes.
+    if (tg?.ligado && !window.confirm('Este caso já tem um Telegram ligado. Um novo convite liga o caso ao Telegram de quem abrir o link, e o atual deixa de receber. Gerar mesmo assim?')) return
+    if (!tg?.ligado && tg?.convite_pendente_ate && !window.confirm('Já existe um convite que o devedor ainda não abriu. O novo link substitui o anterior, que deixa de funcionar. Gerar outro?')) return
+    setEnviando(true); setErro(null); setCopiado(false)
+    try {
+      setConvite(await agenteTelegramConvite(escolhido.id, empresa))
+      setDados(await agenteCaso(escolhido.id, empresa))
+    } catch (err) { setErro(err) } finally { setEnviando(false) }
+  }
+
+  async function desligarTelegram() {
+    if (!window.confirm('Desligar o Telegram deste caso? O devedor para de receber mensagens por lá e o link deixa de valer.')) return
     setEnviando(true); setErro(null)
-    try { setConvite(await agenteTelegramConvite(escolhido.id, empresa)) } catch (err) { setErro(err) } finally { setEnviando(false) }
+    try { setDados(await agenteTelegramDesligar(escolhido.id, empresa)); setConvite(null) } catch (err) { setErro(err) } finally { setEnviando(false) }
   }
 
   async function controlar(acao) {
-    setEnviando(true); setErro(null)
-    try { setDados(await agenteControle(escolhido.id, acao, empresa)) } catch (err) { setErro(err) } finally { setEnviando(false) }
+    setEnviando(true); setErro(null); setEntrega(null)
+    try {
+      const r = await agenteControle(escolhido.id, acao, empresa)
+      setDados(r)
+      if (r.entrega && r.entrega !== 'sem_telegram') {
+        const [tipo, txt] = ENTREGA[r.entrega] || ['info', '']
+        setEntrega([tipo, r.entrega === 'entregue'
+          ? (acao === 'assumir' ? 'O devedor foi avisado no Telegram de que agora fala com uma pessoa.' : 'O devedor foi avisado no Telegram de que o assistente voltou.')
+          : `Aviso ao devedor: ${txt}`])
+      }
+    } catch (err) { setErro(err) } finally { setEnviando(false) }
   }
 
   async function pagar(e) {
@@ -225,14 +307,20 @@ function Conversa({ empresa }) {
     setTexto('')
     try {
       // Com o caso na mão da equipe, quem escreve é a pessoa (e chega no Telegram do devedor).
-      setDados(comPessoa ? await agenteResponderComoPessoa(escolhido.id, mensagem, empresa)
-                         : await agenteSimularMensagem(escolhido.id, mensagem, empresa))
+      setEntrega(null)
+      if (comPessoa) {
+        const r = await agenteResponderComoPessoa(escolhido.id, mensagem, empresa)
+        setDados(r)
+        setEntrega(ENTREGA[r.entrega] || null)
+        if (r.entrega === 'falhou') setTexto(mensagem)          // fica na caixa para tentar de novo
+      } else setDados(await agenteSimularMensagem(escolhido.id, mensagem, empresa))
     } catch (err) { setErro(err); setTexto(mensagem) } finally { setEnviando(false) }
   }
 
   return (
     <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)_320px]">
       <section className="rounded-xl border border-line bg-surface p-3">
+        <Atendimentos empresa={empresa} escolhido={escolhido} onEscolher={setEscolhido} />
         <label className="flex items-center gap-2 rounded-lg border border-line bg-surface-2 px-2.5 py-1.5">
           <Search className="h-4 w-4 text-ink-3" />
           <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar devedor…" aria-label="Buscar devedor"
@@ -265,8 +353,13 @@ function Conversa({ empresa }) {
               <p className="text-sm font-semibold text-ink">{escolhido.nome}</p>
               <Selo situacao={dados?.caso?.situacao} />
               {dados?.caso?.identidade_confirmada && <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--success)' }}><ShieldCheck className="h-3.5 w-3.5" /> identidade confirmada</span>}
-              <button onClick={gerarConvite} disabled={enviando} title="Gera o link para o devedor conversar com o agente pelo Telegram"
-                className="ml-auto flex items-center gap-1 rounded-md border border-line bg-raise-1 px-2 py-1 text-xs font-medium text-ink hover:bg-raise-2"><Send className="h-3.5 w-3.5" /> Convite Telegram</button>
+              <SeloTelegram tg={tg} />
+              <button onClick={gerarConvite} disabled={enviando} title="Gera o link para o devedor conversar com o agente pelo Telegram (um link por pessoa)"
+                className="ml-auto flex items-center gap-1 rounded-md border border-line bg-raise-1 px-2 py-1 text-xs font-medium text-ink hover:bg-raise-2"><Send className="h-3.5 w-3.5" /> {tg?.ligado || tg?.convite_pendente_ate ? 'Novo convite' : 'Convite Telegram'}</button>
+              {(tg?.ligado || tg?.convite_pendente_ate) && (
+                <button onClick={desligarTelegram} disabled={enviando} title="O devedor para de receber pelo Telegram e o link deixa de valer"
+                  className="flex items-center gap-1 rounded-md border border-line bg-raise-1 px-2 py-1 text-xs font-medium text-ink-2 hover:bg-raise-2"><Unlink className="h-3.5 w-3.5" /> Desligar</button>
+              )}
               {dados?.caso && (dados.caso.situacao === 'com_pessoa'
                 ? <button onClick={() => controlar('devolver')} disabled={enviando} className="flex items-center gap-1 rounded-md border border-line bg-raise-1 px-2 py-1 text-xs font-medium text-ink hover:bg-raise-2"><Undo2 className="h-3.5 w-3.5" /> Devolver ao agente</button>
                 : <button onClick={() => controlar('assumir')} disabled={enviando} className="flex items-center gap-1 rounded-md border border-line bg-raise-1 px-2 py-1 text-xs font-medium text-ink hover:bg-raise-2"><Hand className="h-3.5 w-3.5" /> Assumir o caso</button>)}
@@ -275,10 +368,10 @@ function Conversa({ empresa }) {
               <div className="flex flex-wrap items-center gap-2 border-b border-line bg-raise-1 px-4 py-2 text-xs text-ink-2" role="status">
                 {convite.configurado && convite.link ? (
                   <>
-                    <span>Envie este link ao devedor (vale uma vez, até {new Date(convite.expira_em).toLocaleDateString('pt-BR')}):</span>
+                    <span>Envie este link só a este devedor. Ele liga um Telegram (o primeiro que abrir) e vale até {new Date(convite.expira_em).toLocaleDateString('pt-BR')}:</span>
                     <input readOnly value={convite.link} onFocus={e => e.target.select()} aria-label="Link do convite"
                       className="min-w-[16rem] flex-1 rounded border border-line bg-surface-2 px-2 py-1 text-ink" />
-                    <button onClick={() => navigator.clipboard?.writeText(convite.link)} className="rounded-md border border-line bg-raise-1 px-2 py-1 font-medium text-ink hover:bg-raise-2">Copiar</button>
+                    <button onClick={() => { navigator.clipboard?.writeText(convite.link); setCopiado(true) }} className="rounded-md border border-line bg-raise-1 px-2 py-1 font-medium text-ink hover:bg-raise-2">{copiado ? 'Copiado' : 'Copiar'}</button>
                   </>
                 ) : <span>O Telegram ainda não está configurado no servidor (variáveis TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET e TELEGRAM_BOT_USERNAME).</span>}
               </div>
@@ -286,18 +379,33 @@ function Conversa({ empresa }) {
             {!enviando && aguardando && <p role="status" className="border-b border-line px-4 py-2 text-xs text-ink-2">
               {dados.evento.situacao === 'processando' ? 'O agente está processando a mensagem.' : 'O agente tentará responder novamente automaticamente. A mensagem permanece na fila.'}
             </p>}
+            {tg?.tentativa_outro_chat_em && (
+              <p role="status" className="flex items-start gap-1.5 border-b border-line px-4 py-2 text-xs" style={{ color: 'var(--warning)' }}>
+                <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" />
+                Em {fmtDiaHora(tg.tentativa_outro_chat_em)} alguém tentou abrir o link deste caso em outro Telegram e não conseguiu. Cada pessoa precisa do próprio link.
+              </p>
+            )}
             {dados?.caso?.situacao === 'com_pessoa' && <p role="status" className="border-b border-line px-4 py-2 text-xs text-ink-2">
-              Este caso está com a equipe. As novas mensagens são encaminhadas para atendimento humano.
+              Este caso está com a equipe: o agente não responde. O devedor recebe só uma confirmação de que a mensagem chegou; a resposta é sua, pela caixa abaixo.
             </p>}
             <div className="flex-1 space-y-2 overflow-y-auto p-4">
-              {(dados?.mensagens || []).map((m, i) => (
-                <div key={i} className={`flex ${m.direcao === 'entrada' ? 'justify-start' : 'justify-end'}`}>
-                  <div className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm ${m.direcao === 'entrada' ? 'rounded-bl-sm bg-raise-2 text-ink' : 'rounded-br-sm bg-blue-600 text-white'}`}>
-                    <p className="whitespace-pre-wrap">{m.texto}</p>
-                    <p className={`mt-1 text-[10px] ${m.direcao === 'entrada' ? 'text-ink-3' : 'text-blue-100'}`}>{m.direcao === 'entrada' ? 'Devedor' : m.trace_id === 'pessoa' ? 'Atendente' : 'Assistente'} · {fmtHora(m.criado_em)}</p>
+              {(dados?.mensagens || []).map((m, i) => {
+                const quem = m.direcao === 'entrada' ? 'devedor' : m.trace_id === 'pessoa' ? 'atendente' : m.trace_id === 'aviso' ? 'aviso' : 'assistente'
+                const estilo = {
+                  devedor: ['rounded-bl-sm bg-raise-2 text-ink', 'text-ink-3', 'Devedor'],
+                  atendente: ['rounded-br-sm bg-emerald-600 text-white', 'text-white/80', 'Atendente'],
+                  aviso: ['rounded-br-sm border border-line bg-raise-1 text-ink-2', 'text-ink-3', 'Aviso automático'],
+                  assistente: ['rounded-br-sm bg-blue-600 text-white', 'text-blue-100', 'Assistente'],
+                }[quem]
+                return (
+                  <div key={i} className={`flex ${quem === 'devedor' ? 'justify-start' : 'justify-end'}`}>
+                    <div className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm ${estilo[0]}`}>
+                      <p className="whitespace-pre-wrap">{m.texto}</p>
+                      <p className={`mt-1 text-[10px] ${estilo[1]}`}>{estilo[2]} · {fmtHora(m.criado_em)}</p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
               {!enviando && !aguardando && dados?.caso?.situacao !== 'com_pessoa' && dados?.silencio && (
                 <div className="flex justify-center">
                   <p className="flex max-w-[90%] items-start gap-1.5 rounded-lg border px-3 py-1.5 text-xs" style={{ color: 'var(--warning)', borderColor: 'var(--warning)' }}>
@@ -309,6 +417,12 @@ function Conversa({ empresa }) {
               <div ref={fim} />
             </div>
             <ErroCarga erro={erro} compacto className="mx-4 mb-2" />
+            {entrega && (
+              <p role="status" className="mx-4 mb-2 flex items-start gap-1.5 text-xs"
+                style={{ color: entrega[0] === 'ok' ? 'var(--success)' : entrega[0] === 'aviso' ? 'var(--warning)' : 'var(--ink-2)' }}>
+                {entrega[0] === 'aviso' ? <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" /> : <Send className="mt-px h-3.5 w-3.5 shrink-0" />} {entrega[1]}
+              </p>
+            )}
             {dados?.caso && (
               <form onSubmit={pagar} className="flex flex-wrap items-center gap-2 border-t border-line px-3 pt-3 text-xs text-ink-2">
                 <Landmark className="h-4 w-4" /> Simular o banco confirmando um pagamento de R$

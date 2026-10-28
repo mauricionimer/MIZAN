@@ -182,6 +182,11 @@ def definir_fase_devedor(empresa_id, predicao_id, fase, usuario, registros=None,
     return fluxo_devedor(empresa_id, predicao_id, repo=repo, registros=registros)
 
 
+def _status_telegram(caso: dict) -> dict:
+    from agente import canal_telegram
+    return canal_telegram.status(caso)
+
+
 def ver_caso(empresa_id: str, predicao_id: str, repo=None) -> dict:
     repo = repo or fabrica_repo()
     caso = repo.caso_de(empresa_id, predicao_id)
@@ -208,6 +213,7 @@ def ver_caso(empresa_id: str, predicao_id: str, repo=None) -> dict:
             m.get("trace_id") == ultimo_trace and m["direcao"] == "saida" for m in msgs) else None),
         "atendimento": d.get("atendimento"),
         "caderno": list(reversed(estado.caderno(caso))),
+        "telegram": _status_telegram(caso),
     }
 
 
@@ -278,13 +284,47 @@ def responder_como_pessoa(empresa_id: str, predicao_id: str, texto: str, agora: 
         raise LookupError("Este devedor ainda não tem conversa com o agente.")
     if caso["situacao"] != "com_pessoa":
         raise CasoOcupado("Assuma o caso antes de responder: enquanto o agente cuida dele, ele mesmo responde.")
-    repo.gravar_mensagem(empresa_id, caso["id"], "saida", texto, MARCA_PESSOA,
-                         criado_em=agora or datetime.now(timezone.utc))
-    entregue = canal_telegram.enviar_para_caso(caso, texto)
+    agora = agora or datetime.now(timezone.utc)
+    repo.gravar_mensagem(empresa_id, caso["id"], "saida", texto, MARCA_PESSOA, criado_em=agora)
+    entrega = canal_telegram.enviar_para_caso(repo, caso, texto, agora)
     r = ver_caso(empresa_id, predicao_id, repo)
-    r["entregue_telegram"] = entregue
-    r["telegram_ligado"] = bool(((caso.get("dados") or {}).get("telegram") or {}).get("chat_id"))
+    r["entrega"] = entrega
+    r["entregue_telegram"] = entrega == "entregue"
+    r["telegram_ligado"] = r["telegram"]["ligado"]
     return r
+
+
+def desligar_telegram(empresa_id: str, predicao_id: str, agora: datetime | None = None) -> dict:
+    """A equipe desliga o Telegram do caso: o chat para de receber e o convite pendente deixa de valer."""
+    from agente import canal_telegram
+    repo = fabrica_repo()
+    caso = repo.caso_de(empresa_id, predicao_id)
+    if caso is None:
+        raise LookupError("Este devedor ainda não tem caso com o agente.")
+    canal_telegram.desvincular(repo, caso, agora)
+    return ver_caso(empresa_id, predicao_id, repo)
+
+
+def atendimentos(empresa_id: str, agora: datetime | None = None) -> dict:
+    """Casos com a equipe, para a tela de conversas: quem está esperando resposta aparece primeiro."""
+    from agente import canal_telegram
+    agora = agora or datetime.now(timezone.utc)
+    repo, fonte = fabrica_repo(), fabrica_fonte()
+    itens = []
+    for c in repo.casos_da_empresa(empresa_id, situacoes=["com_pessoa"])[:50]:
+        ms = repo.ultimas_mensagens(empresa_id, c["id"], 20)
+        ultima = ms[-1] if ms else {}
+        # Esperando: o devedor escreveu depois da última resposta de uma pessoa da equipe
+        # (a confirmação automática de recebimento não conta como resposta).
+        i_entrada = max((i for i, m in enumerate(ms) if m["direcao"] == "entrada"), default=-1)
+        i_pessoa = max((i for i, m in enumerate(ms) if m["direcao"] == "saida" and m.get("trace_id") == MARCA_PESSOA),
+                       default=-1)
+        dev = fonte.devedor(empresa_id, c["predicao_id"]) or {}
+        itens.append({"predicao_id": c["predicao_id"], "nome": dev.get("nome") or "Devedor",
+                      "esperando": i_entrada > i_pessoa, "desde": ms[i_entrada]["criado_em"] if i_entrada >= 0 else None,
+                      "ultima_em": ultima.get("criado_em"), "telegram": canal_telegram.status(c, agora)["ligado"]})
+    itens.sort(key=lambda i: (not i["esperando"], str(i["ultima_em"] or "")))
+    return {"itens": itens}
 
 
 def sinal_do_caso(empresa_id: str, predicao_id: str) -> dict:
@@ -293,9 +333,13 @@ def sinal_do_caso(empresa_id: str, predicao_id: str) -> dict:
     caso = repo.caso_de(empresa_id, predicao_id)
     if caso is None:
         return {"sinal": "", "situacao": None}
+    from agente import canal_telegram
     ms = repo.ultimas_mensagens(empresa_id, caso["id"], 50)
     ultima = ms[-1] if ms else {}
-    return {"sinal": f"{len(ms)}:{ultima.get('criado_em')}:{caso['situacao']}", "situacao": caso["situacao"]}
+    tg = canal_telegram.status(caso)
+    marca_tg = "".join(k[0] for k in ("ligado", "bloqueado", "convite_pendente_ate") if tg.get(k))
+    marca_tg += str(tg.get("tentativa_outro_chat_em") or "")
+    return {"sinal": f"{len(ms)}:{ultima.get('criado_em')}:{caso['situacao']}:{marca_tg}", "situacao": caso["situacao"]}
 
 
 def central(empresa_id: str, agora: datetime | None = None) -> dict:
@@ -742,4 +786,13 @@ def controle_do_gestor(empresa_id: str, predicao_id: str, acao: str, quem: str |
             p["detalhe"] = {"acao": acao, "de": caso["situacao"], "para": situacao}
     finally:
         repo.soltar_caso(caso["id"], dono)
-    return ver_caso(empresa_id, predicao_id, repo)
+    entrega = None
+    if situacao != caso["situacao"] and repo.ultimas_mensagens(empresa_id, caso["id"], 1):
+        # Só avisa quem já conversou: o devedor sabe quando passa a falar com uma pessoa e quando volta ao assistente.
+        from agente import canal_telegram
+        caso["situacao"] = situacao
+        entrega = canal_telegram.avisar(repo, caso, canal_telegram.AVISO_ASSUMIU if acao == "assumir"
+                                        else canal_telegram.AVISO_DEVOLVEU, agora)
+    r = ver_caso(empresa_id, predicao_id, repo)
+    r["entrega"] = entrega
+    return r

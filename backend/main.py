@@ -9083,6 +9083,34 @@ def agente_sinal_do_caso(predicao_id: str, empresa_id: Optional[str] = None,
     return agente_api.sinal_do_caso(emp, predicao_id)
 
 
+class AgenteEmpresaIn(BaseModel):
+    empresa_id: Optional[str] = None
+
+
+@app.post("/agente/casos/{predicao_id}/telegram-desligar")
+def agente_telegram_desligar(predicao_id: str, body: AgenteEmpresaIn,
+                             credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Desliga o Telegram do caso (ex.: o link foi para a pessoa errada)."""
+    from agente import api as agente_api
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") not in ("admin", "comando"):
+        raise HTTPException(status_code=403, detail="Só o administrador desliga o Telegram de um caso.")
+    emp = _empresa_do_agente(payload, body.empresa_id)
+    try:
+        return agente_api.desligar_telegram(emp, predicao_id)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.get("/agente/atendimentos")
+def agente_atendimentos(empresa_id: Optional[str] = None,
+                        credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Casos que estão com a equipe; quem está esperando resposta vem primeiro."""
+    from agente import api as agente_api
+    emp = _empresa_do_agente(_usuario_autenticado(credentials), empresa_id)
+    return agente_api.atendimentos(emp)
+
+
 @app.post("/agente/casos/{predicao_id}/atendente")
 def agente_responder_como_pessoa(predicao_id: str, body: AgenteMensagemIn,
                                  credentials: HTTPAuthorizationCredentials = Security(bearer)):

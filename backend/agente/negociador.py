@@ -187,7 +187,15 @@ def _historico(ctx) -> list:
     msgs = []
     for m in ctx.repo.ultimas_mensagens(ctx.caso["empresa_id"], ctx.caso["id"], MAX_HISTORICO + 1)[:-1]:
         papel = "user" if m["direcao"] == "entrada" else "assistant"
-        texto = (f"<mensagem_do_devedor>{como_dado(mascarar(m['texto']))}</mensagem_do_devedor>" if papel == "user" else m["texto"])
+        if papel == "user":
+            texto = f"<mensagem_do_devedor>{como_dado(mascarar(m['texto']))}</mensagem_do_devedor>"
+        elif m.get("trace_id") == "pessoa":
+            # Escrita por uma pessoa da equipe, não pela IA: o agente não assume o que ela prometeu.
+            texto = f"[Mensagem de uma pessoa da equipe, não do assistente] {m['texto']}"
+        elif m.get("trace_id") == "aviso":
+            texto = f"[Aviso automático do sistema] {m['texto']}"
+        else:
+            texto = m["texto"]
         if msgs and msgs[-1]["role"] == papel:
             msgs[-1]["content"][0]["text"] += "\n" + texto
         else:

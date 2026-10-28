@@ -158,8 +158,11 @@ print("— caso que está com uma pessoa —")
 m = Mundo(situacao="com_pessoa")
 m.escreve("Oi, alguém aí?", ["NÃO DEVIA SER CHAMADO"])
 m.escreve("Oi??", ["NÃO DEVIA SER CHAMADO"])
-checar(m.saidas() == [] and len(m.fonte.agenda) == 1 and "Nova mensagem" in m.fonte.agenda[0]["observacao"],
-       "não responde pela IA; avisa a equipe uma vez só")
+from agente.grafos import AVISO_RECEBIDO
+s = m.saidas()
+checar(len(s) == 1 and AVISO_RECEBIDO["com_pessoa"] in s[0] and len(m.fonte.agenda) == 1
+       and "Nova mensagem" in m.fonte.agenda[0]["observacao"],
+       "não responde pela IA; confirma o recebimento uma vez e avisa a equipe uma vez só", str(s))
 checar(len([x for x in m.repo.mensagens if x["direcao"] == "entrada"]) == 2, "mas guarda as mensagens")
 
 print("— falhas viram pessoa —")
