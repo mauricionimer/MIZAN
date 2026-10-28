@@ -375,6 +375,15 @@ _limite.instalar(app)
 _erros.instalar_captura(app)
 _erros.instalar_handlers(app)
 
+@app.middleware("http")
+async def sem_cache_no_agente(request: Request, call_next):
+    """A conversa dos agentes muda a qualquer hora (o devedor escreve pelo Telegram): nunca guardar em cache."""
+    resp = await call_next(request)
+    if request.url.path.startswith(("/agente/", "/canal/")):
+        resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
 app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=4)
 from desempenho import MedirDesempenho
 app.add_middleware(MedirDesempenho)
@@ -8958,10 +8967,14 @@ async def telegram_webhook(request: Request, tarefas: BackgroundTasks):
         raise HTTPException(status_code=400, detail="Corpo inválido.")
 
     def tratar():
+        import time
+        t0 = time.time()
         try:
-            canal_telegram.receber(update)
+            r = canal_telegram.receber(update)
+            # Só a ação e o tempo, nunca o texto: aparece nos logs do Render para medir a demora.
+            print(f"[Telegram] {r.get('acao')} em {time.time() - t0:.1f}s")
         except Exception as e:                       # o Telegram só precisa do 200; o erro fica no log, sem dados
-            print(f"[Telegram] update não tratado: {type(e).__name__}")
+            print(f"[Telegram] update não tratado: {type(e).__name__} após {time.time() - t0:.1f}s")
     tarefas.add_task(tratar)                         # responde 200 já: a IA pode demorar
     return {"ok": True}
 

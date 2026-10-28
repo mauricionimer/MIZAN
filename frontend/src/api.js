@@ -145,7 +145,7 @@ async function executarPedido(caminho, { metodo = 'GET', corpo, form, token, que
   const { sinal: sinalComPrazo, limpar } = _sinalComPrazo(sinal)
   let res
   try {
-    res = await fetch(url, { method: metodo, headers, body, signal: sinalComPrazo })
+    res = await fetch(url, { method: metodo, headers, body, signal: sinalComPrazo, cache: 'no-store' })
   } finally {
     limpar()
   }
