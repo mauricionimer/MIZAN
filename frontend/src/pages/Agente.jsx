@@ -178,7 +178,7 @@ function Conversa({ empresa }) {
     return () => { vivo = false; clearInterval(t) }
   }, [escolhido, empresa, aguardando, quandoRetomar])
 
-  // O devedor pode escrever pelo Telegram a qualquer hora: de 3 em 3 segundos a tela pergunta, de forma
+  // O devedor pode escrever pelo Telegram a qualquer hora: a cada 1 segundo a tela pergunta, de forma
   // barata, se o caso mudou, e só então recarrega a conversa. Parada com a aba escondida ou enviando.
   const sinalVisto = useRef(null)
   useEffect(() => { sinalVisto.current = null }, [escolhido])
@@ -209,7 +209,7 @@ function Conversa({ empresa }) {
           if (vivo) setDados(novo)
         }
       } catch { /* a próxima volta tenta de novo */ }
-    }, 3000)
+    }, 1000)
     return () => { vivo = false; clearInterval(t) }
   }, [escolhido, empresa, enviando])
 
