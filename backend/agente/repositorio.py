@@ -134,11 +134,13 @@ class RepoMemoria:
         prontos.sort(key=lambda e: (-e["prioridade"], e["criado_em"]))
         return [copy.deepcopy(e) for e in prontos[:limite]]
 
-    def reservar_evento(self, evento_id: str) -> bool:
+    def reservar_evento(self, evento_id: str, trace_id: str | None = None) -> bool:
         with self._lock:
             e = self.eventos.get(evento_id)
             if not e or e["situacao"] != "pendente":
                 return False
+            if trace_id:
+                e["trace_id"] = trace_id
             e["situacao"] = "processando"
             e["disponivel_em"] = agora_utc() + RESERVA_EVENTO      # até quando a reserva vale
             return copy.deepcopy(e)                                 # o evento como ficou reservado
@@ -478,9 +480,12 @@ class RepoSupabase:
         res = q.order("prioridade", desc=True).order("criado_em").limit(limite).execute()
         return res.data or []
 
-    def reservar_evento(self, evento_id: str) -> bool:
+    def reservar_evento(self, evento_id: str, trace_id: str | None = None) -> bool:
         ate = (agora_utc() + RESERVA_EVENTO).isoformat()
-        res = (self.db.table("agente_eventos").update({"situacao": "processando", "disponivel_em": ate})
+        campos = {"situacao": "processando", "disponivel_em": ate}
+        if trace_id:
+            campos["trace_id"] = trace_id                          # na mesma ida ao banco da reserva
+        res = (self.db.table("agente_eventos").update(campos)
                .eq("id", evento_id).eq("situacao", "pendente").execute())
         if not res.data:
             return False

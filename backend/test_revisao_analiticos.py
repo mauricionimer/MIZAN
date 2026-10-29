@@ -304,8 +304,15 @@ def t_custo_do_dia_brasilia():
     checar(dias == [date(2026, 10, 19)] * 2, "9. custo do dia usa o dia de Brasília", str(dias))
     import inspect
     fonte_api = inspect.getsource(api)
-    checar(fonte_api.count("empresa_id=empresa_id)") >= 4 and "TODO junção" not in fonte_api,
-           "9. as 4 chamadas de processar_fila só processam a fila da própria empresa")
+    # Toda rota de uma empresa processa só a fila dela; o ciclo agendado (todas as empresas) é a exceção.
+    chamadas = []
+    for nome, fn in inspect.getmembers(api, inspect.isfunction):
+        if fn.__module__ != api.__name__ or nome == "ciclo_agendado":
+            continue
+        src = inspect.getsource(fn)
+        chamadas += [src[i:i + 300] for i in range(len(src)) if src.startswith("processar_fila(", i)]
+    checar(len(chamadas) >= 4 and all("empresa_id=empresa_id" in c for c in chamadas) and "TODO junção" not in fonte_api,
+           "9. as chamadas de processar_fila das rotas só processam a fila da própria empresa", str(len(chamadas)))
 
 
 # ── 6. Estrategista com IA ──────────────────────────────────────────────────

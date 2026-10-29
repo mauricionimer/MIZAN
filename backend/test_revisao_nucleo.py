@@ -196,7 +196,9 @@ def falha_uma_vez():
         raise ConnectionResetError()
     return Corpo(b'{"candidates": []}')
 tipo, _ = com_urlopen(falha_uma_vez)
-checar(tipo == "ok" and conta["n"] == 2, "rede caiu uma vez: tenta de novo e segue")
+# Sem nova tentativa dentro da requisição (_enviar_http: "o único responsável pela repetição é a
+# fila"): a queda vira IaOcupada e a fila retoma do checkpoint. test_agente_latencia confere o mesmo.
+checar(tipo == "IaOcupada" and conta["n"] == 1, "rede caiu: vira IaOcupada e a fila tenta de novo (sem repetir aqui)")
 _time.sleep = _sleep_original
 
 print("— 2b. Anthropic: cota, servidor, conexão e tempo esgotado viram IaOcupada —")
@@ -383,7 +385,8 @@ checar(repo.reservar_evento(ev["id"]) and repo.eventos[ev["id"]]["disponivel_em"
        "a reserva guarda até quando vale")
 repo.eventos[ev["id"]]["disponivel_em"] = agora_utc() - timedelta(seconds=1)      # o processo morreu
 g = orq.Grafo("g", "a").no("a", lambda ctx: None)
-feitos = orq.processar_fila(repo, {"mensagem_devedor": g}, ClienteFalso(), agora=AGORA + timedelta(days=5))
+# A devolução usa o relógio real; o "agora" da fila precisa vir depois dele (AGORA é uma data fixa do passado).
+feitos = orq.processar_fila(repo, {"mensagem_devedor": g}, ClienteFalso(), agora=agora_utc() + timedelta(minutes=1))
 e = repo.eventos[ev["id"]]
 checar(len(feitos) == 1 and e["situacao"] == "feito" and e["tentativas"] == 1, "reserva vencida: volta e é processado",
        f"{e['situacao']} {e['tentativas']}")
@@ -398,15 +401,15 @@ checar(repo.devolver_presos(agora_utc(), 2) == 0 and repo.eventos[ev["id"]]["sit
 
 repo = RepoMemoria(); caso = repo.obter_ou_criar_caso("emp", "p1")
 ev, _ = orq.registrar_evento(repo, "emp", caso["id"], "mensagem_devedor", "k1")
-orig = repo.atualizar_evento
-def quebra(eid, campos):
-    if "trace_id" in campos:
+orig = repo.reservar_evento
+def quebra(eid, trace_id=None):
+    if trace_id:                                   # o trace_id vai na mesma gravação da reserva
         raise ConnectionError("banco fora do ar")
-    return orig(eid, campos)
-repo.atualizar_evento = quebra
+    return orig(eid, trace_id)
+repo.reservar_evento = quebra
 r = orq.processar_proximo(repo, {"mensagem_devedor": g}, ClienteFalso(), AGORA)
-checar(r and not r["ok"] and repo.eventos[ev["id"]]["situacao"] == "pendente",
-       "banco cai ao gravar o trace_id: o evento volta para a fila (não fica preso)")
+checar(r is None and repo.eventos[ev["id"]]["situacao"] == "pendente",
+       "banco cai ao gravar o trace_id (na reserva): o evento fica na fila (não fica preso)")
 
 repo = RepoMemoria(); caso = repo.obter_ou_criar_caso("emp", "p1")
 ev, _ = orq.registrar_evento(repo, "emp", caso["id"], "mensagem_devedor", "k1", disponivel_em=AGORA)

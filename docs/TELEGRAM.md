@@ -59,6 +59,22 @@ O agente do Telegram é o mesmo do chat do Mizan, e a conversa começa do mesmo 
   `MIZAN_IA_JANELA_CASO_MIN`). Uma conversa de verdade não chega perto; quem manda dezenas de
   mensagens recebe "já te respondo" e uma resposta só no fim da janela.
 
+## Tempo de resposta
+
+O que pesa numa resposta, do maior para o menor: as chamadas de IA, as idas ao banco e o envio ao Telegram.
+
+- **IA:** consultas que a IA pediria antes de responder são feitas em código e vão prontas no briefing
+  (CPF que o agente pediu e que confere; dados do caso e regras de negociação depois da identidade
+  confirmada). Cada uma poupa uma ida e volta à IA. Um CPF que não confere continua com a IA, sem contar
+  tentativa no código.
+- **Banco:** devedor, política e gasto do dia são lidos em paralelo enquanto a mensagem é gravada e a
+  Triagem pensa; as mensagens do caso são lidas uma vez por rodada; os passos do rastreio vão em segundo
+  plano.
+- **Telegram:** a conexão com a API é reaproveitada (o servidor fica na Europa); "digitando…" sai assim que
+  a mensagem chega; a resposta vai ao Telegram assim que é registrada, antes das gravações finais da rodada.
+- Fora do código: com o Render no plano gratuito, o servidor dorme sem acesso e a primeira mensagem demora;
+  Render e Supabase em regiões distantes somam tempo a cada ida ao banco.
+
 ## O que pode dar errado com o link (e o que a pessoa vê)
 
 | Situação | Resposta do bot | O que a equipe vê |

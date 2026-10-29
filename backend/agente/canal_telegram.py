@@ -53,8 +53,6 @@ import os
 import secrets
 import threading
 import time
-import urllib.error
-import urllib.request
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -123,67 +121,124 @@ def _quando(valor) -> datetime | None:
 
 # ── envio ────────────────────────────────────────────────────────────────────
 
+_POOL: list = []                         # conexões abertas com a API do Telegram, prontas para reaproveitar
+_POOL_LOCK = threading.Lock()
+_POOL_MAX = 4
+_POOL_VIDA_S = 45                        # conexão parada há mais que isto o servidor pode ter fechado: descarta
+
+
+def _chamar_api(metodo: str, corpo: dict, timeout: float) -> int | None:
+    """POST na API do Telegram reaproveitando a conexão. O servidor do Telegram fica na
+    Europa: abrir conexão nova (TCP + TLS) a cada chamada custava uns 0,3 s por envio.
+    Devolve o status HTTP, ou None se a rede falhou. Nunca levanta erro e nunca imprime
+    a URL (ela leva o token)."""
+    import http.client
+    from urllib.parse import urlsplit
+    token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+    if not token:
+        return None
+    url = urlsplit(API)
+    host, porta, dados = url.hostname, url.port, json.dumps(corpo).encode("utf-8")
+    classe = http.client.HTTPSConnection if url.scheme == "https" else http.client.HTTPConnection
+    for _ in range(2):
+        conn = None
+        with _POOL_LOCK:
+            while _POOL and conn is None:
+                c, usada = _POOL.pop()
+                if time.monotonic() - usada < _POOL_VIDA_S:
+                    conn = c
+                else:
+                    c.close()
+        reaproveitada = conn is not None
+        if conn is None:
+            conn = classe(host, porta, timeout=timeout)
+        try:
+            conn.timeout = timeout
+            if conn.sock is not None:
+                conn.sock.settimeout(timeout)
+            conn.request("POST", f"/bot{token}/{metodo}", body=dados, headers={"Content-Type": "application/json"})
+            r = conn.getresponse()
+            r.read()                                    # lê tudo: só assim a conexão pode ser reaproveitada
+            with _POOL_LOCK:
+                if len(_POOL) < _POOL_MAX and not r.will_close:
+                    _POOL.append((conn, time.monotonic()))
+                    conn = None
+            if conn is not None:
+                conn.close()
+            return r.status
+        except (http.client.HTTPException, OSError, ValueError) as e:
+            conn.close()
+            if not reaproveitada:
+                print(f"[Telegram] {metodo} falhou: {type(e).__name__}")
+                return None
+            # A conexão guardada tinha sido fechada do outro lado: tenta uma vez com uma nova.
+    return None
+
+
 def _enviar_texto(chat_id, texto: str):
     """sendMessage na API do Telegram. Nunca levanta erro.
 
     Devolve True (entregou), False (falhou; dá para tentar de novo) ou BLOQUEADO
     (o Telegram recusou com 403: o devedor bloqueou o bot ou apagou a conta).
     """
-    token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
-    if not token:
+    if not os.getenv("TELEGRAM_BOT_TOKEN", "").strip():
         return False
     for i in range(0, len(texto), MAX_TEXTO_TELEGRAM):
-        corpo = json.dumps({"chat_id": chat_id, "text": texto[i:i + MAX_TEXTO_TELEGRAM],
-                            "disable_web_page_preview": True}).encode("utf-8")
-        req = urllib.request.Request(f"{API}/bot{token}/sendMessage", data=corpo,
-                                     headers={"Content-Type": "application/json"})
-        try:
-            with urllib.request.urlopen(req, timeout=TIMEOUT_S) as r:
-                if r.status != 200:
-                    return False
-        except urllib.error.HTTPError as e:
-            print(f"[Telegram] envio recusado: HTTP {e.code}")         # nunca imprime a URL: ela leva o token
-            return BLOQUEADO if e.code == 403 else False
-        except (urllib.error.URLError, OSError, ValueError) as e:
-            print(f"[Telegram] envio falhou: {type(e).__name__}")
-            return False
+        st = _chamar_api("sendMessage", {"chat_id": chat_id, "text": texto[i:i + MAX_TEXTO_TELEGRAM],
+                                         "disable_web_page_preview": True}, TIMEOUT_S)
+        if st == 200:
+            continue
+        if st is not None:
+            print(f"[Telegram] envio recusado: HTTP {st}")
+        return BLOQUEADO if st == 403 else False
     return True
 
 
 enviar_texto = _enviar_texto        # os testes trocam este nome
 
 
-def _enviar_acao(chat_id, acao: str = "typing") -> bool:
-    """Mostra "digitando…" no chat (dura uns 5 s). Só para o devedor ver que o agente recebeu."""
-    token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
-    if not token:
-        return False
-    req = urllib.request.Request(f"{API}/bot{token}/sendChatAction",
-                                 data=json.dumps({"chat_id": chat_id, "action": acao}).encode("utf-8"),
-                                 headers={"Content-Type": "application/json"})
+_ACOES: "queue.Queue" = None            # "digitando…" e afins: em segundo plano, fora do caminho da resposta
+_ACOES_LOCK = threading.Lock()
+
+
+def _em_segundo_plano(metodo: str, corpo: dict) -> None:
+    global _ACOES
+    import queue
+    with _ACOES_LOCK:
+        if _ACOES is None:
+            _ACOES = queue.Queue(maxsize=200)
+
+            def rodar():
+                while True:
+                    m, c = _ACOES.get()
+                    try:
+                        _chamar_api(m, c, 3)
+                    finally:
+                        _ACOES.task_done()
+            threading.Thread(target=rodar, name="mizan-telegram-acoes", daemon=True).start()
     try:
-        with urllib.request.urlopen(req, timeout=3) as r:
-            return r.status == 200
-    except (urllib.error.URLError, OSError, ValueError):
+        _ACOES.put_nowait((metodo, corpo))
+    except Exception:
+        pass                                    # fila cheia: um "digitando…" a menos não faz falta
+
+
+def _enviar_acao(chat_id, acao: str = "typing") -> bool:
+    """Mostra "digitando…" no chat (dura uns 5 s), sem esperar a resposta do Telegram."""
+    if not os.getenv("TELEGRAM_BOT_TOKEN", "").strip():
         return False
+    _em_segundo_plano("sendChatAction", {"chat_id": chat_id, "action": acao})
+    return True
 
 
 enviar_acao = _enviar_acao          # os testes trocam este nome
 
 
 def _apagar_mensagem(chat_id, message_id) -> bool:
-    """Apaga uma mensagem que o devedor mandou (o bot pode, em conversa privada). Nunca levanta erro."""
-    token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
-    if not token or message_id is None:
+    """Apaga uma mensagem que o devedor mandou (o bot pode, em conversa privada), em segundo plano."""
+    if not os.getenv("TELEGRAM_BOT_TOKEN", "").strip() or message_id is None:
         return False
-    req = urllib.request.Request(f"{API}/bot{token}/deleteMessage",
-                                 data=json.dumps({"chat_id": chat_id, "message_id": message_id}).encode("utf-8"),
-                                 headers={"Content-Type": "application/json"})
-    try:
-        with urllib.request.urlopen(req, timeout=3) as r:
-            return r.status == 200
-    except (urllib.error.URLError, OSError, ValueError):
-        return False
+    _em_segundo_plano("deleteMessage", {"chat_id": chat_id, "message_id": message_id})
+    return True
 
 
 apagar_mensagem = _apagar_mensagem  # os testes trocam este nome
@@ -723,6 +778,7 @@ def receber(update: dict, repo=None, agora: datetime | None = None, processar=Tr
             avisar(repo, caso, MSG_PAUSADO, agora)
         return {"acao": "agente_desligado", "caso_id": caso["id"]}
 
+    enviar_acao(chat_id)                        # "digitando…" já, antes de qualquer consulta
     trava = _trava_do_caso(caso["id"])
     esperou = not trava.acquire(blocking=False)
     if esperou:
@@ -734,9 +790,6 @@ def receber(update: dict, repo=None, agora: datetime | None = None, processar=Tr
             caso = repo.obter_caso(caso["id"]) or caso       # outra mensagem deste caso mexeu nele enquanto esperava
         fila = _juntar_na_fila(repo, caso, chave, texto)
         if fila:
-            pronto = _quando(fila.get("disponivel_em"))
-            if not pronto or (pronto - datetime.now(timezone.utc)).total_seconds() <= RETOMAR_ATE_S:
-                enviar_acao(chat_id)
             return {"acao": "juntou", "caso_id": caso["id"]}
         adiado = _adiar_se_passou_do_limite(repo, caso, chave, texto, agora)
         if adiado:
@@ -746,6 +799,5 @@ def receber(update: dict, repo=None, agora: datetime | None = None, processar=Tr
     finally:
         trava.release()
     if novo and processar:
-        enviar_acao(chat_id)                    # "digitando…" já, antes da IA começar
         _processar_caso(repo, caso, chave, agora, chat_id)
     return {"acao": "mensagem" if novo else "repetido", "caso_id": caso["id"]}

@@ -26,6 +26,7 @@ Mizan (enviar mensagem) usa a sua própria chave de idempotência.
 """
 import copy
 import json
+from concurrent.futures import ThreadPoolExecutor
 import os
 import socket
 import time
@@ -134,6 +135,41 @@ class Contexto:
     custo_dia: float | None = None                  # gasto do dia lido uma vez por rodada
     custo_rodada: float = 0.0                       # o que esta rodada já gastou
     tg_marca: float = 0.0                           # quando o estado do Telegram deste caso foi lido
+    leituras: object = None                         # leituras adiantadas em paralelo (ver adiantar_leituras)
+
+    def adiantar_leituras(self, fonte) -> None:
+        """Começa a buscar, em paralelo, o que os agentes vão ler a seguir (devedor,
+        política, gasto do dia), enquanto a rodada grava a mensagem e a Triagem pensa."""
+        if self.leituras is not None or "_devedor" in self.saida:
+            return
+        repo, emp, pid, hoje = self.repo, self.caso["empresa_id"], self.caso["predicao_id"], self.hoje
+
+        def ler():
+            return (fonte.devedor(emp, pid), repo.politica_ativa(emp), repo.custo_do_dia(emp, hoje))
+        try:
+            self.leituras = _LEITURAS.submit(ler)
+        except RuntimeError:                         # executor encerrado (desligando): lê na hora
+            self.leituras = None
+
+    def usar_leituras(self) -> None:
+        """Aplica o que foi adiantado (espera terminar, se ainda não terminou). Se falhou, cada
+        um lê do jeito de sempre."""
+        fut, self.leituras = self.leituras, None
+        if fut is None:
+            return
+        try:
+            dev, achada, custo = fut.result(timeout=15)
+        except Exception:
+            return
+        self.saida.setdefault("_devedor", dev)
+        if "_politica" not in self.saida:
+            try:
+                self.saida["_politica"] = ((auditor.validar_politica(achada["regras"]), achada["versao"])
+                                           if achada else (None, None))
+            except ValueError:
+                self.saida["_politica"] = (None, None)
+        if self.custo_dia is None:
+            self.custo_dia = float(custo or 0.0)
 
     def mudar_situacao(self, nova: str, por: str = "agente") -> None:
         self.caso["situacao"] = estado.mudar(self.caso["situacao"], nova, por)
@@ -145,6 +181,7 @@ class Contexto:
     def politica(self) -> tuple:
         """(regras, versão) da política ativa da empresa; (None, None) se não houver
         ou se a gravada for inválida — aí o Auditor só deixa passar segurança."""
+        self.usar_leituras()
         if "_politica" not in self.saida:
             achada = self.repo.politica_ativa(self.caso["empresa_id"])
             try:
@@ -169,6 +206,7 @@ class Contexto:
 
     def ia(self, papel: str, sistema: str, mensagens: list, ferramentas=None, max_tokens: int = 1024):
         """Chama a IA com teto de custo do dia e soma tokens e custo ao passo atual."""
+        self.usar_leituras()
         if self.custo_dia is None:                  # uma consulta por rodada, não uma por chamada
             self.custo_dia = float(self.repo.custo_do_dia(self.caso["empresa_id"], self.hoje) or 0.0)
         llm.conferir_teto(self.custo_dia + self.custo_rodada)
@@ -468,6 +506,9 @@ def _checkpoint(ctx: Contexto, ultimo: str | None, dono: str) -> None:
         raise RuntimeError("trava do caso perdida durante o processamento")
 
 
+_LEITURAS = ThreadPoolExecutor(max_workers=4, thread_name_prefix="mizan-leituras")
+
+
 class RepoDaRodada:
     """O repositório visto por uma rodada: as mensagens do caso são lidas uma vez e
     reaproveitadas pelos agentes (triagem, negociador, envio), até alguém gravar outra.
@@ -507,9 +548,16 @@ def processar_proximo(repo, grafos: dict, cliente=None, agora: datetime | None =
     if caso_id is not None:
         filtros["caso_id"] = caso_id
     for ev in repo.candidatos(agora, **filtros):
-        reservado = repo.reservar_evento(ev["id"])
+        novo_trace = None if ev.get("trace_id") else novo_trace_id()
+        try:
+            reservado = repo.reservar_evento(ev["id"], trace_id=novo_trace)
+        except Exception as e:                          # banco caiu na reserva: o evento segue pendente
+            print(f"[Agente] reserva do evento falhou: {type(e).__name__}")
+            continue
         if not reservado:
             continue                                    # outro processo pegou
+        if novo_trace:
+            ev = {**ev, "trace_id": novo_trace, "_trace_gravado": True}
         real = agora_real()
         if not repo.travar_caso(ev["caso_id"], dono, real + DURACAO_TRAVA, real):
             # Caso ocupado com outro evento: devolve como estava e tenta o próximo.
@@ -530,7 +578,8 @@ def _processar(repo, grafos, ev, cliente, agora, dono) -> dict:
     trace_id = ev.get("trace_id") or novo_trace_id()
     try:
         # Dentro do try: banco fora do ar aqui também devolve o evento à fila.
-        repo.atualizar_evento(ev["id"], {"trace_id": trace_id})
+        if not ev.get("_trace_gravado"):                # gravado junto com a reserva, quando deu
+            repo.atualizar_evento(ev["id"], {"trace_id": trace_id})
         grafo = grafos.get(ev["tipo"])
         if grafo is None:
             raise LookupError(f"sem grafo para o evento {ev['tipo']}")

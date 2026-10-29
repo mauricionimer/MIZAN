@@ -53,6 +53,8 @@ def registrar_falha_humana(ctx, fonte, erro):
 
 def grafo_mensagem(fonte) -> Grafo:
     def receber(ctx):
+        if hasattr(ctx, "adiantar_leituras"):
+            ctx.adiantar_leituras(fonte)               # devedor, política e gasto: em paralelo com o resto
         texto = str((ctx.evento.get("dados") or {}).get("texto") or "")[:triagem.MAX_CARACTERES]
         ctx.saida["texto"] = texto
         if ctx.caso["situacao"] == "novo":
@@ -139,6 +141,12 @@ def grafo_mensagem(fonte) -> Grafo:
         ctx.repo.gravar_mensagem(ctx.caso["empresa_id"], ctx.caso["id"], "saida", texto, ctx.rastreio.trace_id,
                              criado_em=ctx.agora)
         ctx.saida["enviada"] = texto
+        try:
+            # Já vai ao Telegram aqui, sem esperar o resto da rodada fechar (gravações finais).
+            from agente import canal_telegram
+            canal_telegram.entregar(ctx)
+        except Exception as e:                       # o canal nunca derruba o atendimento
+            print(f"[Agente] entrega no Telegram falhou: {type(e).__name__}")
 
     def avisar_equipe(ctx):
         dev = fonte.devedor(ctx.caso["empresa_id"], ctx.caso["predicao_id"])
