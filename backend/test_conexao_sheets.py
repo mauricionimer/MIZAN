@@ -28,6 +28,7 @@ def checar(c, t, d=""):
     falhas += 0 if c else 1
 
 CRED = {"type": "service_account", "client_email": "leitor@projeto.iam.gserviceaccount.com",
+        "token_uri": "https://oauth2.googleapis.com/token",
         "private_key": "-----BEGIN PRIVATE KEY-----\nSEGREDO\n-----END PRIVATE KEY-----\n"}
 TAB = {"conexoes_db": [], "conexao_permissoes": []}
 FALHA_COLUNA = False

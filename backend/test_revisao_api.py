@@ -237,7 +237,9 @@ r = c.post("/auth/login", json={"email": "ana@x.com", "senha": "errada"}, header
 checar(r.status_code == 429, "maiúsculas e espaços contam no mesmo limite do e-mail", str(r.status_code))
 r = c.post("/auth/login", json={"email": "ana@x.com", "senha": "errada"},
            headers={"X-Forwarded-For": "8.8.8.8, 10.0.0.1"})
-checar(r.status_code == 401, "outro IP (o primeiro do X-Forwarded-For) não herda o bloqueio", str(r.status_code))
+# Decisão D1 do plano de segurança (S2): o limite é pelo e-mail, porque o IP vem
+# de cabeçalho forjável. Trocar o X-Forwarded-For não pode abrir cota nova.
+checar(r.status_code == 429, "outro IP (o primeiro do X-Forwarded-For) HERDA o bloqueio do e-mail", str(r.status_code))
 checar(limite.primeiro_ip("1.2.3.4, 10.0.0.1", "10.0.0.1") == "1.2.3.4"
        and limite.primeiro_ip(None, "10.0.0.1") == "10.0.0.1", "primeiro_ip lê o cliente, não o proxy")
 

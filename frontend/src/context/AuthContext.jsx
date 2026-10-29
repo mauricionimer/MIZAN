@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { aplicarCorDaMarca } from '../utils/marca'
-import { limparSessaoLocal, textoDoDetalhe } from '../api'
+import { limparSessaoLocal, textoDoDetalhe, encerrarSessao } from '../api'
 
 const AuthContext = createContext(null)
 
@@ -51,7 +51,12 @@ export function AuthProvider({ children }) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` },
     })
-      .then(r => r.ok ? r.json() : null)
+      .then(r => {
+        // 401 aqui é sessão vencida (30 dias desde o último login com senha):
+        // vai para o login, em vez de seguir com um token que logo cai.
+        if (r.status === 401) { encerrarSessao(); return null }
+        return r.ok ? r.json() : null
+      })
       .then(data => {
         if (!data) return
         sessionStorage.setItem(TOKEN_KEY, data.token)

@@ -79,8 +79,9 @@ checar(main._buscar_api_key(db_rev, CHAVE_NOVA) is None,
 # ── retaguarda: banco ainda sem a coluna de hash ──────────────────────────
 db_velho = banco([{"id": "k0", "empresa_nome": "MIZAN",
                    "api_key": CHAVE_ANTIGA, "ativa": True}])
-checar(main._buscar_api_key(db_velho, CHAVE_ANTIGA) is not None,
-       "chave antiga continua funcionando antes da migração rodar")
+# Sem retaguarda em texto puro (S3): sem a coluna de hash, nada entra.
+checar(main._buscar_api_key(db_velho, CHAVE_ANTIGA) is None,
+       "banco sem a coluna de hash: a chave antiga NÃO autentica (falha fechada)")
 checar(main._buscar_api_key(db_velho, "outra") is None,
        "e a retaguarda não aceita qualquer coisa")
 

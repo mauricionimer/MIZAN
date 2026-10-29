@@ -103,8 +103,9 @@ checar(c.post("/auth/refresh", headers=h2).status_code == 401, "e não dá para 
 antigo = {"Authorization": "Bearer " + auth.criar_token({"sub": "uo", "email": "o@alfa.com", "nome": "uo",
                                                           "role": "operador", "empresa_id": "alfa"})}
 checar(c.get("/auth/me", headers=antigo).status_code == 401, "token emitido antes desta versão (sem a marca) também cai")
-T["reset_tokens"] += [{"id": "r1", "token": "t1", "email": "a@alfa.com", "expires_at": "2099-01-01T00:00:00+00:00", "usado": False},
-                      {"id": "r2", "token": "t2", "email": "a@alfa.com", "expires_at": "2099-01-01T00:00:00+00:00", "usado": False}]
+# O banco guarda o hash do token do link, não o token (S18).
+T["reset_tokens"] += [{"id": "r1", "token": auth.hash_reset_token("t1"), "email": "a@alfa.com", "expires_at": "2099-01-01T00:00:00+00:00", "usado": False},
+                      {"id": "r2", "token": auth.hash_reset_token("t2"), "email": "a@alfa.com", "expires_at": "2099-01-01T00:00:00+00:00", "usado": False}]
 ha = entrar("a@alfa.com")
 auth.redefinir_senha_com_token("t1", "Outra123")
 checar(all(t["usado"] for t in T["reset_tokens"]), "redefinir pelo link mata também os outros links do mesmo e-mail")

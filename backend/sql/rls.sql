@@ -23,3 +23,7 @@ ALTER TABLE bandit_estado ENABLE ROW LEVEL SECURITY;
 -- Sem políticas explícitas = bloqueio total para anon/authenticated.
 -- A service role key usada pelo backend bypassa automaticamente.
 -- Nenhuma row é exposta caso alguém descubra a chave anon do projeto.
+
+-- Permissões de uso das conexões: sem RLS, quem tem a chave anon gravava aqui e
+-- liberava para um operador uma conexão que o admin não liberou.
+ALTER TABLE conexao_permissoes ENABLE ROW LEVEL SECURITY;

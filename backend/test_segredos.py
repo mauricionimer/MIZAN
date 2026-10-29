@@ -87,7 +87,13 @@ checar(main._decrypt(SENHA) == SENHA,
 # ── 5. a trava do startup ────────────────────────────────────────────────
 print("\n— a trava na subida —")
 fonte = (AQUI / "main.py").read_text()
-checar("_is_prod and not _FERNET_KEY" in fonte,
+# A trava foi para _conferir_segredos_de_producao (S10), chamada pelo lifespan.
+try:
+    main._conferir_segredos_de_producao("x" * 48, "")
+    _recusou = False
+except RuntimeError:
+    _recusou = True
+checar("_conferir_segredos_de_producao(_JWT_SECRET, _FERNET_KEY)" in fonte and _recusou,
        "o lifespan recusa subir em produção sem a chave")
 checar("MIZAN_ENCRYPTION_KEY" in (AQUI / "render.yaml").read_text(),
        "e o render.yaml declara a variável",
