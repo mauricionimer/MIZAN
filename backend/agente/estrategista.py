@@ -133,7 +133,7 @@ def plano(repo, fonte, empresa_id: str, aplicar: bool = False, agora=None) -> di
 
 
 def texto_abordagem(nome: str, empresa: str) -> str:
-    return (f"Olá, {nome}! Aqui é o assistente virtual de {empresa}. Tudo bem? Antes de seguirmos, "
+    return (f"Olá{', ' + nome if nome else ''}! Aqui é o assistente virtual de {empresa}. Tudo bem? Antes de seguirmos, "
             "posso confirmar se estou falando com você? É um assunto do banco e quero tratar com privacidade. "
             "Depois disso, consigo te explicar opções para organizar a situação. Se preferir, uma pessoa da equipe pode continuar por aqui.")
 
@@ -148,9 +148,12 @@ def grafo_abordagem(fonte) -> Grafo:
         if dev is None:
             raise LookupError("devedor não encontrado nesta empresa")
         # O caso 'novo' ainda não fala: a abordagem é a mudança para 'em contato',
-        # conferida pelo Auditor como uma mensagem iniciada pelo agente.
+        # conferida pelo Auditor como uma mensagem iniciada pelo agente. Quando a
+        # própria pessoa abriu o convite (Telegram), a abertura responde a ela:
+        # vale a qualquer hora, como qualquer resposta.
+        convite = bool((ctx.evento.get("dados") or {}).get("convite"))
         ctx.mudar_situacao("em_contato")
-        d = ctx.auditar({"tipo": "enviar_mensagem", "params": {}}, contatos_7d=0)
+        d = ctx.auditar({"tipo": "responder_mensagem" if convite else "enviar_mensagem", "params": {}}, contatos_7d=0)
         if not d["permitida"]:
             ctx.caso["situacao"] = "novo"                   # volta: não houve contato
             regras, _ = ctx.politica()
@@ -168,7 +171,7 @@ def grafo_abordagem(fonte) -> Grafo:
                     p["detalhe"] = {**p.get("detalhe", {}), "decisao": dec["decisao"], "tom": dec["tom"],
                                     "oferta": dec["oferta_inicial"], "concorda_bandit": dec["concorda_bandit"],
                                     "bandit": dec["bandit_oferta"]}
-        if dec and dec["decisao"] == "adiar":
+        if dec and dec["decisao"] == "adiar" and not convite:
             ctx.caso["situacao"] = "novo"                       # não houve contato
             volta = estrategista_ia.quando_adiar(ctx.agora, dec["adiar_dias"])
             registrar_evento(ctx.repo, ctx.caso["empresa_id"], ctx.caso["id"], "abordagem",

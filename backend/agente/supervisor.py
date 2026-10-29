@@ -37,7 +37,7 @@ def _json(texto: str) -> dict:
 
 def _conversa(ctx, n: int = 10) -> str:
     linhas = []
-    for m in ctx.repo.ultimas_mensagens(ctx.caso["empresa_id"], ctx.caso["id"], n):
+    for m in estado.conversa_atual(ctx.caso, ctx.repo.ultimas_mensagens(ctx.caso["empresa_id"], ctx.caso["id"], n)):
         quem = "devedor" if m["direcao"] == "entrada" else "agente"
         linhas.append(f"<{quem}>{como_dado(m['texto'] or '')}</{quem}>")
     return "\n".join(linhas)

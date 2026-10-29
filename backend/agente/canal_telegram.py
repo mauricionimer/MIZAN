@@ -62,8 +62,11 @@ INTERVALO_AVISO = {"pausa": timedelta(minutes=30), "so_texto": timedelta(minutes
 BLOQUEADO = "bloqueado"                  # o devedor bloqueou o bot (403)
 MARCAS_DIRETAS = ("pessoa", "aviso")    # trace_id de mensagens que vão na hora, fora das rodadas do agente
 
-MSG_BOAS_VINDAS = ("Olá! Este é o assistente virtual de negociação. Você pode escrever aqui. Por segurança, vou "
-                   "confirmar quem você é antes de falar de valores. Para começar, escreva \"oi\".")
+# Ao ligar, quem fala primeiro é o próprio agente, com a mesma abertura da conversa pelo Mizan
+# (ver `abrir_conversa`). Esta linha só vale para casos em que o agente não conversa
+# (com a equipe, suspenso, contestado, quitado).
+MSG_CONECTADO = "Olá{nome}! Você está conectado ao atendimento de {empresa}. Pode escrever por aqui."
+MSG_CONECTADO_EQUIPE = " Uma pessoa da equipe vai te responder."
 MSG_JA_LIGADO = "Você já está conectado. Pode escrever sua mensagem aqui."
 MSG_SEM_VINCULO = ("Para falar com o assistente, abra o link que o banco enviou para você. "
                    "Se não recebeu, peça um novo convite à equipe.")
@@ -163,8 +166,10 @@ def _tg(caso: dict | None) -> dict:
     return dict(((caso or {}).get("dados") or {}).get("telegram") or {})
 
 
-def _gravar_tg(repo, caso: dict, tg: dict) -> None:
+def _gravar_tg(repo, caso: dict, tg: dict, **outros) -> None:
     """Grava o estado do Telegram (e notas novas do caderno) sobre a versão mais recente do caso.
+
+    `outros` são campos de `dados` que mudam junto (ex.: identidade_ok, conversa_desde).
 
     O webhook roda fora da trava do caso: reler antes de gravar evita apagar o que o
     agente acabou de salvar (identidade, acordo...) com uma cópia velha de `dados`.
@@ -172,6 +177,7 @@ def _gravar_tg(repo, caso: dict, tg: dict) -> None:
     atual = (repo.obter_caso(caso["id"]) or {}).get("dados") or {}
     dados = dict(atual)
     dados["telegram"] = tg
+    dados.update(outros)
     meu = list((caso.get("dados") or {}).get("caderno") or [])
     novas = [n for n in meu if n not in (atual.get("caderno") or [])]
     if novas:
@@ -264,6 +270,11 @@ def vincular(repo, codigo: str, chat_id, agora: datetime | None = None) -> tuple
     expira = _quando(tg.get("convite_expira"))
     if not expira or agora > expira:
         return None, "vencido"
+    if tg.get("chat_id") == chat:
+        # A mesma pessoa abriu um convite novo do mesmo caso: só consome o convite.
+        tg.update({"usados": _guardar(tg.get("usados"), h), "convite_hash": None, "convite_expira": None})
+        _gravar_tg(repo, caso, tg)
+        return caso, "ja_ligado"
     anterior = repo.caso_por_telegram(chat)
     if anterior and anterior["id"] != caso["id"]:
         tg_a = _tg(anterior)
@@ -275,8 +286,13 @@ def vincular(repo, codigo: str, chat_id, agora: datetime | None = None) -> tuple
                "usados": _guardar(tg.get("usados"), h), "convite_hash": None, "convite_expira": None})
     for k in ("bloqueado_em", "tentativa_outro_chat_em", "tentativas_outro_chat"):
         tg.pop(k, None)
-    estado.anotar(caso, "equipe", "Telegram ligado", "o devedor abriu o convite", quando=agora)
-    _gravar_tg(repo, caso, tg)
+    # Canal novo, pessoa ainda não confirmada: o agente confirma a identidade de novo
+    # antes de falar de valores (uma confirmação feita antes, por outro canal ou num
+    # teste pela tela, não vale para quem abriu o link).
+    reconfirmar = bool((caso.get("dados") or {}).get("identidade_ok"))
+    estado.anotar(caso, "equipe", "Telegram ligado",
+                  "o devedor abriu o convite" + ("; confirmar a identidade de novo" if reconfirmar else ""), quando=agora)
+    _gravar_tg(repo, caso, tg, identidade_ok=False, falhas_identidade=0)
     return caso, "ligado"
 
 
@@ -393,6 +409,75 @@ def _pode_avisar(repo, caso: dict, tipo: str, agora: datetime) -> bool:
     return True
 
 
+# ── abertura: o Telegram começa como a conversa pelo Mizan ─────────────────
+
+def abrir_conversa(repo, caso: dict, agora: datetime | None = None) -> str:
+    """Primeira fala depois que o devedor abre o convite. Devolve como abriu.
+
+    A conversa recomeça aqui (`dados.conversa_desde`): a IA só lê o que vem daqui
+    para frente, como numa conversa nova pelo Mizan.
+      - caso novo: o mesmo fluxo de abordagem do plano (o Estrategista escolhe o tom e
+        o agente se apresenta e pede a confirmação) ................ "abordagem"
+      - o agente já tinha aberto a conversa e ninguém respondeu ainda (ex.: a abordagem do
+        plano saiu antes do convite): essa abertura chega ao Telegram . "retomada"
+      - já houve conversa (outra pessoa, outro canal, teste pela tela): a pessoa nova
+        recebe a mesma apresentação da abordagem, e a conversa recomeça "apresentacao"
+      - caso com a equipe, suspenso, contestado ou quitado: só avisa que está conectado "conectado"
+    """
+    from agente import api, estado, ferramentas, orquestrador as orq
+    from agente.estrategista import texto_abordagem
+    from agente.llm import ia_ligada
+    agora = _agora(agora)
+    emp = caso["empresa_id"]
+    fonte = api.fabrica_fonte()
+    dev = fonte.devedor(emp, caso["predicao_id"]) or {}
+    nome, empresa = ferramentas._primeiro_nome(dev.get("nome")), fonte.nome_empresa(emp)
+
+    if caso["situacao"] == "novo" and not caso.get("grupo_controle") and api.ligado():
+        _gravar_tg(repo, caso, _tg(caso), conversa_desde=agora.isoformat())
+        chave = f"abordagem:{caso['predicao_id']}:telegram:{agora.isoformat()}"
+        orq.registrar_evento(repo, emp, caso["id"], "abordagem", chave,
+                             {"com_ia": ia_ligada("estrategista"), "convite": True}, origem="telegram")
+        _processar_caso(repo, caso, chave, agora)
+        if any(m["direcao"] == "saida" and (_quando(m.get("criado_em")) or agora) >= agora
+               for m in repo.ultimas_mensagens(emp, caso["id"], 5)):
+            return "abordagem"
+        caso = repo.obter_caso(caso["id"]) or caso
+
+    msgs = repo.ultimas_mensagens(emp, caso["id"], 50)
+    # Só a abertura sem resposta é retomada. Uma resposta do agente a outra pessoa
+    # não faz sentido para quem acabou de chegar.
+    rabo = [] if any(m["direcao"] == "entrada" for m in msgs) else \
+        [m for m in msgs if m.get("trace_id") not in MARCAS_DIRETAS][-2:]
+    tg = _tg(caso)
+    if rabo and (caso["situacao"] in estado.PODE_FALAR or caso["situacao"] == "com_pessoa"):
+        entregues = list(tg.get("entregues") or [])
+        for m in rabo:
+            if enviar_texto(tg["chat_id"], m["texto"]) is True:
+                entregues.append(_chave(m))
+        tg["entregues"] = entregues[-MAX_ENTREGUES:]
+        _gravar_tg(repo, caso, tg, conversa_desde=_quando(rabo[0].get("criado_em")).isoformat())
+        return "retomada"
+
+    _gravar_tg(repo, caso, tg, conversa_desde=agora.isoformat())
+    if caso["situacao"] in estado.PODE_FALAR:
+        # Mesma abertura do plano: apresenta, pede a confirmação. Fica no caso como fala do assistente.
+        texto = texto_abordagem(nome, empresa)
+        repo.gravar_mensagem(emp, caso["id"], "saida", texto, "abertura", criado_em=agora)
+        if enviar_texto(tg["chat_id"], texto) is True:
+            caso = repo.obter_caso(caso["id"]) or caso
+            tg = _tg(caso)
+            tg["entregues"] = (list(tg.get("entregues") or []) +
+                               [_chave({"criado_em": agora.isoformat(), "texto": texto})])[-MAX_ENTREGUES:]
+            _gravar_tg(repo, caso, tg)
+        return "apresentacao"
+    texto = MSG_CONECTADO.format(nome=f", {nome}" if nome else "", empresa=empresa)
+    if caso["situacao"] == "com_pessoa":
+        texto += MSG_CONECTADO_EQUIPE
+    avisar(repo, caso, texto, agora)
+    return "conectado"
+
+
 # ── recebimento (webhook) ───────────────────────────────────────────────────
 
 def _processar_caso(repo, caso: dict, chave: str, agora: datetime) -> None:
@@ -444,8 +529,9 @@ def receber(update: dict, repo=None, agora: datetime | None = None, processar=Tr
             return {"acao": "ja_ligado" if caso else "sem_vinculo"}
         caso, motivo = vincular(repo, partes[1], chat_id, agora)
         if motivo == "ligado":
-            enviar_texto(chat_id, MSG_BOAS_VINDAS)
-            return {"acao": "vinculado", "caso_id": caso["id"]}
+            enviar_acao(chat_id)
+            como = abrir_conversa(repo, caso, agora)
+            return {"acao": "vinculado", "caso_id": caso["id"], "abertura": como}
         if motivo == "ja_ligado":
             enviar_texto(chat_id, MSG_JA_LIGADO)
             return {"acao": "ja_ligado", "caso_id": caso["id"]}

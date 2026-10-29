@@ -88,6 +88,31 @@ def anotar(caso: dict, agente: str, decisao: str, motivo: str = "", trace_id=Non
     caso["dados"] = dados
 
 
+def _quando(valor):
+    from datetime import datetime, timezone
+    if isinstance(valor, datetime):
+        return valor if valor.tzinfo else valor.replace(tzinfo=timezone.utc)
+    try:
+        d = datetime.fromisoformat(str(valor).replace("Z", "+00:00"))
+        return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        return None
+
+
+def conversa_atual(caso: dict, mensagens: list) -> list:
+    """Só as mensagens da conversa em curso.
+
+    Quando um canal novo é ligado ao caso (ex.: o devedor abriu o convite do Telegram),
+    a conversa recomeça ali: o que veio antes (inclusive testes pela tela) não entra no
+    que a IA lê, para ela falar com a pessoa do mesmo jeito que numa conversa nova.
+    O registro completo continua no caso.
+    """
+    desde = _quando((caso.get("dados") or {}).get("conversa_desde"))
+    if not desde:
+        return mensagens
+    return [m for m in mensagens if (_quando(m.get("criado_em")) or desde) >= desde]
+
+
 def caderno(caso: dict, n: int = MAX_CADERNO) -> list:
     return list((caso.get("dados") or {}).get("caderno") or [])[-n:]
 

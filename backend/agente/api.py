@@ -202,7 +202,8 @@ def ver_caso(empresa_id: str, predicao_id: str, repo=None) -> dict:
     return {
         "caso": {"id": caso["id"], "situacao": caso["situacao"], "proxima_data": caso.get("proxima_data"),
                  "versao_politica": caso.get("versao_politica"), "resumo": caso.get("resumo"),
-                 "identidade_confirmada": bool(d.get("identidade_ok")), "acordo": d.get("acordo")},
+                 "identidade_confirmada": bool(d.get("identidade_ok")), "acordo": d.get("acordo"),
+                 "conversa_desde": d.get("conversa_desde")},
         "mensagens": [{"direcao": m["direcao"], "texto": m["texto"], "criado_em": m.get("criado_em"),
                        "trace_id": m.get("trace_id")} for m in msgs],
         "trace_id": ultimo_trace,
@@ -230,6 +231,11 @@ def simular_mensagem(empresa_id: str, predicao_id: str, texto: str, agora: datet
     if fonte.devedor(empresa_id, predicao_id) is None:
         raise LookupError("Devedor não encontrado nas carteiras da empresa.")
     caso = repo.obter_ou_criar_caso(empresa_id, predicao_id)
+    if _status_telegram(caso)["ligado"]:
+        # O devedor de verdade está no Telegram: escrever por ele aqui faria o agente responder
+        # no Telegram a algo que a pessoa não disse, e as duas conversas deixariam de ser a mesma.
+        raise CasoOcupado("Este devedor está conversando pelo Telegram: o que ele escreve aparece aqui. "
+                          "Para responder você mesmo, assuma o caso.")
     ev, _ = orq.registrar_evento(repo, empresa_id, caso["id"], "mensagem_devedor", f"tela:{uuid.uuid4().hex}",
                                  {"texto": texto}, origem="tela")
     orq.processar_fila(repo, grafos(fonte), fabrica_cliente(), limite=1,

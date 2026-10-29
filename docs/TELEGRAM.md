@@ -33,6 +33,22 @@ python telegram_webhook.py ligar https://SEU-SERVIDOR.onrender.com
 python telegram_webhook.py status
 ```
 
+## A conversa é a mesma do Mizan
+
+O agente do Telegram é o mesmo do chat do Mizan, e a conversa começa do mesmo jeito:
+
+- Ao abrir o convite, quem fala primeiro é o agente, com a mesma abertura da abordagem do plano
+  ("Olá, Maria! Aqui é o assistente virtual de …, posso confirmar se estou falando com você?").
+  Caso novo passa pelo Estrategista, que escolhe o tom, como no plano. Vale a qualquer hora,
+  porque foi a pessoa quem chamou.
+- Se o plano já tinha aberto a conversa e ninguém respondeu, essa mesma abertura chega ao Telegram
+  (sem duplicar no Mizan).
+- Um Telegram novo no caso **recomeça a conversa**. A IA só lê dali para frente, sem testes pela tela
+  nem o que outra pessoa disse, e a identidade precisa ser confirmada de novo. No chat do Mizan, uma
+  linha marca onde a conversa recomeçou; o histórico anterior continua visível.
+- Com o Telegram ligado, a tela do Mizan não escreve como o devedor (a caixa fica bloqueada). Para
+  falar com ele, **Assumir o caso** e responder como atendente.
+
 ## O que pode dar errado com o link (e o que a pessoa vê)
 
 | Situação | Resposta do bot | O que a equipe vê |

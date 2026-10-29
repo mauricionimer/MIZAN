@@ -9066,7 +9066,7 @@ def agente_simular_mensagem(predicao_id: str, body: AgenteMensagemIn,
     emp = _empresa_do_agente(payload, body.empresa_id)
     try:
         return agente_api.simular_mensagem(emp, predicao_id, body.texto)
-    except agente_api.AgenteDesligado as e:
+    except (agente_api.AgenteDesligado, agente_api.CasoOcupado) as e:
         raise HTTPException(status_code=409, detail=str(e))
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e))

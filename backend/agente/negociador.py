@@ -185,7 +185,8 @@ def mensagem_fixa(ctx, fonte=None) -> str | None:
 def _historico(ctx) -> list:
     """Mensagens anteriores no formato da API, alternando papéis e começando pelo devedor."""
     msgs = []
-    for m in ctx.repo.ultimas_mensagens(ctx.caso["empresa_id"], ctx.caso["id"], MAX_HISTORICO + 1)[:-1]:
+    for m in estado.conversa_atual(ctx.caso, ctx.repo.ultimas_mensagens(ctx.caso["empresa_id"], ctx.caso["id"],
+                                                                       MAX_HISTORICO + 1))[:-1]:
         papel = "user" if m["direcao"] == "entrada" else "assistant"
         if papel == "user":
             texto = f"<mensagem_do_devedor>{como_dado(mascarar(m['texto']))}</mensagem_do_devedor>"
@@ -240,8 +241,8 @@ def _briefing(ctx, devedor_nome: str) -> str:
     tri = ctx.saida.get("triagem") or {}
     dia_semana = ("segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo")[date.fromisoformat(hoje).weekday()]
     try:
-        n_entradas = sum(1 for m in ctx.repo.ultimas_mensagens(ctx.caso["empresa_id"], ctx.caso["id"], 50)
-                         if m.get("direcao") == "entrada")
+        n_entradas = sum(1 for m in estado.conversa_atual(ctx.caso, ctx.repo.ultimas_mensagens(
+            ctx.caso["empresa_id"], ctx.caso["id"], 50)) if m.get("direcao") == "entrada")
     except Exception:
         n_entradas = 0
     b = {"primeiro_nome": como_dado(devedor_nome), "situacao": ctx.caso["situacao"], "hoje": hoje,

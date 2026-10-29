@@ -1,7 +1,7 @@
 // Agentes: a conversa de um caso (com o porquê de cada passo) e a Central de
 // orquestração. Na demonstração, quem está na tela escreve como o devedor.
 // Regras em backend/agente/ (docs/PLANO_EXECUCAO_AGENTES.md).
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { Bot, Send, Search, Loader2, Activity, ShieldCheck, AlertTriangle, Power, UserRound, Coins, ListChecks, Landmark, Clock, Shuffle, CalendarDays, Scale, Hand, Undo2, CalendarClock, Users, BookOpen, FlaskConical, Headset, Unlink } from 'lucide-react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import AppShell from '../components/AppShell'
@@ -298,6 +298,10 @@ function Conversa({ empresa }) {
   useEffect(() => { fim.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) }, [dados?.mensagens?.length])
 
   const comPessoa = dados?.caso?.situacao === 'com_pessoa'
+  // Com o devedor no Telegram, a tela só acompanha: escrever por ele aqui criaria outra conversa.
+  const soAcompanha = !comPessoa && !!dados?.telegram?.ligado
+  const desde = Date.parse(dados?.caso?.conversa_desde || '')
+  const iRecomeco = Number.isFinite(desde) ? (dados?.mensagens || []).findIndex(m => Date.parse(m.criado_em) >= desde) : -1
 
   async function enviar(e) {
     e.preventDefault()
@@ -398,12 +402,19 @@ function Conversa({ empresa }) {
                   assistente: ['rounded-br-sm bg-blue-600 text-white', 'text-blue-100', 'Assistente'],
                 }[quem]
                 return (
-                  <div key={i} className={`flex ${quem === 'devedor' ? 'justify-start' : 'justify-end'}`}>
+                  <Fragment key={i}>
+                  {i === iRecomeco && i > 0 && (
+                    <div className="flex items-center gap-2 py-1 text-[11px] text-ink-3" role="separator">
+                      <span className="h-px flex-1 bg-line" /> Telegram ligado: a conversa com o devedor recomeça aqui <span className="h-px flex-1 bg-line" />
+                    </div>
+                  )}
+                  <div className={`flex ${quem === 'devedor' ? 'justify-start' : 'justify-end'}`}>
                     <div className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm ${estilo[0]}`}>
                       <p className="whitespace-pre-wrap">{m.texto}</p>
                       <p className={`mt-1 text-[10px] ${estilo[1]}`}>{estilo[2]} · {fmtHora(m.criado_em)}</p>
                     </div>
                   </div>
+                  </Fragment>
                 )
               })}
               {!enviando && !aguardando && dados?.caso?.situacao !== 'com_pessoa' && dados?.silencio && (
@@ -432,11 +443,13 @@ function Conversa({ empresa }) {
               </form>
             )}
             <form onSubmit={enviar} className="flex gap-2 border-t border-line p-3">
-              <input value={texto} onChange={e => setTexto(e.target.value)} maxLength={2000} disabled={enviando}
-                placeholder={comPessoa ? 'Responder como atendente (vai para o Telegram do devedor, se ligado)…' : 'Escreva como o devedor…'}
+              <input value={texto} onChange={e => setTexto(e.target.value)} maxLength={2000} disabled={enviando || soAcompanha}
+                placeholder={comPessoa ? 'Responder como atendente (vai para o Telegram do devedor, se ligado)…'
+                  : soAcompanha ? 'Devedor no Telegram: assuma o caso para responder você'
+                  : 'Escreva como o devedor…'}
                 aria-label={comPessoa ? 'Resposta do atendente' : 'Mensagem do devedor'}
                 className="flex-1 rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm text-ink placeholder:text-ink-3 focus:outline-none" />
-              <button type="submit" disabled={enviando || !texto.trim()} className="btn-primary flex items-center gap-1.5 disabled:opacity-50">
+              <button type="submit" disabled={enviando || soAcompanha || !texto.trim()} className="btn-primary flex items-center gap-1.5 disabled:opacity-50">
                 <Send className="h-4 w-4" /> {comPessoa ? 'Responder' : 'Enviar'}
               </button>
             </form>

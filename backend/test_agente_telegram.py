@@ -75,7 +75,15 @@ checar(c.post("/canal/telegram/webhook", json=upd("/start " + codigo[:-2] + "xx"
        ENVIADOS[-1][1] == canal_telegram.MSG_CONVITE["invalido"], "código adulterado não liga")
 checar(REPO.caso_por_telegram(555) is None, "e nada ficou ligado")
 c.post("/canal/telegram/webhook", json=upd("/start " + codigo, 3), headers=H)
-checar(REPO.caso_por_telegram(555) is not None and ENVIADOS[-1][1] == canal_telegram.MSG_BOAS_VINDAS, "convite certo liga o chat e dá boas-vindas")
+from agente.estrategista import texto_abordagem   # noqa: E402
+ABERTURA = texto_abordagem("Maria", FONTE.nome_empresa("goias"))
+checar(REPO.caso_por_telegram(555) is not None and ENVIADOS[-1] == ("555", ABERTURA),
+       "convite certo liga o chat e o agente abre com a mesma abordagem do Mizan", str(ENVIADOS[-1:])[:160])
+caso = REPO.caso_de("goias", "p1")
+mens = REPO.ultimas_mensagens("goias", caso["id"], 50)
+checar([(m["direcao"], m["texto"]) for m in mens] == [("saida", ABERTURA)] and caso["situacao"] == "em_contato",
+       "a abertura fica no caso (o chat do Mizan mostra a mesma conversa)", str(mens)[:160])
+checar(caso["dados"].get("conversa_desde"), "a conversa recomeça na abertura do Telegram")
 st = c.get("/agente/casos/p1", headers=ADM).json()["telegram"]
 checar(st["ligado"] and not st["convite_pendente_ate"] and "chat_id" not in json.dumps(st), "a tela vê \"ligado\", sem o chat_id", str(st))
 c.post("/canal/telegram/webhook", json=upd("/start " + codigo, 4), headers=H)
@@ -124,7 +132,28 @@ n = len(ENVIADOS)
 c.post("/canal/telegram/webhook", json=upd("Quero negociar, CPF começa com 123", 10), headers=H)
 checar(len(ENVIADOS) == n, "o mesmo update reenviado pelo Telegram não duplica a resposta")
 mens = REPO.ultimas_mensagens("goias", REPO.caso_de("goias", "p1")["id"], 50)
-checar([m["direcao"] for m in mens] == ["entrada", "saida"], "o caso registra uma entrada e uma saída", str([m["direcao"] for m in mens]))
+checar([m["direcao"] for m in mens][-2:] == ["entrada", "saida"], "o caso registra a entrada e a resposta", str([m["direcao"] for m in mens]))
+checar(sum(1 for _, t in ENVIADOS if "assistente virtual" in t) == 0, "o agente não se apresenta de novo: a abertura já fez isso", str(ENVIADOS)[:160])
+checar(REPO.caso_de("goias", "p1")["dados"].get("identidade_ok") is True, "a identidade foi confirmada pelo Telegram")
+r = c.post("/agente/casos/p1/mensagem", json={"texto": "oi"}, headers=ADM)
+checar(r.status_code == 409 and "Telegram" in r.json()["detail"],
+       "com o Telegram ligado, a tela não escreve pelo devedor (a conversa é uma só)", str(r.status_code))
+
+print("— Telegram novo no mesmo caso —")
+ENVIADOS.clear()
+c.post("/canal/telegram/webhook", json=upd("/start " + c.post("/agente/casos/p1/telegram-convite", headers=ADM).json()["codigo"], 11, chat=4242), headers=H)
+caso = REPO.caso_de("goias", "p1")
+checar(caso["dados"].get("identidade_ok") is False, "outra pessoa ligou: a identidade precisa ser confirmada de novo")
+checar(ENVIADOS == [("4242", ABERTURA)], "e ela recebe a mesma abertura, não a resposta dada à outra pessoa", str(ENVIADOS)[:160])
+from agente import estado   # noqa: E402
+atual = estado.conversa_atual(caso, REPO.ultimas_mensagens("goias", caso["id"], 50))
+checar([m["direcao"] for m in atual] == ["saida"], "a IA lê só a conversa a partir daí, sem o que a outra pessoa disse", str(atual)[:160])
+c.post("/canal/telegram/webhook", json=upd("/start " + c.post("/agente/casos/p1/telegram-convite", headers=ADM).json()["codigo"], 12), headers=H)
+REPO.salvar_caso(REPO.caso_de("goias", "p1")["id"], {"dados": {**REPO.caso_de("goias", "p1")["dados"], "identidade_ok": True}})
+n = len(ENVIADOS)
+c.post("/canal/telegram/webhook", json=upd("/start " + c.post("/agente/casos/p1/telegram-convite", headers=ADM).json()["codigo"], 13), headers=H)
+checar(ENVIADOS[n:] == [("555", canal_telegram.MSG_JA_LIGADO)] and REPO.caso_de("goias", "p1")["dados"]["identidade_ok"] is True,
+       "a mesma pessoa com um convite novo: nada recomeça", str(ENVIADOS[n:]))
 
 print("— o que é ignorado e o que não é texto —")
 n = len(ENVIADOS)
@@ -236,6 +265,28 @@ entradas = [m["texto"] for m in mens[antes:] if m["direcao"] == "entrada"]
 checar(entradas == ["Alguém aí?", "Oi??"], "a mensagem não se perde (e o reenvio do Telegram não duplica)", str(entradas))
 checar(ENVIADOS == [("555", canal_telegram.MSG_PAUSADO)], "o devedor sabe que foi recebida, uma vez só", str(ENVIADOS))
 os.environ["MIZAN_AGENTE_ATIVO"] = "1"
+
+print("— abertura: plano antes do convite e convite de madrugada —")
+from agente import orquestrador as orq   # noqa: E402
+FONTE._devedores["p2"] = {**DEV, "id": "p2", "nome": "João Souza"}
+FONTE._devedores["p3"] = {**DEV, "id": "p3", "nome": "Ana Lima"}
+seg_10h = datetime(2026, 11, 2, 13, 0, tzinfo=timezone.utc)          # segunda, 10h em Brasília
+c2 = REPO.obter_ou_criar_caso("goias", "p2")
+orq.registrar_evento(REPO, "goias", c2["id"], "abordagem", "abordagem:p2", {"com_ia": False}, origem="estrategista")
+orq.processar_fila(REPO, api.grafos(FONTE), ClienteFalso([]), limite=5, agora=seg_10h, empresa_id="goias", caso_id=c2["id"])
+abertura_p2 = REPO.ultimas_mensagens("goias", c2["id"], 5)[-1]["texto"]
+checar("João" in abertura_p2, "o plano abriu a conversa com o João antes do convite")
+cod = canal_telegram.gerar_convite(REPO, REPO.caso_de("goias", "p2"), agora=seg_10h)["codigo"]
+ENVIADOS.clear()
+canal_telegram.receber(upd("/start " + cod, 70, chat=2020), REPO, agora=seg_10h + timedelta(hours=1))
+checar(ENVIADOS == [("2020", abertura_p2)] and len(REPO.ultimas_mensagens("goias", c2["id"], 50)) == 1,
+       "ao ligar, ele recebe a abertura que já estava no caso (sem duplicar no Mizan)", str(ENVIADOS)[:160])
+madrugada = datetime(2026, 11, 3, 5, 0, tzinfo=timezone.utc)          # terça, 2h em Brasília
+cod = canal_telegram.gerar_convite(REPO, REPO.obter_ou_criar_caso("goias", "p3"), agora=madrugada)["codigo"]
+ENVIADOS.clear()
+canal_telegram.receber(upd("/start " + cod, 71, chat=3030), REPO, agora=madrugada)
+checar(ENVIADOS == [("3030", texto_abordagem("Ana", FONTE.nome_empresa("goias")))],
+       "abriu o convite às 2h: o agente responde na hora (foi a pessoa quem chamou)", str(ENVIADOS)[:160])
 
 print(f"\n{falhas} falha(s)")
 sys.exit(1 if falhas else 0)
