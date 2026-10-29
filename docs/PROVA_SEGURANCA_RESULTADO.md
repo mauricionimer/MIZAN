@@ -1,7 +1,7 @@
 # Prova de segurança: REPROVADO
 
-- Data: 2026-10-29 21:12 UTC
-- Commit: `793ba7a` (com alterações não commitadas)
+- Data: 2026-10-29 21:19 UTC
+- Commit: `4860abd`
 - Modo: --tudo (todos os test_*.py)
 - Python 3.14.6 em Windows
 
@@ -42,9 +42,9 @@
 | `test_agente_pastas.py` | ok | 2 s |
 | `test_agente_semaforo.py` | ok | 0 s |
 | `test_agente_supervisor.py` | ok | 0 s |
-| `test_agente_telegram.py` | ok | 18 s |
+| `test_agente_telegram.py` | ok | 21 s |
 | `test_agente_triagem_leitura.py` | ok | 0 s |
-| `test_ajuda_busca.py` | ok | 3 s |
+| `test_ajuda_busca.py` | ok | 4 s |
 | `test_ajuda_catalogo.py` | ok | 6 s |
 | `test_ajuda_cobertura.py` | **FALHA** (código 1) | 1 s |
 | `test_api_key.py` | ok | 2 s |
@@ -55,52 +55,52 @@
 | `test_backtest_fila_atual.py` | ok | 3 s |
 | `test_backtest_modelo_empresa.py` | ok | 4 s |
 | `test_bandit_empresa.py` | ok | 0 s |
-| `test_bandit_sem_acao.py` | ok | 2 s |
+| `test_bandit_sem_acao.py` | ok | 1 s |
 | `test_ciclo.py` | ok | 4 s |
-| `test_comando_unicos.py` | ok | 2 s |
+| `test_comando_unicos.py` | ok | 1 s |
 | `test_concorrencia.py` | ok | 1 s |
-| `test_conexao_sheets.py` | ok | 2 s |
+| `test_conexao_sheets.py` | ok | 1 s |
 | `test_conexoes_escopo.py` | ok | 2 s |
-| `test_config_publica.py` | ok | 2 s |
+| `test_config_publica.py` | ok | 1 s |
 | `test_db_por_thread.py` | ok | 1 s |
 | `test_deriva_psi.py` | ok | 1 s |
 | `test_desempenho_escala.py` | ok | 2 s |
-| `test_destino_conexao.py` | ok | 2 s |
-| `test_diagnostico_ativo.py` | ok | 10 s |
+| `test_destino_conexao.py` | ok | 1 s |
+| `test_diagnostico_ativo.py` | ok | 9 s |
 | `test_diagnostico_banco.py` | ok | 2 s |
 | `test_duas_instancias.py` | ok | 1 s |
 | `test_duvidas.py` | ok | 2 s |
 | `test_empresa_destino.py` | ok | 2 s |
 | `test_equidade.py` | ok | 1 s |
-| `test_erros_internos.py` | ok | 2 s |
-| `test_escopo_carteira.py` | ok | 2 s |
+| `test_erros_internos.py` | ok | 1 s |
+| `test_escopo_carteira.py` | ok | 1 s |
 | `test_feedback_escopo.py` | ok | 2 s |
 | `test_fila_distribuicao.py` | ok | 2 s |
-| `test_fronteira_aging.py` | ok | 2 s |
+| `test_fronteira_aging.py` | ok | 1 s |
 | `test_ia_leitura.py` | ok | 2 s |
 | `test_insercao_lotes.py` | ok | 2 s |
-| `test_lacunas.py` | ok | 3 s |
+| `test_lacunas.py` | ok | 2 s |
 | `test_limite.py` | ok | 4 s |
 | `test_limite_tamanho.py` | ok | 1 s |
 | `test_loop_oferta.py` | ok | 2 s |
 | `test_marca_login.py` | ok | 2 s |
-| `test_metricas_credito.py` | ok | 1 s |
+| `test_metricas_credito.py` | ok | 2 s |
 | `test_oferta_carteira.py` | ok | 4 s |
 | `test_ofertas_catalogo.py` | ok | 2 s |
-| `test_ofertas_desfazer.py` | ok | 2 s |
+| `test_ofertas_desfazer.py` | ok | 1 s |
 | `test_ofertas_feitas.py` | ok | 2 s |
-| `test_ordem_fila.py` | ok | 2 s |
+| `test_ordem_fila.py` | ok | 1 s |
 | `test_otimizacao_paginas.py` | **FALHA** (código 1) | 2 s |
 | `test_pagamento_acordo.py` | ok | 2 s |
-| `test_painel_operador.py` | ok | 2 s |
+| `test_painel_operador.py` | ok | 1 s |
 | `test_papel_comando.py` | ok | 2 s |
-| `test_peso_variaveis.py` | ok | 25 s |
+| `test_peso_variaveis.py` | ok | 17 s |
 | `test_premissas.py` | ok | 2 s |
 | `test_priorizacao.py` | ok | 1 s |
-| `test_priorizacao_politica.py` | ok | 1 s |
+| `test_priorizacao_politica.py` | ok | 0 s |
 | `test_procedencia_modelo.py` | ok | 2 s |
-| `test_proposta.py` | ok | 2 s |
-| `test_ranking_paginado.py` | ok | 2 s |
+| `test_proposta.py` | ok | 1 s |
+| `test_ranking_paginado.py` | ok | 1 s |
 | `test_renda_ausente.py` | ok | 4 s |
 | `test_resultados_admin.py` | ok | 2 s |
 | `test_resultados_escala.py` | ok | 2 s |
@@ -111,21 +111,21 @@
 | `test_revisao_analiticos.py` | **FALHA** (código 1) | 2 s |
 | `test_revisao_api.py` | ok | 5 s |
 | `test_revisao_conversa.py` | ok | 0 s |
-| `test_revisao_modelos.py` | ok | 16 s |
-| `test_revisao_nucleo.py` | **FALHA** (código 1) | 2 s |
+| `test_revisao_modelos.py` | ok | 18 s |
+| `test_revisao_nucleo.py` | **FALHA** (código 1) | 3 s |
 | `test_roteiros.py` | ok | 2 s |
-| `test_salvamento_parcial.py` | ok | 5 s |
+| `test_salvamento_parcial.py` | ok | 6 s |
 | `test_score_em_lotes.py` | ok | 4 s |
-| `test_segredos.py` | ok | 1 s |
+| `test_segredos.py` | ok | 2 s |
 | `test_simulador_oferta.py` | ok | 2 s |
 | `test_status_fila.py` | ok | 2 s |
 | `test_tarefas_administrativas.py` | ok | 0 s |
 | `test_teto_leitura.py` | ok | 2 s |
-| `test_treino_api.py` | ok | 9 s |
-| `test_treino_empresa.py` | ok | 27 s |
-| `test_treino_feedbacks.py` | ok | 20 s |
+| `test_treino_api.py` | ok | 11 s |
+| `test_treino_empresa.py` | ok | 24 s |
+| `test_treino_feedbacks.py` | ok | 16 s |
 | `test_varredura_contas.py` | ok | 3 s |
-| `pip-audit` | ok | 51 s |
+| `pip-audit` | ok | 41 s |
 | `npm audit --omit=dev` | ok | 1 s |
 
 ## Falhas
@@ -528,7 +528,7 @@ ok    comando precisa escolher a empresa
 ok    mensagem vazia: 422
 ok    Central só para admin e comando
 — conversa pela tela —
-ok    mensagem e resposta  — {'caso': {'id': '49b546b0-22ac-48e9-b2b5-15c5ed9759ce', 'situacao': 'em_contato', 'proxima_data': None, 'versao_politica': 1, 'resumo': None, 'identidade_confirmada': True, 'acordo': None}, 'mensagens
+ok    mensagem e resposta  — {'caso': {'id': '088d990a-7de4-4083-9f86-a793ec3eae37', 'situacao': 'em_contato', 'proxima_data': None, 'versao_politica': 1, 'resumo': None, 'identidade_confirmada': True, 'acordo': None}, 'mensagens
 ok    caso em contato, identidade confirmada
 ok    evento feito, com trace
 ok    passos do trace para a tela  — ['receber', 'triagem', 'auditor', 'ferramenta:verificar_identidade', 'guardrails', 'auditor', 'negociar', 'enviar']
@@ -796,7 +796,7 @@ tudo certo
 
 ```
 — negociação de ponta a ponta —
-ok    uma resposta enviada  — {'evento_id': 'b0ece2d3-36e4-41e2-b0b1-4c2530d8235f', 'trace_id': 'c56e6249eec74bfcb330e20334eccb0e', 'situacao_evento': 'feito', 'ok': True, 'erro': None, 'situacao': 'em_contato'}
+ok    uma resposta enviada  — {'evento_id': 'f037e72d-668c-4e58-80f0-90f54fb32ff1', 'trace_id': '631c1e15e5184fae89c6bc8909ce62ef', 'situacao_evento': 'feito', 'ok': True, 'erro': None, 'situacao': 'em_contato'}
 ok    primeira mensagem se apresenta como assistente virtual  — Olá, Maria! Aqui é o assistente virtual de Banco Demonstração. Consigo entrada d
 ok    valores da simulação, identidade confirmada
 ok    negociador recebe as 16 ferramentas e o briefing
@@ -1057,7 +1057,7 @@ ok    contato do agente não mexe no bandit
 ```
 ....................
 ----------------------------------------------------------------------
-Ran 20 tests in 0.048s
+Ran 20 tests in 0.046s
 OK
 ```
 
@@ -1091,13 +1091,13 @@ ok test_ia_ou_codigo
 <details><summary><code>test_agente_latencia.py</code>: ok</summary>
 
 ```
-...agente_operacional={"empresa_id": "emp", "nivel": "aviso", "categoria": "no_falhou", "mensagem": "Uma etapa do agente falhou", "agente": "negociador", "evento_id": "875f6ab1-4c31-441b-a1e4-f74b9a1b58ce", "caso_id": "02129365-cff4-4a89-9c91-8fcc9800c153", "trace_id": "df91f17add0e46b7ad7e5ac987ed83ec", "tentativa": 1, "detalhe": {"no": "negociar", "erro": "SemResposta"}, "criado_em": "2026-10-29T21:07:23.451118+00:00"}
-.agente_operacional={"empresa_id": "emp", "nivel": "aviso", "categoria": "no_falhou", "mensagem": "Uma etapa do agente falhou", "agente": "triagem", "evento_id": "75f7149a-ecc3-47a7-bbc5-447a561c0160", "caso_id": "788d5d36-3174-4f63-afa6-7c9ac291a8ba", "trace_id": "e56cde4b604f4023b73e0587b9f24592", "tentativa": 1, "detalhe": {"no": "triagem", "erro": "ErroGemini"}, "criado_em": "2026-10-29T21:07:23.454137+00:00"}
-...agente_operacional={"empresa_id": "emp", "nivel": "aviso", "categoria": "no_falhou", "mensagem": "Uma etapa do agente falhou", "agente": "acompanhamento", "evento_id": "a777b71b-a588-45a8-ad00-1b5079d201e8", "caso_id": "397187fc-fb6c-4bac-bf86-4f9e7fe0eca4", "trace_id": "c16d968244e844c7a2d1fb8f02afe4e4", "tentativa": 1, "detalhe": {"no": "conferir", "erro": "KeyError"}, "criado_em": "2026-10-29T21:07:23.469334+00:00"}
-.agente_operacional={"empresa_id": "emp", "nivel": "aviso", "categoria": "no_falhou", "mensagem": "Uma etapa do agente falhou", "agente": "negociador", "evento_id": "5bfffa9f-eb99-40e0-9685-d1fe875479ad", "caso_id": "cc09a93f-2370-4466-8f4a-c3584042283b", "trace_id": "6ccefd81e79146c88e1747726116c8da", "tentativa": 1, "detalhe": {"no": "negociar", "erro": "SemResposta"}, "criado_em": "2026-10-29T21:07:23.470932+00:00"}
+...agente_operacional={"empresa_id": "emp", "nivel": "aviso", "categoria": "no_falhou", "mensagem": "Uma etapa do agente falhou", "agente": "negociador", "evento_id": "e8f4ebcd-1809-4ea4-9882-02096d468e9f", "caso_id": "d26711e7-871c-4d13-b0f5-fb9aae040982", "trace_id": "3a0bc5facd3b4592a47882591c48ea38", "tentativa": 1, "detalhe": {"no": "negociar", "erro": "SemResposta"}, "criado_em": "2026-10-29T21:14:01.018628+00:00"}
+.agente_operacional={"empresa_id": "emp", "nivel": "aviso", "categoria": "no_falhou", "mensagem": "Uma etapa do agente falhou", "agente": "triagem", "evento_id": "a1560294-ac87-4fa0-9e62-196fcdd2629b", "caso_id": "953a92dc-ea8b-418b-a19f-15929148b5ab", "trace_id": "4dfe38c906174f7f8c3d2a11b4b87248", "tentativa": 1, "detalhe": {"no": "triagem", "erro": "ErroGemini"}, "criado_em": "2026-10-29T21:14:01.021528+00:00"}
+...agente_operacional={"empresa_id": "emp", "nivel": "aviso", "categoria": "no_falhou", "mensagem": "Uma etapa do agente falhou", "agente": "acompanhamento", "evento_id": "4065d59c-3cb3-4c31-a50b-6f269c391077", "caso_id": "23763d61-78b5-4a5a-91cd-b16f0893a888", "trace_id": "3a3e70125289413db2d8496195f9b052", "tentativa": 1, "detalhe": {"no": "conferir", "erro": "KeyError"}, "criado_em": "2026-10-29T21:14:01.036496+00:00"}
+.agente_operacional={"empresa_id": "emp", "nivel": "aviso", "categoria": "no_falhou", "mensagem": "Uma etapa do agente falhou", "agente": "negociador", "evento_id": "07c942a0-e578-4e05-80d1-a81f520ab7e8", "caso_id": "41181188-40ee-4e36-a5fb-76ac034f8194", "trace_id": "742605c8ddba41f79bf7a4581725e24b", "tentativa": 1, "detalhe": {"no": "negociar", "erro": "SemResposta"}, "criado_em": "2026-10-29T21:14:01.037990+00:00"}
 ........
 ----------------------------------------------------------------------
-Ran 16 tests in 0.054s
+Ran 16 tests in 0.057s
 OK
 ```
 
@@ -1344,7 +1344,7 @@ ok    corpo inválido: 400
 — convite —
 ok    operador não gera convite
 ok    devedor de outra empresa: 404
-ok    admin recebe o link do bot  — {'codigo': '5f86fb18d059425384b6a05204d515ebqrmrykVnRacf', 'expira_em': '2026-11-05T21:07:
+ok    admin recebe o link do bot  — {'codigo': '14380528817346c7a3dd84235a73379abUh3Nmtk80z9', 'expira_em': '2026-11-05T21:14:
 ok    o caso guarda só o hash do segredo
 ok    o código cabe no limite do Telegram (64)  — 44
 — vínculo —
@@ -1353,7 +1353,7 @@ ok    código adulterado não liga
 ok    e nada ficou ligado
 [Telegram] vinculado em 0.0s
 ok    convite certo liga o chat e dá boas-vindas
-ok    a tela vê "ligado", sem o chat_id  — {'configurado': True, 'ligado': True, 'desde': '2026-10-29T21:07:29.522939+00:00', 'bloqueado': False, 'convite_pendente_ate': None, 'tentativa_outro_chat_em': None}
+ok    a tela vê "ligado", sem o chat_id  — {'configurado': True, 'ligado': True, 'desde': '2026-10-29T21:14:07.051141+00:00', 'bloqueado': False, 'convite_pendente_ate': None, 'tentativa_outro_chat_em': None}
 [Telegram] ja_ligado em 0.0s
 ok    a mesma pessoa abre o link de novo: "você já está conectado"
 [Telegram] ja_ligado em 0.0s
@@ -1396,18 +1396,18 @@ ok    grupo, bot e update sem mensagem são ignorados
 [Telegram] midia em 0.0s
 ok    foto ou áudio: avisa que só lê texto, uma vez (sem repetir a cada foto)  — [('555', 'Por enquanto eu só consigo ler mensagens de texto. Pode escrever o que precisa?')]
 — entrega com falha e reenvio —
-[Telegram] mensagem em 0.9s
+[Telegram] mensagem em 3.9s
 ok    falha de rede não derruba o atendimento
 ok    a mensagem continua registrada no caso
-[Telegram] mensagem em 3.9s
+[Telegram] mensagem em 1.8s
 ok    na rodada seguinte, o que tinha falhado vai antes, na ordem  — [('555', 'Posso explicar sim.'), ('555', 'Os juros já estão no valor.')]
-[Telegram] mensagem em 1.9s
+[Telegram] mensagem em 3.8s
 ok    e nada é entregue duas vezes  — [('555', 'Certo.')]
 — devedor bloqueou o bot —
 [Telegram] mensagem em 3.8s
 ok    o caso fica marcado como bloqueado
 ok    e não se tenta mais enquanto ele não voltar
-[Telegram] mensagem em 3.9s
+[Telegram] mensagem em 0.9s
 ok    voltou a escrever: desbloqueia e a resposta chega  — ['Que bom que voltou.']
 ok    o que falhou com o bot bloqueado não chega atrasado  — ['Que bom que voltou.']
 — atendente responde pelo chat do Mizan —
@@ -1418,8 +1418,8 @@ ok    a resposta da pessoa é entregue  — 200
 ok    e chega exatamente ao Telegram ligado ao caso  — [('555', 'A partir de agora, uma pessoa da equipe vai continuar o seu atendimento por aqui.'), ('555', 'Oi, sou do banco. Posso ajudar?')]
 ok    fica registrada no caso, marcada como da pessoa
 ok    o aviso de passagem também fica no caso
-ok    lista de atendimentos: respondido, não espera  — [{'predicao_id': 'p1', 'nome': 'Maria das Dores', 'esperando': False, 'desde': '2026-10-29T21:07:44.932520+00:00', 'ultima_em': '2026-10-29T21:07:44.952437+00:00', 'telegram': True}]
-[Telegram] mensagem em 0.9s
+ok    lista de atendimentos: respondido, não espera  — [{'predicao_id': 'p1', 'nome': 'Maria das Dores', 'esperando': False, 'desde': '2026-10-29T21:14:22.240852+00:00', 'ultima_em': '2026-10-29T21:14:22.262257+00:00', 'telegram': True}]
+[Telegram] mensagem em 3.8s
 ok    o que o devedor responde aparece no chat do Mizan
 ok    e o agente não responde por cima enquanto o caso está com a pessoa  — []
 ok    e o caso aparece como esperando resposta da equipe
@@ -1542,7 +1542,7 @@ ok    o hash da aplicação bate com o do gerador e com o SHA-256 padrão
 ok    chave revogada (ativa=false) para de autenticar na hora
 ok    banco sem a coluna de hash: a chave antiga NÃO autentica (falha fechada)
 ok    e a retaguarda não aceita qualquer coisa
-ok    o uso é registrado, para dar para saber se a chave ainda está viva  — {'ultimo_uso': '2026-10-29T21:07:57.518846'}
+ok    o uso é registrado, para dar para saber se a chave ainda está viva  — {'ultimo_uso': '2026-10-29T21:14:38.794953'}
 ok    e falhar ao gravar o rastro não derruba a requisição válida
 ok    cada chave gerada é diferente
 ok    chave tem tamanho e prefixo esperados  — 49 caracteres
@@ -1823,50 +1823,6 @@ ok    a lista conferida corresponde ao código  — nenhum nome órfão
 [Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 [Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 [Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 [Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 [Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 [Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
@@ -1877,17 +1833,61 @@ ok    a lista conferida corresponde ao código  — nenhum nome órfão
 [Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 [Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 [Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 [Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 [Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 [Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 [Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 [Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 [Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 [Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 [Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 [Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 [Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 [Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 [Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 [Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 [Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
@@ -1897,16 +1897,6 @@ ok    a lista conferida corresponde ao código  — nenhum nome órfão
 [Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 [Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 [Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
-[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 [Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 [Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 [Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
@@ -1927,6 +1917,16 @@ ok    a lista conferida corresponde ao código  — nenhum nome órfão
 [Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 [Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 [Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
+[Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 [Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 [Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 [Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
@@ -1970,7 +1970,7 @@ ok    a lista conferida corresponde ao código  — nenhum nome órfão
 [Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 [Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 ok    todo feedback concorrente é contabilizado  — 40 de 40
-ok    sem o lock a corrida realmente acontece  — 32 de 40 feedbacks perdidos — senão este teste não provaria nada
+ok    sem o lock a corrida realmente acontece  — 31 de 40 feedbacks perdidos — senão este teste não provaria nada
 [Bandit] Aviso: falha ao carregar do Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 [Bandit] Aviso: falha ao gravar no Supabase: SUPABASE_URL e SUPABASE_KEY ausentes no .env
 ok    feedback isolado continua funcionando
@@ -2088,7 +2088,7 @@ C:\Projetos\mizan\backend\test_deriva_psi.py:31: DeprecationWarning: datetime.da
 Pastas brancas: 256 linhas de fila lidas em vez de 6.000; detalhes de 24 pastas.
 .......
 ----------------------------------------------------------------------
-Ran 7 tests in 0.261s
+Ran 7 tests in 0.236s
 OK
 ```
 
@@ -2217,8 +2217,8 @@ ok    não mexe em número comum: 'em 2026'
 ok    não mexe em número comum: 'taxa 0,25'
 ok    mascarar duas vezes não muda nada
 — enviar —
-ok    operador envia; o aviso de máscara vem na resposta  — 201 {"id":"217eb437-e6c9-4a75-96c9-5fd41344645d","mascarado":tru
-ok    nada de CPF nem e-mail em NENHUM campo gravado  — 217eb437-e6c9-4a75-96c9-5fd41344645d 2026-10-29T21:08:47.927141+00:00 aberta None None None None None None alfa op1 op1@
+ok    operador envia; o aviso de máscara vem na resposta  — 201 {"id":"d2c7808d-f2a2-4b86-8c3d-369589b66343","mascarado":tru
+ok    nada de CPF nem e-mail em NENHUM campo gravado  — d2c7808d-f2a2-4b86-8c3d-369589b66343 2026-10-29T21:15:27.164810+00:00 aberta None None None None None None alfa op1 op1@
 ok    empresa e autor vêm do token, não do corpo
 ok    pergunta sem dado pessoal: sem aviso
 ok    curta demais: 422
@@ -2268,8 +2268,8 @@ ok    só se publica o que já foi respondido
 ok    administrador não publica
 ok    FAQ vazio antes de publicar
 ok    COMANDO publica no FAQ
-ok    o FAQ aparece para usuário de OUTRA empresa, com o título e a resposta  — [{'id': '217eb437-e6c9-4a75-96c9-5fd41344645d', 'pergunta': 'Por que a nota cai com dados faltando?', 'resposta': 'Corre
-ok    sem autor, e-mail ou empresa de quem perguntou  — {'id', 'pergunta', 'resposta'}
+ok    o FAQ aparece para usuário de OUTRA empresa, com o título e a resposta  — [{'id': 'd2c7808d-f2a2-4b86-8c3d-369589b66343', 'pergunta': 'Por que a nota cai com dados faltando?', 'resposta': 'Corre
+ok    sem autor, e-mail ou empresa de quem perguntou  — {'id', 'resposta', 'pergunta'}
 ok    COMANDO lista o que está no FAQ
 ok    sem login não lê o FAQ
 ok    tirar do FAQ some para todos
@@ -2338,10 +2338,10 @@ RESULTADO: tudo certo
 ```
 — exceção não tratada —
 ok    responde 500  — 500
-ok    a senha não vai na resposta  — {"detail":"Erro interno. Se persistir, informe o código ao suporte: 34b55fbb","c
+ok    a senha não vai na resposta  — {"detail":"Erro interno. Se persistir, informe o código ao suporte: e37a41bd","c
 ok    o host interno também não
 ok    nem o nome da exceção
-ok    a resposta traz um código curto, repetido na mensagem  — 34b55fbb
+ok    a resposta traz um código curto, repetido na mensagem  — e37a41bd
 ok    e o mesmo código está no log  — 1 evento(s)
 ok    o log guarda o tipo do erro  — RuntimeError = chegou não tratada, pelo middleware; HTTPException = pelo handler
 ok    e o traceback completo  — é ele que responde 'onde quebrou'
@@ -2354,7 +2354,7 @@ ok    e origem desconhecida continua sem CORS  — a lista de permitidas não mu
 — controle: o handler comum de Exception —
 ok    um handler comum de Exception devolve 500 SEM cabeçalho CORS  — é a premissa do módulo: sem isto o navegador esconde o corpo
 — HTTPException(500) com detail vazando —
-ok    o texto da exceção deixa de sair  — {"detail":"Erro interno. Se persistir, informe o código ao suporte: f12530b9","c
+ok    o texto da exceção deixa de sair  — {"detail":"Erro interno. Se persistir, informe o código ao suporte: d62d1480","c
 ok    e vai para o log, com a credencial da URL mascarada  — Erro na análise: postgresql://***:***@db.interno.acme:5432/p
 ok    o traceback encadeado mostra a causa original  — o `raise ... from` implícito preserva o erro de dentro
 — o que não mudou —
@@ -3105,7 +3105,7 @@ Traceback (most recent call last):
     raise KeyError(key)
 KeyError: 'content-length'
 ----------------------------------------------------------------------
-Ran 4 tests in 0.202s
+Ran 4 tests in 0.150s
 FAILED (errors=1)
 ```
 
@@ -3206,7 +3206,7 @@ ok    sem divisão: recebido da carteira dele não é atribuído
 
 ```
 — criar um comando —
-ok    comando cria outro comando  — 200 {"ok":true,"usuario":{"id":"ccaaae9d09423b85","email":"socio@mizan.app
+ok    comando cria outro comando  — 200 {"ok":true,"usuario":{"id":"43a1aebcf1d15d1c","email":"socio@mizan.app
 ok    e o papel gravado é comando
 ok    e ele não nasce dentro de uma empresa cliente  — o sistema já recusa MOVER um comando para empresa; nascer numa seria o mesmo estado
 — quem pode fazer isso —
@@ -3761,7 +3761,7 @@ RESULTADO: tudo certo
 ```
 — 1. distribuir fila: um cliente por thread —
 ok    o cliente da thread principal não é usado pelas threads de gravação
-ok    cada cliente é usado por uma thread só  — {2223989372112: 1, 2223989374672: 1, 2223989571088: 1}
+ok    cada cliente é usado por uma thread só  — {3001473938640: 1, 3001473941200: 1, 3001474136704: 1}
 — 2. COMANDO confirma pagamento: empresa da carteira —
 ok    comando sem empresa escolhida: 400 e nada gravado  — {"detail":"Escolha a empresa."}
 [Confirmar] Tentativa — CPF: ***11, role: comando
@@ -4053,7 +4053,7 @@ ok    lote acima do limite: 413 com mensagem clara  — {"detail":"O arquivo tem
 [Storage] Erro no upload da empresa emp-amostra: Invalid API key
 ok    mesmo arquivo do modelo ativo: medida do atual marcada 'em amostra' e fora da comparação  — o modelo atual já viu estes dados no treino (mesmo arquivo)
 [Storage] Erro no upload da empresa emp-amostra: Invalid API key
-ok    ativação não é bloqueada pela medida em amostra  — 200 {"ok":true,"empresa_id":"emp-amostra","versao_ativa":"e2_20261029_211038"}
+ok    ativação não é bloqueada pela medida em amostra  — 200 {"ok":true,"empresa_id":"emp-amostra","versao_ativa":"e2_20261029_211706"}
 [Storage] Erro no upload da empresa emp-limpa: Invalid API key
 ok    sem modelo próprio, o atual (geral) continua comparado normalmente
 == 8. treino com feedbacks lê só a empresa pedida ==
@@ -4086,7 +4086,7 @@ ok    a conta de esperas do primeiro evento continua lá
 ok    na retomada, a IA responde à primeira mensagem
 ok    primeiro evento termina, sem passar para uma pessoa
 — 1c. esperas contadas por evento —
-ok    cada evento tem a sua conta  — {'35fab55f-6eac-402a-8226-e94d02263c85': 2, 'bbdf5d1e-c097-49d2-bad4-e8e2e6eb7f1f': 2}
+ok    cada evento tem a sua conta  — {'d51d8ac0-8408-43a9-897d-b1f8abaee38c': 2, '1e6e98c1-6c73-4fbd-a1c6-0e17d7e4d6ac': 2}
 — 1d. receber idempotente: a mesma entrada do mesmo evento não duplica —
 ok    uma entrada por evento; saída não é afetada
 — 2. Gemini: falha momentânea vira IaOcupada (adia, não transfere) —
@@ -4377,18 +4377,18 @@ ok    admin lista só as versões da própria empresa (o empresa_id pedido é ig
 ok    admin não ativa versão
 ok    extensão errada: 400
 ok    arquivo de 26 MB: 413
-ok    aceita e processa em segundo plano  — {"id":"cbbed945831b","estado":"na_fila"}
-ok    arquivo sem resultado: recusado com motivo  — {'id': 'cbbed945831b', 'empresa_id': 'goias bank', 'estado': 'recusado', 'arquivo': 'g.csv', 'inicio
+ok    aceita e processa em segundo plano  — {"id":"6990e83d487c","estado":"na_fila"}
+ok    arquivo sem resultado: recusado com motivo  — {'id': '6990e83d487c', 'empresa_id': 'goias bank', 'estado': 'recusado', 'arquivo': 'g.csv', 'inicio
 ok    segundo treino enquanto o primeiro roda: 409  — 409
 [Storage] Erro no upload da empresa goias-bank-4b6cd253: Invalid API key
-ok    treino conclui  — {'id': '82bbb874a5d0', 'empresa_id': 'goias bank', 'estado': 'concluido', 'arquivo': 'g.csv', 'iniciou_em': '2026-10-29T21:11:04.501751', 'versao': 'e1_20261029_211110', 'registro': {'versao': 'e1_202
+ok    treino conclui  — {'id': '4b9124b7df57', 'empresa_id': 'goias bank', 'estado': 'concluido', 'arquivo': 'g.csv', 'iniciou_em': '2026-10-29T21:17:37.003134', 'versao': 'e1_20261029_211743', 'registro': {'versao': 'e1_202
 ok    registro diz que os dados foram descartados
 ok    o estado da tarefa não carrega CPF nem nome
 ok    nem o arquivo
 ok    depois de treinar, ainda usa o global
 ok    modelo pior que o atual não ativa sem confirmação  — {"detail":"O modelo novo (AUC 0.01) não supera o que a empresa usa hoje (AUC 0.6771) na me
 [Storage] Erro no upload da empresa goias-bank-4b6cd253: Invalid API key
-ok    com confirmação ativa  — {"ok":true,"empresa_id":"goias bank","versao_ativa":"e1_20261029_211110"}
+ok    com confirmação ativa  — {"ok":true,"empresa_id":"goias bank","versao_ativa":"e1_20261029_211743"}
 ok    agora usa o próprio
 ok    versão inexistente: 404
 ok    a carteira registra a versão da empresa; outra empresa não
@@ -4423,7 +4423,7 @@ ok    e sem empresa também
 ok    pontua com o modelo próprio
 ok    desativar devolve ao global
 ok    e os arquivos da versão ficam guardados
-ok    empresa_id malicioso não escapa da pasta  — C:\Users\vinic\AppData\Local\Temp\mizan_treino_662pedeh\model\empresas\etc-passwd-936d7c04
+ok    empresa_id malicioso não escapa da pasta  — C:\Users\vinic\AppData\Local\Temp\mizan_treino_27k6a8bf\model\empresas\etc-passwd-936d7c04
 ok    ids que colidiriam ganham sufixos diferentes
 ok    sem coluna de resultado é recusado  — Não encontrei a coluna de resultado (se o devedor pagou). Esperava uma destas: pagou, pago
 ok      e nada ficou gravado
@@ -4454,7 +4454,7 @@ RESULTADO: tudo certo
 
 ```
 — o conjunto de dados de cada empresa —
-ok    uma entrada por empresa, com o id normalizado  — {'alfa', 'beta'}
+ok    uma entrada por empresa, com o id normalizado  — {'beta', 'alfa'}
 ok    alfa: um registro por predição com pagamento (1.500, não os 1.650 feedbacks)  — 1500
 ok    beta: só os 20 dela  — 20
 ok    quem foi marcado pago em algum momento conta como pago  — 873 vs 873
@@ -4467,7 +4467,7 @@ ok    o retreino geral (todas as empresas juntas) está desativado  — 410
 [Storage] Erro no upload da empresa alfa: 'DB' object has no attribute 'storage'
 [PriceModel] Treinado — 1500 amostras, 723 pagamentos | R²=0.110, MAE=0.249
 [Storage] Erro no upload da empresa alfa: 'DB' object has no attribute 'storage'
-ok    COMANDO inicia o treino da alfa  — 202 {"id":"96e46c8befae","estado":"na_fila"}
+ok    COMANDO inicia o treino da alfa  — 202 {"id":"536bc773c3d9","estado":"na_fila"}
 ok    o treino termina  — concluido 
 ok    versão registrada com a origem e as 1.500 linhas  — feedbacks 1500
 ok    a versão nasce INATIVA
@@ -4489,13 +4489,13 @@ ok    voltar ao modelo geral tira também o modelo de preço
 [Storage] Erro no upload da empresa alfa: 'DB' object has no attribute 'storage'
 [PriceModel] Treinado — 1540 amostras, 723 pagamentos | R²=0.107, MAE=0.252
 [Storage] Erro no upload da empresa alfa: 'DB' object has no attribute 'storage'
-[Scheduler] 21:11:50 — 2 empresa(s) com pagamentos; 1 treinada(s) (mínimo: 30)
-ok    alfa: 40 pagamentos novos desde o último treino → treina  — {'acao': 'treinou', 'novos': 40, 'versao': 'e2_20261029_211154', 'mensagem': 'Versão e2_20261029_211154 treinada e guardada, inativa.'}
+[Scheduler] 21:18:18 — 2 empresa(s) com pagamentos; 1 treinada(s) (mínimo: 30)
+ok    alfa: 40 pagamentos novos desde o último treino → treina  — {'acao': 'treinou', 'novos': 40, 'versao': 'e2_20261029_211822', 'mensagem': 'Versão e2_20261029_211822 treinada e guardada, inativa.'}
 ok    beta: abaixo do mínimo → aguarda  — {'acao': 'aguardando', 'novos': 20, 'mensagem': 'Aguardando 10 pagamentos novos.'}
 ok    a versão do agendador também nasce inativa
 ok    o modelo GERAL não muda
 ok    as travas são devolvidas
-[Scheduler] 21:11:57 — 2 empresa(s) com pagamentos; 0 treinada(s) (mínimo: 30)
+[Scheduler] 21:18:24 — 2 empresa(s) com pagamentos; 0 treinada(s) (mínimo: 30)
 ok    sem pagamento novo, não treina de novo  — {'acao': 'aguardando', 'novos': 0, 'mensagem': 'Aguardando 30 pagamentos novos.'}
 ok    outra instância verificando: pula
 — datas do arquivo de treino —
