@@ -288,5 +288,41 @@ canal_telegram.receber(upd("/start " + cod, 71, chat=3030), REPO, agora=madrugad
 checar(ENVIADOS == [("3030", texto_abordagem("Ana", FONTE.nome_empresa("goias")))],
        "abriu o convite às 2h: o agente responde na hora (foi a pessoa quem chamou)", str(ENVIADOS)[:160])
 
+print("— mensagens seguidas: uma resposta só, como no Mizan —")
+canal_telegram.receber(upd("/start " + canal_telegram.gerar_convite(REPO, REPO.caso_de("goias", "p3"))["codigo"], 79, chat=3131), REPO)
+c3 = REPO.caso_de("goias", "p3")
+ENVIADOS.clear()
+antes = len(REPO.ultimas_mensagens("goias", c3["id"], 200))
+canal_telegram.receber(upd("oi", 80, chat=3131), REPO, processar=False)          # o agente ainda não começou
+canal_telegram.receber(upd("sou eu sim", 81, chat=3131), REPO, processar=False)
+r = canal_telegram.receber(upd("pode falar", 82, chat=3131), REPO, processar=False)
+checar(r["acao"] == "juntou", "mensagem que chega antes de o agente responder entra na mesma rodada", str(r))
+checar(canal_telegram.receber(upd("pode falar", 82, chat=3131), REPO, processar=False)["acao"] == "repetido",
+       "o reenvio de uma mensagem juntada não duplica")
+ROTEIRO[:] = [tri("duvida"), Resposta(texto="Que bom, Ana! Como posso ajudar?")]
+canal_telegram._processar_caso(REPO, c3, "telegram:80", datetime.now(timezone.utc))
+novas = REPO.ultimas_mensagens("goias", c3["id"], 200)[antes:]
+checar(ENVIADOS == [("3131", "Que bom, Ana! Como posso ajudar?")], "três mensagens seguidas, uma resposta", str(ENVIADOS))
+checar([(m["direcao"], m["texto"]) for m in novas] == [("entrada", "oi\nsou eu sim\npode falar"),
+                                                       ("saida", "Que bom, Ana! Como posso ajudar?")],
+       "o Mizan mostra as três juntas e a resposta", str(novas)[:200])
+
+print("— o que o Telegram grava durante a resposta não se perde —")
+def no_meio(*_):
+    canal_telegram._pode_avisar(REPO, REPO.obter_caso(c3["id"]), "so_texto", datetime.now(timezone.utc))
+    return Resposta(texto="Certo.")
+ROTEIRO[:] = [tri("duvida"), no_meio]
+canal_telegram.receber(upd("e agora?", 83, chat=3131), REPO)
+checar("so_texto" in (REPO.caso_de("goias", "p3")["dados"]["telegram"].get("avisos") or {}),
+       "o agente não apaga o que o webhook gravou enquanto ele respondia")
+def desliga(*_):
+    canal_telegram.desvincular(REPO, REPO.obter_caso(c3["id"]))
+    return Resposta(texto="Resposta que não deve ir.")
+ROTEIRO[:] = [tri("duvida"), desliga]
+ENVIADOS.clear()
+canal_telegram.receber(upd("mais uma", 84, chat=3131), REPO)
+checar(REPO.caso_por_telegram(3131) is None and ENVIADOS == [],
+       "desligado no meio da resposta: o chat continua desligado e nada é enviado", str(ENVIADOS))
+
 print(f"\n{falhas} falha(s)")
 sys.exit(1 if falhas else 0)

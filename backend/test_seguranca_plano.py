@@ -500,7 +500,7 @@ checar("456" not in m and "789" not in m, "OK-IA", "o texto que vai à IA sai ma
 
 
 # ═════ S15: uma conversa não esgota a IA da empresa ══════════════════════════
-print("\n— S15: 40 mensagens no Telegram, no máximo 10 rodadas de IA —")
+print("\n— S15: 40 mensagens no Telegram, no máximo o limite de rodadas de IA (padrão 30) —")
 from agente import api as agente_api, auditor, canal_telegram            # noqa: E402
 from agente.fonte import FonteMemoria                                     # noqa: E402
 from agente.llm import ClienteFalso, Resposta                             # noqa: E402
@@ -545,15 +545,16 @@ upd = lambda uid, t: {"update_id": uid, "message": {"chat": {"id": 555, "type": 
                                                     "from": {"is_bot": False}, "text": t}}
 for i in range(40):
     canal_telegram.receber(upd(100 + i, f"mensagem {i}"), repo=REPO)
-checar(caso is not None and 1 <= RODADAS[0] <= 10, "S15", "40 mensagens seguidas: no máximo 10 rodadas de IA",
-       f"rodadas={RODADAS[0]}")
+LIMITE = canal_telegram._limite_rodadas()[0]
+checar(LIMITE < 40 and caso is not None and 1 <= RODADAS[0] <= LIMITE, "S15",
+       f"40 mensagens seguidas: no máximo {LIMITE} rodadas de IA", f"rodadas={RODADAS[0]}")
 avisos = [t for t in ENVIADOS if t == canal_telegram.MSG_ESPERA]
 checar(len(avisos) == 1, "S15", "o devedor recebe um único aviso fixo, sem IA", str(len(avisos)))
 if caso:
     cid = REPO.caso_de("goias", "p1")["id"]
     adiados = [e for e in REPO.eventos.values() if e["caso_id"] == cid and e["situacao"] == "pendente"]
     checar(len(adiados) == 1 and adiados[0]["disponivel_em"] > datetime.now(timezone.utc)
-           and "mensagem 39" in adiados[0]["dados"]["texto"] and "mensagem 10" in adiados[0]["dados"]["texto"],
+           and "mensagem 39" in adiados[0]["dados"]["texto"] and f"mensagem {LIMITE}" in adiados[0]["dados"]["texto"],
            "S15", "o que passou do limite fica num único evento adiado, com todas as mensagens",
            str([(e["disponivel_em"], len(e["dados"].get("texto", ""))) for e in adiados]))
     # Controle: aberta a janela, a conversa continua sendo atendida (uma rodada para tudo).

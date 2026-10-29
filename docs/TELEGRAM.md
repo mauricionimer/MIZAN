@@ -48,6 +48,14 @@ O agente do Telegram é o mesmo do chat do Mizan, e a conversa começa do mesmo 
   linha marca onde a conversa recomeçou; o histórico anterior continua visível.
 - Com o Telegram ligado, a tela do Mizan não escreve como o devedor (a caixa fica bloqueada). Para
   falar com ele, **Assumir o caso** e responder como atendente.
+- Mensagens seguidas: o que chega antes de o agente começar a responder entra na mesma rodada, e sai
+  uma resposta só (no Mizan a caixa espera a resposta; no Telegram a pessoa manda várias).
+- Enquanto o agente responde, o Telegram mostra "digitando…" o tempo todo.
+- IA ocupada por instantes: o Telegram espera e tenta de novo sozinho (até 90 s), como a conversa
+  aberta no Mizan.
+- Limite de proteção: 30 respostas da IA por conversa a cada 10 minutos (`MIZAN_IA_RODADAS_CASO`,
+  `MIZAN_IA_JANELA_CASO_MIN`). Uma conversa de verdade não chega perto; quem manda dezenas de
+  mensagens recebe "já te respondo" e uma resposta só no fim da janela.
 
 ## O que pode dar errado com o link (e o que a pessoa vê)
 

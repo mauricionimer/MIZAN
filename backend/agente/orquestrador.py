@@ -427,7 +427,25 @@ def executar(grafo: Grafo, ctx: Contexto, dono: str = DONO) -> dict:
     return {"ok": erro is None, "erro": erro, "situacao": ctx.caso["situacao"]}
 
 
+def _telegram_atual(ctx: Contexto) -> None:
+    """O webhook do Telegram grava no caso enquanto o agente responde (vínculo, limite,
+    avisos). Antes de gravar, o caso pega o estado do Telegram mais recente e só
+    acrescenta o que esta rodada mudou nele (entregas): uma cópia velha não apaga nada."""
+    dados = ctx.caso.get("dados") or {}
+    if "telegram" not in dados:
+        return
+    fresco = ((ctx.repo.obter_caso(ctx.caso["id"]) or {}).get("dados") or {}).get("telegram")
+    if fresco is None:
+        return
+    tg = {**fresco, **(ctx.saida.get("_telegram") or {})}
+    ctx.caso["dados"] = {**dados, "telegram": tg}
+
+
 def _checkpoint(ctx: Contexto, ultimo: str | None, dono: str) -> None:
+    try:
+        _telegram_atual(ctx)
+    except Exception as e:                              # nunca derruba o atendimento
+        print(f"[Agente] estado do Telegram não relido: {type(e).__name__}")
     ctx.caso["ultimo_passo"] = ultimo
     campos = {k: ctx.caso.get(k) for k in ("situacao", "ultimo_passo", "dados", "grupo",
                                            "grupo_controle", "proxima_data", "tentativas",
@@ -459,6 +477,11 @@ def processar_proximo(repo, grafos: dict, cliente=None, agora: datetime | None =
             repo.devolver_evento(ev["id"], ev.get("disponivel_em"))
             continue
         try:
+            # Os dados do evento podem ter mudado entre a leitura e a reserva (ex.: o
+            # Telegram juntou mais uma mensagem a ele): processa a versão reservada.
+            atual = repo.evento_por_chave(ev["empresa_id"], ev["chave"]) if ev.get("chave") else None
+            if atual and atual.get("id") == ev["id"]:
+                ev = {**ev, "dados": atual.get("dados")}
             return _processar(repo, grafos, ev, cliente or llm.cliente(), agora, dono)
         finally:
             repo.soltar_caso(ev["caso_id"], dono)

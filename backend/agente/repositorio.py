@@ -171,6 +171,21 @@ class RepoMemoria:
             if evento_id in self.eventos:
                 self.eventos[evento_id].update(copy.deepcopy(campos))
 
+    def pendente_do_caso(self, empresa_id: str, caso_id: str, tipo: str) -> dict | None:
+        """O evento mais antigo deste tipo ainda na fila do caso (pronto ou adiado)."""
+        evs = sorted((e for e in self.eventos.values() if e["empresa_id"] == empresa_id and e["caso_id"] == caso_id
+                      and e["tipo"] == tipo and e["situacao"] == "pendente"), key=lambda e: e["criado_em"])
+        return copy.deepcopy(evs[0]) if evs else None
+
+    def atualizar_evento_pendente(self, evento_id: str, campos: dict) -> bool:
+        """Atualiza só se o evento ainda está na fila (ninguém começou a processar)."""
+        with self._lock:
+            e = self.eventos.get(evento_id)
+            if not e or e["situacao"] != "pendente":
+                return False
+            e.update(copy.deepcopy(campos))
+            return True
+
     # ── mensagens ──
     def gravar_mensagem(self, empresa_id: str, caso_id: str, direcao: str, texto: str,
                         trace_id: str | None = None, criado_em: datetime | None = None) -> None:
@@ -452,6 +467,17 @@ class RepoSupabase:
     def atualizar_evento(self, evento_id: str, campos: dict) -> None:
         dados = {k: self._iso(v) for k, v in campos.items()}
         self.db.table("agente_eventos").update(dados).eq("id", evento_id).execute()
+
+    def pendente_do_caso(self, empresa_id: str, caso_id: str, tipo: str) -> dict | None:
+        res = (self.db.table("agente_eventos").select("*").eq("empresa_id", empresa_id).eq("caso_id", caso_id)
+               .eq("tipo", tipo).eq("situacao", "pendente").order("criado_em").limit(1).execute())
+        return (res.data or [None])[0]
+
+    def atualizar_evento_pendente(self, evento_id: str, campos: dict) -> bool:
+        dados = {k: self._iso(v) for k, v in campos.items()}
+        res = (self.db.table("agente_eventos").update(dados)
+               .eq("id", evento_id).eq("situacao", "pendente").execute())
+        return bool(res.data)
 
     def publicar_escritorio(self, empresa_id, evento_id, trace_id, dados):
         from agente.publicador import publicador

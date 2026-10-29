@@ -38,7 +38,8 @@ Segurança
     um aviso de que só lemos texto.
   - Cada update do Telegram tem chave própria (`telegram:<update_id>`): reenvio não duplica.
   - O que vai ao Telegram é texto puro, sem formatação.
-  - Cada conversa dispara no máximo MIZAN_IA_RODADAS_CASO rodadas de IA (padrão 10)
+  - Cada conversa dispara no máximo MIZAN_IA_RODADAS_CASO rodadas de IA (padrão 30,
+    acima do ritmo de uma conversa de verdade; mensagens seguidas contam como uma)
     a cada MIZAN_IA_JANELA_CASO_MIN minutos (padrão 10). O teto de gasto é por
     empresa e por dia: sem este, um devedor (ou quem tivesse o link dele) mandando
     500 mensagens esgotava a IA de todos os outros devedores da empresa. Passado o
@@ -50,6 +51,7 @@ import hmac
 import json
 import os
 import secrets
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -63,7 +65,9 @@ MAX_ENTREGUES = 60
 MAX_HASHES = 5
 TIMEOUT_S = 8
 JANELA_REENVIO = timedelta(minutes=15)   # mensagem do agente que falhou: tenta de novo nas rodadas seguintes
-ESPERA_CASO_S = 40                       # mensagem chegou com o caso ocupado: espera ele soltar, até isto
+ESPERA_CASO_S = 150                      # o webhook acompanha a resposta até isto (caso ocupado, IA ocupada)
+RETOMAR_ATE_S = 90                       # IA ocupada: se a nova tentativa sai em até isto, espera e tenta (como a tela)
+DIGITANDO_S = 4                          # "digitando…" some em ~5 s no Telegram: renova enquanto o agente responde
 INTERVALO_AVISO = {"pausa": timedelta(minutes=30), "so_texto": timedelta(minutes=10)}
 BLOQUEADO = "bloqueado"                  # o devedor bloqueou o bot (403)
 MARCAS_DIRETAS = ("pessoa", "aviso")    # trace_id de mensagens que vão na hora, fora das rodadas do agente
@@ -332,7 +336,9 @@ def entregar(ctx) -> int:
     agente desde que o chat foi ligado e dentro de `JANELA_REENVIO`: o que falhou
     numa rodada vai na próxima. Falha de rede nunca derruba o atendimento.
     """
-    tg = _tg(ctx.caso)
+    if "telegram" not in (ctx.caso.get("dados") or {}):
+        return 0
+    tg = _tg(ctx.repo.obter_caso(ctx.caso["id"]) or ctx.caso)     # o webhook pode ter mudado algo nesta rodada
     chat_id = tg.get("chat_id")
     if not chat_id or tg.get("bloqueado_em") or not configurado():
         return 0
@@ -371,6 +377,7 @@ def entregar(ctx) -> int:
             entregues.extend(_chave(x) for x in pendentes[i:])
         break
     tg["entregues"] = entregues[-MAX_ENTREGUES:]
+    ctx.saida["_telegram"] = {k: tg[k] for k in ("entregues", "bloqueado_em") if k in tg}
     dados = dict(ctx.caso.get("dados") or {})
     dados["telegram"] = tg
     ctx.caso["dados"] = dados
@@ -445,7 +452,7 @@ def abrir_conversa(repo, caso: dict, agora: datetime | None = None) -> str:
         chave = f"abordagem:{caso['predicao_id']}:telegram:{agora.isoformat()}"
         orq.registrar_evento(repo, emp, caso["id"], "abordagem", chave,
                              {"com_ia": ia_ligada("estrategista"), "convite": True}, origem="telegram")
-        _processar_caso(repo, caso, chave, agora)
+        _processar_caso(repo, caso, chave, agora, _tg(caso).get("chat_id"))
         if any(m["direcao"] == "saida" and (_quando(m.get("criado_em")) or agora) >= agora
                for m in repo.ultimas_mensagens(emp, caso["id"], 5)):
             return "abordagem"
@@ -490,9 +497,9 @@ def abrir_conversa(repo, caso: dict, agora: datetime | None = None) -> str:
 def _limite_rodadas() -> tuple:
     """(máximo de rodadas, janela). Lido a cada chamada: o ambiente pode mudar sem reiniciar."""
     try:
-        maximo = max(1, int(os.getenv("MIZAN_IA_RODADAS_CASO", "10")))
+        maximo = max(1, int(os.getenv("MIZAN_IA_RODADAS_CASO", "30")))
     except ValueError:
-        maximo = 10
+        maximo = 30
     try:
         janela = timedelta(minutes=max(1, int(os.getenv("MIZAN_IA_JANELA_CASO_MIN", "10"))))
     except ValueError:
@@ -545,23 +552,79 @@ def _adiar_se_passou_do_limite(repo, caso: dict, chave: str, texto: str, agora: 
 
 # ── recebimento (webhook) ───────────────────────────────────────────────────
 
-def _processar_caso(repo, caso: dict, chave: str, agora: datetime) -> None:
-    """Processa a fila só deste caso. Se ele estiver ocupado (o agente ainda está
-    respondendo a mensagem anterior), espera soltar em vez de deixar a mensagem
-    parada até o agendador passar."""
+def _digitando(chat_id, parar: threading.Event) -> None:
+    while not parar.wait(DIGITANDO_S):
+        enviar_acao(chat_id)
+
+
+def _processar_caso(repo, caso: dict, chave: str, agora: datetime, chat_id=None) -> None:
+    """Processa a fila só deste caso e acompanha até a resposta sair, como a tela do Mizan.
+
+    - Caso ocupado (o agente ainda responde a mensagem anterior): espera soltar.
+    - IA ocupada por instantes: a nova tentativa sai em até RETOMAR_ATE_S; espera e
+      tenta de novo, como a conversa aberta no Mizan faz. Mais longe que isso, o
+      agendador (a cada minuto) retoma.
+    - Enquanto isso, o devedor vê "digitando…".
+    """
     from agente import api, orquestrador as orq
     fonte = api.fabrica_fonte()
     grafos, cliente = api.grafos(fonte), api.fabrica_cliente()
     limite = time.monotonic() + ESPERA_CASO_S
-    while True:
-        orq.processar_fila(repo, grafos, cliente, limite=5, agora=max(agora, datetime.now(timezone.utc)),
-                           empresa_id=caso["empresa_id"], caso_id=caso["id"])
-        ev = repo.evento_por_chave(caso["empresa_id"], chave) or {}
-        pronto_em = _quando(ev.get("disponivel_em"))
-        adiado = pronto_em is not None and pronto_em > datetime.now(timezone.utc) + timedelta(seconds=5)
-        if ev.get("situacao") != "pendente" or adiado or time.monotonic() > limite:
-            return
-        time.sleep(1)
+    parar = threading.Event()
+    if chat_id is not None:
+        threading.Thread(target=_digitando, args=(chat_id, parar), daemon=True).start()
+    try:
+        while True:
+            orq.processar_fila(repo, grafos, cliente, limite=5, agora=max(agora, datetime.now(timezone.utc)),
+                               empresa_id=caso["empresa_id"], caso_id=caso["id"])
+            ev = repo.evento_por_chave(caso["empresa_id"], chave) or {}
+            pronto_em = _quando(ev.get("disponivel_em"))
+            falta = (pronto_em - datetime.now(timezone.utc)).total_seconds() if pronto_em else 0
+            if ev.get("situacao") != "pendente" or falta > RETOMAR_ATE_S or time.monotonic() > limite:
+                return
+            time.sleep(1)
+    finally:
+        parar.set()
+
+
+_TRAVAS: dict = {}
+_TRAVAS_LOCK = threading.Lock()
+
+
+def _trava_do_caso(caso_id: str) -> threading.Lock:
+    """Uma mensagem por vez por caso, no recebimento (juntar mensagens sem corrida)."""
+    with _TRAVAS_LOCK:
+        return _TRAVAS.setdefault(caso_id, threading.Lock())
+
+
+_VISTAS: list = []                      # updates já tratados neste processo (o Telegram pode reenviar)
+
+
+def _ja_visto(chave: str) -> bool:
+    with _TRAVAS_LOCK:
+        if chave in _VISTAS:
+            return True
+        _VISTAS.append(chave)
+        del _VISTAS[:-500]
+        return False
+
+
+def _juntar_na_fila(repo, caso: dict, chave: str, texto: str) -> dict | None:
+    """O devedor mandou outra mensagem antes de o agente começar a responder a anterior:
+    ela entra no mesmo evento, e UMA resposta cobre as duas. No Mizan a caixa espera a
+    resposta; aqui a pessoa pode mandar várias seguidas. Devolve o evento, ou None."""
+    from agente import triagem
+    fila = repo.pendente_do_caso(caso["empresa_id"], caso["id"], "mensagem_devedor")
+    if not fila or fila.get("chave") == chave:
+        return None
+    dados = dict(fila.get("dados") or {})
+    if chave in (dados.get("juntadas") or []):
+        return fila
+    dados["texto"] = (str(dados.get("texto") or "") + "\n" + texto)[-triagem.MAX_CARACTERES:]
+    dados["juntadas"] = (list(dados.get("juntadas") or []) + [chave])[-30:]
+    if not repo.atualizar_evento_pendente(fila["id"], {"dados": dados}):
+        return None                             # começou a ser processado agora: vira mensagem nova
+    return fila
 
 
 def receber(update: dict, repo=None, agora: datetime | None = None, processar=True) -> dict:
@@ -623,14 +686,22 @@ def receber(update: dict, repo=None, agora: datetime | None = None, processar=Tr
             avisar(repo, caso, MSG_PAUSADO, agora)
         return {"acao": "agente_desligado", "caso_id": caso["id"]}
 
-    if repo.evento_por_chave(caso["empresa_id"], chave):
-        return {"acao": "repetido", "caso_id": caso["id"]}   # reenvio do Telegram: não conta rodada
-    adiado = _adiar_se_passou_do_limite(repo, caso, chave, texto, agora)
-    if adiado:
-        return adiado
-    ev, novo = orq.registrar_evento(repo, caso["empresa_id"], caso["id"], "mensagem_devedor", chave,
-                                    {"texto": texto}, origem="telegram")
+    with _trava_do_caso(caso["id"]):
+        if _ja_visto(chave) or repo.evento_por_chave(caso["empresa_id"], chave):
+            return {"acao": "repetido", "caso_id": caso["id"]}   # reenvio do Telegram: não conta rodada
+        caso = repo.obter_caso(caso["id"]) or caso
+        fila = _juntar_na_fila(repo, caso, chave, texto)
+        if fila:
+            pronto = _quando(fila.get("disponivel_em"))
+            if not pronto or (pronto - datetime.now(timezone.utc)).total_seconds() <= RETOMAR_ATE_S:
+                enviar_acao(chat_id)
+            return {"acao": "juntou", "caso_id": caso["id"]}
+        adiado = _adiar_se_passou_do_limite(repo, caso, chave, texto, agora)
+        if adiado:
+            return adiado
+        ev, novo = orq.registrar_evento(repo, caso["empresa_id"], caso["id"], "mensagem_devedor", chave,
+                                        {"texto": texto}, origem="telegram")
     if novo and processar:
         enviar_acao(chat_id)                    # "digitando…" já, antes da IA começar
-        _processar_caso(repo, caso, chave, agora)
+        _processar_caso(repo, caso, chave, agora, chat_id)
     return {"acao": "mensagem" if novo else "repetido", "caso_id": caso["id"]}
