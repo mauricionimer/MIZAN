@@ -124,7 +124,9 @@ checar([i["rank"] for i in d["itens"][:2]] == [3, 9], "dentro de cada cor, pela 
 checar(d["contagem"] == {"vermelho": 2, "amarelo": 2, "branco": N - 4, "total": N}, "contagens por cor", str(d["contagem"]))
 checar(len(d["itens"]) == N, "traz todos sem repetir", str(len(d["itens"])))
 checar(len({i["id"] for i in d["itens"]}) == N, "sem repetição")
-checar(d["itens"][0]["cpf"].count("*") == 6 and "00000000003" not in str(d), "o CPF sai parcial")
+# Padrão do governo (***.456.789-**): os 3 primeiros dígitos são o desafio de identidade do agente (S14).
+checar(d["itens"][0]["cpf"].startswith("***.") and d["itens"][0]["cpf"].endswith("-**")
+       and "00000000003" not in str(d), "o CPF sai parcial, sem os 3 primeiros dígitos")
 checar(any(a["name"] == "Situação" for a in d["itens"][0]["arquivos"]), "a pasta traz os arquivos do caso")
 checar(d["itens"][-1]["arquivos"][0]["name"] == "Sem atendimento", "quem não tem caso: pasta sem atendimento")
 

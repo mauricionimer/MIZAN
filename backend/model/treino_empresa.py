@@ -78,6 +78,11 @@ def _norm(nome) -> str:
 def ler_tabela(raw: bytes, nome_arquivo: str) -> pd.DataFrame:
     """CSV (',' ou ';', UTF-8 ou Latin-1) ou Excel. Tudo em memória."""
     if (nome_arquivo or "").lower().endswith((".xlsx", ".xls")):
+        import planilha                       # bomba de descompactação: ver planilha.py
+        try:
+            planilha.conferir(raw, nome_arquivo)
+        except planilha.PlanilhaRecusada as e:
+            raise DadosInvalidos(str(e))
         return pd.read_excel(io.BytesIO(raw))
     amostra = raw[:4096].decode("utf-8", errors="ignore")
     cabecalho = amostra.splitlines()[0] if amostra else ""

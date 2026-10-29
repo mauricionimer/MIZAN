@@ -13,6 +13,9 @@ import time
 
 SECRET_KEY   = os.getenv("JWT_SECRET", "mizan_jwt_secret_mude_em_producao_2026")
 TOKEN_EXPIRE = 7 * 24 * 3600  # 7 dias
+# Renovar o token não estica a sessão além disto, contado do último login com
+# senha (auth_time). Sem teto, um token roubado virava acesso permanente.
+SESSAO_MAXIMA_S = 30 * 86400
 
 
 # ── JWT ─────────────────────────────────────────────────────────────────
@@ -76,18 +79,70 @@ def versao_da_senha(usuario: dict) -> "str | None":
     return hashlib.sha256(h.encode()).hexdigest()[:16] if h else None
 
 
+# OWASP (2023): 600 mil iterações de PBKDF2-SHA256. O formato novo diz o
+# algoritmo e o custo; o antigo ("sal$hash") é sempre 100 mil e continua
+# entrando, e o login regrava no formato novo (ver precisa_regravar).
+PBKDF2_ITERACOES = 600_000
+_PBKDF2_LEGADO   = 100_000
+_PREFIXO_PBKDF2  = "pbkdf2_sha256"
+
+
+def _pbkdf2(senha: str, salt: str, iteracoes: int) -> str:
+    return hashlib.pbkdf2_hmac("sha256", senha.encode(), salt.encode(), iteracoes).hex()
+
+
 def hash_senha(senha: str) -> str:
     salt = secrets.token_hex(16)
-    h = hashlib.pbkdf2_hmac("sha256", senha.encode(), salt.encode(), 100_000)
-    return f"{salt}${h.hex()}"
+    return f"{_PREFIXO_PBKDF2}${PBKDF2_ITERACOES}${salt}${_pbkdf2(senha, salt, PBKDF2_ITERACOES)}"
+
+
+def _partes_do_hash(hash_str: str) -> "tuple[int, str, str]":
+    """(iterações, sal, hash) dos dois formatos. ValueError se não for nenhum."""
+    partes = (hash_str or "").split("$")
+    if len(partes) == 4 and partes[0] == _PREFIXO_PBKDF2:
+        return int(partes[1]), partes[2], partes[3]
+    if len(partes) == 2:
+        return _PBKDF2_LEGADO, partes[0], partes[1]
+    raise ValueError("formato de hash desconhecido")
+
 
 def verificar_senha(senha: str, hash_str: str) -> bool:
     try:
-        salt, h_stored = hash_str.split("$", 1)
-        h = hashlib.pbkdf2_hmac("sha256", senha.encode(), salt.encode(), 100_000)
-        return secrets.compare_digest(h.hex(), h_stored)
+        iteracoes, salt, h_stored = _partes_do_hash(hash_str)
+        return secrets.compare_digest(_pbkdf2(senha, salt, iteracoes), h_stored)
     except Exception:
         return False
+
+
+def precisa_regravar(hash_str: str) -> bool:
+    """Hash no formato antigo ou com menos iterações do que o custo atual."""
+    try:
+        return _partes_do_hash(hash_str)[0] < PBKDF2_ITERACOES
+    except ValueError:
+        return False
+
+
+_HASH_FICTICIO = None
+
+
+def conferir_login(usuario, senha: str) -> bool:
+    """Senha certa de usuário ativo, sempre com exatamente um PBKDF2.
+
+    Com e-mail inexistente ou usuário desativado o login respondia sem calcular
+    hash nenhum, e o tempo de resposta dizia quais e-mails têm conta. Agora o
+    caso sem alvo confere contra um hash fictício do mesmo custo.
+    """
+    global _HASH_FICTICIO
+    if _HASH_FICTICIO is None:
+        _HASH_FICTICIO = hash_senha(secrets.token_urlsafe(16))
+    alvo = (usuario or {}).get("senha_hash") if (usuario or {}).get("ativo") else None
+    ok = verificar_senha(senha or "", alvo or _HASH_FICTICIO)
+    return bool(alvo) and ok
+
+
+def hash_reset_token(token: str) -> str:
+    """O banco guarda o SHA-256 do token de redefinição; o token puro só existe no link."""
+    return hashlib.sha256((token or "").encode()).hexdigest()
 
 
 # ── Usuários (Supabase) ──────────────────────────────────────────────────
@@ -213,14 +268,17 @@ def criar_reset_token(email: str) -> str | None:
     token = secrets.token_urlsafe(32)
     from datetime import datetime, timedelta, timezone
     expires = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
-    db.table("reset_tokens").insert({"token": token, "email": email, "expires_at": expires}).execute()
+    # Só o hash vai para o banco: quem lê um dump ou backup não troca a senha
+    # de quem pediu redefinição na última hora.
+    db.table("reset_tokens").insert({"token": hash_reset_token(token), "email": email,
+                                     "expires_at": expires}).execute()
     return token
 
-def redefinir_senha_com_token(token: str, nova_senha: str) -> bool:
-    """Valida o token e redefine a senha. Retorna False se inválido/expirado."""
+def redefinir_senha_com_token(token: str, nova_senha: str) -> "str | bool":
+    """Valida o token e redefine a senha. Devolve o e-mail redefinido, ou False se inválido/expirado."""
     from datetime import datetime, timezone
     db = _db()
-    res = db.table("reset_tokens").select("*").eq("token", token).eq("usado", False).execute()
+    res = db.table("reset_tokens").select("*").eq("token", hash_reset_token(token)).eq("usado", False).execute()
     if not res.data:
         return False
     rec = res.data[0]
@@ -231,7 +289,7 @@ def redefinir_senha_com_token(token: str, nova_senha: str) -> bool:
     # Todos os links pedidos para este e-mail morrem juntos, não só o usado: um
     # link antigo que vazou não pode servir para trocar a senha de novo.
     db.table("reset_tokens").update({"usado": True}).eq("email", rec["email"]).execute()
-    return True
+    return rec["email"]
 
 ROLES_VALIDOS = ("comando", "admin", "operador")
 

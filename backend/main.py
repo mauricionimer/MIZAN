@@ -6,7 +6,7 @@ import os
 import threading
 import time as _time
 import uuid
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 from contextlib import asynccontextmanager
 from datetime import date, datetime
 from types import SimpleNamespace
@@ -32,6 +32,7 @@ from auth import (
     buscar_usuario, buscar_usuario_por_id, criar_usuario, listar_usuarios, alterar_senha,
     verificar_senha, toggle_usuario_ativo, alterar_role, garantir_admin,
     criar_reset_token, redefinir_senha_com_token,
+    conferir_login, precisa_regravar, hash_senha,
 )
 
 load_dotenv()
@@ -45,18 +46,43 @@ _auto_sync_estado: dict = {
 }
 
 # ---------------------------------------------------------------------------
-# Rate limiting de login (in-memory, 5 tentativas / 15 min por IP+email)
+# Rate limiting de login (in-memory + persistido)
+#
+# A chave principal é o E-MAIL: 5 falhas em 15 min. Não entra IP, porque o IP
+# vem do X-Forwarded-For, que quem chama inventa; com "IP + e-mail" trocar o
+# cabeçalho a cada tentativa dava senhas ilimitadas contra uma conta. A chave
+# secundária por IP (30 falhas) só barra o "um IP, muitos e-mails" de quem não
+# se dá ao trabalho de forjar. Efeito aceito: um estranho que erra 5 vezes
+# bloqueia o dono por 15 min; o "esqueci a senha" limpa o bloqueio.
 # ---------------------------------------------------------------------------
-_tentativas_login: dict[str, list[float]] = defaultdict(list)
+_tentativas_login: "OrderedDict[str, list[float]]" = OrderedDict()
 _RATE_JANELA = 15 * 60
 _RATE_MAX    = 5
+_RATE_MAX_IP = 30
+_RATE_MAX_CHAVES = 20_000   # como limite.Limitador: e-mails inventados não crescem a memória sem fim
 
 
-def _checar_rate_limit(chave: str) -> None:
+def _chave_login_email(email: str) -> str:
+    return f"login:email:{(email or '').strip().lower()}"
+
+
+def _tentativas(chave: str) -> list:
+    lista = _tentativas_login.get(chave)
+    if lista is None:
+        lista = _tentativas_login[chave] = []
+        while len(_tentativas_login) > _RATE_MAX_CHAVES:
+            _tentativas_login.popitem(last=False)
+    else:
+        _tentativas_login.move_to_end(chave)
+    return lista
+
+
+def _checar_rate_limit(chave: str, maximo: int = _RATE_MAX) -> None:
     agora = _time.time()
-    _tentativas_login[chave] = [t for t in _tentativas_login[chave] if agora - t < _RATE_JANELA]
-    # Complementa memória com registros persistidos (sobrevive a restart)
-    if len(_tentativas_login[chave]) < _RATE_MAX:
+    _tentativas_login[chave] = [t for t in _tentativas(chave) if agora - t < _RATE_JANELA]
+    # Complementa memória com registros persistidos (sobrevive a restart). Falha
+    # aqui não abre nada: a contagem em memória continua valendo.
+    if len(_tentativas_login[chave]) < maximo:
         try:
             res = get_db().table("rate_limit_login").select("tentativas").eq("chave", chave).limit(1).execute()
             if res.data:
@@ -64,20 +90,20 @@ def _checar_rate_limit(chave: str) -> None:
                 _tentativas_login[chave] = list(set(_tentativas_login[chave]) | set(externas))
         except Exception:
             pass
-    if len(_tentativas_login[chave]) >= _RATE_MAX:
+    if len(_tentativas_login[chave]) >= maximo:
         raise HTTPException(status_code=429, detail="Muitas tentativas de login. Aguarde 15 minutos.")
 
 
-def _registrar_tentativa(chave: str) -> None:
+def _registrar_tentativa(chave: str, maximo: int = _RATE_MAX) -> None:
     agora = _time.time()
-    _tentativas_login[chave].append(agora)
+    _tentativas(chave).append(agora)
     # Persiste apenas quando chega no limite (evita DB call em toda tentativa)
-    if len(_tentativas_login[chave]) >= _RATE_MAX:
+    if len(_tentativas_login[chave]) >= maximo:
         import threading
         def _persist():
             try:
                 get_db().table("rate_limit_login").upsert(
-                    {"chave": chave, "tentativas": _tentativas_login[chave], "updated_at": agora}
+                    {"chave": chave, "tentativas": _tentativas_login.get(chave, []), "updated_at": agora}
                 ).execute()
             except Exception:
                 pass
@@ -160,6 +186,30 @@ def _decrypt(text: str | None) -> str | None:
         return text  # fallback: plaintext (migração de dados antigos)
 
 
+_JWT_PADRAO = "mizan_jwt_secret_mude_em_producao_2026"
+
+
+def _conferir_segredos_de_producao(jwt_secret: str, chave_fernet: str) -> None:
+    """Derruba a subida em produção com segredo ausente, padrão ou fraco.
+
+    Sem a chave Fernet, _encrypt gravaria usuário e senha do banco do cliente
+    em claro; com JWT_SECRET curto, o token é forjável por força bruta offline.
+    Degradar em silêncio é pior do que não subir.
+    """
+    if not jwt_secret or jwt_secret == _JWT_PADRAO or len(jwt_secret) < 32:
+        raise RuntimeError("JWT_SECRET ausente, padrão ou com menos de 32 caracteres. Gere com: "
+                           "python -c \"import secrets; print(secrets.token_urlsafe(48))\"")
+    if not chave_fernet:
+        raise RuntimeError("MIZAN_ENCRYPTION_KEY não configurada em produção. Gere com: "
+                           "python -c \"from cryptography.fernet import Fernet; "
+                           "print(Fernet.generate_key().decode())\"")
+    try:
+        from cryptography.fernet import Fernet
+        Fernet(chave_fernet.encode())
+    except Exception as e:
+        raise RuntimeError(f"MIZAN_ENCRYPTION_KEY inválida ({type(e).__name__}).")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _scheduler
@@ -205,34 +255,22 @@ async def lifespan(app: FastAPI):
         id="agente_ciclo",
         replace_existing=True,
     )
-    _scheduler.start()
-
-    garantir_admin()
-
-    # Em produção (Supabase real configurado), recusa subir com segredos default.
+    # Em produção (Supabase real configurado), recusa subir com segredo ausente,
+    # padrão ou fraco — antes de agendar tarefas e de criar o primeiro admin.
     _is_prod = bool(os.getenv("SUPABASE_URL"))
     if _is_prod:
         from auth import SECRET_KEY as _JWT_SECRET
-        if _JWT_SECRET == "mizan_jwt_secret_mude_em_producao_2026":
-            raise RuntimeError("JWT_SECRET não configurado em produção. Defina a variável de ambiente JWT_SECRET.")
-
-    # A chave de criptografia precisa da mesma trava que o JWT_SECRET. Sem ela,
-    # _encrypt devolvia o texto puro e o app subia normalmente — gravando
-    # usuário e senha do banco de produção do cliente em claro, sem um aviso
-    # sequer. Degradar em silêncio é pior do que não subir.
-    if _is_prod and not _FERNET_KEY:
-        raise RuntimeError(
-            "MIZAN_ENCRYPTION_KEY não configurada em produção. Sem ela as "
-            "credenciais de banco dos clientes seriam gravadas em texto puro. "
-            "Gere uma com: python -c \"from cryptography.fernet import Fernet; "
-            "print(Fernet.generate_key().decode())\""
-        )
-    if _FERNET_KEY:
+        _conferir_segredos_de_producao(_JWT_SECRET, _FERNET_KEY)
+    elif _FERNET_KEY:
         try:
             from cryptography.fernet import Fernet as _Fernet
             _Fernet(_FERNET_KEY.encode())
         except Exception as _fe:
-            raise RuntimeError(f"MIZAN_ENCRYPTION_KEY inválida: {_fe}")
+            raise RuntimeError(f"MIZAN_ENCRYPTION_KEY inválida ({type(_fe).__name__}).")
+
+    _scheduler.start()
+
+    garantir_admin()
 
     # Garante que o modelo existe e é compatível; gera com dados sintéticos se necessário
     try:
@@ -270,6 +308,15 @@ async def lifespan(app: FastAPI):
     _scheduler.shutdown(wait=False)
     sched_estado["ativo"] = False
     print("[Scheduler] Encerrado")
+
+
+def _conferir_planilha_segura(conteudo: bytes, nome: str) -> None:
+    """Recusa .xls e .xlsx que descompactam demais, ANTES de qualquer leitor de Excel (ver planilha.py)."""
+    import planilha
+    try:
+        planilha.conferir(conteudo, nome)
+    except planilha.PlanilhaRecusada as e:
+        raise HTTPException(status_code=e.status, detail=str(e))
 
 
 def _read_csv_auto(raw: bytes) -> pd.DataFrame:
@@ -346,11 +393,16 @@ def _auto_mapear_colunas(colunas: list) -> dict:
                     break
     return mapeamento
 
+# Em produção o mapa da API (rotas, campos, papéis) não fica aberto a quem quiser.
+_PRODUCAO = bool(os.getenv("SUPABASE_URL"))
 app = FastAPI(
     title="Mizan API",
     description="Plataforma de análise de carteira de crédito com IA",
     version="0.3.0",
     lifespan=lifespan,
+    docs_url=None if _PRODUCAO else "/docs",
+    redoc_url=None if _PRODUCAO else "/redoc",
+    openapi_url=None if _PRODUCAO else "/openapi.json",
 )
 
 _ALLOWED_ORIGINS = [
@@ -375,11 +427,31 @@ _limite.instalar(app)
 _erros.instalar_captura(app)
 _erros.instalar_handlers(app)
 
+
+def _falha_interna(rota: str, metodo: str, e: BaseException, status: int, mensagem: str) -> HTTPException:
+    """Erro inesperado: o texto da exceção vai para o log, o cliente recebe a mensagem e o código.
+
+    Mensagem de driver traz host, IP interno e usuário; a do google-auth traz o
+    corpo da resposta. Nunca vai para a resposta (ver erros.py).
+    """
+    codigo = _erros.registrar({"path": rota, "method": metodo}, e, status)
+    return HTTPException(status_code=status, detail=f"{mensagem} Código: {codigo}.")
+
 @app.middleware("http")
 async def sem_cache_no_agente(request: Request, call_next):
     """A conversa dos agentes muda a qualquer hora (o devedor escreve pelo Telegram): nunca guardar em cache."""
     resp = await call_next(request)
     if request.url.path.startswith(("/agente/", "/canal/")):
+        resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.middleware("http")
+async def cabecalhos_de_seguranca(request: Request, call_next):
+    """nosniff em tudo; resposta autenticada (CPF, valores) nunca vai para cache."""
+    resp = await call_next(request)
+    resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+    if request.headers.get("authorization") or request.headers.get("x-api-key"):
         resp.headers["Cache-Control"] = "no-store"
     return resp
 
@@ -784,12 +856,40 @@ def _exigir_conexao_da_empresa(db, conexao_id: str, payload: dict) -> dict:
     raise HTTPException(status_code=403, detail="Acesso negado.")
 
 
+_GOOGLE_TOKEN_URI = "https://oauth2.googleapis.com/token"
+_CAMPOS_CONTA_SERVICO = {"type", "project_id", "private_key_id", "private_key", "client_email", "client_id",
+                         "auth_uri", "token_uri", "auth_provider_x509_cert_url", "client_x509_cert_url",
+                         "universe_domain"}
+
+
+def _credencial_google_segura(creds) -> dict:
+    """Credencial de conta de serviço que só fala com o Google. Recusa o resto com 400.
+
+    O google-auth faz um POST para o token_uri que vier no JSON. Conferir só se
+    client_email e private_key existiam deixava um admin de empresa cliente
+    apontar o token_uri para um serviço interno: o servidor do Mizan fazia a
+    requisição e a resposta voltava na mensagem de erro (SSRF com leitura).
+    Chamada na gravação E no uso, para barrar também conexões já salvas.
+    """
+    if (not isinstance(creds, dict) or creds.get("type") != "service_account"
+            or not creds.get("private_key") or not creds.get("client_email")):
+        raise HTTPException(status_code=400, detail="Credencial do Google inválida: cole o JSON da conta de serviço.")
+    if (creds.get("token_uri") or _GOOGLE_TOKEN_URI) != _GOOGLE_TOKEN_URI:
+        raise HTTPException(status_code=400, detail="Credencial do Google inválida: token_uri precisa ser "
+                                                    f"{_GOOGLE_TOKEN_URI}.")
+    if creds.get("universe_domain") not in (None, "", "googleapis.com"):
+        raise HTTPException(status_code=400, detail="Credencial do Google inválida: universe_domain não suportado.")
+    if not str(creds["client_email"]).endswith(".gserviceaccount.com"):
+        raise HTTPException(status_code=400, detail="Credencial do Google inválida: client_email não é de conta de serviço.")
+    limpa = {k: v for k, v in creds.items() if k in _CAMPOS_CONTA_SERVICO}
+    limpa["token_uri"] = _GOOGLE_TOKEN_URI
+    limpa.pop("universe_domain", None)
+    return limpa
+
+
 def _cifrar_credencial_sheets(creds: dict) -> str:
     """O JSON da conta de serviço tem a chave privada: só entra no banco cifrado."""
-    if not isinstance(creds, dict) or not creds.get("private_key") or not creds.get("client_email"):
-        raise HTTPException(status_code=400, detail="Credencial do Google inválida: cole o JSON da conta de serviço "
-                                                    "(com client_email e private_key).")
-    return _encrypt(json.dumps(creds))
+    return _encrypt(json.dumps(_credencial_google_segura(creds)))
 
 
 def _credencial_sheets_salva(r: dict) -> "dict | None":
@@ -1357,25 +1457,21 @@ def _hash_api_key(chave: str) -> str:
 
 
 def _buscar_api_key(db, token: str) -> "dict | None":
-    """Linha da chave apresentada, ou None. Procura pelo hash."""
+    """Linha da chave apresentada, ou None. Procura SÓ pelo hash.
+
+    Havia uma retaguarda que procurava a chave em texto puro na coluna api_key.
+    Uma chave vazada no git (frontend/.env, maio a setembro de 2026) seguia
+    autenticando por ela. Sem a coluna de hash, ninguém entra: falha fechada.
+    Migração: sql/migracao_api_keys_sem_texto.sql.
+    """
     try:
         res = (db.table("api_keys").select(_COLS_API_KEY)
                .eq("api_key_hash", _hash_api_key(token))
                .eq("ativa", True).limit(1).execute())
-        if res.data:
-            return res.data[0]
     except Exception as e:
-        # Coluna de hash ainda não existe (migração não rodou): cai no texto.
-        if "api_key_hash" not in str(e):
-            raise
-    # Retaguarda para chave gravada antes da migração do hash. Some sozinha
-    # quando o texto for limpo do banco.
-    try:
-        res = (db.table("api_keys").select(_COLS_API_KEY)
-               .eq("api_key", token).eq("ativa", True).limit(1).execute())
-        return res.data[0] if res.data else None
-    except Exception:
+        _erros.registrar({"path": "/auth/chave-de-api", "method": "AUTH"}, e, 401)
         return None
+    return res.data[0] if res.data else None
 
 
 def _marcar_uso_api_key(db, linha: dict) -> None:
@@ -1456,24 +1552,36 @@ class AlterarSenhaIn(BaseModel):
 
 @app.post("/auth/login")
 def auth_login(body: LoginIn, request: Request):
-    # E-mail normalizado como o buscar_usuario faz: antes "CMD@x.com" e
-    # "cmd@x.com" eram o mesmo usuário com cotas separadas (força bruta livre).
-    # IP real (primeiro do X-Forwarded-For): sem ele todos chegam com o IP do
-    # proxy, e 5 senhas erradas de um estranho trancavam o dono da conta.
+    # Limite pelo e-mail normalizado (como o buscar_usuario faz), não pelo IP:
+    # o IP vem de cabeçalho que o cliente inventa. Ver _checar_rate_limit.
     _email = (body.email or "").strip().lower()
-    chave = f"{_limite.ip_da_requisicao(request)}:{_email}"
-    _checar_rate_limit(chave)
-    usuario = buscar_usuario(body.email)
-    senha_ok = bool(usuario and usuario.get("ativo") and verificar_senha(body.senha, usuario.get("senha_hash", "")))
-    if not senha_ok:
-        _registrar_tentativa(chave)
+    chave_email = _chave_login_email(_email)
+    chave_ip = f"login:ip:{_limite.ip_da_requisicao(request)}"
+    _checar_rate_limit(chave_email)
+    _checar_rate_limit(chave_ip, _RATE_MAX_IP)
+    usuario = buscar_usuario(_email)
+    # Sempre um PBKDF2, exista o e-mail ou não: o tempo não revela quem tem conta.
+    if not conferir_login(usuario, body.senha):
+        _registrar_tentativa(chave_email)
+        _registrar_tentativa(chave_ip, _RATE_MAX_IP)
         raise HTTPException(status_code=401, detail="E-mail ou senha incorretos.")
-    _limpar_tentativas(chave)
+    _limpar_tentativas(chave_email)
+    if precisa_regravar(usuario.get("senha_hash", "")):
+        # Hash de custo antigo regravado no login. O dicionário muda ANTES do
+        # token: o "sv" tem de ser o do hash novo, senão a pessoa cai na
+        # requisição seguinte (_conferir_versao_da_senha).
+        novo_hash = hash_senha(body.senha)
+        try:
+            get_db().table("usuarios").update({"senha_hash": novo_hash}).eq("id", usuario["id"]).execute()
+            usuario = {**usuario, "senha_hash": novo_hash}
+        except Exception as e:
+            _erros.registrar({"path": "/auth/login", "method": "POST"}, e, 200)
     from auth import versao_da_senha
     token = criar_token({"sub": usuario["id"], "email": usuario["email"],
                          "nome": usuario["nome"], "role": usuario["role"],
                          "empresa_id": usuario.get("empresa_id", ""),
-                         "sv": versao_da_senha(usuario)})
+                         "sv": versao_da_senha(usuario),
+                         "auth_time": int(_time.time())})
     return {"token": token, "usuario": {k: v for k, v in usuario.items() if k != "senha_hash"}}
 
 @app.get("/auth/me")
@@ -1495,12 +1603,18 @@ def auth_refresh(credentials: HTTPAuthorizationCredentials = Security(bearer)):
         raise HTTPException(status_code=401, detail="Usuário inativo ou não encontrado.")
     # Renovar não pode ressuscitar um token de antes da troca de senha.
     _conferir_versao_da_senha(payload, user)
-    from auth import versao_da_senha
+    # Nem esticar a sessão para sempre: o token novo carrega o MESMO auth_time
+    # (último login com senha), e passados 30 dias dele é preciso entrar de novo.
+    from auth import versao_da_senha, SESSAO_MAXIMA_S
+    auth_time = payload.get("auth_time") or payload.get("iat") or 0
+    if _time.time() - auth_time > SESSAO_MAXIMA_S:
+        raise HTTPException(status_code=401, detail="Sessão expirada: entre de novo.")
     new_token = criar_token({
         "sub": user["id"], "email": user["email"],
         "nome": user["nome"], "role": user["role"],
         "empresa_id": user.get("empresa_id", ""),
         "sv": versao_da_senha(user),
+        "auth_time": auth_time,
     })
     return {"token": new_token, "usuario": {k: v for k, v in user.items() if k != "senha_hash"}}
 
@@ -1566,7 +1680,7 @@ def auth_alterar_senha(body: AlterarSenhaIn, credentials: HTTPAuthorizationCrede
     u = buscar_usuario_por_id(payload["sub"]) or {}
     novo = criar_token({"sub": payload["sub"], "email": payload["email"], "nome": payload.get("nome", ""),
                         "role": payload.get("role"), "empresa_id": payload.get("empresa_id", ""),
-                        "sv": versao_da_senha(u)})
+                        "sv": versao_da_senha(u), "auth_time": int(_time.time())})
     return {"ok": True, "token": novo}
 
 
@@ -3126,6 +3240,16 @@ def remover_usuario_empresa(empresa_id: str, usuario_id: str, credentials: HTTPA
 
 # ── Branding / configuração visual por empresa ────────────────────────────────
 
+# Chaves de empresa_config.extra que PUT /empresa/config aceita, além das
+# premissas (model.premissas.PREMISSAS, validadas pelos limites delas).
+# dominios_email continua só do comando, pela rota própria.
+_EXTRA_EDITAVEL_POR_ADMIN = frozenset({
+    "retencao",            # só comando (conferido na rota)
+    "catalogo_ofertas",    # validado como na tela de ofertas
+    "alcada_oferta",
+})
+
+
 class EmpresaConfigIn(BaseModel):
     nome_exibicao: Optional[str] = Field(None, max_length=80)
     # cor em #rrggbb: o valor vai para o estilo da tela de todos da empresa
@@ -3277,6 +3401,22 @@ def put_empresa_config(body: EmpresaConfigIn, empresa_id_alvo: Optional[str] = N
             raise HTTPException(status_code=400, detail="Domínios de e-mail são definidos pelo COMANDO, em Usuários › empresa.")
         if "retencao" in body.extra and role != "comando":
             raise HTTPException(status_code=403, detail="O prazo de retenção é definido pelo COMANDO.")
+        # Lista do que PODE, não do que não pode: chave nova que o código vier
+        # a ler de extra não nasce editável por admin sem ninguém decidir.
+        from model.premissas import PREMISSAS as _PREM_EDITAVEIS
+        _desconhecidas = sorted(set(body.extra) - _EXTRA_EDITAVEL_POR_ADMIN - set(_PREM_EDITAVEIS))
+        if _desconhecidas:
+            raise HTTPException(status_code=422, detail=f"Configuração desconhecida: {', '.join(_desconhecidas)}.")
+        if body.extra.get("catalogo_ofertas") is not None or body.extra.get("alcada_oferta") is not None:
+            # Os mesmos limites da tela de ofertas, para esta rota não ser o atalho.
+            from model.oferta import validar_catalogo as _val_cat, validar_alcada as _val_alc
+            try:
+                if body.extra.get("catalogo_ofertas") is not None:
+                    _val_cat(body.extra["catalogo_ofertas"])
+                if body.extra.get("alcada_oferta") is not None:
+                    _val_alc(body.extra["alcada_oferta"])
+            except ValueError as e:
+                raise HTTPException(status_code=422, detail=str(e))
         atual = _get_empresa_config(empresa_id).get("extra") or {}
         mesclado = {**atual, **body.extra}
         # As premissas (comissão, cessão, critério da fila...) têm limites: esta
@@ -3506,7 +3646,7 @@ async def upload_empresa_foto(file: UploadFile = File(...), empresa_id_alvo: Opt
             )
             foto_url = db.storage.from_("mizan-public").get_public_url(caminho)
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Erro ao salvar foto: {e}")
+            raise _falha_interna("/empresa/foto", "POST", e, 500, "Não foi possível salvar a foto.")
 
         updates = {"foto_url": foto_url, "updated_by": payload.get("email", ""), "updated_at": datetime.utcnow().isoformat()}
         existing = db.table("empresa_config").select("id").eq("empresa_id", empresa_id).limit(1).execute()
@@ -3751,6 +3891,8 @@ async def sincronizar_conexao(conexao_id: str, credentials: HTTPAuthorizationCre
 
     try:
         resultado = await asyncio.to_thread(_sincronizar_conexao_row, r, uemail, uid, eid)
+    except HTTPException:
+        raise                                  # credencial do Google recusada: 400 com o motivo
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -3772,6 +3914,10 @@ def auth_redefinir_senha(body: RedefinirSenhaIn):
         raise HTTPException(status_code=400, detail=str(e))
     if not ok:
         raise HTTPException(status_code=400, detail="Link inválido ou expirado. Solicite um novo.")
+    # Quem provou ser dono do e-mail sai do bloqueio de login (o limite é por
+    # e-mail, e um estranho errando a senha não pode trancar o dono).
+    if isinstance(ok, str):
+        _limpar_tentativas(_chave_login_email(ok))
     return {"ok": True}
 
 
@@ -4471,7 +4617,7 @@ async def upload_csv(file: UploadFile = File(...),
         try:
             df = _read_csv_auto(contents)
         except Exception as e:
-            raise HTTPException(status_code=422, detail=f"Erro ao processar CSV: {_erros.mascarar(e)}")
+            raise _falha_interna("/upload", "POST", e, 422, "Não foi possível ler o CSV: confira o separador e a codificação.")
         return {
             "filename": file.filename,
             "rows": len(df),
@@ -4518,6 +4664,8 @@ async def rodar_backtest(
     contents = await file.read()
     if len(contents) > 25 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="Arquivo muito grande. Limite: 25 MB.")
+    if not nome.endswith(".csv"):
+        _conferir_planilha_segura(contents, nome)   # fora do try: o 413 não pode virar 422
 
     def _processar():
         try:
@@ -4526,7 +4674,7 @@ async def rodar_backtest(
             else:
                 df = pd.read_excel(io.BytesIO(contents))
         except Exception as e:
-            raise HTTPException(status_code=422, detail=f"Erro ao ler arquivo: {e}")
+            raise _falha_interna("/backtest", "POST", e, 422, "Não foi possível ler o arquivo: confira se é um CSV ou .xlsx válido.")
 
         from backtest import rodar
         try:
@@ -4569,6 +4717,8 @@ async def analisar(
     contents = await file.read()
     if len(contents) > 25 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="Arquivo muito grande. Limite: 25 MB.")
+    if not nome.endswith(".csv"):
+        _conferir_planilha_segura(contents, nome)   # fora do try: o 413 não pode virar 422
 
     def _processar():
         try:
@@ -4577,7 +4727,7 @@ async def analisar(
             else:
                 df = pd.read_excel(io.BytesIO(contents))
         except Exception as e:
-            raise HTTPException(status_code=422, detail=f"Erro ao ler arquivo: {e}")
+            raise _falha_interna("/analisar", "POST", e, 422, "Não foi possível ler o arquivo: confira se é um CSV ou .xlsx válido.")
         return _analisar_df(df, file.filename, _usuario_id=uid, _usuario_email=uemail, _empresa_id=eid,
                             _incluir_ranking=incluir_ranking)
 
@@ -4735,8 +4885,10 @@ def _ler_google_sheets(conn: ConexaoDB) -> pd.DataFrame:
     import gspread
     from google.oauth2.service_account import Credentials
 
+    # Na hora do uso também: conexão salva antes desta trava pode ter token_uri qualquer.
+    info = _credencial_google_segura(conn.sheets_credenciais)
     scopes = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
-    creds = Credentials.from_service_account_info(conn.sheets_credenciais, scopes=scopes)
+    creds = Credentials.from_service_account_info(info, scopes=scopes)
     gc = gspread.authorize(creds)
     sh = gc.open_by_key(conn.sheets_id)
     ws = sh.worksheet(conn.sheets_aba) if conn.sheets_aba else sh.sheet1
@@ -5049,9 +5201,9 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
     try:
         resultado = score_carteira(df, _empresa_id or None)
     except FileNotFoundError as e:
-        raise HTTPException(status_code=503, detail=f"Modelos não encontrados ({e.filename}).")
+        raise _falha_interna("/analisar", "POST", e, 503, "Modelos de score não encontrados no servidor.")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro na análise: {e}")
+        raise _falha_interna("/analisar", "POST", e, 500, "Erro na análise.")
 
     # ── Taxa de recuperação: duas grandezas distintas ───────────────────────
     # O sistema tratava como uma só o que são duas perguntas diferentes:
@@ -5540,7 +5692,7 @@ def listar_tabelas(conn: ConexaoDB, credentials: HTTPAuthorizationCredentials = 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=503, detail=f"Erro ao conectar: {str(e)}")
+        raise _falha_interna("/listar-tabelas", "POST", e, 503, "Não foi possível conectar ao banco.")
 
 
 LINHAS_PREVIA = 5
@@ -5624,7 +5776,7 @@ def testar_db(conn: ConexaoDB, credentials: HTTPAuthorizationCredentials = Secur
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=503, detail=f"Erro ao conectar: {str(e)}")
+        raise _falha_interna("/testar-db", "POST", e, 503, "Não foi possível conectar ao banco.")
 
     colunas = df_preview.columns.tolist()
     mapeamento = _auto_mapear_colunas(colunas)
@@ -5681,7 +5833,7 @@ def analisar_db(conn: ConexaoDB, incluir_ranking: bool = True,
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=503, detail=f"Erro ao conectar no banco: {e}")
+        raise _falha_interna("/analisar/db", "POST", e, 503, "Não foi possível conectar ao banco.")
 
     if conn.mapeamento:
         rename = {col_banco: campo for campo, col_banco in conn.mapeamento.items() if col_banco in df.columns}
@@ -6134,7 +6286,7 @@ def confirmar_pagamento(
         raise
     except Exception as e:
         print(f"[Confirmar] ERRO — CPF: {_cpf_no_log(cpf)}: {type(e).__name__}")
-        raise HTTPException(status_code=500, detail=f"Erro ao confirmar pagamento: {str(e)}")
+        raise _falha_interna("/devedores/{cpf}/confirmar-pagamento", "POST", e, 500, "Erro ao confirmar pagamento.")
     finally:
         _confirmacoes_em_andamento.discard(lock_key)
 
@@ -6334,6 +6486,8 @@ async def feedback_lote(
 
     nome = (file.filename or "").lower()
     contents = await file.read()
+    if nome.endswith((".xlsx", ".xls")):
+        _conferir_planilha_segura(contents, nome)   # fora do try: o 413 não pode virar 422
 
     def _processar():
         try:
@@ -6346,7 +6500,7 @@ async def feedback_lote(
         except HTTPException:
             raise
         except Exception as e:
-            raise HTTPException(status_code=422, detail=f"Erro ao ler arquivo: {e}")
+            raise _falha_interna("/feedback/lote", "POST", e, 422, "Não foi possível ler o arquivo: confira se é um CSV ou .xlsx válido.")
 
         df.columns = [str(c).lower().strip().replace(" ", "_") for c in df.columns]
 
@@ -7082,7 +7236,7 @@ def comando_ativar_modelo(body: AtivarModeloIn, credentials: HTTPAuthorizationCr
     try:
         _me.ativar(empresa, body.versao)
     except (KeyError, FileNotFoundError) as e:
-        raise HTTPException(status_code=404, detail=f"Não foi possível ativar: {e}")
+        raise _falha_interna("/comando/modelos/ativar", "POST", e, 404, "Não foi possível ativar esta versão do modelo.")
     try:
         from storage_ml import upload_empresa
         upload_empresa(_me.slug(empresa), _me.pasta(empresa))
@@ -8029,7 +8183,7 @@ def explicar_score_devedor(cpf: str, credentials: HTTPAuthorizationCredentials =
     except FileNotFoundError:
         raise HTTPException(status_code=503, detail="Modelo não encontrado.")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao gerar explicação: {e}")
+        raise _falha_interna("/predicoes/{cpf}/explicacao", "GET", e, 500, "Erro ao gerar explicação.")
 
     return {**explicacao, "cpf": cpf, "nome": pred.get("nome"),
             "score_registrado": pred.get("score_recuperabilidade")}
@@ -8234,7 +8388,7 @@ def listar_modelos(
         from model.retrain import _carregar_versoes
         versoes_meta = _carregar_versoes()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao carregar versions.json: {e}")
+        raise _falha_interna("/admin/modelos", "GET", e, 500, "Erro ao carregar as versões do modelo.")
 
     versao_ativa = versoes_meta.get("versao_ativa", "v1_inicial")
     versoes_treino = {v["versao"]: v for v in versoes_meta.get("versoes", [])}
@@ -8363,12 +8517,12 @@ def admin_promover(
         promover_versao(payload.versao, forcar=payload.forcar)
         _score_cache.clear()
     except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise _falha_interna("/admin/retreinar/promover", "POST", e, 404, "Arquivos desta versão do modelo não encontrados.")
     except VersaoInsuficiente as e:
         # 409: o pedido é válido, mas conflita com o estado dos dados.
         raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao promover: {e}")
+        raise _falha_interna("/admin/retreinar/promover", "POST", e, 500, "Erro ao promover a versão.")
 
     _registrar_auditoria(
         acao="modelo_promovido",
@@ -8817,9 +8971,16 @@ def agente_devedores(busca: Optional[str] = None, empresa_id: Optional[str] = No
 
 
 def _cpf_parcial(cpf) -> str:
-    """CPF para a tela de pastas: só o começo e o fim (123.***.***-45)."""
+    """CPF para a tela de pastas, no padrão do governo (***.456.789-**).
+
+    Antes mostrava os 3 primeiros dígitos (123.***.***-45), justamente o que o
+    agente pede para confirmar a identidade do devedor: quem via a tela (ou um
+    print) passava no desafio. Os dígitos do meio não servem de desafio (são os
+    que o Portal da Transparência publica), então o desafio fica nos 3 primeiros
+    e a tela deixa de mostrá-los.
+    """
     d = "".join(c for c in str(cpf or "") if c.isdigit())
-    return f"{d[:3]}.***.***-{d[-2:]}" if len(d) == 11 else ""
+    return f"***.{d[3:6]}.{d[6:9]}-**" if len(d) == 11 else ""
 
 
 _COLUNAS_PASTA = "id, nome, cpf, valor_divida, dias_em_atraso, rank, score_recuperabilidade"
@@ -9289,7 +9450,7 @@ def agente_laboratorio_analisar(empresa_id: Optional[str] = None,
     emp = _empresa_do_agente(payload, empresa_id)
     try:
         r = agente_api.analisar_laboratorio(emp)
-    except RuntimeError as e:
+    except agente_api.TabelaAusente as e:
         raise HTTPException(status_code=503, detail=str(e))
     _registrar_auditoria(acao="recomendacao_gerada", entidade="agente_recomendacoes", entidade_id=str(r.get("id")),
                          usuario_email=payload.get("email"), empresa_id=emp, usuario_id=payload.get("sub"),

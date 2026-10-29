@@ -240,7 +240,6 @@ CREATE TABLE IF NOT EXISTS api_keys (
   empresa_nome TEXT NOT NULL,
   empresa_id   TEXT,
   rotulo       TEXT,
-  api_key      TEXT,            -- legado; fica NULL depois da migração
   api_key_hash TEXT,
   ultimo_uso   TIMESTAMPTZ,
   ativa        BOOLEAN DEFAULT TRUE
@@ -252,8 +251,7 @@ ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS api_key_hash TEXT;
 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS empresa_id   TEXT;
 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS rotulo       TEXT;
 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS ultimo_uso   TIMESTAMPTZ;
-UPDATE api_keys SET api_key_hash = encode(digest(api_key, 'sha256'), 'hex')
- WHERE api_key_hash IS NULL AND api_key IS NOT NULL;
+-- A chave em texto (coluna api_key) saiu: ver migracao_api_keys_sem_texto.sql.
 -- empresa_id em minúscula: é como o resto do sistema normaliza
 UPDATE api_keys SET empresa_id = lower(empresa_nome)
  WHERE empresa_id IS NULL OR empresa_id = '';
@@ -261,7 +259,6 @@ UPDATE api_keys SET empresa_id = lower(empresa_nome)
 -- criar a nova, migrar quem usa e só então revogar a velha, sem queda.
 ALTER TABLE api_keys DROP CONSTRAINT IF EXISTS api_keys_empresa_nome_key;
 CREATE UNIQUE INDEX IF NOT EXISTS api_keys_hash_key ON api_keys (api_key_hash);
-ALTER TABLE api_keys ALTER COLUMN api_key DROP NOT NULL;
 
 -- ── Configuração / branding por empresa ─────────────────────
 CREATE TABLE IF NOT EXISTS empresa_config (
