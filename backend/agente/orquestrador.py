@@ -24,9 +24,11 @@ Código, não IA. É dono do estado do caso e decide quem age e quando:
 Os nós precisam ser seguros para rodar de novo: uma ação com efeito fora do
 Mizan (enviar mensagem) usa a sua própria chave de idempotência.
 """
+import copy
 import json
 import os
 import socket
+import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -129,6 +131,9 @@ class Contexto:
     hoje: object
     agora: object = None
     saida: dict = field(default_factory=dict)       # rascunho entre nós deste evento
+    custo_dia: float | None = None                  # gasto do dia lido uma vez por rodada
+    custo_rodada: float = 0.0                       # o que esta rodada já gastou
+    tg_marca: float = 0.0                           # quando o estado do Telegram deste caso foi lido
 
     def mudar_situacao(self, nova: str, por: str = "agente") -> None:
         self.caso["situacao"] = estado.mudar(self.caso["situacao"], nova, por)
@@ -164,8 +169,9 @@ class Contexto:
 
     def ia(self, papel: str, sistema: str, mensagens: list, ferramentas=None, max_tokens: int = 1024):
         """Chama a IA com teto de custo do dia e soma tokens e custo ao passo atual."""
-        em_andamento = self.rastreio.atual["custo_usd"] if self.rastreio.atual else 0.0
-        llm.conferir_teto(self.repo.custo_do_dia(self.caso["empresa_id"], self.hoje) + em_andamento)
+        if self.custo_dia is None:                  # uma consulta por rodada, não uma por chamada
+            self.custo_dia = float(self.repo.custo_do_dia(self.caso["empresa_id"], self.hoje) or 0.0)
+        llm.conferir_teto(self.custo_dia + self.custo_rodada)
         self.rastreio.observar("pensando")
         try:
             r = self.cliente.gerar(sistema=sistema, mensagens=mensagens, modelo=llm.modelo_para(papel),
@@ -173,6 +179,7 @@ class Contexto:
         finally:
             self.rastreio.observar("trabalhando")
         self.rastreio.somar_ia(r)
+        self.custo_rodada += float(getattr(r, "custo_usd", 0.0) or 0.0)
         return r
 
     def anotar(self, agente: str, decisao: str, motivo: str = "") -> None:
@@ -430,10 +437,15 @@ def executar(grafo: Grafo, ctx: Contexto, dono: str = DONO) -> dict:
 def _telegram_atual(ctx: Contexto) -> None:
     """O webhook do Telegram grava no caso enquanto o agente responde (vínculo, limite,
     avisos). Antes de gravar, o caso pega o estado do Telegram mais recente e só
-    acrescenta o que esta rodada mudou nele (entregas): uma cópia velha não apaga nada."""
+    acrescenta o que esta rodada mudou nele (entregas): uma cópia velha não apaga nada.
+    Só relê se o Telegram mexeu neste caso desde a última leitura."""
     dados = ctx.caso.get("dados") or {}
     if "telegram" not in dados:
         return
+    from agente import canal_telegram
+    if not canal_telegram.alterado_desde(ctx.caso["id"], ctx.tg_marca):
+        return
+    ctx.tg_marca = time.monotonic()
     fresco = ((ctx.repo.obter_caso(ctx.caso["id"]) or {}).get("dados") or {}).get("telegram")
     if fresco is None:
         return
@@ -456,6 +468,32 @@ def _checkpoint(ctx: Contexto, ultimo: str | None, dono: str) -> None:
         raise RuntimeError("trava do caso perdida durante o processamento")
 
 
+class RepoDaRodada:
+    """O repositório visto por uma rodada: as mensagens do caso são lidas uma vez e
+    reaproveitadas pelos agentes (triagem, negociador, envio), até alguém gravar outra.
+    Todo o resto vai direto ao repositório."""
+    LOTE = 50
+
+    def __init__(self, repo):
+        self._repo = repo
+        self._mensagens: dict = {}
+
+    def __getattr__(self, nome):
+        return getattr(self._repo, nome)
+
+    def ultimas_mensagens(self, empresa_id: str, caso_id, n: int = 20) -> list:
+        if n > self.LOTE:
+            return self._repo.ultimas_mensagens(empresa_id, caso_id, n)
+        k = (empresa_id, str(caso_id))
+        if k not in self._mensagens:
+            self._mensagens[k] = self._repo.ultimas_mensagens(empresa_id, caso_id, self.LOTE)
+        return copy.deepcopy(self._mensagens[k][-n:]) if n > 0 else []
+
+    def gravar_mensagem(self, empresa_id: str, caso_id, *a, **k):
+        self._mensagens.pop((empresa_id, str(caso_id)), None)
+        return self._repo.gravar_mensagem(empresa_id, caso_id, *a, **k)
+
+
 def processar_proximo(repo, grafos: dict, cliente=None, agora: datetime | None = None,
                       dono: str | None = None, empresa_id: str | None = None, caso_id=None) -> dict | None:
     """Pega o evento pronto de maior prioridade cujo caso está livre e processa.
@@ -469,7 +507,8 @@ def processar_proximo(repo, grafos: dict, cliente=None, agora: datetime | None =
     if caso_id is not None:
         filtros["caso_id"] = caso_id
     for ev in repo.candidatos(agora, **filtros):
-        if not repo.reservar_evento(ev["id"]):
+        reservado = repo.reservar_evento(ev["id"])
+        if not reservado:
             continue                                    # outro processo pegou
         real = agora_real()
         if not repo.travar_caso(ev["caso_id"], dono, real + DURACAO_TRAVA, real):
@@ -479,9 +518,8 @@ def processar_proximo(repo, grafos: dict, cliente=None, agora: datetime | None =
         try:
             # Os dados do evento podem ter mudado entre a leitura e a reserva (ex.: o
             # Telegram juntou mais uma mensagem a ele): processa a versão reservada.
-            atual = repo.evento_por_chave(ev["empresa_id"], ev["chave"]) if ev.get("chave") else None
-            if atual and atual.get("id") == ev["id"]:
-                ev = {**ev, "dados": atual.get("dados")}
+            if isinstance(reservado, dict) and "dados" in reservado:
+                ev = {**ev, "dados": reservado.get("dados")}
             return _processar(repo, grafos, ev, cliente or llm.cliente(), agora, dono)
         finally:
             repo.soltar_caso(ev["caso_id"], dono)
@@ -496,6 +534,7 @@ def _processar(repo, grafos, ev, cliente, agora, dono) -> dict:
         grafo = grafos.get(ev["tipo"])
         if grafo is None:
             raise LookupError(f"sem grafo para o evento {ev['tipo']}")
+        tg_marca = time.monotonic()                     # antes de ler o caso: nada do Telegram escapa
         caso = repo.obter_caso(ev["caso_id"])
         if caso is None:
             raise LookupError("caso não encontrado")
@@ -507,8 +546,9 @@ def _processar(repo, grafos, ev, cliente, agora, dono) -> dict:
                                 repo, empresa_id=ev["empresa_id"], evento_id=ev["id"],
                                 caso_id=caso["id"], trace_id=trace_id, **dados))
         # "Hoje" do negócio é o de Brasília: às 21h o dia ainda não virou.
-        ctx = Contexto(caso=caso, evento=ev, repo=repo, rastreio=rastreio,
-                       cliente=cliente, hoje=agora.astimezone(auditor.BRASILIA).date(), agora=agora)
+        ctx = Contexto(caso=caso, evento=ev, repo=RepoDaRodada(repo), rastreio=rastreio,
+                       cliente=cliente, hoje=agora.astimezone(auditor.BRASILIA).date(), agora=agora,
+                       tg_marca=tg_marca)
         resultado = executar(grafo, ctx, dono)
     except Exception as e:
         # Falha fora do grafo: volta para a fila; na segunda vira "falhou".

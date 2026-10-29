@@ -200,6 +200,9 @@ def ver_caso(empresa_id: str, predicao_id: str, repo=None) -> dict:
     # A última rodada do caso, mesmo que não tenha virado mensagem (bloqueio,
     # falha): é aí que a tela precisa explicar por que o agente ficou calado.
     ev = repo.ultimo_evento_caso(empresa_id, caso["id"])
+    esperar = getattr(repo, "esperar_passos", None)
+    if esperar:
+        esperar(2.0)                     # passos da última rodada ainda a caminho do banco
     ultimo_trace = (ev or {}).get("trace_id") or next((m.get("trace_id") for m in reversed(msgs) if m.get("trace_id")), None)
     passos = repo.passos_do_trace(empresa_id, ultimo_trace) if ultimo_trace else []
     d = caso.get("dados") or {}

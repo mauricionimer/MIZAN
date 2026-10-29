@@ -171,10 +171,36 @@ def _enviar_acao(chat_id, acao: str = "typing") -> bool:
 enviar_acao = _enviar_acao          # os testes trocam este nome
 
 
+def _apagar_mensagem(chat_id, message_id) -> bool:
+    """Apaga uma mensagem que o devedor mandou (o bot pode, em conversa privada). Nunca levanta erro."""
+    token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+    if not token or message_id is None:
+        return False
+    req = urllib.request.Request(f"{API}/bot{token}/deleteMessage",
+                                 data=json.dumps({"chat_id": chat_id, "message_id": message_id}).encode("utf-8"),
+                                 headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=3) as r:
+            return r.status == 200
+    except (urllib.error.URLError, OSError, ValueError):
+        return False
+
+
+apagar_mensagem = _apagar_mensagem  # os testes trocam este nome
+
+
 # ── estado do Telegram no caso ──────────────────────────────────────────────
 
 def _tg(caso: dict | None) -> dict:
     return dict(((caso or {}).get("dados") or {}).get("telegram") or {})
+
+
+_ALTERADO: dict = {}                    # caso_id -> quando o webhook gravou o Telegram dele (neste processo)
+
+
+def alterado_desde(caso_id, marca: float) -> bool:
+    """O Telegram deste caso mudou depois de `marca` (time.monotonic)?"""
+    return _ALTERADO.get(str(caso_id), 0.0) >= marca
 
 
 def _gravar_tg(repo, caso: dict, tg: dict, **outros) -> None:
@@ -195,7 +221,9 @@ def _gravar_tg(repo, caso: dict, tg: dict, **outros) -> None:
         from agente import estado
         dados["caderno"] = (list(atual.get("caderno") or []) + novas)[-estado.MAX_CADERNO:]
     caso["dados"] = dados
+    _ALTERADO[str(caso["id"])] = time.monotonic()
     repo.salvar_caso(caso["id"], {"dados": dados})
+    _ALTERADO[str(caso["id"])] = time.monotonic()
 
 
 def _hash(segredo: str) -> str:
@@ -338,7 +366,12 @@ def entregar(ctx) -> int:
     """
     if "telegram" not in (ctx.caso.get("dados") or {}):
         return 0
-    tg = _tg(ctx.repo.obter_caso(ctx.caso["id"]) or ctx.caso)     # o webhook pode ter mudado algo nesta rodada
+    marca = getattr(ctx, "tg_marca", 0.0)
+    if alterado_desde(ctx.caso["id"], marca):                   # o webhook mudou algo nesta rodada: relê
+        ctx.tg_marca = time.monotonic()
+        tg = _tg(ctx.repo.obter_caso(ctx.caso["id"]) or ctx.caso)
+    else:
+        tg = _tg(ctx.caso)
     chat_id = tg.get("chat_id")
     if not chat_id or tg.get("bloqueado_em") or not configurado():
         return 0
@@ -656,6 +689,10 @@ def receber(update: dict, repo=None, agora: datetime | None = None, processar=Tr
             enviar_texto(chat_id, MSG_JA_LIGADO if caso else MSG_SEM_VINCULO)
             return {"acao": "ja_ligado" if caso else "sem_vinculo"}
         caso, motivo = vincular(repo, partes[1], chat_id, agora)
+        if motivo in ("ligado", "ja_ligado"):
+            # O Telegram exige que a pessoa toque em Iniciar, e isso aparece no chat como
+            # "/start <código comprido>". Apagado, a conversa começa limpa, só com o agente.
+            apagar_mensagem(chat_id, msg.get("message_id"))
         if motivo == "ligado":
             enviar_acao(chat_id)
             como = abrir_conversa(repo, caso, agora)
@@ -686,10 +723,15 @@ def receber(update: dict, repo=None, agora: datetime | None = None, processar=Tr
             avisar(repo, caso, MSG_PAUSADO, agora)
         return {"acao": "agente_desligado", "caso_id": caso["id"]}
 
-    with _trava_do_caso(caso["id"]):
+    trava = _trava_do_caso(caso["id"])
+    esperou = not trava.acquire(blocking=False)
+    if esperou:
+        trava.acquire()
+    try:
         if _ja_visto(chave) or repo.evento_por_chave(caso["empresa_id"], chave):
             return {"acao": "repetido", "caso_id": caso["id"]}   # reenvio do Telegram: não conta rodada
-        caso = repo.obter_caso(caso["id"]) or caso
+        if esperou:
+            caso = repo.obter_caso(caso["id"]) or caso       # outra mensagem deste caso mexeu nele enquanto esperava
         fila = _juntar_na_fila(repo, caso, chave, texto)
         if fila:
             pronto = _quando(fila.get("disponivel_em"))
@@ -701,6 +743,8 @@ def receber(update: dict, repo=None, agora: datetime | None = None, processar=Tr
             return adiado
         ev, novo = orq.registrar_evento(repo, caso["empresa_id"], caso["id"], "mensagem_devedor", chave,
                                         {"texto": texto}, origem="telegram")
+    finally:
+        trava.release()
     if novo and processar:
         enviar_acao(chat_id)                    # "digitando…" já, antes da IA começar
         _processar_caso(repo, caso, chave, agora, chat_id)

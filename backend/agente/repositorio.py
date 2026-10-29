@@ -141,7 +141,7 @@ class RepoMemoria:
                 return False
             e["situacao"] = "processando"
             e["disponivel_em"] = agora_utc() + RESERVA_EVENTO      # até quando a reserva vale
-            return True
+            return copy.deepcopy(e)                                 # o evento como ficou reservado
 
     def devolver_evento(self, evento_id: str, disponivel_em) -> None:
         """Devolve à fila um evento reservado que não deu para processar agora."""
@@ -338,6 +338,49 @@ class RepoMemoria:
         return [c["predicao_id"] for c in self.casos.values() if c["empresa_id"] == empresa_id]
 
 
+class _Gravador:
+    """Grava em segundo plano, na ordem, sem descartar. Uma tentativa a mais se falhar."""
+
+    def __init__(self):
+        import queue
+        self._fila = queue.Queue()
+        self._thread = None
+        self._lock = threading.Lock()
+
+    def enfileirar(self, gravar) -> None:
+        with self._lock:
+            if self._thread is None:
+                self._thread = threading.Thread(target=self._rodar, name="mizan-passos", daemon=True)
+                self._thread.start()
+        self._fila.put(gravar)
+
+    def _rodar(self):
+        import time
+        while True:
+            gravar = self._fila.get()
+            try:
+                for tentativa in (1, 2):
+                    try:
+                        gravar()
+                        break
+                    except Exception as e:
+                        if tentativa == 2:
+                            print(f"[Agente] passo não gravado: {type(e).__name__}")
+                        else:
+                            time.sleep(0.5)
+            finally:
+                self._fila.task_done()
+
+    def esperar(self, timeout: float) -> None:
+        import time
+        fim = time.monotonic() + timeout
+        while self._fila.unfinished_tasks and time.monotonic() < fim:
+            time.sleep(0.02)
+
+
+gravador_de_passos = _Gravador()
+
+
 class RepoSupabase:
     """Mesma interface, nas tabelas agente_*. Só o backend acessa (RLS ligado)."""
 
@@ -439,7 +482,10 @@ class RepoSupabase:
         ate = (agora_utc() + RESERVA_EVENTO).isoformat()
         res = (self.db.table("agente_eventos").update({"situacao": "processando", "disponivel_em": ate})
                .eq("id", evento_id).eq("situacao", "pendente").execute())
-        return bool(res.data)
+        if not res.data:
+            return False
+        linha = res.data[0]
+        return linha if isinstance(linha, dict) and linha else True   # o evento como ficou reservado
 
     def devolver_evento(self, evento_id: str, disponivel_em) -> None:
         (self.db.table("agente_eventos")
@@ -646,7 +692,14 @@ class RepoSupabase:
 
     # ── passos ──
     def gravar_passo(self, passo: dict) -> None:
-        self.db.table("agente_passos").insert(passo).execute()
+        # Fora do caminho da resposta: cada passo era uma ida ao banco antes de a
+        # mensagem sair. Em ordem, sem descartar (o teto de gasto do dia soma estes passos).
+        db = self.db
+        gravador_de_passos.enfileirar(lambda: db.table("agente_passos").insert(passo).execute())
+
+    def esperar_passos(self, timeout: float = 2.0) -> None:
+        """A tela vai ler os passos: espera os que ainda estão a caminho (até `timeout`)."""
+        gravador_de_passos.esperar(timeout)
 
     def gravar_log_agente(self, log: dict) -> None:
         linha = {k: self._iso(v) for k, v in log.items() if k != "criado_em"}

@@ -9,7 +9,9 @@ demonstração (Triagem, Negociador, Auditor...): o Telegram só traz a mensagem
    `https://t.me/<bot>?start=<código>` (vale por 7 dias e liga **um** Telegram: o primeiro que abrir).
    **Cada pessoa precisa do próprio link.** Na demonstração com duas pessoas, gere um convite em
    dois devedores diferentes e mande um link para cada uma.
-2. O devedor abre o link e toca em **Iniciar**. O chat fica ligado àquele caso.
+2. O devedor abre o link e toca em **Iniciar**. O chat fica ligado àquele caso. Tocar em Iniciar é regra do
+   Telegram (um bot não pode escrever primeiro para quem nunca falou com ele); a mensagem "/start <código>"
+   que isso gera é apagada pelo bot, e a conversa começa com a fala do agente.
 3. Cada mensagem dele vira um evento `mensagem_devedor` na fila. A resposta do agente (já passada pelo
    Auditor e pelas travas de saída) volta ao mesmo chat. Lembretes do Acompanhamento seguem pelo mesmo caminho.
 4. Ligar o chat **não confirma quem é a pessoa**: a confirmação de identidade continua sendo do agente.

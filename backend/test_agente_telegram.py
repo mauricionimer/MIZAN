@@ -35,6 +35,8 @@ api.fabrica_fonte = lambda: FONTE
 api.fabrica_cliente = lambda: ClienteFalso(ROTEIRO)
 ENVIADOS = []
 canal_telegram.enviar_texto = lambda chat, texto: (ENVIADOS.append((str(chat), texto)) or True)
+APAGADAS = []
+canal_telegram.apagar_mensagem = lambda chat, mid: APAGADAS.append((str(chat), mid)) or True
 os.environ.update(TELEGRAM_BOT_TOKEN="123:abc", TELEGRAM_WEBHOOK_SECRET="segredo-forte", TELEGRAM_BOT_USERNAME="mizan_bot")
 
 main._usuario_autenticado = lambda cred: main.validar_token(cred.credentials)
@@ -265,6 +267,15 @@ entradas = [m["texto"] for m in mens[antes:] if m["direcao"] == "entrada"]
 checar(entradas == ["Alguém aí?", "Oi??"], "a mensagem não se perde (e o reenvio do Telegram não duplica)", str(entradas))
 checar(ENVIADOS == [("555", canal_telegram.MSG_PAUSADO)], "o devedor sabe que foi recebida, uma vez só", str(ENVIADOS))
 os.environ["MIZAN_AGENTE_ATIVO"] = "1"
+
+print("— o /start some do chat —")
+APAGADAS.clear()
+FONTE._devedores["p4"] = {**DEV, "id": "p4", "nome": "Rui Alves"}
+cod = canal_telegram.gerar_convite(REPO, REPO.obter_ou_criar_caso("goias", "p4"))["codigo"]
+u = upd("/start " + cod, 69, chat=2121)
+u["message"]["message_id"] = 4321
+canal_telegram.receber(u, REPO)
+checar(APAGADAS == [("2121", 4321)], "ao ligar, o bot apaga a mensagem \"/start <código>\"", str(APAGADAS))
 
 print("— abertura: plano antes do convite e convite de madrugada —")
 from agente import orquestrador as orq   # noqa: E402
