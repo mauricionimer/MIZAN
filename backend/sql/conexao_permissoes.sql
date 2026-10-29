@@ -12,3 +12,6 @@ CREATE TABLE IF NOT EXISTS conexao_permissoes (
 -- Índices para consultas rápidas
 CREATE INDEX IF NOT EXISTS idx_conexao_permissoes_conexao ON conexao_permissoes (conexao_id);
 CREATE INDEX IF NOT EXISTS idx_conexao_permissoes_operador ON conexao_permissoes (operador_id);
+
+-- Só o backend (service role) lê e grava. Ver rls.sql.
+ALTER TABLE conexao_permissoes ENABLE ROW LEVEL SECURITY;

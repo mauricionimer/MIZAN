@@ -27,6 +27,10 @@ class AgenteDesligado(RuntimeError):
     pass
 
 
+class TabelaAusente(RuntimeError):
+    """Falta uma tabela do agente no banco; a mensagem (nossa) diz qual migração rodar."""
+
+
 class CasoOcupado(RuntimeError):
     pass
 
@@ -722,7 +726,7 @@ def analisar_laboratorio(empresa_id: str, agora: datetime | None = None) -> dict
                                                      "resultados": r["resultados"]})
     except Exception as e:
         print(f"[Agente] gravar recomendação: {type(e).__name__}")
-        raise RuntimeError(ERRO_TABELA) from e
+        raise TabelaAusente(ERRO_TABELA) from e
 
 
 def decidir_recomendacao(empresa_id: str, rec_id: str, status: str, quem: str | None) -> dict:

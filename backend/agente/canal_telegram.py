@@ -38,6 +38,12 @@ Segurança
     um aviso de que só lemos texto.
   - Cada update do Telegram tem chave própria (`telegram:<update_id>`): reenvio não duplica.
   - O que vai ao Telegram é texto puro, sem formatação.
+  - Cada conversa dispara no máximo MIZAN_IA_RODADAS_CASO rodadas de IA (padrão 10)
+    a cada MIZAN_IA_JANELA_CASO_MIN minutos (padrão 10). O teto de gasto é por
+    empresa e por dia: sem este, um devedor (ou quem tivesse o link dele) mandando
+    500 mensagens esgotava a IA de todos os outros devedores da empresa. Passado o
+    limite, as mensagens não se perdem: juntam-se num único evento adiado para o
+    fim da janela, e UMA rodada responde a todas (ver `_adiar_se_passou_do_limite`).
 """
 import hashlib
 import hmac
@@ -78,6 +84,7 @@ MSG_CONVITE_INVALIDO = MSG_CONVITE["invalido"]
 MSG_PAUSADO = ("Recebemos sua mensagem. O atendimento automático está pausado agora; "
                "uma pessoa da equipe vai responder por aqui.")
 MSG_SO_TEXTO = "Por enquanto eu só consigo ler mensagens de texto. Pode escrever o que precisa?"
+MSG_ESPERA = "Recebi suas mensagens, já te respondo."
 AVISO_ASSUMIU = "A partir de agora, uma pessoa da equipe vai continuar o seu atendimento por aqui."
 AVISO_DEVOLVEU = "O assistente virtual voltou a acompanhar o seu atendimento. Pode escrever quando quiser."
 
@@ -380,17 +387,75 @@ def avisar(repo, caso: dict, texto: str, agora: datetime | None = None) -> str:
     return enviar_para_caso(repo, caso, texto, agora)
 
 
-def _pode_avisar(repo, caso: dict, tipo: str, agora: datetime) -> bool:
-    """Avisos automáticos (pausa, só texto) no máximo uma vez por intervalo."""
+def _pode_avisar(repo, caso: dict, tipo: str, agora: datetime, intervalo: timedelta | None = None) -> bool:
+    """Avisos automáticos (pausa, só texto, espera) no máximo uma vez por intervalo."""
     tg = _tg(caso)
     avisos = dict(tg.get("avisos") or {})
     ultimo = _quando(avisos.get(tipo))
-    if ultimo and agora - ultimo < INTERVALO_AVISO[tipo]:
+    if ultimo and agora - ultimo < (intervalo or INTERVALO_AVISO[tipo]):
         return False
     avisos[tipo] = agora.isoformat()
     tg["avisos"] = avisos
     _gravar_tg(repo, caso, tg)
     return True
+
+
+# ── limite de IA por conversa ───────────────────────────────────────────────
+
+def _limite_rodadas() -> tuple:
+    """(máximo de rodadas, janela). Lido a cada chamada: o ambiente pode mudar sem reiniciar."""
+    try:
+        maximo = max(1, int(os.getenv("MIZAN_IA_RODADAS_CASO", "10")))
+    except ValueError:
+        maximo = 10
+    try:
+        janela = timedelta(minutes=max(1, int(os.getenv("MIZAN_IA_JANELA_CASO_MIN", "10"))))
+    except ValueError:
+        janela = timedelta(minutes=10)
+    return maximo, janela
+
+
+def _adiar_se_passou_do_limite(repo, caso: dict, chave: str, texto: str, agora: datetime) -> dict | None:
+    """Conta as rodadas de IA da conversa e, passado o limite, adia em vez de processar.
+
+    Devolve None se a mensagem pode ser processada agora (e conta a rodada), ou
+    {"acao": ...} se foi adiada. As rodadas ficam em `dados.telegram.rodadas_ia`,
+    incluindo a do evento adiado (na data em que ele vai rodar): é ela que
+    responde, de uma vez, a tudo o que chegou enquanto a janela estava cheia.
+    """
+    from agente import orquestrador as orq
+    maximo, janela = _limite_rodadas()
+    tg = _tg(caso)
+    rodadas = sorted(q for q in (_quando(x) for x in tg.get("rodadas_ia") or []) if q and q > agora - janela)
+
+    pendente = repo.evento_por_chave(caso["empresa_id"], tg["adiado_chave"]) if tg.get("adiado_chave") else None
+    if pendente and pendente.get("situacao") == "pendente":
+        # Já existe a rodada adiada desta janela: a mensagem entra nela. Fica o
+        # FIM do texto acumulado, que é o mais recente (a triagem lê até 2000).
+        from agente import triagem
+        dados = dict(pendente.get("dados") or {})
+        dados["texto"] = (str(dados.get("texto") or "") + "\n" + texto)[-triagem.MAX_CARACTERES:]
+        repo.atualizar_evento(pendente["id"], {"dados": dados})
+        if _pode_avisar(repo, caso, "espera", agora, janela):
+            enviar_texto(tg.get("chat_id"), MSG_ESPERA)
+        return {"acao": "adiado", "caso_id": caso["id"]}
+
+    if len(rodadas) < maximo:
+        tg["rodadas_ia"] = [q.isoformat() for q in rodadas] + [agora.isoformat()]
+        tg.pop("adiado_chave", None)
+        _gravar_tg(repo, caso, tg)
+        return None
+
+    # Janela cheia: uma rodada só, quando a mais antiga das que contam sair da janela.
+    quando = rodadas[-maximo] + janela
+    orq.registrar_evento(repo, caso["empresa_id"], caso["id"], "mensagem_devedor", chave,
+                         {"texto": texto}, origem="telegram", disponivel_em=quando)
+    tg["rodadas_ia"] = [q.isoformat() for q in rodadas] + [quando.isoformat()]
+    tg["adiado_chave"] = chave
+    _gravar_tg(repo, caso, tg)
+    if _pode_avisar(repo, caso, "espera", agora, janela):
+        enviar_texto(tg.get("chat_id"), MSG_ESPERA)
+    return {"acao": "adiado", "caso_id": caso["id"]}
 
 
 # ── recebimento (webhook) ───────────────────────────────────────────────────
@@ -472,6 +537,11 @@ def receber(update: dict, repo=None, agora: datetime | None = None, processar=Tr
             avisar(repo, caso, MSG_PAUSADO, agora)
         return {"acao": "agente_desligado", "caso_id": caso["id"]}
 
+    if repo.evento_por_chave(caso["empresa_id"], chave):
+        return {"acao": "repetido", "caso_id": caso["id"]}   # reenvio do Telegram: não conta rodada
+    adiado = _adiar_se_passou_do_limite(repo, caso, chave, texto, agora)
+    if adiado:
+        return adiado
     ev, novo = orq.registrar_evento(repo, caso["empresa_id"], caso["id"], "mensagem_devedor", chave,
                                     {"texto": texto}, origem="telegram")
     if novo and processar:
