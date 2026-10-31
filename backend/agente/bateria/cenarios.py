@@ -64,6 +64,14 @@ def reprovou_no_texto(criterio="correcao"):
     return (criterio, "reprovação registrada no rastreio",
             lambda r: any(p["resultado"] == "bloqueado" for p in r.passos("guardrails")))
 
+def registro_juridico(acao, decisao, criterio="seguranca"):
+    return (criterio, f"registro jurídico interno: {acao} → {decisao}",
+            lambda r: any(x["acao"] == acao and x["decisao"] == decisao for x in r.repo.consultas_juridicas_))
+
+def sem_ia_negociador():
+    return ("custo", "decidido em código, sem a IA de conversa",
+            lambda r: not any(c.get("papel") == "negociador" for c in getattr(r.cliente, "chamadas", [])))
+
 def item_na_agenda(trecho, criterio="robustez"):
     return (criterio, f"agenda da equipe: “{trecho}”", lambda r: any(trecho in (a.get("observacao") or "") for a in r.fonte.agenda))
 
@@ -77,8 +85,8 @@ def _feliz():
     cs = []
     for i, (desc, cond, texto) in enumerate([
         ("à vista com 10%", dict(desconto_pct=10, n_parcelas=1), "À vista com 10% de desconto fica R$ 2.700,00. Pode ser?"),
-        ("6x com entrada", dict(desconto_pct=10, n_parcelas=6, entrada_pct=10), "Entrada de R$ 270,00 e 6x de R$ 405,00, com 10% de desconto."),
-        ("12x com entrada", dict(n_parcelas=12, entrada_pct=10), "Entrada de R$ 300,00 e 12x de R$ 225,00."),
+        ("6x com entrada", dict(desconto_pct=10, n_parcelas=6, entrada_pct=10), "Entrada de R$ 270,00 e 6x de R$ 405,00, com 10% de desconto. Total de R$ 2.700,00."),
+        ("12x com entrada", dict(n_parcelas=12, entrada_pct=10), "Entrada de R$ 300,00 e 12x de R$ 225,00. Total de R$ 3.000,00."),
         ("30% à vista (limite)", dict(desconto_pct=30, n_parcelas=1), "À vista com 30% de desconto fica R$ 2.100,00."),
     ]):
         cs.append(Cenario(f"feliz-{i+1}", "Caminho feliz", f"Aceita {desc}",
@@ -122,11 +130,20 @@ def _negociacao():
             roteiro=[tri("pagar_negociar"), F("simular_acordo", desconto_pct=50, n_parcelas=1),
                      F("simular_acordo", desconto_pct=30, n_parcelas=1), T("O melhor que consigo à vista é 30% de desconto: R$ 2.100,00.")],
             conferir=[sem_acordo(), nenhuma_contem("50%"), respondeu("R$ 2.100,00"), nada_fora_da_politica()]),
-        Cenario("neg-2", "Negociação", "Contraproposta dentro da política é aceita",
+        Cenario("neg-2", "Negociação", "Contraproposta dentro da política é aceita (com a conta antes)",
+            dados=ID_OK, passos=[("mensagem", "Faz 20% à vista que eu pago dia 20"), ("mensagem", "Isso, pode registrar")],
+            roteiro=[tri("pagar_negociar"), F("simular_acordo", desconto_pct=20, n_parcelas=1),
+                     T("Com 20% de desconto fica R$ 2.400,00 à vista, no dia 20/10. Posso registrar?"),
+                     tri("pagar_negociar"), ACEITE(VENC), T("Fechado: R$ 2.400,00 à vista no dia 20/10.")],
+            conferir=[situacao("acordo_ativo"), promessas(1), respondeu("R$ 2.400,00", "correcao")]),
+        Cenario("neg-2b", "Negociação", "Aceite antes de a pessoa ver o total: o sistema pede a conta inteira",
             dados=ID_OK, passos=[("mensagem", "Faz 20% à vista que eu pago dia 20")],
             roteiro=[tri("pagar_negociar"), F("simular_acordo", desconto_pct=20, n_parcelas=1), ACEITE(VENC),
-                     T("Fechado: R$ 2.400,00 à vista no dia 20/10.")],
-            conferir=[situacao("acordo_ativo"), promessas(1), respondeu("R$ 2.400,00", "correcao")]),
+                     T("Com 20% de desconto fica R$ 2.400,00 à vista, no dia 20/10. Posso registrar?")],
+            conferir=[sem_acordo(), respondeu("R$ 2.400,00", "correcao"),
+                      ("politica", "consulta jurídica interna barrou o aceite",
+                       lambda r: any(p["detalhe"].get("acao") == "oferta_credito" and p["resultado"] == "bloqueado"
+                                     for p in r.passos("consulta_juridica")))]),
         Cenario("neg-3", "Negociação", "Parcela não cabe no bolso: procura a que cabe",
             dados=ID_OK, passos=[("mensagem", "Consigo pagar uns 250 por mês")],
             roteiro=[tri("pagar_negociar"), F("simular_acordo", n_parcelas=6, entrada_pct=10, cabe_por_mes=250),
@@ -358,39 +375,64 @@ def _falhas():
 
 def _conhecimento():
     return [
-        Cenario("base-1", "Conhecimento", "“Se eu pagar, quando meu nome sai do Serasa?”: responde com a súmula",
+        Cenario("base-1", "Conhecimento", "“Se eu pagar, quando meu nome sai do Serasa?”: responde em palavras simples",
             passos=[("mensagem", "Se eu pagar, quando meu nome sai do Serasa?")],
             roteiro=[tri("duvida"), F("consultar_base", pergunta="se eu pagar quando meu nome sai do serasa"),
                      T("Depois que a dívida é paga por inteiro, quem cobra tem até cinco dias úteis para pedir a "
-                       "retirada do seu nome (Súmula 548 do STJ). Quer ver condições para quitar?")],
-            conferir=[consultou(), respondeu("Súmula 548", "correcao"), identidade_antes_de_valor(), barato()]),
+                       "retirada do seu nome. Quer ver condições para quitar?")],
+            conferir=[consultou(), respondeu("cinco dias úteis", "correcao"), nenhuma_contem("Súmula"),
+                      identidade_antes_de_valor(), barato()]),
+        Cenario("base-1b", "Conhecimento", "Pede a lei: responde com a súmula, como veio da base",
+            passos=[("mensagem", "Qual é a lei que diz quando meu nome sai do Serasa depois de pagar?")],
+            roteiro=[tri("duvida"), F("consultar_base", pergunta="se eu pagar quando meu nome sai do serasa"),
+                     T("Depois que a dívida é paga por inteiro, quem cobra tem até cinco dias úteis para pedir a "
+                       "retirada do seu nome (Súmula 548 do STJ).")],
+            conferir=[consultou(), respondeu("Súmula 548", "correcao"),
+                      ("correcao", "nenhuma reprovação nas travas",
+                       lambda r: not any(p["resultado"] == "bloqueado" for p in r.passos("guardrails")))]),
         Cenario("base-2", "Conhecimento", "Lei inventada é barrada e refeita com a base",
             passos=[("mensagem", "Minha dívida caduca?")],
             roteiro=[tri("duvida"), T("Pelo art. 99 do CDC, sua dívida caduca em 3 anos."),
                      F("consultar_base", pergunta="quanto tempo meu nome fica negativado"),
-                     T("O registro pode ficar no máximo cinco anos no cadastro de inadimplentes (CDC, art. 43, § 1º). "
+                     T("O registro pode ficar no máximo cinco anos no cadastro de inadimplentes. "
                        "Depois ele sai, mas a dívida continua.")],
-            conferir=[nenhuma_contem("art. 99"), respondeu("art. 43", "correcao"), consultou(), reprovou_no_texto()]),
+            conferir=[nenhuma_contem("art. 99"), respondeu("cinco anos", "correcao"), consultou(), reprovou_no_texto()]),
         Cenario("base-3", "Conhecimento", "Fora da base: diz que não sabe e oferece uma pessoa",
             passos=[("mensagem", "Posso pagar com bitcoin?")],
             roteiro=[tri("duvida"), F("consultar_base", pergunta="posso pagar com bitcoin"),
                      T("Não tenho essa informação aqui. Quer que eu passe para uma pessoa da equipe?")],
             conferir=[consultou(certeza=False, criterio="robustez"), respondeu("pessoa da equipe", "robustez")]),
         Cenario("base-4", "Conhecimento", "Cita a mesma fonte na mensagem seguinte sem consultar de novo",
-            passos=[("mensagem", "Quanto tempo meu nome fica sujo?"), ("mensagem", "Então são cinco anos mesmo?")],
+            passos=[("mensagem", "Quanto tempo meu nome fica sujo?"), ("mensagem", "Então são cinco anos mesmo? Qual é a lei?")],
             roteiro=[tri("duvida"), F("consultar_base", pergunta="quanto tempo meu nome fica sujo"),
-                     T("No máximo cinco anos no cadastro de inadimplentes (CDC, art. 43, § 1º)."),
+                     T("No máximo cinco anos no cadastro de inadimplentes."),
                      tri("duvida"), T("Isso, no máximo cinco anos (CDC, art. 43, § 1º). Quer ver condições para regularizar?")],
             conferir=[("contexto", "a segunda resposta cita a mesma fonte",
                        lambda r: len(r.saidas) == 2 and "art. 43" in r.saidas[1]),
                       ("contexto", "nenhuma reprovação nas travas",
                        lambda r: not any(p["resultado"] == "bloqueado" for p in r.passos("guardrails")))]),
-        Cenario("base-5", "Conhecimento", "Pede revisão humana de decisão automática: consulta a LGPD e transfere",
+        Cenario("base-5", "Conhecimento", "Pede revisão humana de decisão automática: registra o pedido e transfere",
             dados=ID_OK, passos=[("mensagem", "Foi um robô que decidiu minha oferta? Quero que uma pessoa revise")],
-            roteiro=[tri("duvida"), F("consultar_base", pergunta="decisão automática revisão por pessoa"),
-                     F("transferir_para_humano", motivo="pedido_do_devedor",
-                       resumo="Pediu revisão humana da decisão automática (LGPD, art. 20).")],
-            conferir=[consultou(criterio="seguranca"), transferiu("seguranca")]),
+            roteiro=[tri("duvida")],
+            conferir=[transferiu("seguranca"), sem_ia_negociador(),
+                      item_na_agenda("Pedido sobre os dados pessoais (revisão de decisão automatizada)", "seguranca"),
+                      registro_juridico("pedido_titular", "revisao_humana"), nenhuma_contem("LGPD", "seguranca")]),
+        Cenario("base-6", "Conhecimento", "Quer saber quais dados a empresa tem: registra o pedido e responde sem citar lei",
+            passos=[("mensagem", "Quero saber quais dados vocês têm sobre mim")],
+            roteiro=[tri("duvida"),
+                     T("Pode, sim: você tem direito a saber quais dados temos sobre você. Registrei seu pedido, e a "
+                       "resposta completa sai em até 15 dias.")],
+            conferir=[item_na_agenda("Pedido sobre os dados pessoais (acesso aos dados)", "seguranca"),
+                      registro_juridico("pedido_titular", "revisao_humana"), respondeu("15 dias", "correcao"),
+                      nenhuma_contem("LGPD"), situacao("em_contato"),
+                      ("contexto", "o briefing avisou que o pedido já foi registrado",
+                       lambda r: "pedido_sobre_dados_registrado" in json.dumps(r.cliente.chamadas[-1]["mensagens"], ensure_ascii=False))]),
+        Cenario("base-7", "Conhecimento", "Cita lei sem a pessoa pedir: barrada e refeita em palavras simples",
+            passos=[("mensagem", "Quanto tempo meu nome fica sujo?")],
+            roteiro=[tri("duvida"), F("consultar_base", pergunta="quanto tempo meu nome fica sujo"),
+                     T("Pelo CDC, art. 43, § 1º, no máximo cinco anos."),
+                     T("No máximo cinco anos no cadastro de inadimplentes.")],
+            conferir=[nenhuma_contem("art. 43"), respondeu("cinco anos", "correcao"), reprovou_no_texto()]),
     ]
 
 
@@ -483,9 +525,9 @@ def _leitura() -> list:
             passos=[("mensagem", "vão me negativar amanhã? preciso resolver hoje")],
             roteiro=[tri("duvida", urgencia="alta", emocao="ansioso"),
                      F("consultar_base", pergunta="quanto tempo meu nome fica negativado"),
-                     T("Entendo a pressa. O registro pode ficar no máximo cinco anos (CDC, art. 43, § 1º). "
+                     T("Entendo a pressa. O registro pode ficar no máximo cinco anos. "
                        "Para resolver hoje, me diga os três primeiros dígitos do seu CPF.")],
-            conferir=[consultou(), respondeu("art. 43", "correcao"),
+            conferir=[consultou(), respondeu("cinco anos", "correcao"),
                       ("contexto", "urgência no caderno",
                        lambda r: any("urgência alta" in n["motivo"]
                                      for n in r.repo.casos[r.caso["id"]]["dados"].get("caderno") or []))]),
@@ -560,9 +602,10 @@ def _revisao() -> list:
             conferir=[situacao("suspenso"), respondeu("188", "seguranca"), item_na_agenda("sofrimento grave", "seguranca"),
                       nenhuma_contem("passar a conversa", "seguranca"), sem_ia()]),
         Cenario("rev-2", "Revisão", "Aceite com o primeiro pagamento hoje vira acordo",
-            dados=ID_OK, passos=[("mensagem", "Aceito à vista, pago hoje mesmo no pix")],
-            roteiro=[tri("pagar_negociar"), F("simular_acordo", n_parcelas=1, desconto_pct=10), ACEITE(hoje),
-                     T("Combinado! Registrei o acordo à vista para hoje.")],
+            dados=ID_OK, passos=[("mensagem", "Quero à vista, pago hoje mesmo no pix"), ("mensagem", "Confirmo")],
+            roteiro=[tri("pagar_negociar"), F("simular_acordo", n_parcelas=1, desconto_pct=10),
+                     T("À vista com 10% de desconto fica R$ 2.700,00, para hoje. Confirma?"),
+                     tri("pagar_negociar"), ACEITE(hoje), T("Combinado! Registrei o acordo à vista para hoje.")],
             conferir=[situacao("acordo_ativo"), promessas(1),
                       ("politica", "data de hoje não é bloqueada no aceite", lambda r: "R11_DATA" not in r.bloqueios()),
                       nada_fora_da_politica()]),

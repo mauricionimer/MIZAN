@@ -55,6 +55,8 @@ class RepoMemoria:
         self.logs_agentes: list = []
         self.politicas: list = []
         self.mensagens: list = []
+        self.consultas_juridicas_: list = []
+        self.conferencias_juridicas_: dict = {}
         self._lock = threading.Lock()
 
     # ── casos ──
@@ -292,6 +294,25 @@ class RepoMemoria:
         logs = [copy.deepcopy(l) for l in self.logs_agentes if l["empresa_id"] == empresa_id]
         logs.sort(key=lambda l: str(l.get("criado_em") or ""), reverse=True)
         return logs[:n]
+
+    # ── base jurídica: decisões internas e conferências oficiais ──
+    def gravar_consulta_juridica(self, linha: dict) -> str:
+        with self._lock:
+            r = {"id": str(uuid.uuid4()), **copy.deepcopy(linha), "criado_em": agora_utc()}
+            self.consultas_juridicas_.append(r)
+            return r["id"]
+
+    def consultas_juridicas(self, empresa_id: str, caso_id=None, n: int = 50) -> list:
+        rs = [copy.deepcopy(r) for r in self.consultas_juridicas_ if r["empresa_id"] == empresa_id
+              and (caso_id is None or r.get("caso_id") == str(caso_id))]
+        return sorted(rs, key=lambda r: r["criado_em"], reverse=True)[:n]
+
+    def gravar_conferencia_juridica(self, norma_id: str, resultado: dict) -> None:
+        with self._lock:
+            self.conferencias_juridicas_[norma_id] = copy.deepcopy(resultado)
+
+    def conferencias_juridicas(self) -> dict:
+        return copy.deepcopy(self.conferencias_juridicas_)
 
     # ── recomendações do Cientista ──
     def gravar_recomendacao(self, empresa_id: str, rec: dict) -> dict:
@@ -709,6 +730,27 @@ class RepoSupabase:
     def gravar_log_agente(self, log: dict) -> None:
         linha = {k: self._iso(v) for k, v in log.items() if k != "criado_em"}
         self.db.table("agente_logs").insert(linha).execute()
+
+    # ── base jurídica (sql/migracao_agente_juridico.sql) ──
+    def gravar_consulta_juridica(self, linha: dict) -> str | None:
+        res = self.db.table("agente_consultas_juridicas").insert(
+            {k: v for k, v in linha.items() if v is not None}).execute()
+        return (res.data or [{}])[0].get("id")
+
+    def consultas_juridicas(self, empresa_id: str, caso_id=None, n: int = 50) -> list:
+        q = self.db.table("agente_consultas_juridicas").select("*").eq("empresa_id", empresa_id)
+        if caso_id is not None:
+            q = q.eq("caso_id", str(caso_id))
+        return q.order("criado_em", desc=True).limit(n).execute().data or []
+
+    def gravar_conferencia_juridica(self, norma_id: str, resultado: dict) -> None:
+        self.db.table("agente_conferencias_juridicas").upsert(
+            {"norma_id": norma_id, "status": resultado.get("status"), "conferido_em": resultado.get("em"),
+             "resultado": resultado}, on_conflict="norma_id").execute()
+
+    def conferencias_juridicas(self) -> dict:
+        res = self.db.table("agente_conferencias_juridicas").select("norma_id, resultado").execute()
+        return {r["norma_id"]: r["resultado"] for r in res.data or []}
 
     def logs_operacionais(self, empresa_id: str, n: int = 100) -> list:
         campos = "id,criado_em,nivel,categoria,mensagem,agente,evento_id,caso_id,trace_id,tentativa,detalhe"

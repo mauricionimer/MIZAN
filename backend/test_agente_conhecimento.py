@@ -97,13 +97,14 @@ checar(not guardrails.conferir(multa.resposta, guardrails.permitidos_de([{"respo
        "percentual que veio da base (2%) passa")
 
 print("— a ferramenta —")
-def rodar(chamadas, dados=None):
+def rodar(chamadas, dados=None, texto=""):
     repo, fonte = RepoMemoria(), FonteMemoria([DEVEDOR])
     caso = repo.obter_ou_criar_caso("emp", "p1")
     repo.salvar_caso(caso["id"], {"situacao": "em_contato", "dados": dados or {}})
     repo.gravar_politica("emp", 1, auditor.POLITICA_DEMONSTRACAO)
     res = []
     def no(ctx):
+        ctx.saida["texto"] = texto                  # a mensagem do devedor nesta rodada
         for nome, args in chamadas:
             res.append(fer.executar(ctx, fonte, nome, args))
     orq.registrar_evento(repo, "emp", caso["id"], "mensagem_devedor", "m1")
@@ -112,9 +113,14 @@ def rodar(chamadas, dados=None):
     return res, repo, repo.obter_caso(caso["id"])
 
 pergunta = "se eu pagar quando meu nome sai do serasa"
-r, repo, caso = rodar([("consultar_base", {"pergunta": pergunta}), ("consultar_base", {"pergunta": "posso pagar com bitcoin?"})])
-checar(r[0]["ok"] and r[0]["certeza"] and "Súmula 548" in r[0]["fonte"] and r[0]["resposta"],
-       "sem identidade confirmada: responde com fonte (informação geral)")
+r, repo, caso = rodar([("consultar_base", {"pergunta": pergunta}), ("consultar_base", {"pergunta": "posso pagar com bitcoin?"})],
+                      texto=pergunta)
+checar(r[0]["ok"] and r[0]["certeza"] and r[0]["resposta"] and "fonte" not in r[0]
+       and not guardrails.referencias_do_texto(r[0]["resposta"]) and "sem citar lei" in r[0]["orientacao"],
+       "sem identidade confirmada: responde (informação geral), em palavras simples e sem citar a norma")
+rl, *_ = rodar([("consultar_base", {"pergunta": pergunta})], texto="qual é a lei que diz isso?")
+checar(rl[0]["certeza"] and "Súmula 548" in rl[0]["fonte"] and "Súmula 548" in rl[0]["resposta"],
+       "a pessoa pediu a lei: vem a fonte, para citar como veio")
 checar("trecho_oficial" not in r[0], "o texto literal da lei não vai para a IA (ela só pode citar a resposta)")
 checar("_rastreio" not in r[0], "o que é do rastreio não vai para a IA")
 checar(r[1]["ok"] and r[1]["certeza"] is False and "pessoa" in r[1]["orientacao"], "sem certeza: orienta a oferecer uma pessoa")

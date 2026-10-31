@@ -1,0 +1,355 @@
+{
+  "acervo": "https://github.com/ctresb/leis",
+  "aviso": "Cópia de consulta de um acervo convertido automaticamente: pode conter erros ou estar desatualizada. Redação e vigência se confirmam na fonte oficial (conferencia).",
+  "commit": "2dac3a272eed1121f8dc38aab80fe563d713656d",
+  "data_commit": "2026-10-28T16:25:54-03:00",
+  "descartadas": [
+    {
+      "caminho": "federal/leis-ordinarias/2021/lei-14181-2021-07-01.md",
+      "motivo": "Lei que altera o CDC: o texto dela já está no CDC compilado; ingerir duplicaria os dispositivos."
+    },
+    {
+      "caminho": "constituicao.md",
+      "motivo": "Arquivo muito grande para o ganho; os direitos de privacidade e proteção de dados aplicáveis à operação estão detalhados na LGPD e no CDC."
+    },
+    {
+      "caminho": "estaduais/ e municipais/",
+      "motivo": "Fora do escopo inicial. Leis estaduais e municipais sobre cobrança e telemarketing podem impor regras locais: avaliar por estado de atuação."
+    }
+  ],
+  "gerado_em": "2026-10-31T14:53:10.008048+00:00",
+  "normas": {
+    "cadastro_positivo": {
+      "alteracoes_conhecidas": [],
+      "aplica_se": "",
+      "arquivo": "federal/leis-ordinarias/2011/lei-12414-2011-06-09.md",
+      "assinatura": "f6f239878c053fe4",
+      "baixado_em_pelo_acervo": "2026-10-13",
+      "commit": "2dac3a272eed1121f8dc38aab80fe563d713656d",
+      "conferencia": {
+        "detalhe": "fonte oficial inacessível a partir deste ambiente (URLError)",
+        "em": "2026-10-31T14:15:34.912209+00:00",
+        "status": "nao_conferida",
+        "url": "https://www.planalto.gov.br/ccivil_03/_ato2011-2014/2011/lei/l12414.htm"
+      },
+      "data": "2011-06-09",
+      "data_commit": "2026-10-28T16:25:54-03:00",
+      "dispositivos": 111,
+      "ementa": "Disciplina a formação e consulta a bancos de dados com informações de adimplemento, de pessoas naturais ou de pessoas jurídicas, para formação de histórico de crédito.",
+      "fonte_original": "https://normas.leg.br/?urn=urn:lex:br:federal:lei:2011-06-09;12414",
+      "id": "cadastro_positivo",
+      "ingerido_em": "2026-10-31T14:15:34.191849+00:00",
+      "motivo": "Histórico de crédito e direitos do cadastrado, inclusive revisão de decisão automatizada.",
+      "numero": "12414",
+      "observacoes": [],
+      "prioridade": 1,
+      "recorte": [],
+      "revogada": false,
+      "sha256_arquivo": "62a27cfc2834f49e96737499a1160d72ce2dc43153fe8fe9eea1f6bfa08dbc37",
+      "sigla": "Lei do Cadastro Positivo",
+      "situacao_fonte": null,
+      "tipo": "Lei Ordinária",
+      "titulo": "Lei nº 12.414 de 09/06/2011",
+      "url_oficial": "https://www.planalto.gov.br/ccivil_03/_ato2011-2014/2011/lei/l12414.htm",
+      "url_repositorio": "https://github.com/ctresb/leis/blob/2dac3a272eed1121f8dc38aab80fe563d713656d/federal/leis-ordinarias/2011/lei-12414-2011-06-09.md",
+      "verificado_no_acervo_em": "2026-10-31T14:53:10.008048+00:00",
+      "versao_texto": "compilada (texto vigente)"
+    },
+    "cdc": {
+      "alteracoes_conhecidas": [],
+      "aplica_se": "",
+      "arquivo": "federal/leis-ordinarias/1990/lei-8078-1990-09-11.md",
+      "assinatura": "4eef53a9b49961fe",
+      "baixado_em_pelo_acervo": "2026-10-13",
+      "commit": "2dac3a272eed1121f8dc38aab80fe563d713656d",
+      "conferencia": {
+        "detalhe": "fonte oficial inacessível a partir deste ambiente (URLError)",
+        "em": "2026-10-31T14:15:34.675576+00:00",
+        "status": "nao_conferida",
+        "url": "https://www.planalto.gov.br/ccivil_03/leis/l8078compilado.htm"
+      },
+      "data": "1990-09-11",
+      "data_commit": "2026-10-28T16:25:54-03:00",
+      "dispositivos": 474,
+      "ementa": "Dispõe sobre a proteção do consumidor e dá outras providências.",
+      "fonte_original": "https://normas.leg.br/?urn=urn:lex:br:federal:lei:1990-09-11;8078",
+      "id": "cdc",
+      "ingerido_em": "2026-10-31T14:15:34.191849+00:00",
+      "motivo": "Cobrança de dívidas (arts. 42, 42-A e 71), cadastros de consumidores (art. 43), crédito e superendividamento (arts. 52 e 54-A a 54-G; já inclui as alterações da Lei nº 14.181/2021).",
+      "numero": "8078",
+      "observacoes": [],
+      "prioridade": 1,
+      "recorte": [],
+      "revogada": false,
+      "sha256_arquivo": "fc47a9f4f9647c0bc86ab9399165653c70c0042d5b749b0558c6691a002b7d69",
+      "sigla": "CDC",
+      "situacao_fonte": null,
+      "tipo": "Lei Ordinária",
+      "titulo": "Lei nº 8.078 de 11/09/1990",
+      "url_oficial": "https://www.planalto.gov.br/ccivil_03/leis/l8078compilado.htm",
+      "url_repositorio": "https://github.com/ctresb/leis/blob/2dac3a272eed1121f8dc38aab80fe563d713656d/federal/leis-ordinarias/1990/lei-8078-1990-09-11.md",
+      "verificado_no_acervo_em": "2026-10-31T14:53:10.008048+00:00",
+      "versao_texto": "compilada (texto vigente)"
+    },
+    "cmn_4949": {
+      "alteracoes_conhecidas": [],
+      "aplica_se": "instituições financeiras e demais autorizadas pelo Banco Central (clientes da Mizan)",
+      "arquivo": "reguladores/bcb/resolucoes/2021/resolucao-cmn-n-4.949-de-30-de-setembro-de-2021-350015767.md",
+      "assinatura": "52b36d68cccd6bd5",
+      "baixado_em_pelo_acervo": "2026-10-21",
+      "commit": "2dac3a272eed1121f8dc38aab80fe563d713656d",
+      "conferencia": {
+        "detalhe": "fonte oficial inacessível a partir deste ambiente (URLError)",
+        "em": "2026-10-31T14:15:36.115443+00:00",
+        "status": "nao_conferida",
+        "url": "https://www.bcb.gov.br/estabilidadefinanceira/exibenormativo?tipo=Resolu%C3%A7%C3%A3o%20CMN&numero=4949"
+      },
+      "data": "2021-09-30",
+      "data_commit": "2026-10-28T16:25:54-03:00",
+      "dispositivos": 82,
+      "ementa": null,
+      "fonte_original": "https://www.in.gov.br/web/dou/-/resolucao-cmn-n-4.949-de-30-de-setembro-de-2021-350015767",
+      "id": "cmn_4949",
+      "ingerido_em": "2026-10-31T14:15:34.191849+00:00",
+      "motivo": "Relacionamento de instituições financeiras com clientes, inclusive tratamento de dados e sistemática de cobrança no inadimplemento (art. 7º).",
+      "numero": "4949",
+      "observacoes": [
+        "Publicação original no DOU; alterações posteriores não verificadas no acervo."
+      ],
+      "prioridade": 1,
+      "recorte": [],
+      "revogada": null,
+      "sha256_arquivo": "f2d664967be0a28cc1f4c1553db59de3d7cc084315e3b2421c76024a2a595d50",
+      "sigla": "Resolução CMN nº 4.949/2021",
+      "situacao_fonte": null,
+      "tipo": "Resolução",
+      "titulo": "RESOLUÇÃO CMN Nº 4.949, DE 30 DE SETEMBRO DE 2021",
+      "url_oficial": "https://www.bcb.gov.br/estabilidadefinanceira/exibenormativo?tipo=Resolu%C3%A7%C3%A3o%20CMN&numero=4949",
+      "url_repositorio": "https://github.com/ctresb/leis/blob/2dac3a272eed1121f8dc38aab80fe563d713656d/reguladores/bcb/resolucoes/2021/resolucao-cmn-n-4.949-de-30-de-setembro-de-2021-350015767.md",
+      "verificado_no_acervo_em": "2026-10-31T14:53:10.008048+00:00",
+      "versao_texto": "publicação original"
+    },
+    "codigo_civil": {
+      "alteracoes_conhecidas": [],
+      "aplica_se": "",
+      "arquivo": "federal/leis-ordinarias/2002/lei-10406-2002-01-10.md",
+      "assinatura": "6de96f2cf065ff4a",
+      "baixado_em_pelo_acervo": "2026-10-13",
+      "commit": "2dac3a272eed1121f8dc38aab80fe563d713656d",
+      "conferencia": {
+        "detalhe": "fonte oficial inacessível a partir deste ambiente (URLError)",
+        "em": "2026-10-31T14:15:35.147750+00:00",
+        "status": "nao_conferida",
+        "url": "https://www.planalto.gov.br/ccivil_03/leis/2002/l10406compilada.htm"
+      },
+      "data": "2002-01-10",
+      "data_commit": "2026-10-28T16:25:54-03:00",
+      "dispositivos": 155,
+      "ementa": "Institui o Código Civil.",
+      "fonte_original": "https://normas.leg.br/?urn=urn:lex:br:federal:lei:2002-01-10;10406",
+      "id": "codigo_civil",
+      "ingerido_em": "2026-10-31T14:53:10.008048+00:00",
+      "motivo": "Só o que a cobrança usa: prescrição, cessão de crédito, pagamento e quitação, inadimplemento e juros, e cobrança de dívida já paga. O resto do código (680 KB) não entra.",
+      "numero": "10406",
+      "observacoes": [],
+      "prioridade": 1,
+      "recorte": [
+        [
+          189,
+          211
+        ],
+        [
+          286,
+          298
+        ],
+        [
+          304,
+          333
+        ],
+        [
+          389,
+          407
+        ],
+        [
+          939,
+          941
+        ]
+      ],
+      "revogada": false,
+      "sha256_arquivo": "be0cd7d8a1eaacb21cb64f07086929db91f43ad3149b3c721cd33873d328c32c",
+      "sigla": "Código Civil",
+      "situacao_fonte": null,
+      "tipo": "Lei Ordinária",
+      "titulo": "Lei nº 10.406 de 10/01/2002",
+      "url_oficial": "https://www.planalto.gov.br/ccivil_03/leis/2002/l10406compilada.htm",
+      "url_repositorio": "https://github.com/ctresb/leis/blob/2dac3a272eed1121f8dc38aab80fe563d713656d/federal/leis-ordinarias/2002/lei-10406-2002-01-10.md",
+      "versao_texto": "compilada (texto vigente)"
+    },
+    "decreto_11150": {
+      "alteracoes_conhecidas": [
+        {
+          "artigo": "3",
+          "descricao": "Redação alterada pelo Decreto nº 11.567/2023 (art. 1º), que mudou o valor do mínimo existencial e revogou o § 2º. O texto deste dispositivo no acervo está desatualizado: use a redação vigente da fonte oficial."
+        }
+      ],
+      "aplica_se": "",
+      "arquivo": "federal/decretos/2022/dec-11150-2022-07-26.md",
+      "assinatura": "1c95c719388a40cc",
+      "baixado_em_pelo_acervo": "2026-10-15",
+      "commit": "2dac3a272eed1121f8dc38aab80fe563d713656d",
+      "conferencia": {
+        "detalhe": "fonte oficial inacessível a partir deste ambiente (URLError)",
+        "em": "2026-10-31T14:15:35.653279+00:00",
+        "status": "nao_conferida",
+        "url": "https://www.planalto.gov.br/ccivil_03/_ato2019-2022/2022/decreto/d11150.htm"
+      },
+      "data": "2022-07-26",
+      "data_commit": "2026-10-28T16:25:54-03:00",
+      "dispositivos": 32,
+      "ementa": "Regulamenta a preservação e o não comprometimento do mínimo existencial para fins de prevenção, tratamento e conciliação de situações de superendividamento em dívidas de consumo, nos termos do disposto na Lei nº 8.078, de 11 de setembro de 1990 - Código de Defesa do Consumidor.",
+      "fonte_original": "https://normas.leg.br/?urn=urn:lex:br:federal:decreto:2022-07-26;11150",
+      "id": "decreto_11150",
+      "ingerido_em": "2026-10-31T14:15:34.191849+00:00",
+      "motivo": "Mínimo existencial no superendividamento: limita o que um acordo pode comprometer.",
+      "numero": "11150",
+      "observacoes": [
+        "O acervo traz a redação ORIGINAL deste decreto, sem as alterações posteriores."
+      ],
+      "prioridade": 1,
+      "recorte": [],
+      "revogada": false,
+      "sha256_arquivo": "7ee7e2ca50347dc42c6a0e9e1f7d0782cb85683202e0112dad170e34e1591acc",
+      "sigla": "Decreto nº 11.150/2022",
+      "situacao_fonte": null,
+      "tipo": "Decreto",
+      "titulo": "Decreto nº 11.150 de 26/07/2022",
+      "url_oficial": "https://www.planalto.gov.br/ccivil_03/_ato2019-2022/2022/decreto/d11150.htm",
+      "url_repositorio": "https://github.com/ctresb/leis/blob/2dac3a272eed1121f8dc38aab80fe563d713656d/federal/decretos/2022/dec-11150-2022-07-26.md",
+      "verificado_no_acervo_em": "2026-10-31T14:53:10.008048+00:00",
+      "versao_texto": "original"
+    },
+    "decreto_11567": {
+      "alteracoes_conhecidas": [],
+      "aplica_se": "",
+      "arquivo": "federal/decretos/2023/dec-11567-2023-06-19.md",
+      "assinatura": "a0745c4be4fdf319",
+      "baixado_em_pelo_acervo": "2026-10-15",
+      "commit": "2dac3a272eed1121f8dc38aab80fe563d713656d",
+      "conferencia": {
+        "detalhe": "fonte oficial inacessível a partir deste ambiente (URLError)",
+        "em": "2026-10-31T14:15:35.886214+00:00",
+        "status": "nao_conferida",
+        "url": "https://www.planalto.gov.br/ccivil_03/_ato2023-2026/2023/decreto/d11567.htm"
+      },
+      "data": "2023-06-19",
+      "data_commit": "2026-10-28T16:25:54-03:00",
+      "dispositivos": 5,
+      "ementa": "Altera o Decreto nº 11.150, de 26 de julho de 2022, que regulamenta a preservação e o não comprometimento do mínimo existencial para fins de prevenção, tratamento e conciliação de situações de superendividamento em dívidas de consumo, nos termos do disposto na Lei nº 8.078, de 11 de setembro de 1990 - Código de Defesa do Consumidor, e dispõe sobre os mutirões para a repactuação de dívidas para a prevenção e o tratamento do superendividamento por dívidas de consumo.",
+      "fonte_original": "https://normas.leg.br/?urn=urn:lex:br:federal:decreto:2023-06-19;11567",
+      "id": "decreto_11567",
+      "ingerido_em": "2026-10-31T14:15:34.191849+00:00",
+      "motivo": "Altera o Decreto nº 11.150/2022 (valor do mínimo existencial). Entra para a redação nova ficar na busca ao lado da antiga, marcada como desatualizada.",
+      "numero": "11567",
+      "observacoes": [],
+      "prioridade": 2,
+      "recorte": [],
+      "revogada": false,
+      "sha256_arquivo": "48e44e30650890f8d3f7109ff11fde357216e1555e80d6b8de0d608e1e2a3f1a",
+      "sigla": "Decreto nº 11.567/2023",
+      "situacao_fonte": null,
+      "tipo": "Decreto",
+      "titulo": "Decreto nº 11.567 de 19/06/2023",
+      "url_oficial": "https://www.planalto.gov.br/ccivil_03/_ato2023-2026/2023/decreto/d11567.htm",
+      "url_repositorio": "https://github.com/ctresb/leis/blob/2dac3a272eed1121f8dc38aab80fe563d713656d/federal/decretos/2023/dec-11567-2023-06-19.md",
+      "verificado_no_acervo_em": "2026-10-31T14:53:10.008048+00:00",
+      "versao_texto": "original"
+    },
+    "lgpd": {
+      "alteracoes_conhecidas": [],
+      "aplica_se": "",
+      "arquivo": "federal/leis-ordinarias/2018/lei-13709-2018-08-14.md",
+      "assinatura": "e7ed4bc2df65e4ba",
+      "baixado_em_pelo_acervo": "2026-10-13",
+      "commit": "2dac3a272eed1121f8dc38aab80fe563d713656d",
+      "conferencia": {
+        "detalhe": "fonte oficial inacessível a partir deste ambiente (URLError)",
+        "em": "2026-10-31T14:15:34.432963+00:00",
+        "status": "nao_conferida",
+        "url": "https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709compilado.htm"
+      },
+      "data": "2018-08-14",
+      "data_commit": "2026-10-28T16:25:54-03:00",
+      "dispositivos": 457,
+      "ementa": "Lei Geral de Proteção de Dados Pessoais (LGPD).",
+      "fonte_original": "https://normas.leg.br/?urn=urn:lex:br:federal:lei:2018-08-14;13709",
+      "id": "lgpd",
+      "ingerido_em": "2026-10-31T14:15:34.191849+00:00",
+      "motivo": "Tratamento de dados pessoais de devedores: bases legais, princípios, direitos do titular, decisão automatizada, encarregado e segurança.",
+      "numero": "13709",
+      "observacoes": [],
+      "prioridade": 1,
+      "recorte": [],
+      "revogada": false,
+      "sha256_arquivo": "72d32431037ce85955c6f959f50f11d10971a8ec36f93cdae5ee3459ec66a4dd",
+      "sigla": "LGPD",
+      "situacao_fonte": null,
+      "tipo": "Lei Ordinária",
+      "titulo": "Lei nº 13.709 de 14/08/2018",
+      "url_oficial": "https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709compilado.htm",
+      "url_repositorio": "https://github.com/ctresb/leis/blob/2dac3a272eed1121f8dc38aab80fe563d713656d/federal/leis-ordinarias/2018/lei-13709-2018-08-14.md",
+      "verificado_no_acervo_em": "2026-10-31T14:53:10.008048+00:00",
+      "versao_texto": "compilada (texto vigente)"
+    },
+    "marco_civil": {
+      "alteracoes_conhecidas": [],
+      "aplica_se": "",
+      "arquivo": "federal/leis-ordinarias/2014/lei-12965-2014-04-23.md",
+      "assinatura": "83ff5d15ea70cd3a",
+      "baixado_em_pelo_acervo": "2026-10-13",
+      "commit": "2dac3a272eed1121f8dc38aab80fe563d713656d",
+      "conferencia": {
+        "detalhe": "fonte oficial inacessível a partir deste ambiente (URLError)",
+        "em": "2026-10-31T14:15:35.385484+00:00",
+        "status": "nao_conferida",
+        "url": "https://www.planalto.gov.br/ccivil_03/_ato2011-2014/2014/lei/l12965.htm"
+      },
+      "data": "2014-04-23",
+      "data_commit": "2026-10-28T16:25:54-03:00",
+      "dispositivos": 32,
+      "ementa": "Estabelece princípios, garantias, direitos e deveres para o uso da Internet no Brasil.",
+      "fonte_original": "https://normas.leg.br/?urn=urn:lex:br:federal:lei:2014-04-23;12965",
+      "id": "marco_civil",
+      "ingerido_em": "2026-10-31T14:15:34.191849+00:00",
+      "motivo": "Direitos do usuário de internet sobre dados e comunicações (canais digitais da cobrança).",
+      "numero": "12965",
+      "observacoes": [],
+      "prioridade": 1,
+      "recorte": [
+        [
+          3,
+          3
+        ],
+        [
+          7,
+          7
+        ],
+        [
+          10,
+          10
+        ]
+      ],
+      "revogada": false,
+      "sha256_arquivo": "3ab62009e0cbb77fa5c2113950e088852347108d8ec05c45f57dedff40923a38",
+      "sigla": "Marco Civil da Internet",
+      "situacao_fonte": null,
+      "tipo": "Lei Ordinária",
+      "titulo": "Lei nº 12.965 de 23/04/2014",
+      "url_oficial": "https://www.planalto.gov.br/ccivil_03/_ato2011-2014/2014/lei/l12965.htm",
+      "url_repositorio": "https://github.com/ctresb/leis/blob/2dac3a272eed1121f8dc38aab80fe563d713656d/federal/leis-ordinarias/2014/lei-12965-2014-04-23.md",
+      "verificado_no_acervo_em": "2026-10-31T14:53:10.008048+00:00",
+      "versao_texto": "compilada (texto vigente)"
+    }
+  },
+  "versao_indice": "4818147909e7",
+  "versao_parser": "2"
+}

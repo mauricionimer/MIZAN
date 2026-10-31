@@ -12,7 +12,11 @@ Conferido em código antes de enviar:
 3. Segredos: nada de CPF, identificadores internos ou instruções do sistema.
 4. Normas: lei, artigo, súmula, decreto, Código Penal ou Constituição citados
    no texto precisam ter vindo da base de conhecimento nesta conversa
-   (ferramenta consultar_base). O agente não inventa valor nem lei.
+   (ferramenta consultar_base). O agente não inventa valor nem lei. E só cita
+   quando a pessoa pediu a lei ou o fundamento (permitidos["citar_normas"]);
+   senão, explica o direito em palavras simples.
+6. Análise interna: o texto não fala da base jurídica, da consulta jurídica,
+   de parecer ou de análise interna; isso fica no registro interno.
 5. Ações: o texto só diz que fez (agendou, transferiu, suspendeu, fechou o
    acordo) se a ferramenta fez nesta resposta; e nunca confirma pagamento.
 
@@ -93,6 +97,11 @@ _REF_NOME = [
 _LEI_GENERICA = re.compile(r"\b(pela|segundo a|conforme a|de acordo com a) lei\b"
                            r"|\ba lei (diz|permite|garante|determina|obriga|proibe|manda|exige|preve)\b"
                            r"|\blei (do|da|dos|das) [a-z]{4,}")
+
+# A análise jurídica interna (agente/juridico) nunca aparece na conversa.
+_INTERNO = re.compile(r"\brag\b|\bbase (juridica|legal interna)\b|\b(consulta|analise|avaliacao|revisao|verificacao) "
+                      r"(juridica|interna|legal)\b|\bparecer juridico\b|\b(o|nosso|um|no|do|segundo o|conforme o) parecer\b"
+                      r"|\bregistro interno\b|\bconsultar_(base|legislacao)\b|\bbase de conhecimento\b")
 
 # Ameaça e constrangimento. Cada item é uma palavra ou um jeito de dizer; a
 # reprovação devolve o trecho que pegou, para a IA saber o que trocar.
@@ -214,11 +223,11 @@ _ACOES_AFIRMADAS = [
                                  r"|\bpassei (a |o |sua |seu |para |pra )"
                                  r"|\b(a equipe|um atendente|uma pessoa|alguem da equipe|nosso time) (ja )?(vai|vao|ira|irao) "
                                  r"(te |lhe )?(ligar|chamar|procurar|entrar em contato|falar com voce|retornar|atender)"),
-     _EQUIPE | {"registrar_pagamento_informado", "abrir_contestacao"}),
+     _EQUIPE | {"registrar_pagamento_informado", "abrir_contestacao", "registrar_pedido_titular"}),
     ("registro", re.compile(r"\b(registrei|anotei|cadastrei|lancei|abri (a |uma )?contestac)\w*"
                             r"|\b(ja |foi |esta |fica |ficou )(registrad|anotad|cadastrad)\w*|^\W*(anotado|registrado)\b"),
      _AGENDA | {"registrar_pagamento_informado", "abrir_contestacao", "registrar_contato", "suspender_cobranca",
-                "transferir_para_humano", "marcar_promessa_quebrada"}),
+                "transferir_para_humano", "marcar_promessa_quebrada", "registrar_pedido_titular"}),
     ("suspensão", re.compile(r"\b(suspendi|cancelei|pausei|interrompi|bloqueei|parei (a|as) cobranc)\w*"
                              r"|\b(cobranca|contato|cobrancas|mensagens|ligacoes) (ja |foi |foram |esta |estao |ficou |fica |ficara )?"
                              r"(suspens|cancelad|pausad|interrompid|bloquead|encerrad)\w*"),
@@ -285,8 +294,12 @@ def conferir(texto: str, permitidos: dict, feitas: set | None = None) -> list:
     if extensos:
         motivos.append(f"valor, percentual ou parcelas por extenso (“{extensos[0]}”): escreva com algarismos, "
                        "como veio da simulação")
-    soltas = referencias_do_texto(texto) - permitidos.get("referencias", set())
-    if soltas:
+    citadas_todas = referencias_do_texto(texto)
+    soltas = citadas_todas - permitidos.get("referencias", set())
+    if citadas_todas and permitidos.get("citar_normas") is False:
+        motivos.append("cita lei, artigo, súmula ou tribunal sem a pessoa ter pedido a lei: explique o direito "
+                       "com palavras simples, sem citar a norma")
+    elif soltas:
         citadas = ", ".join(sorted(f"{a} {b}" for a, b in soltas))
         motivos.append(f"cita norma que não veio da base de conhecimento ({citadas}): use consultar_base")
     t = _norm(texto)
@@ -301,6 +314,9 @@ def conferir(texto: str, permitidos: dict, feitas: set | None = None) -> list:
                        "diga que a equipe vai conferir")
     if _LEI_GENERICA.search(t) and not permitidos.get("referencias"):
         motivos.append("fala da lei sem ter consultado a base de conhecimento: use consultar_base")
+    m = _INTERNO.search(t)
+    if m:
+        motivos.append(f"fala da análise interna do sistema (“{m.group(0)}”): diga só o que importa para a pessoa")
     for p in _TOM:
         m = re.search(p, t)
         if m:

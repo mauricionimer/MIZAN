@@ -5,15 +5,20 @@
                         ├─ parar / pessoa errada ─► suspender ──┤
                         ├─ contestar ──────────────► contestar ──┤
                         ├─ pedir pessoa ───────────► transferir ─┼─► resposta fixa ─► enviar ─► FIM
+                        ├─ pedido sobre os dados ──► registrar ──┴─ (apagar, opor-se, revogar, revisar)
+                        │                               └─ (acesso, origem, correção...) ─► negociar
                         └─ o resto ─────────────────► negociar ──────────────────────► enviar ─► FIM
 
-As decisões de segurança são código; só "negociar" usa a IA de conversa.
+As decisões de segurança são código; só "negociar" usa a IA de conversa. O pedido do
+titular sobre os próprios dados é registrado em código em qualquer caminho (também
+quando a pessoa pede para parar, contesta ou o caso está com a equipe).
 """
 import re
 
 from datetime import datetime, timedelta, timezone
 
 from agente import estado, ferramentas, negociador, triagem
+from agente.juridico import sinais
 from agente.orquestrador import FIM, Grafo
 
 # O devedor escreve num caso que está com a equipe (ou suspenso, contestado, quitado):
@@ -43,6 +48,15 @@ def _executar_seguro(ctx, fonte, nome: str, args: dict) -> None:
     r = ferramentas.executar(ctx, fonte, nome, args)
     if not r.get("ok"):
         raise RuntimeError(f"{nome} não executou")
+
+
+def _registrar_pedido_titular(ctx, fonte) -> None:
+    """Pedido sobre os próprios dados na mensagem: fica registrado para a pessoa responsável."""
+    if ctx.saida.get("_pedido_titular"):
+        return
+    tipo = sinais.pedido_titular(ctx.saida.get("texto") or "")
+    if tipo:
+        _executar_seguro(ctx, fonte, "registrar_pedido_titular", {"tipo": tipo})
 
 
 def registrar_falha_humana(ctx, fonte, erro):
@@ -81,14 +95,25 @@ def grafo_mensagem(fonte) -> Grafo:
             return "contestar"
         if t["intencao"] == "pedir_pessoa":
             return "transferir"
+        if sinais.pedido_titular(ctx.saida.get("texto") or ""):
+            return "pedido_titular"
         return "negociar"
+
+    def pedido_titular(ctx):
+        _registrar_pedido_titular(ctx, fonte)
+
+    def depois_do_pedido(ctx):
+        # Apagar, opor-se, revogar ou revisar: uma pessoa assumiu. O resto a conversa responde.
+        return "negociar" if ctx.pode_falar else "resposta_fixa"
 
     def suspender(ctx):
         motivo = "pessoa_errada" if ctx.saida["triagem"]["intencao"] == "pessoa_errada" else "pediu_para_parar"
         _executar_seguro(ctx, fonte, "suspender_cobranca", {"motivo": motivo})
+        _registrar_pedido_titular(ctx, fonte)
 
     def contestar(ctx):
         _executar_seguro(ctx, fonte, "abrir_contestacao", {"motivo": "Devedor não reconhece a dívida."})
+        _registrar_pedido_titular(ctx, fonte)
 
     def transferir(ctx):
         t = ctx.saida["triagem"]
@@ -107,6 +132,7 @@ def grafo_mensagem(fonte) -> Grafo:
                 resumo += " A pessoa não reconhece a dívida (contestação aberta)."
         _executar_seguro(ctx, fonte, "transferir_para_humano", {
             "motivo": "dificuldade_grave" if grave else "pedido_do_devedor", "resumo": resumo})
+        _registrar_pedido_titular(ctx, fonte)
 
     def resposta_fixa(ctx):
         ctx.saida["resposta"] = negociador.mensagem_fixa(ctx, fonte)
@@ -152,6 +178,7 @@ def grafo_mensagem(fonte) -> Grafo:
         dev = fonte.devedor(ctx.caso["empresa_id"], ctx.caso["predicao_id"])
         if dev is None:
             raise LookupError("devedor não encontrado nesta empresa")
+        _registrar_pedido_titular(ctx, fonte)          # o direito sobre os dados não depende da situação
         aviso = f"Nova mensagem do devedor (caso {ctx.caso['situacao']}): responder pela equipe."
         pendentes = fonte.agenda_pendente(ctx.caso["empresa_id"], dev["id"])
         if not any(aviso == (a.get("observacao") or "") for a in pendentes):
@@ -171,6 +198,7 @@ def grafo_mensagem(fonte) -> Grafo:
          .no("suspender", suspender, seguinte="resposta_fixa")
          .no("contestar", contestar, seguinte="resposta_fixa")
          .no("transferir", transferir, seguinte="resposta_fixa")
+         .no("pedido_titular", pedido_titular, seguinte=depois_do_pedido)
          .no("resposta_fixa", resposta_fixa, seguinte="enviar")
          .no("negociar", negociar, agente="negociador", seguinte="enviar")
          .no("enviar", enviar)

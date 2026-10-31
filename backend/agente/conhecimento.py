@@ -117,3 +117,18 @@ def consultar(pergunta: str) -> dict:
         return {"certeza": False, "trecho": None, "score": r["resultados"][0]["score"] if r["resultados"] else 0.0}
     melhor = r["resultados"][0]
     return {"certeza": True, "trecho": por_id(melhor["id"]), "score": melhor["score"]}
+
+
+# Citação entre parênteses no fim da frase ("(CDC, art. 43, § 1º)", "(Súmula 548 do STJ)")
+# e abertura do tipo "Pela LGPD, ". Sem elas, a resposta diz o mesmo direito em palavras
+# simples: o atendente só cita a norma quando a pessoa pede a lei ou o fundamento.
+_CITACAO_PARENTESES = re.compile(r"\s*\((?=[^()]*(?:art\.|artigo|s[úu]mula|lei\b|LGPD|CDC|C[óo]digo|STJ|STF))[^()]*\)")
+_ABERTURA_NORMA = re.compile(r"^(?:Pel[oa]|Segundo o|Segundo a|Conforme o|Conforme a|De acordo com o|De acordo com a)\s+"
+                             r"(?:LGPD|CDC|C[óo]digo [A-Za-zçãéí ]+?|lei)\s*,\s*", re.I)
+
+
+def sem_citacao(texto: str) -> str:
+    t = _CITACAO_PARENTESES.sub("", texto or "")
+    t = _ABERTURA_NORMA.sub("", t.strip())
+    t = re.sub(r"\s+([.,;])", r"\1", t)
+    return (t[:1].upper() + t[1:]) if t else t

@@ -56,7 +56,8 @@ m.escreve("Oi, quero negociar. Meu CPF começa com 123.", [
     tri("pagar_negociar"),
     F("verificar_identidade", tres_primeiros_digitos_cpf="123"),
     F("simular_acordo", desconto_pct=10, n_parcelas=6, entrada_pct=10, cabe_por_mes=500),
-    Resposta(texto="Consigo entrada de R$ 270,00 e mais 6x de R$ 405,00, com 10% de desconto. Fica bom para você?"),
+    Resposta(texto="Consigo entrada de R$ 270,00 e mais 6x de R$ 405,00, com 10% de desconto: total de R$ 2.700,00. "
+                   "Fica bom para você?"),
 ])
 s = m.saidas()
 checar(m.r["ok"] and len(s) == 1, "uma resposta enviada", str(m.r))
@@ -64,8 +65,8 @@ checar(s[0].startswith("Olá, Maria! Aqui é o assistente virtual de Banco Demon
        "primeira mensagem se apresenta como assistente virtual", s[0][:80])
 checar("R$ 405,00" in s[0] and m.c["dados"]["identidade_ok"], "valores da simulação, identidade confirmada")
 neg = m.cliente.chamadas[1]
-checar(neg["ferramentas"] and len(neg["ferramentas"]) == 17 and "<briefing>" in json.dumps(neg["mensagens"], ensure_ascii=False),
-       "negociador recebe as 17 ferramentas e o briefing")
+checar(neg["ferramentas"] and len(neg["ferramentas"]) == 18 and "<briefing>" in json.dumps(neg["mensagens"], ensure_ascii=False),
+       "negociador recebe as 18 ferramentas e o briefing")
 checar("123.456" not in json.dumps(m.cliente.chamadas, ensure_ascii=False), "CPF nunca vai para a IA")
 ult = m.cliente.chamadas[3]["mensagens"]
 checar(ult[-1]["role"] == "user" and ult[-1]["content"][0]["type"] == "tool_result"
@@ -86,7 +87,7 @@ checar("Consigo entrada" in hist and "quero negociar" in hist, "o histórico da 
 checar(m.fonte.agenda[0]["tipo"] == "promessa" and m.fonte.agenda[0]["valor"] == 270, "promessa na agenda")
 passos = [p for p in m.repo.passos if p["no"] in ("triagem", "negociar")]
 checar(all(p["modelo"] == "falso" and p["tokens_entrada"] > 0 for p in passos)
-       and {p["versao_prompt"] for p in passos} == {"triagem-v6", "negociador-v13"},
+       and {p["versao_prompt"] for p in passos} == {"triagem-v6", "negociador-v14"},
        "rastreio com modelo, tokens e versão do prompt")
 
 print("— abertura humana antes da negociação —")

@@ -1,4 +1,4 @@
-"""Agentes — as 17 ferramentas do Negociador, com devedor fictício e sem banco.
+"""Agentes — as 18 ferramentas do Negociador, com devedor fictício e sem banco.
 
     python test_agente_ferramentas.py
 """
@@ -34,6 +34,10 @@ def cenario(chamadas, situacao="em_contato", politica=True, agora=SEXTA_14H, dad
     def no(ctx):
         for item in chamadas:
             nome, args = item(res) if callable(item) else item
+            if nome in ("_disse", "_escreveu"):  # o agente mostrou / a pessoa escreveu (não é ferramenta)
+                ctx.repo.gravar_mensagem("emp", ctx.caso["id"], "saida" if nome == "_disse" else "entrada", args,
+                                         "t0", criado_em=ctx.agora)
+                continue
             res.append(fer.executar(ctx, fonte, nome, args))
     orq.registrar_evento(repo, "emp", caso["id"], "mensagem_devedor", "m1")
     orq.processar_proximo(repo, {"mensagem_devedor": orq.Grafo("g", "a").no("a", no, agente="negociador")},
@@ -42,8 +46,8 @@ def cenario(chamadas, situacao="em_contato", politica=True, agora=SEXTA_14H, dad
 
 print("— definições —")
 defs = fer.definicoes()
-checar(len(defs) == 17 and all({"name", "description", "input_schema"} <= set(d) for d in defs),
-       "17 ferramentas no formato da API")
+checar(len(defs) == 18 and all({"name", "description", "input_schema"} <= set(d) for d in defs),
+       "18 ferramentas no formato da API")
 acoes = {f.acao for f in fer.FERRAMENTAS.values()}
 conhecidas = auditor.SEGURANCA | auditor.FALA | auditor.ACORDO | auditor.COMPROMISSO | auditor.REGISTRO | auditor.LEITURA
 checar(acoes <= conhecidas, "toda ferramenta corresponde a uma ação que o Auditor conhece", str(acoes - conhecidas))
@@ -63,10 +67,13 @@ r, *_ = cenario([("verificar_identidade", {"tres_primeiros_digitos_cpf": "000"})
 checar(r[3]["ok"] is False and "transfira" in r[3]["erro"], "3 erros: para de tentar e manda transferir")
 
 ID_OK = {"identidade_ok": True, "divida": 3000.0}
+# Antes do aceite, a pessoa vê o total e as parcelas (CDC, art. 52; a base jurídica confere).
+MOSTRA = lambda res: ("_disse", f"Fica {res[0]['resumo']}: total de {fer._brl(res[0]['total_pago'])}, "
+                                f"parcela de {fer._brl(res[0]['parcela'])}. Confirma?")
 
 print("— simular e aceitar —")
 r, repo, fonte, c = cenario([
-    ("simular_acordo", {"desconto_pct": 10, "n_parcelas": 6, "entrada_pct": 10, "cabe_por_mes": 500}),
+    ("simular_acordo", {"desconto_pct": 10, "n_parcelas": 6, "entrada_pct": 10, "cabe_por_mes": 500}), MOSTRA,
     lambda res: ("registrar_aceite", {"simulacao_id": res[0]["simulacao_id"], "data_primeiro_pagamento": "2026-10-20"}),
     lambda res: ("registrar_aceite", {"simulacao_id": res[0]["simulacao_id"], "data_primeiro_pagamento": "2026-10-20"}),
 ], dados=ID_OK)
@@ -92,7 +99,7 @@ r, *_ = cenario([("simular_acordo", {"desconto_pct": 10, "n_parcelas": 1}),
                  lambda res: ("registrar_aceite", {"simulacao_id": res[0]["simulacao_id"],
                                                    "data_primeiro_pagamento": "2026-12-31"})], dados=ID_OK)
 checar(r[1]["bloqueado"] and r[1]["regra"] == "R11_DATA", "data do pagamento além de 30 dias: bloqueado")
-r, *_ = cenario([("simular_acordo", {"desconto_pct": 10, "n_parcelas": 1}),
+r, *_ = cenario([("simular_acordo", {"desconto_pct": 10, "n_parcelas": 1}), MOSTRA,
                  lambda res: ("registrar_aceite", {"simulacao_id": res[0]["simulacao_id"],
                                                    "data_primeiro_pagamento": "2026-10-20"})],
                 dados=ID_OK, agora=SEXTA_14H)
@@ -170,12 +177,40 @@ r, *_ = cenario([("consultar_politica", {})])
 checar(r[0]["regras"]["desconto_max_pct"] == 30 and r[0]["versao"] == 1, "consulta a política vigente")
 
 print("— rastreio —")
-r, repo, *_ = cenario([("simular_acordo", {"n_parcelas": 1}),
+r, repo, *_ = cenario([("simular_acordo", {"n_parcelas": 1}), MOSTRA,
                        lambda res: ("registrar_aceite", {"simulacao_id": res[0]["simulacao_id"],
                                                          "data_primeiro_pagamento": "2026-10-20"})], dados=ID_OK)
 nos = [p["no"] for p in repo.passos]
-checar(nos == ["auditor", "ferramenta:simular_acordo", "auditor", "ferramenta:registrar_aceite", "a"],
-       "cada ferramenta: decisão do Auditor e depois a execução", str(nos))
+checar(nos == ["auditor", "ferramenta:simular_acordo", "auditor", "consulta_juridica", "ferramenta:registrar_aceite", "a"],
+       "cada ferramenta: decisão do Auditor (e, no aceite, a consulta jurídica) e depois a execução", str(nos))
+
+print("— aceite sem a pessoa ver o total: a base jurídica barra e diz o que mostrar —")
+r, repo, fonte, c = cenario([("simular_acordo", {"desconto_pct": 10, "n_parcelas": 6, "entrada_pct": 10}),
+                             lambda res: ("registrar_aceite", {"simulacao_id": res[0]["simulacao_id"],
+                                                               "data_primeiro_pagamento": "2026-10-20"})], dados=ID_OK)
+checar(r[1].get("bloqueado") and "R$ 2.700,00" in r[1]["motivo"] and not fonte.ofertas and c["situacao"] != "acordo_ativo",
+       "não registra e pede para mostrar o total (R$ 2.700,00) e as parcelas", str(r[1]))
+checar("lei" not in r[1]["motivo"].lower() and "art" not in r[1]["motivo"].lower(), "o motivo para a IA não cita lei")
+j = repo.consultas_juridicas("emp")
+checar(len(j) == 1 and j[0]["acao"] == "oferta_credito" and j[0]["decisao"] == "nao_prosseguir",
+       "decisão interna registrada: oferta_credito, não prosseguir", str([(x["acao"], x["decisao"]) for x in j]))
+
+print("— aceite com sinais de superendividamento: uma pessoa confere antes —")
+r, repo, fonte, c = cenario([("_escreveu", "Tenho várias dívidas e não sobra nada para comer"),
+                             ("simular_acordo", {"n_parcelas": 12, "entrada_pct": 10}), MOSTRA,
+                             lambda res: ("registrar_aceite", {"simulacao_id": res[0]["simulacao_id"],
+                                                               "data_primeiro_pagamento": "2026-10-20"})], dados=ID_OK)
+checar(r[1].get("bloqueado") and r[1].get("com_pessoa") and not fonte.ofertas and c["situacao"] == "com_pessoa",
+       "acordo não registrado; o caso passa para uma pessoa", f"{r[1]} {c['situacao']}")
+nota = " ".join(a.get("observacao") or "" for a in fonte.agenda)
+checar("ainda não foi registrado" in nota and "orçamento" in nota and "lei" not in nota.lower(),
+       "a equipe recebe o resumo do aceite para conferir (sem citar lei)", nota[:160])
+j = repo.consultas_juridicas("emp")
+checar(any(x["acao"] == "oferta_credito" and x["decisao"] == "revisao_humana" for x in j),
+       "decisão interna: revisão humana", str([(x["acao"], x["decisao"]) for x in j]))
+texto_registro = str(j)
+checar("Maria" not in texto_registro and "123.456" not in texto_registro and "dívidas e não sobra" not in texto_registro,
+       "o registro jurídico não guarda nome, CPF nem o texto da pessoa")
 
 print("— Supabase: escopo da empresa (sem banco de verdade) —")
 class Q:

@@ -1,4 +1,4 @@
-"""As 16 ferramentas do Negociador (docs/PLANO_AGENTE.md, 3.2).
+"""As 17 ferramentas do Negociador (docs/PLANO_AGENTE.md, 3.2).
 
 Toda chamada segue o mesmo caminho:
 
@@ -9,7 +9,11 @@ Toda chamada segue o mesmo caminho:
 - Todo valor que a IA vai dizer sai de `simular_acordo`; o aceite só vale para
   uma simulação feita aqui (o Auditor confere).
 - Toda lei ou súmula que a IA vai citar sai de `consultar_base` (a base de
-  conhecimento do devedor, agente/conhecimento.py).
+  conhecimento do devedor, agente/conhecimento.py), e só quando a pessoa pede a lei.
+- Ações com impacto jurídico (aceite de acordo, contestação, pedido sobre os próprios
+  dados) passam antes pela base jurídica interna (agente/juridico, via
+  ctx.consultar_juridico). A análise fica no registro interno; a IA recebe só o que
+  fazer, sem lei e sem a análise.
 - Erros de uso voltam como resultado ({"ok": false, "erro": ...}) para a IA
   corrigir; falha de verdade (banco fora) sobe e o orquestrador trata.
 """
@@ -18,7 +22,8 @@ import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
-from agente import auditor, conhecimento, estado
+from agente import auditor, conhecimento, estado, guardrails, juridico_orq
+from agente.juridico import sinais
 from model import oferta
 
 VALIDADE_SIMULACAO = timedelta(minutes=30)
@@ -228,6 +233,50 @@ def _params_aceite(ctx, args):
     return {**cond, "simulacao_id": args["simulacao_id"], "data": args["data_primeiro_pagamento"]}, sim
 
 
+def _fatos_oferta(ctx, sim: dict) -> dict:
+    """Fatos mínimos do aceite, conferidos em código no que já foi dito na conversa."""
+    cond, conta = sim["condicoes"], sim["conta"]
+    msgs = estado.conversa_atual(ctx.caso, ctx.repo.ultimas_mensagens(ctx.caso["empresa_id"], ctx.caso["id"], 30))
+    ditos, do_agente, do_devedor = set(), [], [ctx.saida.get("texto") or ""]
+    for m in msgs:
+        if m.get("direcao") == "saida":
+            ditos |= set(guardrails.valores_do_texto(m.get("texto") or "")["dinheiro"])
+            do_agente.append(m.get("texto") or "")
+        else:
+            do_devedor.append(m.get("texto") or "")
+
+    def mostrou(v):
+        return any(abs(float(v) - x) <= guardrails.TOLERANCIA for x in ditos)
+    n = int(cond["n_parcelas"])
+    return {"informa_total": mostrou(conta["total_pago"]), "informa_parcelas": n == 1 or mostrou(conta["parcela"]),
+            "sinais_superendividamento": any(sinais.superendividamento(t) for t in do_devedor),
+            "pressao": any(sinais.pressao(t) for t in do_agente), "n_parcelas": n}
+
+
+def _conferir_aceite(ctx, fonte, sim: dict, data: str) -> dict | None:
+    """Base jurídica antes de registrar o acordo. None = pode registrar."""
+    fatos = _fatos_oferta(ctx, sim)
+    j = ctx.consultar_juridico("oferta_credito", fatos)
+    if j["decisao"] not in juridico_orq.BLOQUEIA:
+        return None
+    cond, conta = sim["condicoes"], sim["conta"]
+    resumo = _resumo_conta(cond, conta)
+    if not (fatos["informa_total"] and fatos["informa_parcelas"]) and not fatos["pressao"]:
+        # O que falta a IA consegue corrigir: mostrar a conta inteira e pedir a confirmação.
+        return {"ok": False, "bloqueado": True,
+                "motivo": f"antes de registrar, mostre à pessoa o valor total ({_brl(conta['total_pago'])}), o número "
+                          f"de parcelas e o valor de cada uma ({resumo}) e peça que ela confirme"}
+    # O resto (sinais de superendividamento, fonte por conferir, pressão) é com uma pessoa.
+    motivo = "dificuldade_grave" if fatos["sinais_superendividamento"] else "duvida"
+    conferir = ("se o acordo cabe no orçamento dela (ela relatou dificuldade com as contas)"
+                if fatos["sinais_superendividamento"] else "as condições com ela")
+    r = executar(ctx, fonte, "transferir_para_humano", {"motivo": motivo, "resumo":
+        f"A pessoa aceitou {resumo}, 1º pagamento em {_dia(data)}. O acordo ainda não foi registrado: uma pessoa "
+        f"da equipe confere antes {conferir}."})
+    return {"ok": False, "bloqueado": True, "com_pessoa": bool(r.get("ok")),
+            "motivo": "uma pessoa da equipe vai confirmar o acordo com ela"}
+
+
 def _registrar_aceite(ctx, fonte, dev, args):
     sim = _simulacao(ctx, args["simulacao_id"])
     cond, conta = sim["condicoes"], sim["conta"]
@@ -415,12 +464,22 @@ def _consultar_base(ctx, fonte, dev, args):
     d = _dados(ctx)
     d["base_consultada"] = ([i for i in d.get("base_consultada") or [] if i != t.id] + [t.id])[-MAX_FONTES_GUARDADAS:]
     # Só a resposta e a fonte: o texto literal da lei (t.trecho) fica na base para
-    # conferência, mas a IA não recebe o que não pode citar.
-    return {"ok": True, "certeza": True, "resposta": t.resposta, "fonte": t.fonte,
-            "_rastreio": {"certeza": True, "trecho_id": t.id, "fontes": [t.fonte]}}
+    # conferência, mas a IA não recebe o que não pode citar. A norma só vai quando a
+    # pessoa pediu a lei ou o fundamento; senão, o direito em palavras simples.
+    rastreio = {"certeza": True, "trecho_id": t.id, "fontes": [t.fonte]}
+    if sinais.pediu_fundamento(ctx.saida.get("texto") or ""):
+        return {"ok": True, "certeza": True, "resposta": t.resposta, "fonte": t.fonte, "_rastreio": rastreio}
+    return {"ok": True, "certeza": True, "resposta": conhecimento.sem_citacao(t.resposta),
+            "orientacao": "Responda com essas palavras, sem citar lei, artigo, súmula ou tribunal. Se a pessoa "
+                          "pedir a lei ou o fundamento, consulte de novo e diga a fonte.",
+            "_rastreio": rastreio}
 
 
 def _abrir_contestacao(ctx, fonte, dev, args):
+    if hasattr(ctx, "consultar_juridico"):
+        # Registro interno: a contestação suspende a cobrança e vai para análise humana.
+        # Ação de segurança: a consulta registra, nunca impede a contestação.
+        ctx.consultar_juridico("contestacao", {"motivo": "devedor_nao_reconhece"})
     if ctx.caso["situacao"] != "contestado":
         fonte.abrir_contestacao(ctx.caso["empresa_id"], ctx.caso["id"], args["motivo"])
         _ir_para(ctx, "contestado")
@@ -520,6 +579,61 @@ def _desmarcar_compromisso(ctx, fonte, dev, args):
             "era": {"data": str(alvo.get("data"))[:10], "hora": alvo.get("hora")}}
 
 
+# ── pedido do titular sobre os próprios dados ───────────────────────────────
+# O direito é da pessoa e não depende da cobrança: o pedido é registrado sempre, para a
+# pessoa responsável pelos dados responder. Apagar, opor-se, revogar o consentimento ou
+# pedir revisão de decisão automatizada tira a conversa do automático (uma pessoa assume).
+PREFIXO_PEDIDO_TITULAR = "Pedido sobre os dados pessoais"
+TIPOS_PEDIDO = tuple(sinais.ROTULO_PEDIDO)
+PEDIDO_COM_PESSOA = frozenset({"eliminacao", "oposicao", "revogacao", "revisao_decisao"})
+# O que a pessoa tem direito de saber, em palavras simples (sem citar lei). Conferido
+# com a LGPD (arts. 18 a 20) no acervo jurídico; quem responde o pedido é uma pessoa.
+O_QUE_DIZER_PEDIDO = {
+    "acesso": "Ela pode saber se a empresa trata dados dela e receber o que a empresa tem sobre ela. O pedido foi "
+              "registrado; a resposta completa sai em até 15 dias.",
+    "origem": "Ela pode saber de onde vieram os dados dela. O pedido foi registrado; a resposta completa sai em até "
+              "15 dias.",
+    "informacao": "Ela pode saber para que os dados dela são usados e com quem foram compartilhados. O pedido foi "
+                  "registrado para a pessoa responsável pelos dados responder.",
+    "correcao": "Ela pode pedir a correção de dados incompletos, errados ou desatualizados. O pedido foi registrado; "
+                "a pessoa responsável confere e corrige.",
+    "portabilidade": "O pedido de portabilidade dos dados foi registrado; a pessoa responsável analisa e responde.",
+    "eliminacao": "O pedido de eliminação dos dados foi registrado. A pessoa responsável analisa e responde; se algum "
+                  "dado precisar ser mantido (por exemplo, o registro da dívida e dos pagamentos), a resposta explica o motivo.",
+    "oposicao": "Ficou registrado que ela se opõe ao uso dos dados. A pessoa responsável analisa e responde.",
+    "revogacao": "Ficou registrada a revogação do consentimento. A pessoa responsável analisa o que muda e responde.",
+    "revisao_decisao": "Ela pode pedir a revisão de uma decisão tomada só pelo sistema e saber os critérios usados. "
+                       "O pedido foi registrado e uma pessoa da equipe vai revisar.",
+}
+
+
+def _registrar_pedido_titular(ctx, fonte, dev, args):
+    tipo = args["tipo"]
+    rotulo = sinais.ROTULO_PEDIDO[tipo]
+    d = _dados(ctx)
+    ja = (ctx.saida.get("_pedido_titular") or {}).get("tipo") == tipo      # mesmo pedido nesta rodada
+    if not ja:
+        j = ctx.consultar_juridico("pedido_titular", {"tipo": tipo}) if hasattr(ctx, "consultar_juridico") else {}
+        obs = f"{PREFIXO_PEDIDO_TITULAR} ({rotulo}): registrado pelo assistente. A pessoa responsável pelos dados " \
+              "analisa e responde" + (" em até 15 dias" if tipo in ("acesso", "origem") else "") + "."
+        item = next((a for a in fonte.agenda_pendente(ctx.caso["empresa_id"], dev["id"])
+                     if (a.get("observacao") or "") == obs), None)
+        if item is None:
+            item = fonte.criar_agenda(ctx.caso["empresa_id"], dev, "retorno", _hoje(ctx).isoformat(), observacao=obs)
+        d["pedidos_titular"] = ((d.get("pedidos_titular") or []) + [
+            {"tipo": tipo, "em": ctx.agora.isoformat(), "compromisso_id": item["id"],
+             "registro_juridico": j.get("registro_id"), "decisao": j.get("decisao")}])[-10:]
+        ctx.saida["_pedido_titular"] = {"tipo": tipo, "rotulo": rotulo}
+    transferido = False
+    if tipo in PEDIDO_COM_PESSOA and ctx.pode_falar:
+        r = executar(ctx, fonte, "transferir_para_humano", {
+            "motivo": "pedido_do_devedor",
+            "resumo": f"Pedido sobre os dados pessoais ({rotulo}). Uma pessoa responsável analisa e responde."})
+        transferido = bool(r.get("ok"))
+    return {"ok": True, "registrado": True, "tipo": tipo, "o_que_dizer": O_QUE_DIZER_PEDIDO[tipo],
+            "com_pessoa": transferido, "_rastreio": {"pedido_titular": tipo, "repetido": ja}}
+
+
 def _registrar_pagamento_informado(ctx, fonte, dev, args):
     _dados(ctx)["pagamento_informado"] = {"data": args["data"], "valor": args.get("valor")}
     valor = f" de {_brl(args['valor'])}" if args.get("valor") else ""
@@ -599,6 +713,13 @@ FERRAMENTAS = {f.nome: f for f in (
                "não pode naquele dia, pergunte o novo dia e use remarcar_compromisso.",
                {"compromisso_id": {"type": "string", "maxLength": 40}, "motivo": _TEXTO},
                ("motivo",), "desmarcar_compromisso", _desmarcar_compromisso),
+    Ferramenta("registrar_pedido_titular", "A pessoa pede algo sobre os próprios dados pessoais: saber quais dados "
+               "a empresa tem (acesso), de onde vieram (origem), para que são usados ou com quem foram compartilhados "
+               "(informacao), corrigir (correcao), apagar (eliminacao), não permitir o uso (oposicao), revogar o "
+               "consentimento (revogacao), revisar uma decisão automática (revisao_decisao) ou portabilidade. Registra "
+               "o pedido para a pessoa responsável pelos dados. Depois diga o que vai acontecer, como veio em o_que_dizer.",
+               {"tipo": {"type": "string", "enum": list(TIPOS_PEDIDO)}}, ("tipo",), "registrar_pedido_titular",
+               _registrar_pedido_titular),
     Ferramenta("registrar_pagamento_informado", "O devedor diz que já pagou: anota o aviso, suspende a cobrança e pede "
                "conferência à equipe. Não confirma pagamento: só o banco confirma.",
                {"data": _DATA, "valor": {"type": "number", "minimum": 0, "maximum": 100_000_000}},
@@ -643,6 +764,10 @@ def executar(ctx, fonte, nome: str, args) -> dict:
     decisao = ctx.auditar({"tipo": f.acao, "params": params}, **extra)
     if not decisao["permitida"]:
         return {"ok": False, "bloqueado": True, "regra": decisao["regra"], "motivo": decisao["motivo"]}
+    if nome == "registrar_aceite" and extra.get("simulacao") and hasattr(ctx, "consultar_juridico"):
+        barrado = _conferir_aceite(ctx, fonte, extra["simulacao"], args["data_primeiro_pagamento"])
+        if barrado:
+            return barrado
     with ctx.rastreio.span(f"ferramenta:{nome}", "ferramenta") as p:
         r = f.executar(ctx, fonte, dev, args)
         # `_rastreio` é só para o passo (fontes, ids); não volta para a IA.

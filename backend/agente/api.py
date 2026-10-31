@@ -752,12 +752,35 @@ def plano_do_dia(empresa_id: str) -> dict:
     return _plano(fabrica_repo(), fabrica_fonte(), empresa_id, aplicar=False)
 
 
+def _regras_ativas(repo, empresa_id: str) -> dict | None:
+    achada = repo.politica_ativa(empresa_id)
+    try:
+        return auditor.validar_politica(achada["regras"]) if achada else None
+    except ValueError:
+        return None
+
+
 def aplicar_plano(empresa_id: str, agora: datetime | None = None) -> dict:
-    """Grava grupos e sorteio, e envia a primeira mensagem do grupo 'contato'."""
+    """Grava grupos e sorteio, e envia a primeira mensagem do grupo 'contato'.
+
+    Antes, a estratégia de contato e a decisão automatizada da empresa passam pela base
+    jurídica interna. Bloqueada, nada é aplicado e a tela mostra o que a equipe precisa
+    revisar (a fundamentação completa fica no registro interno, só para administradores).
+    """
+    from agente import juridico_orq
     _exigir_ligado()
     agora = agora or datetime.now(timezone.utc)
     repo, fonte = fabrica_repo(), fabrica_fonte()
+    regras = _regras_ativas(repo, empresa_id)
+    # Sem política ativa o Auditor já barra todo contato e toda oferta: não há estratégia a avaliar.
+    decisoes = juridico_orq.revisar_politica(repo, empresa_id, regras, agora=agora) if regras else []
+    barradas = [d for d in decisoes if d["decisao"] in juridico_orq.BLOQUEIA]
+    if barradas:
+        return {"aplicado": False, "processados": 0,
+                "revisao_juridica": [juridico_orq.resumo(d) for d in barradas],
+                "mensagem": "O plano não foi aplicado: a estratégia precisa de revisão humana antes."}
     r = _plano(repo, fonte, empresa_id, aplicar=True, agora=agora)
+    r["juridico"] = [juridico_orq.resumo(d) for d in decisoes]
     r["processados"] = len(orq.processar_fila(repo, grafos(fonte), fabrica_cliente(), limite=200, agora=agora,
                                                 empresa_id=empresa_id))
     return r

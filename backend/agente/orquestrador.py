@@ -205,6 +205,14 @@ class Contexto:
             if not d["permitida"]:
                 p["resultado"] = "bloqueado"
         self.caso["versao_politica"] = versao
+        if d["permitida"] and (acao or {}).get("tipo") in auditor.FALA:
+            # O agente vai procurar a pessoa: a estratégia de contato (canal, horário,
+            # frequência, conteúdo) passa antes pela base jurídica. Bloqueio vira revisão humana.
+            from agente import juridico_orq
+            j = self.consultar_juridico("estrategia_cobranca", juridico_orq.fatos_estrategia(regras), empresa=True)
+            if j["decisao"] in juridico_orq.BLOQUEIA:
+                return {"permitida": False, "regra": "RJ_REVISAO_JURIDICA", "versao_politica": versao,
+                        "motivo": "a estratégia de contato aguarda revisão humana (análise jurídica interna)"}
         return d
 
     def ia(self, papel: str, sistema: str, mensagens: list, ferramentas=None, max_tokens: int = 1024):
@@ -225,6 +233,35 @@ class Contexto:
 
     def anotar(self, agente: str, decisao: str, motivo: str = "") -> None:
         estado.anotar(self.caso, agente, decisao, motivo, trace_id=self.rastreio.trace_id, quando=self.agora)
+
+    def consultar_juridico(self, acao: str, fatos: dict, empresa: bool = False) -> dict:
+        """Consulta a base jurídica antes de uma ação sensível e registra a decisão interna.
+
+        - `empresa=True`: decisão que depende só da política (vale para todos os casos e é
+          reaproveitada); senão, decisão deste caso.
+        - Uma vez por rodada para a mesma ação e os mesmos fatos.
+        - O passo do rastreio (que a operação vê) leva só a ação e a conclusão; a
+          fundamentação fica no registro interno, de acesso restrito. Nada disso entra na
+          conversa com o devedor.
+        """
+        from agente import juridico_orq
+        chave = "_juridico:" + acao + ":" + json.dumps(fatos, sort_keys=True, ensure_ascii=False, default=str)
+        if chave in self.saida:
+            return self.saida[chave]
+        with self.rastreio.span("consulta_juridica", "orquestrador") as p:
+            if empresa:
+                d = juridico_orq.da_empresa(self.repo, self.caso["empresa_id"], acao, fatos,
+                                            trace_id=self.rastreio.trace_id, agora=self.agora)
+            else:
+                d = juridico_orq.avaliar_e_registrar(self.repo, self.caso["empresa_id"], self.caso["id"], acao, fatos,
+                                                     trace_id=self.rastreio.trace_id, agora=self.agora)
+            p["detalhe"] = {"acao": acao, "decisao": d["decisao"], "registro_id": d.get("registro_id"),
+                            "reaproveitada": bool(d.get("reaproveitada")),
+                            "fundamentos": sum(1 for x in d.get("dispositivos") or [] if x.get("origem") == "fundamento")}
+            if d["decisao"] in juridico_orq.BLOQUEIA:
+                p["resultado"] = "bloqueado"
+        self.saida[chave] = d
+        return d
 
     def ia_ou_codigo(self, papel: str, gerar, reserva):
         """Decisão de um agente com IA e caminho em código.

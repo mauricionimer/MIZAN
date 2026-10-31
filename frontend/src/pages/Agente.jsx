@@ -42,6 +42,7 @@ const NOME_NO = {
   contestar: 'Abriu contestação', transferir: 'Passou para uma pessoa', avisar_equipe: 'Avisou a equipe', erro: 'Nó de erro',
   conferir: 'Acompanhamento: conferiu a data', decisao: 'Decisão do Acompanhamento', lembrar: 'Lembrete (mensagem pronta)',
   cobrar_atraso: 'Procurou pelo atraso', encerrar: 'Sem resposta: passou para uma pessoa', registrar: 'Pagamento registrado',
+  consulta_juridica: 'Consulta jurídica interna', pedido_titular: 'Pedido sobre os dados pessoais',
 }
 const nomeNo = (n) => NOME_NO[n] || (n?.startsWith('ferramenta:') ? `Ferramenta: ${n.slice(11).replaceAll('_', ' ')}` : n)
 
@@ -694,11 +695,17 @@ function Plano({ empresa }) {
   const [erro, setErro] = useState(null)
   const [ocupado, setOcupado] = useState(false)
   const [aviso, setAviso] = useState('')
+  const [revisao, setRevisao] = useState(null)
   function carregar() { setErro(null); return agentePlano(empresa).then(setP).catch(setErro) }
   useEffect(() => { carregar() }, [empresa])            // eslint-disable-line react-hooks/exhaustive-deps
   async function aplicar() {
     setOcupado(true); setErro(null)
-    try { const r = await agenteAplicarPlano(empresa); setAviso(`Plano aplicado: ${r.contagem.contato} na fila de contato, ${r.contagem.controle} no grupo sorteado.`); await carregar() }
+    try {
+      const r = await agenteAplicarPlano(empresa)
+      if (r.aplicado === false) { setRevisao(r.revisao_juridica || []); setAviso(r.mensagem); return }
+      setRevisao(null)
+      setAviso(`Plano aplicado: ${r.contagem.contato} na fila de contato, ${r.contagem.controle} no grupo sorteado.`); await carregar()
+    }
     catch (e) { setErro(e) } finally { setOcupado(false) }
   }
   if (!p) return erro ? <ErroCarga erro={erro} onTentar={carregar} /> : <div className="flex items-center gap-2 py-10 text-sm text-ink-2"><Loader2 className="h-4 w-4 animate-spin" /> Carregando…</div>
@@ -711,6 +718,17 @@ function Plano({ empresa }) {
         <span className="text-xs text-ink-2">{aviso || 'Grava os grupos e manda a primeira mensagem (pronta, sem IA) para quem precisa de contato, dentro do horário da política.'}</span>
       </div>
       <ErroCarga erro={erro} onTentar={carregar} />
+      {revisao?.length > 0 && (
+        <div className="rounded-xl border p-4" style={{ borderColor: 'var(--warning)' }}>
+          <p className="text-sm font-semibold text-ink">Revisão humana antes de aplicar</p>
+          <p className="mt-1 text-xs text-ink-2">A análise jurídica interna pediu revisão da equipe. Ajuste a política ou peça a avaliação de quem cuida da parte jurídica. O registro completo fica com os administradores.</p>
+          <ul className="mt-2 space-y-1.5">
+            {revisao.map((d) => (
+              <li key={d.acao} className="text-xs text-ink"><span className="font-medium">{d.acao_descricao || d.acao}:</span> {d.justificativa}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="rounded-xl border border-line bg-surface p-4">
         <p className="flex items-center gap-2 text-sm font-semibold text-ink"><Shuffle className="h-4 w-4 text-accent-text" /> Grupo sorteado: {p.contagem.controle} devedores ({p.percentual_controle}% da carteira)</p>
         <p className="mt-1 text-xs text-ink-2">Seguem no processo normal, sem o agente. Comparar quanto entrou em cada grupo, por real de dívida, mostra o efeito do agente na carteira da própria empresa. O sorteio é fixo por devedor.</p>

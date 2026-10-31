@@ -89,6 +89,8 @@ MSG_CONVITE_INVALIDO = MSG_CONVITE["invalido"]
 MSG_PAUSADO = ("Recebemos sua mensagem. O atendimento automático está pausado agora; "
                "uma pessoa da equipe vai responder por aqui.")
 MSG_SO_TEXTO = "Por enquanto eu só consigo ler mensagens de texto. Pode escrever o que precisa?"
+MSG_CANAL_EM_REVISAO = ("Recebemos seu acesso. Por enquanto o atendimento por aqui não está disponível; "
+                        "a equipe vai falar com você pelo canal de sempre.")
 MSG_ESPERA = "Recebi suas mensagens, já te respondo."
 AVISO_ASSUMIU = "A partir de agora, uma pessoa da equipe vai continuar o seu atendimento por aqui."
 AVISO_DEVOLVEU = "O assistente virtual voltou a acompanhar o seu atendimento. Pode escrever quando quiser."
@@ -390,7 +392,25 @@ def vincular(repo, codigo: str, chat_id, agora: datetime | None = None) -> tuple
     return caso, "ligado"
 
 
-def desvincular(repo, caso: dict, agora: datetime | None = None) -> dict:
+def canal_liberado(repo, caso: dict, agora: datetime | None = None) -> bool:
+    """Antes de usar o Telegram com esta pessoa: o canal e o uso do identificador do chat
+    passam pela base jurídica interna. Bloqueado, a equipe revisa (nada vai à conversa)."""
+    from agente import juridico_orq
+    emp, cid = caso["empresa_id"], caso["id"]
+    decisoes = [
+        juridico_orq.avaliar_e_registrar(repo, emp, cid, "comunicacao_devedor",
+                                         {"canal": "telegram", "iniciativa": "devedor", "envolve_terceiros": False},
+                                         agora=agora),
+        juridico_orq.avaliar_e_registrar(repo, emp, cid, "uso_dados_pessoais",
+                                         {"finalidade": "atendimento", "dados": ["identificador_do_chat"],
+                                          "sensiveis": False, "compartilhamento": False, "canal": "telegram"},
+                                         agora=agora)]
+    # Bloqueado: o motivo fica no registro interno; o caderno (que o atendente lê) só
+    # recebe o "Telegram desligado" de desvincular, sem a análise.
+    return not any(d["decisao"] in juridico_orq.BLOQUEIA for d in decisoes)
+
+
+def desvincular(repo, caso: dict, agora: datetime | None = None, motivo: str = "desligado pela equipe") -> dict:
     """A equipe desliga o Telegram do caso (o convite pendente também deixa de valer)."""
     from agente import estado
     tg = _tg(caso)
@@ -399,7 +419,7 @@ def desvincular(repo, caso: dict, agora: datetime | None = None) -> dict:
     for k in ("chat_id", "vinculado_em", "convite_hash", "convite_expira", "bloqueado_em",
               "tentativa_outro_chat_em", "tentativas_outro_chat"):
         tg.pop(k, None)
-    estado.anotar(caso, "equipe", "Telegram desligado", "desligado pela equipe", quando=_agora(agora))
+    estado.anotar(caso, "equipe", "Telegram desligado", motivo, quando=_agora(agora))
     _gravar_tg(repo, caso, tg)
     return status(caso, agora)
 
@@ -750,6 +770,10 @@ def receber(update: dict, repo=None, agora: datetime | None = None, processar=Tr
             apagar_mensagem(chat_id, msg.get("message_id"))
         if motivo == "ligado":
             enviar_acao(chat_id)
+            if not canal_liberado(repo, caso, agora):
+                desvincular(repo, caso, agora, motivo="o canal aguarda revisão da equipe")
+                enviar_texto(chat_id, MSG_CANAL_EM_REVISAO)
+                return {"acao": "canal_em_revisao", "caso_id": caso["id"]}
             como = abrir_conversa(repo, caso, agora)
             return {"acao": "vinculado", "caso_id": caso["id"], "abertura": como}
         if motivo == "ja_ligado":

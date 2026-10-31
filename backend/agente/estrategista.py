@@ -180,6 +180,15 @@ def grafo_abordagem(fonte) -> Grafo:
             ctx.anotar("estrategista", f"adiou {dec['adiar_dias']} dia(s)", dec["raciocinio"])
             ctx.saida["pular"] = "adiado pelo Estrategista"
             return
+        if dec and hasattr(ctx, "consultar_juridico"):
+            # A escolha automática de tom e oferta é decisão automatizada: passa pela base
+            # jurídica (nível empresa). Bloqueada, o caso segue sem estratégia automática.
+            from agente import juridico_orq
+            regras, _ = ctx.politica()
+            j = ctx.consultar_juridico("decisao_automatizada_credito",
+                                       juridico_orq.fatos_decisao_automatizada(regras), empresa=True)
+            if j["decisao"] in juridico_orq.BLOQUEIA:
+                dec = None              # o motivo fica no registro interno e no passo do rastreio
         if dec:
             dados = dict(ctx.caso.get("dados") or {})
             dados["estrategia"] = {k: dec[k] for k in ("tom", "oferta_inicial", "concorda_bandit", "bandit_oferta",

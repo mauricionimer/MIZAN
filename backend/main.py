@@ -272,6 +272,14 @@ async def lifespan(app: FastAPI):
 
     garantir_admin()
 
+    # Base jurídica interna do orquestrador: carrega o índice em segundo plano, para a
+    # primeira consulta (aceite, Telegram, plano) não esperar a preparação da busca.
+    try:
+        from agente.juridico_orq import aquecer as _aquecer_juridico
+        _aquecer_juridico()
+    except Exception as _je:
+        print(f"[Jurídico] aquecimento não iniciado: {type(_je).__name__}")
+
     # Garante que o modelo existe e é compatível; gera com dados sintéticos se necessário
     try:
         from model.score import _carregar_modelos
@@ -9430,6 +9438,65 @@ def agente_aplicar_plano(empresa_id: Optional[str] = None,
         return agente_api.aplicar_plano(_empresa_do_agente(payload, empresa_id))
     except agente_api.AgenteDesligado as e:
         raise HTTPException(status_code=409, detail=str(e))
+
+
+# ── Base jurídica interna do orquestrador (docs/RAG_JURIDICO.md) ─────────────
+# Só administrador (e COMANDO): os registros trazem a fundamentação interna das decisões.
+
+def _so_admin_juridico(credentials) -> dict:
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") not in ("admin", "comando"):
+        raise HTTPException(status_code=403, detail="Acesso negado.")
+    return payload
+
+
+class ConsultaJuridicaIn(BaseModel):
+    pergunta: str = Field(..., min_length=3, max_length=600)
+    contexto_da_acao: Optional[dict] = None
+
+
+@app.get("/agente/juridico/fontes")
+def agente_juridico_fontes(credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Normas do índice: origem, versão do texto, commit do acervo e conferência oficial."""
+    from agente import juridico_orq, api as agente_api
+    _so_admin_juridico(credentials)
+    return {**juridico_orq.fontes(agente_api.fabrica_repo()), "conferencia_em_andamento": juridico_orq.estado_conferencia()}
+
+
+@app.post("/agente/juridico/consultar")
+def agente_juridico_consultar(body: ConsultaJuridicaIn,
+                              credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """consultar_legislacao(pergunta, contexto_da_acao). Sem dado pessoal: CPF, telefone e
+    e-mail saem da pergunta antes da busca. Resultado de busca, não parecer jurídico."""
+    from agente import juridico_orq, api as agente_api
+    _so_admin_juridico(credentials)
+    return juridico_orq.consultar(agente_api.fabrica_repo(), body.pergunta, body.contexto_da_acao)
+
+
+@app.get("/agente/juridico/decisoes")
+def agente_juridico_decisoes(empresa_id: Optional[str] = None, caso_id: Optional[str] = None,
+                             limite: int = Query(50, ge=1, le=200),
+                             credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Registro interno das decisões jurídicas da empresa (ação, conclusão, justificativa,
+    dispositivos, fontes, data e incertezas)."""
+    from agente import api as agente_api
+    from agente.juridico import registro
+    payload = _so_admin_juridico(credentials)
+    emp = _empresa_da_agenda(payload, empresa_id)
+    try:
+        return {"decisoes": registro.listar(agente_api.fabrica_repo(), emp, caso_id=caso_id, n=limite)}
+    except Exception as e:
+        print(f"[Jurídico] leitura dos registros falhou: {type(e).__name__}")
+        raise HTTPException(status_code=503, detail="Registros jurídicos indisponíveis (rode sql/migracao_agente_juridico.sql).")
+
+
+@app.post("/agente/juridico/conferir")
+def agente_juridico_conferir(credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Confere o texto de cada norma na fonte oficial (Planalto, Banco Central), em segundo
+    plano. O resultado vale para as próximas decisões; veja em GET /agente/juridico/fontes."""
+    from agente import juridico_orq, api as agente_api
+    _so_admin_juridico(credentials)
+    return juridico_orq.conferir_em_segundo_plano(agente_api.fabrica_repo())
 
 
 class AgentePoliticaIn(BaseModel):

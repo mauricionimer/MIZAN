@@ -177,7 +177,7 @@ perguntas:
 - não concordo com a decisão automática
 - como foi decidido o desconto que vocês me ofereceram
 - vocês usam inteligência artificial para decidir
-resposta: Você tem direito a pedir que uma pessoa revise uma decisão tomada só por sistema, e a receber informação clara sobre os critérios usados (LGPD, art. 20). Posso passar o seu caso para uma pessoa da equipe agora mesmo.
+resposta: Você tem direito a pedir a revisão de uma decisão tomada só por sistema e a receber informação clara sobre os critérios usados (LGPD, art. 20). Aqui, quem faz essa revisão é uma pessoa da equipe: posso passar o seu caso para ela agora mesmo.
 trecho: LGPD, art. 20: "O titular dos dados tem direito a solicitar a revisão de decisões tomadas
   unicamente com base em tratamento automatizado de dados pessoais que afetem seus interesses,
   incluídas as decisões destinadas a definir o seu perfil pessoal, profissional, de consumo e de
