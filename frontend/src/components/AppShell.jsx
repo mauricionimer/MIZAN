@@ -10,6 +10,7 @@ import {
 import ThemeToggle from './ThemeToggle'
 import useAvisosDeDuvida from './useAvisosDeDuvida'
 import useAvisoAgenda from './useAvisoAgenda'
+import useMudancasDoServidor from './useMudancasDoServidor'
 import ConfirmarModal from './ConfirmarModal'
 import useModal from './useModal'
 import { saidaTravada, liberarSaida, confirmarVoltar } from './protecaoSaida'
@@ -55,6 +56,7 @@ function useItens() {
   const { result } = useAnalysis()
   const avisos = useAvisosDeDuvida()
   const agenda = useAvisoAgenda()
+  useMudancasDoServidor()                 // o que o agente ou outra pessoa muda aparece sem F5
   const gestor = isAdmin || isComando
   const avisoAgenda = { aviso: isComando ? 0 : agenda.alto + agenda.medio, corAviso: agenda.alto > 0 ? 'bg-red-600 text-white' : 'bg-amber-400 text-black',
     tituloAviso: agenda.alto > 0 ? `compromissos (${agenda.alto} ${agenda.alto === 1 ? 'vencido' : 'vencidos'})` : 'compromissos para hoje ou amanhã' }

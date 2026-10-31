@@ -1,7 +1,8 @@
 // Agentes: a conversa de um caso (com o porquê de cada passo) e a Central de
 // orquestração. Na demonstração, quem está na tela escreve como o devedor.
 // Regras em backend/agente/ (docs/PLANO_EXECUCAO_AGENTES.md).
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
+import { useAoMudarNoServidor } from '../components/useMudancasDoServidor'
 import { Bot, Send, Search, Loader2, Activity, ShieldCheck, AlertTriangle, Power, UserRound, Coins, ListChecks, Landmark, Clock, Shuffle, CalendarDays, Scale, Hand, Undo2, CalendarClock, Users, BookOpen, FlaskConical, Headset, Unlink } from 'lucide-react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import AppShell from '../components/AppShell'
@@ -845,6 +846,10 @@ function Agenda({ empresa }) {
   const [aviso, setAviso] = useState('')
   function carregar() { setErro(null); return agenteAgenda(empresa).then(setD).catch(setErro) }
   useEffect(() => { carregar() }, [empresa])            // eslint-disable-line react-hooks/exhaustive-deps
+  // Ao vivo: o agente marcou, remarcou ou desmarcou. Troca a lista só se mudou.
+  useAoMudarNoServidor('agenda', useCallback(() => {
+    agenteAgenda(empresa).then(r => setD(atual => (JSON.stringify(atual) === JSON.stringify(r) ? atual : r))).catch(() => {})
+  }, [empresa]))
 
   async function atribuir(item) {
     const op = escolha[item.id]

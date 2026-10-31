@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Phone, Tag, Zap, MessageSquare, Brain, Plus, ClipboardList, CheckCircle2, XCircle, Clock, Wallet, AlertTriangle, ChevronDown, CalendarClock } from 'lucide-react'
 import { useAnalysis } from '../context/AnalysisContext'
+import { useAoMudarNoServidor } from '../components/useMudancasDoServidor'
 import { buscarPaginaRanking, buscarDistribuicao, atribuirResponsavel, listarAgenda, mudarAgenda, listarRoteiros } from '../api'
 import { CANAIS, OFERTA_LABEL, CANAL_DA_RECOMENDACAO, dadosParaRoteiro, preencher, linkWhatsApp } from '../utils/roteiros'
 import { NIVEL_CFG, TIPO_LABEL, quando, hojeISO, somarDias, avisarAgendaMudou } from '../utils/agenda'
@@ -497,11 +498,16 @@ function CompromissosDevedor({ cpf, versao }) {
   const [itens, setItens] = useState(null)
   const [erro, setErro] = useState(null)
   const [desfazer, setDesfazer] = useState(null)
+  const [aoVivo, setAoVivo] = useState(0)          // o agente ou outra pessoa mexeu na agenda
+  useAoMudarNoServidor('agenda', useCallback(() => setAoVivo(v => v + 1), []))
   useEffect(() => {
     listarAgenda({ cpf, escopo: 'equipe', situacao: 'pendente' })
-      .then(r => setItens(r.ativo ? r.itens : null))
-      .catch(() => setItens(null))
-  }, [cpf, versao])
+      .then(r => setItens(atual => {
+        const novo = r.ativo ? r.itens : null
+        return JSON.stringify(atual) === JSON.stringify(novo) ? atual : novo
+      }))
+      .catch(() => {})
+  }, [cpf, versao, aoVivo])
 
   async function agir(item, acao) {
     setErro(null)

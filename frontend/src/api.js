@@ -846,6 +846,11 @@ export async function agenteTelegramDesligar(predicaoId, empresaId) {
   return pedir(`/agente/casos/${_id(predicaoId)}/telegram-desligar`, { metodo: 'POST', corpo: { empresa_id: empresaId || null } })
 }
 
+// Telas ao vivo: versão de cada assunto (agenda, casos). Leve, sem banco; a tela recarrega quando muda.
+export async function consultarMudancas(empresaId) {
+  return pedir('/mudancas', { query: { empresa_id: empresaId } })
+}
+
 // Casos com a equipe; quem está esperando resposta vem primeiro.
 export async function agenteAtendimentos(empresaId) {
   return pedir('/agente/atendimentos', { query: { empresa_id: empresaId } })

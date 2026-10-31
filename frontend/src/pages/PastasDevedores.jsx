@@ -9,6 +9,7 @@ import { useTheme } from '../context/ThemeContext'
 import { useAuth } from '../context/AuthContext'
 import { useAnalysis } from '../context/AnalysisContext'
 import { agentePastas, listarCarteiras, listarEmpresas } from '../api'
+import { useAoMudarNoServidor } from '../components/useMudancasDoServidor'
 
 /**
  * Pastas de devedores. Uma pasta por devedor da carteira, com a cor que os
@@ -119,6 +120,26 @@ export default function PastasDevedores() {
   }, [carteiraId, buscaAplicada, cor, empresaId])
 
   useEffect(() => { setItens([]); buscar(0) }, [buscar])
+
+  // Ao vivo: um caso mudou (cor da pasta, situação). Relê as pastas já abertas na
+  // tela, em silêncio, sem voltar ao topo; só troca se algo mudou.
+  const itensRef = useRef(itens)
+  itensRef.current = itens
+  const carregandoRef = useRef(false)
+  carregandoRef.current = carregando
+  const recarregarQuieto = useCallback(async () => {
+    if (!carteiraId || carregandoRef.current) return
+    const meu = pedido.current
+    try {
+      const limite = Math.max(POR_PAGINA, itensRef.current.length)
+      const d = await agentePastas({ carteiraId, busca: buscaAplicada, cor, limit: limite, offset: 0, empresaId })
+      if (meu !== pedido.current) return
+      setItens(atual => (JSON.stringify(atual) === JSON.stringify(d.itens) ? atual : d.itens))
+      setContagem(c => (JSON.stringify(c) === JSON.stringify(d.contagem) ? c : d.contagem))
+      setFiltrado(d.filtrado)
+    } catch { /* fica como está; a próxima mudança tenta de novo */ }
+  }, [carteiraId, buscaAplicada, cor, empresaId])
+  useAoMudarNoServidor('casos', recarregarQuieto)
 
   const tone = claro ? 'light' : 'dark'
   const [fluxoAberto, setFluxoAberto] = useState(null)

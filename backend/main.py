@@ -437,6 +437,35 @@ def _falha_interna(rota: str, metodo: str, e: BaseException, status: int, mensag
     codigo = _erros.registrar({"path": rota, "method": metodo}, e, status)
     return HTTPException(status_code=status, detail=f"{mensagem} Código: {codigo}.")
 
+# Telas ao vivo: o que alguém salva pelo sistema (agenda, acordo, contato...) sobe o
+# contador de mudanças da empresa, e as telas abertas de quem vê os mesmos dados
+# recarregam sozinhas (GET /mudancas). O agente sobe o contador por conta própria.
+_SEM_AVISO_DE_MUDANCA = ("/auth/", "/canal/", "/mudancas")
+
+
+@app.middleware("http")
+async def avisar_telas_de_mudanca(request: Request, call_next):
+    resp = await call_next(request)
+    try:
+        if (request.method not in ("GET", "HEAD", "OPTIONS") and resp.status_code < 400
+                and not request.url.path.startswith(_SEM_AVISO_DE_MUDANCA)):
+            from agente import mudancas
+            payload = {}
+            auth = request.headers.get("authorization") or ""
+            if auth.lower().startswith("bearer "):
+                try:
+                    payload = validar_token(auth[7:])
+                except ValueError:
+                    payload = {}
+            emp = payload.get("empresa_id") or None
+            if payload.get("role") == "comando":
+                emp = request.query_params.get("empresa_id") or None      # sem ela: avisa todas as telas
+            mudancas.marcar(emp)
+    except Exception as e:                       # o aviso nunca atrapalha a resposta
+        print(f"[Mudancas] aviso não registrado: {type(e).__name__}")
+    return resp
+
+
 @app.middleware("http")
 async def sem_cache_no_agente(request: Request, call_next):
     """A conversa dos agentes muda a qualquer hora (o devedor escreve pelo Telegram): nunca guardar em cache."""
@@ -8948,6 +8977,36 @@ def _empresa_do_agente(payload: dict, empresa_id: "str | None" = None) -> str:
     if payload.get("role") not in ("operador", "admin", "comando"):
         raise HTTPException(status_code=403, detail="Acesso negado.")
     return _empresa_da_agenda(payload, empresa_id)
+
+
+_USUARIO_RECENTE: dict = {}                      # token -> (até quando, payload): consulta frequente e barata
+_USUARIO_RECENTE_S = 30
+
+
+def _usuario_recente(credentials: HTTPAuthorizationCredentials) -> dict:
+    """Como _usuario_autenticado, mas reaproveita a conferência do cadastro por até 30 s.
+    Só para rotas consultadas a cada poucos segundos e que não devolvem dado pessoal."""
+    import time as _t
+    chave = credentials.credentials
+    achado = _USUARIO_RECENTE.get(chave)
+    if achado and achado[0] > _t.monotonic():
+        return dict(achado[1])
+    payload = _usuario_autenticado(credentials)
+    if len(_USUARIO_RECENTE) > 2000:
+        _USUARIO_RECENTE.clear()
+    _USUARIO_RECENTE[chave] = (_t.monotonic() + _USUARIO_RECENTE_S, dict(payload))
+    return payload
+
+
+@app.get("/mudancas")
+def mudancas_da_empresa(empresa_id: Optional[str] = None,
+                        credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Versão de cada tópico (agenda, casos). A tela recarrega só quando muda. Sem banco."""
+    from agente import mudancas
+    payload = _usuario_recente(credentials)
+    if payload.get("role") == "comando":
+        return mudancas.versoes((empresa_id or "").strip() or None)
+    return mudancas.versoes(payload.get("empresa_id") or None)
 
 
 @app.get("/agente/devedores")

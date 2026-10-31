@@ -12,6 +12,7 @@ import AvisoDesfazer from '../components/AvisoDesfazer'
 import FichaPassagem, { SeloPrioridade } from '../components/FichaPassagem'
 import { useAuth } from '../context/AuthContext'
 import { useAnalysis } from '../context/AnalysisContext'
+import { useAoMudarNoServidor } from '../components/useMudancasDoServidor'
 import { classificarErro, listarAgenda, listarEquipeAgenda, mudarAgenda, buscarPaginaRanking, listarEmpresas, carregarCarteira, agenteAtribuir, listarTarefasAdministrativas } from '../api'
 import { NIVEIS, NIVEL_CFG, TIPO_LABEL, quando, hojeISO, somarDias, avisarAgendaMudou } from '../utils/agenda'
 
@@ -281,6 +282,29 @@ export default function Agenda() {
     return busca.catch(e => { if (pedido === requisicao.current) setErro(e) }).finally(() => { if (pedido === requisicao.current) setCarregando(false) })
   }, [escopo, isComando, alvo, resolvidos, operador?.id, naLista]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { carregar(); return () => { requisicao.current++ } }, [carregar])
+
+  // Ao vivo: o agente (ou outra pessoa) mudou a agenda. Recarrega em silêncio, sem
+  // spinner e sem mexer no que a pessoa está fazendo; só troca a lista se ela mudou.
+  const carregandoRef = useRef(false)
+  carregandoRef.current = carregando
+  const recarregarQuieto = useCallback(() => {
+    if (carregandoRef.current || (isComando && !alvo)) return
+    const base = requisicao.current
+    const empresa_id = isComando ? alvo : undefined
+    const trocar = (set) => (r) => {
+      if (base !== requisicao.current) return           // a pessoa mudou de tela nesse meio-tempo
+      set(atual => (JSON.stringify(atual) === JSON.stringify(r) ? atual : r))
+    }
+    if (naLista) {
+      listarEquipeAgenda({ empresa_id }).then(trocar(setEquipe)).catch(() => {})
+      listarTarefasAdministrativas({ empresa_id, limite: 1 })
+        .then(r => { if (base === requisicao.current) setTarefasPendentes(r.total) }).catch(() => {})
+    } else {
+      listarAgenda({ escopo, empresa_id, operador_id: operador?.id, situacao: resolvidos ? 'resolvidos_hoje' : undefined })
+        .then(trocar(setDados)).catch(() => {})
+    }
+  }, [escopo, isComando, alvo, resolvidos, operador?.id, naLista])
+  useAoMudarNoServidor('agenda', recarregarQuieto)
 
   const grupos = useMemo(() => {
     const g = { alto: [], medio: [], safe: [] }

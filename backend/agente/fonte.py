@@ -16,6 +16,8 @@ import copy
 import uuid
 from datetime import datetime, timezone
 
+from agente import mudancas
+
 OPERADOR_AGENTE = "agente-mizan"
 NOME_AGENTE = "Assistente virtual"
 # Atendimento com uma pessoa pedido pelo devedor sem responsável: fica na fila
@@ -71,6 +73,7 @@ class FonteMemoria:
                 "tipo": tipo, "data": data, "hora": hora, "valor": valor, "observacao": observacao,
                 "situacao": "pendente"}
         self.agenda.append(item)
+        mudancas.marcar(empresa_id, "agenda")
         return copy.deepcopy(item)
 
     def recomendacao_bandit(self, empresa_id: str, devedor: dict) -> dict | None:
@@ -102,6 +105,7 @@ class FonteMemoria:
             if a["id"] == item_id and a["empresa_id"] == empresa_id and a["predicao_id"] == predicao_id \
                     and a["situacao"] == "pendente":
                 a.update(campos)
+                mudancas.marcar(empresa_id, "agenda")
                 return True
         return False
 
@@ -215,6 +219,7 @@ class FonteSupabase:
                  "tipo": tipo, "data": data, "hora": hora, "valor": valor, "observacao": observacao or None,
                  "situacao": "pendente"}
         res = self.db.table("agenda").insert({k: v for k, v in linha.items() if v is not None}).execute()
+        mudancas.marcar(empresa_id, "agenda")                     # a Agenda aberta na tela se atualiza sozinha
         return res.data[0]
 
     def compromisso(self, empresa_id: str, predicao_id: str, item_id: str) -> dict | None:
@@ -271,6 +276,8 @@ class FonteSupabase:
     def atualizar_agenda(self, empresa_id: str, predicao_id: str, item_id: str, campos: dict) -> bool:
         res = (self.db.table("agenda").update(campos).eq("id", item_id).eq("empresa_id", empresa_id)
                .eq("predicao_id", predicao_id).eq("situacao", "pendente").execute())
+        if res.data:
+            mudancas.marcar(empresa_id, "agenda")
         return bool(res.data)
 
     def registrar_oferta(self, empresa_id: str, devedor: dict, linha: dict) -> dict:

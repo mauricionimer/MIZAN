@@ -472,6 +472,11 @@ def executar(grafo: Grafo, ctx: Contexto, dono: str = DONO) -> dict:
     except Exception as e:                              # o canal nunca derruba o atendimento
         print(f"[Agente] entrega no Telegram falhou: {type(e).__name__}")
     _checkpoint(ctx, "erro" if erro else ctx.caso.get("ultimo_passo"), dono)
+    try:
+        from agente import mudancas
+        mudancas.marcar(ctx.caso.get("empresa_id"), "casos")      # telas abertas recarregam sozinhas
+    except Exception:
+        pass
     return {"ok": erro is None, "erro": erro, "situacao": ctx.caso["situacao"]}
 
 
