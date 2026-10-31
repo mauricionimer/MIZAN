@@ -28,7 +28,7 @@ POLITICA_DEMONSTRACAO = {
     "dias_semana": [0, 1, 2, 3, 4, 5],  # segunda a sábado (0 = segunda)
     "contatos_semana_max": 3,
     "prazo_max_dias": 30,             # data de promessa ou retorno até 30 dias à frente
-    "remarcacoes_max": 2,             # vezes que o agente pode remarcar um compromisso
+    "remarcacoes_max": 2,             # vezes que o agente pode remarcar uma promessa de pagamento
     "prazo_confirmacao_dias": 2,      # dias úteis que o banco leva para confirmar um pagamento
     "dias_sem_resposta": 3,           # dias úteis de espera da resposta depois de cobrar o atraso
     "percentual_controle": 10,        # parte da carteira sorteada que segue sem o agente
@@ -66,7 +66,7 @@ FALA = frozenset({"enviar_mensagem"})          # o agente procura o devedor
 RESPOSTA = frozenset({"responder_mensagem"})   # o devedor escreveu e o agente responde
 ACORDO = frozenset({"propor_acordo", "registrar_aceite"})
 COMPROMISSO = frozenset({"agendar_retorno", "remarcar_compromisso", "marcar_atendimento"})
-REGISTRO = frozenset({"registrar_contato", "marcar_promessa_quebrada"})
+REGISTRO = frozenset({"registrar_contato", "marcar_promessa_quebrada", "desmarcar_compromisso"})
 LEITURA = frozenset({"consultar_caso", "verificar_identidade", "listar_ofertas", "simular_acordo",
                      "consultar_politica", "consultar_base"})
 
@@ -174,7 +174,8 @@ def auditar(acao: dict, caso: dict, politica: dict | None, versao: int | None,
                 or _conferir_hora(params.get("data"), params.get("hora"), politica, versao))
         if ruim:
             return ruim
-        if tipo == "remarcar_compromisso":
+        # O limite é para não adiar pagamento sem fim; mudar o dia de uma conversa não conta.
+        if tipo == "remarcar_compromisso" and params.get("tipo_compromisso", "promessa") == "promessa":
             feitas = int((caso.get("dados") or {}).get("remarcacoes") or 0)
             if feitas >= politica["remarcacoes_max"]:
                 return _decisao(False, "R12_REMARCACOES",

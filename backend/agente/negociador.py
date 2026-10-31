@@ -22,7 +22,7 @@ from datetime import date
 from agente import auditor, conhecimento, disponibilidade, estado, ferramentas, guardrails, supervisor
 from agente.triagem import como_dado, mascarar
 
-VERSAO_PROMPT = "negociador-v12"           # v12: consultas adiantadas no briefing; v11: abertura humana antes de negociar
+VERSAO_PROMPT = "negociador-v13"           # v13: compromissos marcados à vista, remarcar/desmarcar; v12: consultas adiantadas
 MAX_RODADAS = 8
 MAX_HISTORICO = 20
 
@@ -73,6 +73,10 @@ Como trabalhar:
 - Só diga que fez algo (agendei, marquei, registrei, transferi, suspendi) depois que a ferramenta devolver
   ok nesta resposta. Se a ferramenta não existe para o que a pessoa pediu, diga o que pode fazer.
 - Para combinar um novo contato seu com a pessoa, use agendar_retorno com data e, se ela disser, hora.
+- "compromissos_marcados" no briefing é o que já está marcado com a pessoa. Para mudar o dia ou a hora de um
+  deles, use remarcar_compromisso com o compromisso_id (não marque outro). Se a pessoa só disser que não pode
+  mais naquele dia, pergunte qual dia e horário ficam melhores e remarque. Use desmarcar_compromisso só se ela
+  não quiser mais o contato. Depois de remarcar, diga o dia e a hora novos.
 - Oferecer uma pessoa é uma PERGUNTA, não uma ação ("quer que uma pessoa da equipe fale com você?").
   Pergunte quando a pessoa pedir reunião, ligação ou conversa com alguém, errar a confirmação de
   identidade duas vezes, recusar as propostas repetidamente ou parecer irritada. Transferir é outra
@@ -325,6 +329,9 @@ def _briefing(ctx, devedor_nome: str, consultas: dict | None = None) -> str:
                      for n in estado.caderno(ctx.caso, 6)],
          "objetivo": ctx.saida.get("objetivo") or d.get("objetivo")
                      or "entender a situação e chegar a um acordo que caiba no bolso"}
+    marcados = ferramentas.compromissos_combinados(ctx.saida.get("_agenda"), bool(d.get("identidade_ok")))
+    if marcados:
+        b["compromissos_marcados"] = marcados
     if consultas:
         b["consultas_desta_mensagem"] = consultas
     if "manipulacao" in b["sinais_de_risco"]:
@@ -381,14 +388,25 @@ def _nota(nome: str, args: dict, res: dict) -> str | None:
         return f"simulou {res.get('resumo')}" + ("" if res.get("dentro_da_politica") else " (fora da política)")
     if nome == "registrar_aceite":
         return f"acordo registrado: {res.get('resumo')}, 1º pagamento em {dia(res.get('data'))}"
+    hora_res = f" às {res['hora']}" if res.get("hora") else hora
     if nome == "agendar_retorno":
+        if res.get("ja_estava_marcado"):
+            return None                               # nada mudou
+        if res.get("remarcado_de"):
+            return f"retorno remarcado de {dia(res['remarcado_de']['data'])} para {dia(res.get('data'))}{hora_res}"
         return f"retorno agendado para {dia(res.get('data'))}{hora}"
     if nome == "marcar_atendimento_humano":
+        if res.get("remarcado_de"):
+            return (f"pedido de atendimento remarcado de {dia(res['remarcado_de']['data'])} para "
+                    f"{dia(res.get('data'))}{hora_res}, aguardando aprovação da administração")
         if res.get('aguardando_aprovacao'):
             return f"solicitação de atendimento para {dia(res.get('data'))}{hora}, aguardando aprovação da administração"
         return f"atendimento com {res.get('atendente')} em {dia(res.get('data'))}{hora}"
     if nome == "remarcar_compromisso":
-        return f"compromisso remarcado para {dia(res.get('data'))}"
+        return f"{res.get('o_que') or 'compromisso'} remarcado para {dia(res.get('data'))}{hora_res}"
+    if nome == "desmarcar_compromisso":
+        era = res.get("era") or {}
+        return f"{res.get('o_que') or 'compromisso'} de {dia(era.get('data'))} desmarcado"
     if nome == "consultar_base":
         return f"consultou a base: {res.get('fonte')}" if res.get("certeza") else "consultou a base: sem resposta segura"
     return {"registrar_pagamento_informado": "aviso de pagamento anotado; equipe confere",
@@ -414,6 +432,11 @@ def _conversar(ctx, fonte, texto_devedor: str, notas: list) -> str | None:
     """Responde à mensagem do devedor. Devolve o texto a enviar (ou None se não deve responder)."""
     ctx.usar_leituras()
     dev = ctx.saida.get("_devedor") or fonte.devedor(ctx.caso["empresa_id"], ctx.caso["predicao_id"])
+    if "_agenda" not in ctx.saida and dev is not None:
+        try:
+            ctx.saida["_agenda"] = fonte.agenda_pendente(ctx.caso["empresa_id"], dev["id"])
+        except Exception as e:                       # sem a agenda, o agente conversa como antes
+            print(f"[Agente] agenda do devedor indisponível: {type(e).__name__}")
     if dev is None:
         raise LookupError("devedor não encontrado nesta empresa")
     ctx.saida["_devedor"] = dev

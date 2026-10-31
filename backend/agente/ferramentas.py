@@ -250,12 +250,112 @@ def _registrar_aceite(ctx, fonte, dev, args):
             "primeiro_pagamento": primeiro, "data": data, "compromisso_id": item["id"]}
 
 
+# ── compromissos combinados com o devedor ──────────────────────────────────
+# Uma pessoa tem no máximo UM compromisso ativo de cada tipo com o agente: um retorno
+# (o assistente volta a falar) e um atendimento (uma pessoa da equipe). Marcar de novo
+# move o que existe; repetir a mesma marcação não cria outra (a IA pode chamar de novo,
+# e a rodada pode ser refeita depois de uma falha). Promessa de pagamento é outra coisa:
+# nasce do acordo e só muda por remarcar_compromisso, com identidade confirmada.
+PREFIXO_RETORNO = "Retorno combinado pelo assistente"
+PREFIXO_ATENDIMENTO = "Atendimento com pessoa pedido pelo devedor"
+_O_QUE = {"retorno": "retorno do assistente", "atendimento": "atendimento com uma pessoa da equipe",
+          "promessa": "promessa de pagamento"}
+
+
+def tipo_do_compromisso(a: dict) -> str:
+    """retorno, atendimento, promessa ou outro (tarefa interna da equipe: não é combinado com o devedor)."""
+    obs = a.get("observacao") or ""
+    if a.get("tipo") == "promessa":
+        return "promessa"
+    if obs.startswith(PREFIXO_ATENDIMENTO):
+        return "atendimento"
+    if a.get("tipo") == "retorno" and (obs.startswith(PREFIXO_RETORNO) or obs.startswith("Remarcado pelo assistente")):
+        return "retorno"
+    return "outro"
+
+
+def compromissos_combinados(pendentes: list, identidade_ok: bool) -> list:
+    """O que está marcado com a pessoa, para o briefing (com o id, para remarcar ou desmarcar)."""
+    saida = []
+    for a in sorted(pendentes or [], key=lambda a: (str(a.get("data")), str(a.get("hora") or ""))):
+        t = tipo_do_compromisso(a)
+        if t == "outro":
+            continue
+        item = {"compromisso_id": a["id"], "o_que": _O_QUE[t], "data": str(a.get("data"))[:10], "hora": a.get("hora")}
+        if t == "atendimento" and a.get("operador_id") == _a_definir():
+            item["situacao"] = "aguardando aprovação da equipe"
+        if t == "promessa" and identidade_ok and a.get("valor") is not None:
+            item["valor"] = a.get("valor")
+        saida.append(item)
+    return saida
+
+
+def _a_definir():
+    from agente.fonte import OPERADOR_A_DEFINIR
+    return OPERADOR_A_DEFINIR
+
+
+def _meus(ctx, fonte, dev, tipo: str) -> list:
+    """Compromissos ativos deste tipo com a pessoa, do mais antigo para o mais novo."""
+    itens = [a for a in fonte.agenda_pendente(ctx.caso["empresa_id"], dev["id"]) if tipo_do_compromisso(a) == tipo]
+    return sorted(itens, key=lambda a: (str(a.get("data")), str(a.get("hora") or "")))
+
+
+def _dia(iso) -> str:
+    try:
+        return date.fromisoformat(str(iso)[:10]).strftime("%d/%m")
+    except ValueError:
+        return str(iso)
+
+
+def _mover(ctx, fonte, dev, item: dict, data: str, hora, motivo: str) -> bool:
+    """Leva o compromisso para outro dia (e hora). A hora antiga fica se não vier outra."""
+    hora = hora or item.get("hora")
+    obs = (item.get("observacao") or "").split(" · Remarcado")[0]
+    campos = {"data": data, "hora": hora,
+              "observacao": f"{obs} · Remarcado pelo assistente (era {_dia(item.get('data'))}"
+                            f"{' às ' + item['hora'] if item.get('hora') else ''}): {motivo}"[:500]}
+    if tipo_do_compromisso(item) == "atendimento" and item.get("operador_id") not in (None, _a_definir()):
+        # Já aprovado para um horário: o novo horário volta para a aprovação da equipe.
+        from agente.fonte import NOME_A_DEFINIR
+        campos.update(operador_id=_a_definir(), operador_nome=NOME_A_DEFINIR)
+    return fonte.atualizar_agenda(ctx.caso["empresa_id"], dev["id"], item["id"], campos)
+
+
+def _fechar_sobras(ctx, fonte, dev, sobras: list) -> None:
+    """Duplicatas de antes desta regra: ficam canceladas, sobra um compromisso só."""
+    for a in sobras:
+        fonte.atualizar_agenda(ctx.caso["empresa_id"], dev["id"], a["id"],
+                               {"situacao": "cancelada", "resolvido_em": ctx.agora.isoformat(),
+                                "resolvido_por": "assistente: compromisso repetido"})
+
+
+def _marcar_ou_mover(ctx, fonte, dev, tipo: str, data: str, hora, motivo: str, criar) -> dict:
+    """Marca o compromisso do tipo; se já há um, move (ou devolve o mesmo, se nada mudou)."""
+    existentes = _meus(ctx, fonte, dev, tipo)
+    if not existentes:
+        item = criar()
+        return {"compromisso_id": item["id"], "data": data, "hora": hora, "novo": True}
+    alvo, sobras = existentes[-1], existentes[:-1]
+    _fechar_sobras(ctx, fonte, dev, sobras)
+    if str(alvo.get("data"))[:10] == data and (not hora or str(alvo.get("hora") or "")[:5] == str(hora)[:5]):
+        return {"compromisso_id": alvo["id"], "data": data, "hora": alvo.get("hora"), "ja_estava_marcado": True}
+    if not _mover(ctx, fonte, dev, alvo, data, hora, motivo):
+        item = criar()                                  # sumiu entre a leitura e a mudança: marca de novo
+        return {"compromisso_id": item["id"], "data": data, "hora": hora, "novo": True}
+    return {"compromisso_id": alvo["id"], "data": data, "hora": hora or alvo.get("hora"),
+            "remarcado_de": {"data": str(alvo.get("data"))[:10], "hora": alvo.get("hora")}}
+
+
 def _agendar_retorno(ctx, fonte, dev, args):
-    item = fonte.criar_agenda(ctx.caso["empresa_id"], dev, "retorno", args["data"], hora=args.get("hora"),
-                              observacao=f"Retorno combinado pelo assistente: {args['motivo']}")
-    ctx.caso["proxima_data"] = args["data"]
-    return {"ok": True, "compromisso_id": item["id"], "data": args["data"], "hora": args.get("hora"),
-            "_rastreio": {"compromisso": "retorno", "data": args["data"], "hora": args.get("hora")}}
+    r = _marcar_ou_mover(ctx, fonte, dev, "retorno", args["data"], args.get("hora"), args["motivo"],
+                         lambda: fonte.criar_agenda(ctx.caso["empresa_id"], dev, "retorno", args["data"],
+                                                    hora=args.get("hora"),
+                                                    observacao=f"{PREFIXO_RETORNO}: {args['motivo']}"))
+    ctx.caso["proxima_data"] = r["data"]
+    return {"ok": True, **{k: v for k, v in r.items() if k != "novo"},
+            "_rastreio": {"compromisso": "retorno", "data": r["data"], "hora": r.get("hora"),
+                          "remarcado": bool(r.get("remarcado_de")), "repetido": bool(r.get("ja_estava_marcado"))}}
 
 
 def _marcar_atendimento_humano(ctx, fonte, dev, args):
@@ -265,21 +365,26 @@ def _marcar_atendimento_humano(ctx, fonte, dev, args):
     from agente import supervisor
     resumo = supervisor.resumo_para_pessoa(ctx, f"atendimento marcado ({args['motivo']})", args["resumo"],
                                            motivo_codigo="atendimento_marcado", usar_ia=False)
-    item = fonte.criar_agenda(ctx.caso["empresa_id"], dev, "retorno", args["data"], hora=args["hora"],
-                              operador=operador,
-                              observacao=f"Atendimento com pessoa pedido pelo devedor ({args['motivo']}): {resumo}")
+    r = _marcar_ou_mover(ctx, fonte, dev, "atendimento", args["data"], args["hora"], args["resumo"],
+                         lambda: fonte.criar_agenda(ctx.caso["empresa_id"], dev, "retorno", args["data"],
+                                                    hora=args["hora"], operador=operador,
+                                                    observacao=f"{PREFIXO_ATENDIMENTO} ({args['motivo']}): {resumo}"))
     d = _dados(ctx)
-    d["atendimento"] = {"data": args["data"], "hora": args["hora"], "compromisso_id": item["id"],
+    d["atendimento"] = {"data": r["data"], "hora": r["hora"], "compromisso_id": r["compromisso_id"],
                         "atendente": None, "aprovacao": "pendente",
                         "operador_sugerido_id": dev.get("responsavel_id")}
     if ctx.caso["situacao"] not in estado.SO_PESSOA_TIRA:
         _ir_para(ctx, "com_pessoa")
     ctx.caso["resumo"] = resumo
     ctx.caso["proxima_data"] = args["data"]
-    return {"ok": True, "marcado": False, "aguardando_aprovacao": True, "data": args["data"], "hora": args["hora"],
+    return {"ok": True, "marcado": False, "aguardando_aprovacao": True, "data": r["data"], "hora": r["hora"],
+            "compromisso_id": r["compromisso_id"],
+            **({"remarcado_de": r["remarcado_de"]} if r.get("remarcado_de") else {}),
+            **({"ja_estava_marcado": True} if r.get("ja_estava_marcado") else {}),
             "atendente": d["atendimento"]["atendente"] or "uma pessoa da equipe",
-            "_rastreio": {"compromisso": "atendimento", "data": args["data"], "hora": args["hora"],
-                          "a_definir": operador[0] == OPERADOR_A_DEFINIR}}
+            "_rastreio": {"compromisso": "atendimento", "data": r["data"], "hora": r["hora"],
+                          "a_definir": operador[0] == OPERADOR_A_DEFINIR,
+                          "remarcado": bool(r.get("remarcado_de")), "repetido": bool(r.get("ja_estava_marcado"))}}
 
 
 def _registrar_contato(ctx, fonte, dev, args):
@@ -344,15 +449,75 @@ def _transferir_para_humano(ctx, fonte, dev, args):
     return {"ok": True, "transferido": True, "compromisso_id": item["id"]}
 
 
+def _alvo(ctx, fonte, dev, compromisso_id: str | None, tipos=("retorno", "atendimento", "promessa")):
+    """(compromisso, erro). Sem id: o único compromisso ativo do agente com a pessoa."""
+    pendentes = [a for a in fonte.agenda_pendente(ctx.caso["empresa_id"], dev["id"])
+                 if tipo_do_compromisso(a) in tipos]
+    if compromisso_id:
+        achado = next((a for a in pendentes if a["id"] == compromisso_id), None)
+        return (achado, None) if achado else (None, "compromisso não encontrado ou já resolvido")
+    if not pendentes:
+        return None, "não há compromisso marcado com a pessoa"
+    # Sem id: o retorno ou atendimento marcado; se não houver, a única promessa.
+    candidatos = [a for a in pendentes if tipo_do_compromisso(a) in ("retorno", "atendimento")] or pendentes
+    if len({tipo_do_compromisso(a) for a in candidatos}) == 1:
+        return sorted(candidatos, key=lambda a: str(a.get("data")))[-1], None
+    return None, ("há mais de um compromisso marcado: diga qual pelo compromisso_id (" +
+                  ", ".join(f"{a['id']} = {_O_QUE.get(tipo_do_compromisso(a))} em {_dia(a.get('data'))}"
+                            for a in pendentes) + ")")
+
+
+def _params_remarcar(ctx, fonte, dev, args) -> tuple:
+    """Parâmetros para o Auditor: o tipo decide se vale o limite de remarcações (só promessa)."""
+    alvo, erro = _alvo(ctx, fonte, dev, args.get("compromisso_id"))
+    tipo = tipo_do_compromisso(alvo) if alvo else None
+    params = {**args, "tipo_compromisso": tipo}
+    if not args.get("hora") and alvo and alvo.get("hora"):
+        params["hora"] = str(alvo["hora"])[:5]           # a hora que fica também precisa valer no dia novo
+    return params, alvo, erro
+
+
 def _remarcar_compromisso(ctx, fonte, dev, args):
-    ok = fonte.atualizar_agenda(ctx.caso["empresa_id"], dev["id"], args["compromisso_id"],
-                                {"data": args["data"], "observacao": f"Remarcado pelo assistente: {args['motivo']}"})
-    if not ok:
+    alvo, erro = ctx.saida.pop("_alvo_remarcar", (None, None))
+    if alvo is None:
+        alvo, erro = _alvo(ctx, fonte, dev, args.get("compromisso_id"))
+    if alvo is None:
+        return {"ok": False, "erro": erro}
+    tipo = tipo_do_compromisso(alvo)
+    if tipo == "promessa" and not _dados(ctx).get("identidade_ok"):
+        return {"ok": False, "erro": "confirme a identidade antes (verificar_identidade)"}
+    if not _mover(ctx, fonte, dev, alvo, args["data"], args.get("hora"), args["motivo"]):
         return {"ok": False, "erro": "compromisso não encontrado ou já resolvido"}
     d = _dados(ctx)
-    d["remarcacoes"] = int(d.get("remarcacoes") or 0) + 1
+    if tipo == "promessa":
+        d["remarcacoes"] = int(d.get("remarcacoes") or 0) + 1       # o limite da política é para pagamento
+    hora = args.get("hora") or alvo.get("hora")
+    if tipo == "atendimento" and d.get("atendimento"):
+        d["atendimento"] = {**d["atendimento"], "data": args["data"], "hora": hora, "aprovacao": "pendente",
+                            "atendente": None}             # horário novo: a equipe aprova e escolhe de novo
     ctx.caso["proxima_data"] = args["data"]
-    return {"ok": True, "data": args["data"]}
+    return {"ok": True, "compromisso_id": alvo["id"], "o_que": _O_QUE.get(tipo), "data": args["data"], "hora": hora,
+            "remarcado_de": {"data": str(alvo.get("data"))[:10], "hora": alvo.get("hora")}}
+
+
+def _desmarcar_compromisso(ctx, fonte, dev, args):
+    alvo, erro = _alvo(ctx, fonte, dev, args.get("compromisso_id"), tipos=("retorno", "atendimento"))
+    if alvo is None:
+        if args.get("compromisso_id") and any(a["id"] == args["compromisso_id"] and tipo_do_compromisso(a) == "promessa"
+                                              for a in fonte.agenda_pendente(ctx.caso["empresa_id"], dev["id"])):
+            return {"ok": False, "erro": "promessa de pagamento não se desmarca: remarque a data ou fale com a equipe"}
+        return {"ok": False, "erro": erro}
+    ok = fonte.atualizar_agenda(ctx.caso["empresa_id"], dev["id"], alvo["id"],
+                                {"situacao": "cancelada", "resolvido_em": ctx.agora.isoformat(),
+                                 "resolvido_por": f"assistente: {args['motivo']}"[:120]})
+    if not ok:
+        return {"ok": False, "erro": "compromisso não encontrado ou já resolvido"}
+    tipo = tipo_do_compromisso(alvo)
+    d = _dados(ctx)
+    if tipo == "atendimento" and (d.get("atendimento") or {}).get("compromisso_id") == alvo["id"]:
+        d.pop("atendimento", None)
+    return {"ok": True, "desmarcado": True, "compromisso_id": alvo["id"], "o_que": _O_QUE.get(tipo),
+            "era": {"data": str(alvo.get("data"))[:10], "hora": alvo.get("hora")}}
 
 
 def _registrar_pagamento_informado(ctx, fonte, dev, args):
@@ -425,10 +590,15 @@ FERRAMENTAS = {f.nome: f for f in (
                {"motivo": {"type": "string", "enum": ["pedido_do_devedor", "fora_da_politica", "dificuldade_grave",
                                                       "duvida", "falha"]},
                 "resumo": _TEXTO}, ("motivo", "resumo"), "transferir_para_pessoa", _transferir_para_humano),
-    Ferramenta("remarcar_compromisso", "Nova data para uma promessa ou retorno, dentro da política.",
-               {"compromisso_id": {"type": "string", "maxLength": 40}, "data": _DATA, "motivo": _TEXTO},
-               ("compromisso_id", "data", "motivo"), "remarcar_compromisso", _remarcar_compromisso,
-               exige_identidade=True),
+    Ferramenta("remarcar_compromisso", "Muda o dia (e a hora, se combinada) de um compromisso já marcado: retorno, "
+               "atendimento ou promessa de pagamento (promessa exige identidade confirmada). Use o compromisso_id de "
+               "compromissos_marcados; sem ele, vale o único retorno ou atendimento marcado. Não marque outro.",
+               {"compromisso_id": {"type": "string", "maxLength": 40}, "data": _DATA, "hora": _HORA, "motivo": _TEXTO},
+               ("data", "motivo"), "remarcar_compromisso", _remarcar_compromisso),
+    Ferramenta("desmarcar_compromisso", "Desmarca um retorno ou atendimento quando a pessoa não quer mais. Se ela só "
+               "não pode naquele dia, pergunte o novo dia e use remarcar_compromisso.",
+               {"compromisso_id": {"type": "string", "maxLength": 40}, "motivo": _TEXTO},
+               ("motivo",), "desmarcar_compromisso", _desmarcar_compromisso),
     Ferramenta("registrar_pagamento_informado", "O devedor diz que já pagou: anota o aviso, suspende a cobrança e pede "
                "conferência à equipe. Não confirma pagamento: só o banco confirma.",
                {"data": _DATA, "valor": {"type": "number", "minimum": 0, "maximum": 100_000_000}},
@@ -462,6 +632,11 @@ def executar(ctx, fonte, nome: str, args) -> dict:
         return {"ok": False, "erro": "confirme a identidade antes (verificar_identidade)"}
 
     params, extra = dict(args), {}
+    if nome == "remarcar_compromisso":
+        params, alvo, erro = _params_remarcar(ctx, fonte, dev, args)
+        if alvo is None:
+            return {"ok": False, "erro": erro}
+        ctx.saida["_alvo_remarcar"] = (alvo, None)
     if nome == "registrar_aceite":
         params, extra["simulacao"] = _params_aceite(ctx, args)
         extra["ironia"] = bool((ctx.saida.get("triagem") or {}).get("ironia"))

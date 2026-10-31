@@ -200,7 +200,8 @@ def permitidos_de(resultados: list) -> dict:
 # Ações que o texto diz que já fez e a ferramenta que precisa ter rodado com
 # sucesso nesta resposta. Texto já normalizado (_norm: minúsculo, sem acento).
 # Oferecer ("posso agendar?", "vou marcar") não conta; só o feito.
-_AGENDA = {"agendar_retorno", "remarcar_compromisso", "marcar_atendimento_humano", "registrar_aceite"}
+_AGENDA = {"agendar_retorno", "remarcar_compromisso", "marcar_atendimento_humano", "registrar_aceite",
+           "desmarcar_compromisso"}
 _EQUIPE = {"transferir_para_humano", "marcar_atendimento_humano"}
 _ACOES_AFIRMADAS = [
     ("agendamento", re.compile(r"\b(agendei|marquei|remarquei|reagendei|combinei)\b"
@@ -222,7 +223,9 @@ _ACOES_AFIRMADAS = [
                              r"|\b(cobranca|contato|cobrancas|mensagens|ligacoes) (ja |foi |foram |esta |estao |ficou |fica |ficara )?"
                              r"(suspens|cancelad|pausad|interrompid|bloquead|encerrad)\w*"),
      {"suspender_cobranca", "abrir_contestacao", "registrar_pagamento_informado", "transferir_para_humano",
-      "marcar_atendimento_humano"}),
+      "marcar_atendimento_humano", "desmarcar_compromisso"}),
+    ("desmarcação", re.compile(r"\b(desmarquei|desagendei)\b|\b(ja |foi |esta |ficou )(desmarcad|desagendad)\w*"),
+     {"desmarcar_compromisso"}),
     ("acordo", re.compile(r"\bacordo (ja |foi |esta |ficou )?(fechado|registrado|confirmado|firmado|feito|aprovado|ativo"
                           r"|garantido|concluido|efetivado)\b"
                           r"|\b(fechamos|firmamos|registramos|aprovamos|efetivamos) (o |seu |nosso )?acordo"), {"registrar_aceite"}),

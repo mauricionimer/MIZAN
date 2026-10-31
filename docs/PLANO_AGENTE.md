@@ -340,15 +340,20 @@ Estrategista separa a carteira em quatro grupos, sempre com o motivo escrito:
 | `listar_ofertas_permitidas(cpf)` | Propostas dentro da alçada | `/predicoes/{cpf}/propostas`, catálogo e alçada da empresa |
 | `simular_acordo(cpf, oferta, parcelas, vencimento)` | Valores exatos e se cabe no bolso | `/predicoes/{cpf}/simular-oferta` |
 | `registrar_aceite(cpf, simulacao_id)` | Grava a oferta aceita e a promessa na agenda | `/ofertas` |
-| `agendar_retorno(cpf, data, motivo)` | Retorno combinado | `/agenda` |
+| `agendar_retorno(cpf, data, motivo)` | Retorno combinado. Um retorno ativo por pessoa: marcar de novo move o que existe (mesmo dia e hora não duplica) | `/agenda` |
 | `registrar_contato(cpf, resultado)` | Contato sem acordo | `/contatos` |
 | `consultar_politica(pergunta)` | Regras da empresa e do Mizan | Central de Ajuda (busca local) + Premissas |
 | `abrir_contestacao(cpf, motivo)` | "Não reconheço a dívida": suspende a cobrança | novo |
 | `suspender_cobranca(cpf, motivo)` | Pessoa errada, pedido de não contato | novo |
 | `transferir_para_humano(cpf, resumo, motivo)` | Fora da alçada, dificuldade grave, dúvida | novo (vira item na Agenda do operador) |
-| `remarcar_compromisso(item_id, nova_data, motivo)` | Nova data para promessa ou retorno | `PATCH /agenda` (remarcar) |
+| `remarcar_compromisso(item_id?, nova_data, hora?, motivo)` | Novo dia (e hora) para retorno, atendimento ou promessa. Sem id, o único retorno/atendimento marcado. Só promessa exige identidade e conta no limite de remarcações (R12) | `PATCH /agenda` (remarcar) |
+| `desmarcar_compromisso(item_id?, motivo)` | A pessoa não quer mais o retorno ou o atendimento: fica cancelado na agenda | `PATCH /agenda` (cancelar) |
 | `registrar_pagamento_informado(cpf, data, valor)` | "Já paguei": suspende a cobrança e abre a conferência | novo |
 | `marcar_promessa_quebrada(item_id, motivo)` | Venceu sem pagamento e sem nova data | `PATCH /agenda` (quebrar) |
+
+O agente vê, no briefing de cada mensagem, os compromissos marcados com a pessoa (`compromissos_marcados`,
+com o id, o dia e a hora). Tarefas internas da equipe (aviso de mensagem nova, conferência de pagamento)
+não entram. Atendimento com pessoa já aprovado e remarcado volta para a equipe aprovar o horário novo.
 
 ### 3.3 Auditor e política configurável
 

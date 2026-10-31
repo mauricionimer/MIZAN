@@ -608,7 +608,7 @@ const CAMPOS_POLITICA = [
   ['desconto_max_pct', 'Desconto máximo (%)'], ['parcelas_max', 'Parcelas máximas'], ['parcela_min', 'Parcela mínima (R$)'],
   ['entrada_min_pct', 'Entrada mínima no parcelado (%)'], ['hora_inicio', 'Contato a partir de (h)'], ['hora_fim', 'Contato até (h)'],
   ['contatos_semana_max', 'Contatos por semana'], ['prazo_max_dias', 'Prazo máximo de promessa (dias)'],
-  ['remarcacoes_max', 'Remarcações pelo agente'], ['prazo_confirmacao_dias', 'Prazo de confirmação do banco (dias úteis)'],
+  ['remarcacoes_max', 'Remarcações de promessa pelo agente'], ['prazo_confirmacao_dias', 'Prazo de confirmação do banco (dias úteis)'],
   ['dias_sem_resposta', 'Espera de resposta no atraso (dias úteis)'], ['percentual_controle', 'Grupo sorteado (%)'],
 ]
 const DIAS = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom']

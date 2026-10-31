@@ -145,7 +145,9 @@ class Contexto:
         repo, emp, pid, hoje = self.repo, self.caso["empresa_id"], self.caso["predicao_id"], self.hoje
 
         def ler():
-            return (fonte.devedor(emp, pid), repo.politica_ativa(emp), repo.custo_do_dia(emp, hoje))
+            dev = fonte.devedor(emp, pid)
+            agenda = fonte.agenda_pendente(emp, dev["id"]) if dev else []
+            return (dev, repo.politica_ativa(emp), repo.custo_do_dia(emp, hoje), agenda)
         try:
             self.leituras = _LEITURAS.submit(ler)
         except RuntimeError:                         # executor encerrado (desligando): lê na hora
@@ -158,10 +160,11 @@ class Contexto:
         if fut is None:
             return
         try:
-            dev, achada, custo = fut.result(timeout=15)
+            dev, achada, custo, agenda = fut.result(timeout=15)
         except Exception:
             return
         self.saida.setdefault("_devedor", dev)
+        self.saida.setdefault("_agenda", agenda)
         if "_politica" not in self.saida:
             try:
                 self.saida["_politica"] = ((auditor.validar_politica(achada["regras"]), achada["versao"])
