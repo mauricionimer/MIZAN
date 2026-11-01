@@ -18,9 +18,12 @@ create table if not exists public.cientista_eventos (
 create index if not exists cientista_eventos_empresa on public.cientista_eventos(empresa_id,acao_id,id);
 create or replace function public.cientista_evento_imutavel() returns trigger language plpgsql as $$
 begin raise exception 'Histórico do Cientista é somente acréscimo'; end $$;
-drop trigger if exists cientista_evento_imutavel on public.cientista_eventos;
-create trigger cientista_evento_imutavel before update or delete on public.cientista_eventos
- for each row execute function public.cientista_evento_imutavel();
+do $$ begin
+ if not exists (select 1 from pg_trigger where tgrelid='public.cientista_eventos'::regclass and tgname='cientista_evento_imutavel') then
+  create trigger cientista_evento_imutavel before update or delete on public.cientista_eventos
+   for each row execute function public.cientista_evento_imutavel();
+ end if;
+end $$;
 create table if not exists public.cientista_exposicoes (
  id uuid primary key default gen_random_uuid(), empresa_id text not null,
  experimento_id uuid not null references public.cientista_acoes(id), pessoa text not null,
@@ -33,12 +36,16 @@ create table if not exists public.cientista_resultados (
  exposicao_id uuid not null references public.cientista_exposicoes(id), chave text not null,
  dados jsonb not null, criado_em timestamptz not null default now(), unique(empresa_id,chave)
 );
-drop trigger if exists cientista_exposicao_imutavel on public.cientista_exposicoes;
-create trigger cientista_exposicao_imutavel before update or delete on public.cientista_exposicoes
- for each row execute function public.cientista_evento_imutavel();
-drop trigger if exists cientista_resultado_imutavel on public.cientista_resultados;
-create trigger cientista_resultado_imutavel before update or delete on public.cientista_resultados
- for each row execute function public.cientista_evento_imutavel();
+do $$ begin
+ if not exists (select 1 from pg_trigger where tgrelid='public.cientista_exposicoes'::regclass and tgname='cientista_exposicao_imutavel') then
+  create trigger cientista_exposicao_imutavel before update or delete on public.cientista_exposicoes
+   for each row execute function public.cientista_evento_imutavel();
+ end if;
+ if not exists (select 1 from pg_trigger where tgrelid='public.cientista_resultados'::regclass and tgname='cientista_resultado_imutavel') then
+  create trigger cientista_resultado_imutavel before update or delete on public.cientista_resultados
+   for each row execute function public.cientista_evento_imutavel();
+ end if;
+end $$;
 create index if not exists cientista_exposicoes_empresa on public.cientista_exposicoes(empresa_id,experimento_id);
 create index if not exists cientista_resultados_empresa on public.cientista_resultados(empresa_id,exposicao_id);
 alter table public.cientista_acoes enable row level security;
@@ -55,9 +62,12 @@ create table if not exists public.cientista_bases (
 alter table public.cientista_bases enable row level security;
 revoke all on public.cientista_bases from anon, authenticated;
 grant select,insert on public.cientista_bases to service_role;
-drop trigger if exists cientista_base_imutavel on public.cientista_bases;
-create trigger cientista_base_imutavel before update or delete on public.cientista_bases
- for each row execute function public.cientista_evento_imutavel();
+do $$ begin
+ if not exists (select 1 from pg_trigger where tgrelid='public.cientista_bases'::regclass and tgname='cientista_base_imutavel') then
+  create trigger cientista_base_imutavel before update or delete on public.cientista_bases
+   for each row execute function public.cientista_evento_imutavel();
+ end if;
+end $$;
 create or replace function public.cientista_criar(p_empresa text,p_tipo text,p_chave text,p_dados jsonb,p_ator text)
 returns jsonb language plpgsql security invoker set search_path=public as $$
 declare r cientista_acoes;
