@@ -299,7 +299,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from auth import criar_token  # noqa: E402
 LACO = []
 _fechar_orig = main._fechar_loop_bandit
-main._fechar_loop_bandit = lambda db, cpf, pagou, val, pred, emp: LACO.append((cpf, emp, (pred or {}).get("id")))
+main._fechar_loop_bandit = lambda db, cpf, pagou, val, pred, emp, feedback_id=None: LACO.append((cpf, emp, (pred or {}).get("id")))
 main._cumprir_promessas = lambda *a, **k: None
 main._cache_del_prefix = lambda *a, **k: None
 main._buscar_api_key = lambda db, tok: {"id": "k1", "empresa_id": "alfa"} if tok == "chave-alfa" else None

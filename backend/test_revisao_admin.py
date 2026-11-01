@@ -69,7 +69,7 @@ main.get_db = lambda: type("DB", (), {"table": staticmethod(lambda n: Q2(n))})()
 main._predicao_do_cpf = lambda db, cpf, emp, colunas=None: {"id": "p1", "carteira_id": "cart-goias"}
 main._empresa_da_carteira = lambda db, cid: {"cart-goias": "goiasbank"}.get(cid, "")
 main._cumprir_promessas = lambda db, emp, cpf, *a: CUMPRIU.append(emp)
-main._fechar_loop_bandit = lambda db, cpf, pagou, v, pred, emp: BANDIT.append(emp)
+main._fechar_loop_bandit = lambda db, cpf, pagou, v, pred, emp, feedback_id=None: BANDIT.append(emp)
 main._writeback_pagamento = lambda *a, **k: None
 main._registrar_auditoria = lambda *a, **k: None
 main._usuario_autenticado = lambda cred: main.validar_token(cred.credentials)

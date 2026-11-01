@@ -114,7 +114,7 @@ class Q:
 
 
 main.get_db = lambda: type("DB", (), {"table": staticmethod(lambda n: Q(n))})()
-main._fechar_loop_bandit = lambda db, cpf, pagou, val, pred, emp: BANDIT.append(
+main._fechar_loop_bandit = lambda db, cpf, pagou, val, pred, emp, feedback_id=None: BANDIT.append(
     (cpf, emp, (pred or {}).get("id")))
 main._writeback_pagamento = lambda *a, **k: None
 main._registrar_auditoria = lambda *a, **k: None
