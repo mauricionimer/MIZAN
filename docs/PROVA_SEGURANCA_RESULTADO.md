@@ -1,14 +1,15 @@
 # Prova de segurança: APROVADO
 
-- Data: 2026-11-01 21:18 UTC
-- Commit: `4e3a12c`
+- Data: 2026-11-01 22:37 UTC
+- Commit: `6935ac6`
 - Modo: provas + testes de segurança
 - Python 3.11.17 em Linux
 
 | Etapa | Resultado | Tempo |
 |---|---|---|
-| `test_seguranca_estatico.py` | ok | 31 s |
-| `test_seguranca_plano.py` | ok | 80 s |
+| `test_seguranca_estatico.py` | ok | 33 s |
+| `test_seguranca_plano.py` | ok | 78 s |
+| `test_dois_fatores.py` | ok | 18 s |
 | `test_api_key.py` | ok | 2 s |
 | `test_autorizacao.py` | ok | 3 s |
 | `test_segredos.py` | ok | 2 s |
@@ -16,14 +17,14 @@
 | `test_conexoes_escopo.py` | ok | 2 s |
 | `test_conexao_sheets.py` | ok | 2 s |
 | `test_erros_internos.py` | ok | 2 s |
-| `test_limite.py` | ok | 8 s |
+| `test_limite.py` | ok | 10 s |
 | `test_escopo_carteira.py` | ok | 2 s |
 | `test_auditoria_acesso.py` | ok | 2 s |
 | `test_varredura_contas.py` | ok | 8 s |
 | `test_agente_manipulacao.py` | ok | 0 s |
 | `test_agente_telegram.py` | ok | 18 s |
-| `test_revisao_api.py` | ok | 14 s |
-| `pip-audit` | ok | 16 s |
+| `test_revisao_api.py` | ok | 13 s |
+| `pip-audit` | ok | 17 s |
 | `npm audit --omit=dev` | ok | 1 s |
 
 ## Saída de cada etapa
@@ -51,7 +52,7 @@ ok    [S10] conferência antes do agendador e do primeiro admin
 ok    [S11] defusedxml no requirements.txt
 ok    [S11] toda leitura de Excel em main.py passa antes pela trava
 ok    [S11] treino por empresa também confere a planilha
-ok    [S12] todas as 37 tabelas dos scripts têm RLS
+ok    [S12] todas as 38 tabelas dos scripts têm RLS
 ok    [S13] vercel.json define content-security-policy
 ok    [S13] vercel.json define x-content-type-options
 ok    [S13] vercel.json define x-frame-options
@@ -84,6 +85,7 @@ ok    [S1] controle: credencial com token_uri do Google é salva
 ok    [S1] o que fica guardado é a credencial limpa
 ok    [S1] nenhuma requisição chegou ao servidor interno
 — S2: limite de login pelo e-mail, não pelo IP —
+[Login] limite no banco indisponível (AttributeError); valendo a contagem em memória
 ok    [S2] 8 tentativas, IP diferente em cada: 5 × 401 e depois 429
 ok    [S2] nem a senha certa entra durante o bloqueio (por e-mail)
 ok    [S2] controle: outra conta continua entrando
@@ -158,6 +160,70 @@ APROVADO
 
 </details>
 
+<details><summary><code>test_dois_fatores.py</code>: ok</summary>
+
+```
+— TOTP: vetores do RFC 6238 —
+ok    códigos iguais aos do RFC (SHA-1, 8 dígitos)
+ok    vale o código atual e o do passo vizinho; antigo não
+ok    código já usado não vale de novo
+ok    10 códigos de recuperação; o banco guarda só hash
+ok    código de recuperação vale uma vez
+— limite de login no banco (sobrevive a reinício) —
+ok    4 erros + reinício + 1 erro: a senha certa fica bloqueada (429)  — [401, 401, 401, 401, 401, 429]
+ok    o banco guarda a chave em HMAC, sem e-mail nem IP  — [{"id": "login_tentativas-1", "chave": "d98872052f00fb3fbfa2937c8d92e6b7b255abb6e6ebeb33", "criado_em": "2026-11-01T22:3
+[Login] limite no banco indisponível (RuntimeError); valendo a contagem em memória
+ok    banco fora: a contagem em memória continua barrando  — [401, 401, 401, 401, 401, 429]
+ok    login certo apaga os erros do e-mail
+— antes da migração: ninguém é obrigado —
+ok    sem as colunas no banco, o administrador entra e usa como antes
+— depois da migração: administrador configura no próximo acesso —
+ok    login devolve configurar_2fa
+ok    as outras rotas respondem 403 com o aviso
+ok    identidade e situação do 2FA continuam acessíveis
+ok    operador não é obrigado
+ok    iniciar devolve o segredo e o endereço para o app
+ok    e o QR code pronto (SVG)
+ok    o segredo pendente fica cifrado no banco
+ok    código errado na confirmação: 400 (não derruba a sessão)  — 400
+ok    confirmar liga o 2FA e mostra 10 códigos de recuperação
+ok    no banco: segredo cifrado e só hashes
+ok    ativação na auditoria
+ok    a sessão antiga (sem o código) cai
+ok    a sessão nova funciona
+— login em duas etapas —
+ok    senha certa: pede o código, sem sessão
+ok    o desafio não serve como sessão
+ok    código errado: recusado
+ok    código certo: entra
+ok    a resposta não traz segredo, hashes nem senha
+ok    o mesmo código não entra duas vezes  — Esse código já foi usado. Espere o próximo código do app.
+ok    código de recuperação entra (e fica na auditoria)
+ok    o mesmo código de recuperação não entra de novo
+ok    desafio vencido: entra de novo
+ok    token de sessão não serve como desafio
+— limite de códigos —
+ok    5 códigos errados: bloqueio de 15 minutos  — [401, 401, 401, 401, 401, 429]
+— renovação de sessão —
+ok    renovar mantém a marca do 2FA, sem expor segredo
+ok    token sem o código não renova
+— desligar, redefinir e interruptor —
+ok    administrador não desliga (é obrigatório)
+ok    operador: senha errada não desliga
+ok    operador com senha e código desliga
+ok    administrador não redefine o 2FA de ninguém
+ok    COMANDO redefine o 2FA de quem perdeu o celular (com auditoria)
+ok    e a pessoa configura de novo no próximo acesso
+ok    MIZAN_2FA_OBRIGATORIO=0: ninguém é obrigado (emergência)
+— sessão antiga não cadastra celular sem a senha —
+ok    sessão de 1 h atrás: pede a senha
+ok    senha errada: recusa
+ok    com a senha certa: segue
+tudo certo
+```
+
+</details>
+
 <details><summary><code>test_api_key.py</code>: ok</summary>
 
 ```
@@ -168,7 +234,7 @@ ok    o hash da aplicação bate com o do gerador e com o SHA-256 padrão
 ok    chave revogada (ativa=false) para de autenticar na hora
 ok    banco sem a coluna de hash: a chave antiga NÃO autentica (falha fechada)
 ok    e a retaguarda não aceita qualquer coisa
-ok    o uso é registrado, para dar para saber se a chave ainda está viva  — {'ultimo_uso': '2026-11-01T21:16:39.453671'}
+ok    o uso é registrado, para dar para saber se a chave ainda está viva  — {'ultimo_uso': '2026-11-01T22:36:18.384601'}
 ok    e falhar ao gravar o rastro não derruba a requisição válida
 ok    cada chave gerada é diferente
 ok    chave tem tamanho e prefixo esperados  — 49 caracteres
@@ -232,7 +298,7 @@ ok    e credencial falsa não basta  — 401
 ok    autenticado continua funcionando  — 200
 — a classe de erro, não só as instâncias —
 ok    toda rota que recebe credencial a usa  — []
-ok    nenhuma rota confere só a assinatura do token  — [] (auth_refresh é a exceção: ele mesmo confere o cadastro)
+ok    nenhuma rota confere só a assinatura do token  — [] (auth_refresh e auth_login_2fa são as exceções: eles mesmos conferem o cadastro)
 RESULTADO: tudo certo
 ```
 
@@ -357,10 +423,10 @@ RESULTADO: tudo certo
 ```
 — exceção não tratada —
 ok    responde 500  — 500
-ok    a senha não vai na resposta  — {"detail":"Erro interno. Se persistir, informe o código ao suporte: 86c41719","c
+ok    a senha não vai na resposta  — {"detail":"Erro interno. Se persistir, informe o código ao suporte: eadc9d53","c
 ok    o host interno também não
 ok    nem o nome da exceção
-ok    a resposta traz um código curto, repetido na mensagem  — 86c41719
+ok    a resposta traz um código curto, repetido na mensagem  — eadc9d53
 ok    e o mesmo código está no log  — 1 evento(s)
 ok    o log guarda o tipo do erro  — RuntimeError = chegou não tratada, pelo middleware; HTTPException = pelo handler
 ok    e o traceback completo  — é ele que responde 'onde quebrou'
@@ -373,7 +439,7 @@ ok    e origem desconhecida continua sem CORS  — a lista de permitidas não mu
 — controle: o handler comum de Exception —
 ok    um handler comum de Exception devolve 500 SEM cabeçalho CORS  — é a premissa do módulo: sem isto o navegador esconde o corpo
 — HTTPException(500) com detail vazando —
-ok    o texto da exceção deixa de sair  — {"detail":"Erro interno. Se persistir, informe o código ao suporte: 8aa87010","c
+ok    o texto da exceção deixa de sair  — {"detail":"Erro interno. Se persistir, informe o código ao suporte: 18eee4b7","c
 ok    e vai para o log, com a credencial da URL mascarada  — Erro na análise: postgresql://***:***@db.interno.acme:5432/p
 ok    o traceback encadeado mostra a causa original  — o `raise ... from` implícito preserva o erro de dentro
 — o que não mudou —
@@ -557,7 +623,7 @@ ok    corpo inválido: 400
 — convite —
 ok    operador não gera convite
 ok    devedor de outra empresa: 404
-ok    admin recebe o link do bot  — {'codigo': 'ff0dc333773e4b59bcf24014060bdef23mBiUbLzMZPk', 'expira_em': '2026-11-08T21:17:
+ok    admin recebe o link do bot  — {'codigo': 'd240b6fb314c4d98a26d3b615615778fxjdq9fT6SvX6', 'expira_em': '2026-11-08T22:36:
 ok    o caso guarda só o hash do segredo
 ok    o código cabe no limite do Telegram (64)  — 44
 — vínculo —
@@ -565,11 +631,11 @@ ok    o código cabe no limite do Telegram (64)  — 44
 ok    código adulterado não liga
 ok    e nada ficou ligado
 [Telegram] sendChatAction falhou: gaierror
-[Telegram] vinculado em 13.7s
+[Telegram] vinculado em 13.5s
 ok    convite certo liga o chat e o agente abre com a mesma abordagem do Mizan  — [('555', 'Olá, Maria! Aqui é o assistente virtual de Banco Demonstração. Tudo bem? Antes de seguirmos, posso confirmar se estou falando com você? É um assunto d
-ok    a abertura fica no caso (o chat do Mizan mostra a mesma conversa)  — [{'empresa_id': 'goias', 'caso_id': 'ff0dc333-773e-4b59-bcf2-4014060bdef2', 'direcao': 'saida', 'texto': 'Olá, Maria! Aqui é o assistente virtual de Banco Demon
+ok    a abertura fica no caso (o chat do Mizan mostra a mesma conversa)  — [{'empresa_id': 'goias', 'caso_id': 'd240b6fb-314c-4d98-a26d-3b615615778f', 'direcao': 'saida', 'texto': 'Olá, Maria! Aqui é o assistente virtual de Banco Demon
 ok    a conversa recomeça na abertura do Telegram
-ok    a tela vê "ligado", sem o chat_id  — {'configurado': True, 'ligado': True, 'desde': '2026-11-01T21:17:13.325150+00:00', 'bloqueado': False, 'convite_pendente_ate': None, 'tentativa_outro_chat_em': None}
+ok    a tela vê "ligado", sem o chat_id  — {'configurado': True, 'ligado': True, 'desde': '2026-11-01T22:36:54.546964+00:00', 'bloqueado': False, 'convite_pendente_ate': None, 'tentativa_outro_chat_em': None}
 [Telegram] ja_ligado em 0.0s
 ok    a mesma pessoa abre o link de novo: "você já está conectado"
 [Telegram] ja_ligado em 0.0s
@@ -599,7 +665,7 @@ ok    depois de desligado, o chat só recebe a instrução
 [Telegram] sendChatAction falhou: gaierror
 [Telegram] vinculado em 0.1s
 — conversa —
-[Telegram] mensagem em 0.1s
+[Telegram] mensagem em 0.0s
 ok    mensagem aceita
 ok    a resposta do agente chegou ao Telegram do devedor  — [('555', 'Obrigado, Maria. Quanto você consegue pagar por mês?')]
 [Telegram] repetido em 0.0s
@@ -607,14 +673,13 @@ ok    o mesmo update reenviado pelo Telegram não duplica a resposta
 ok    o caso registra a entrada e a resposta  — ['saida', 'entrada', 'saida']
 ok    o agente não se apresenta de novo: a abertura já fez isso  — [('555', 'Obrigado, Maria. Quanto você consegue pagar por mês?')]
 ok    a identidade foi confirmada pelo Telegram
-[Telegram] sendChatAction falhou: gaierror
 ok    com o Telegram ligado, a tela não escreve pelo devedor (a conversa é uma só)  — 409
 — Telegram novo no mesmo caso —
 [Telegram] sendChatAction falhou: gaierror
 [Telegram] vinculado em 0.1s
-ok    outra pessoa ligou: a identidade precisa ser confirmada de novo
+[Telegram] sendChatAction falhou: gaierrorok    outra pessoa ligou: a identidade precisa ser confirmada de novo
 ok    e ela recebe a mesma abertura, não a resposta dada à outra pessoa  — [('4242', 'Olá, Maria! Aqui é o assistente virtual de Banco Demonstração. Tudo bem? Antes de seguirmos, posso confirmar se estou falando com você? É um assunto 
-ok    a IA lê só a conversa a partir daí, sem o que a outra pessoa disse  — [{'empresa_id': 'goias', 'caso_id': 'ff0dc333-773e-4b59-bcf2-4014060bdef2', 'direcao': 'saida', 'texto': 'Olá, Maria! Aqui é o assistente virtual de Banco Demon
+ok    a IA lê só a conversa a partir daí, sem o que a outra pessoa disse  — [{'empresa_id': 'goias', 'caso_id': 'd240b6fb-314c-4d98-a26d-3b615615778f', 'direcao': 'saida', 'texto': 'Olá, Maria! Aqui é o assistente virtual de Banco Demon
 [Telegram] sendChatAction falhou: gaierror
 [Telegram] sendChatAction falhou: gaierror
 [Telegram] vinculado em 0.1s
@@ -633,10 +698,9 @@ ok    foto ou áudio: avisa que só lê texto, uma vez (sem repetir a cada foto)
 [Telegram] mensagem em 0.0s
 ok    falha de rede não derruba o atendimento
 ok    a mensagem continua registrada no caso
-[Telegram] sendChatAction falhou: gaierror
-[Telegram] mensagem em 0.0s
-ok    na rodada seguinte, o que tinha falhado vai antes, na ordem  — [('555', 'Posso explicar sim.'), ('555', 'Os juros já estão no valor.')]
 [Telegram] mensagem em 0.0s[Telegram] sendChatAction falhou: gaierror
+ok    na rodada seguinte, o que tinha falhado vai antes, na ordem  — [('555', 'Posso explicar sim.'), ('555', 'Os juros já estão no valor.')]
+[Telegram] mensagem em 0.0s
 ok    e nada é entregue duas vezes  — [('555', 'Certo.')]
 — devedor bloqueou o bot —
 [Telegram] mensagem em 0.0s
@@ -644,23 +708,24 @@ ok    e nada é entregue duas vezes  — [('555', 'Certo.')]
 ok    o caso fica marcado como bloqueado
 ok    e não se tenta mais enquanto ele não voltar
 [Telegram] mensagem em 0.0s
-[Telegram] sendChatAction falhou: gaierror
 ok    voltou a escrever: desbloqueia e a resposta chega  — ['Que bom que voltou.']
 ok    o que falhou com o bot bloqueado não chega atrasado  — ['Que bom que voltou.']
 — atendente responde pelo chat do Mizan —
-ok    enquanto o agente cuida do caso, a pessoa não fala por cima  — 409
 [Telegram] sendChatAction falhou: gaierror
+ok    enquanto o agente cuida do caso, a pessoa não fala por cima  — 409
 ok    a equipe assumiu o caso
 ok    o devedor fica sabendo que agora fala com uma pessoa  — [('555', 'A partir de agora, uma pessoa da equipe vai continuar o seu atendimento por aqui.')]
 ok    a resposta da pessoa é entregue  — 200
 ok    e chega exatamente ao Telegram ligado ao caso  — [('555', 'A partir de agora, uma pessoa da equipe vai continuar o seu atendimento por aqui.'), ('555', 'Oi, sou do banco. Posso ajudar?')]
 ok    fica registrada no caso, marcada como da pessoa
 ok    o aviso de passagem também fica no caso
-ok    lista de atendimentos: respondido, não espera  — [{'predicao_id': 'p1', 'nome': 'Maria das Dores', 'esperando': False, 'desde': '2026-11-01T21:17:27.996428+00:00', 'ultima_em': '2026-11-01T21:17:28.066434+00:00', 'telegram': True}]
+ok    lista de atendimentos: respondido, não espera  — [{'predicao_id': 'p1', 'nome': 'Maria das Dores', 'esperando': False, 'desde': '2026-11-01T22:37:09.018607+00:00', 'ultima_em': '2026-11-01T22:37:09.076470+00:00', 'telegram': True}]
 [Telegram] mensagem em 0.0s
+[Telegram] sendChatAction falhou: gaierror
 ok    o que o devedor responde aparece no chat do Mizan
 ok    e o agente não responde por cima enquanto o caso está com a pessoa  — []
 ok    e o caso aparece como esperando resposta da equipe
+[Telegram] sendChatAction falhou: gaierror
 ok    mensagem vazia: 422
 ok    outra empresa: 404
 ok    outra empresa não vê os atendimentos
@@ -688,10 +753,10 @@ ok    o plano abriu a conversa com o João antes do convite
 ok    ao ligar, ele recebe a abertura que já estava no caso (sem duplicar no Mizan)  — [('2020', 'Olá, João! Aqui é o assistente virtual de Banco Demonstração. Tudo bem? Antes de seguirmos, posso confirmar se estou falando com você? É um assunto d
 ok    abriu o convite às 2h: o agente responde na hora (foi a pessoa quem chamou)  — [('3030', 'Olá, Ana! Aqui é o assistente virtual de Banco Demonstração. Tudo bem? Antes de seguirmos, posso confirmar se estou falando com você? É um assunto do
 — mensagens seguidas: uma resposta só, como no Mizan —
-ok    mensagem que chega antes de o agente responder entra na mesma rodada  — {'acao': 'juntou', 'caso_id': 'd8fc55af-35dd-4400-8f1e-f6954ea9e0a0'}
+ok    mensagem que chega antes de o agente responder entra na mesma rodada  — {'acao': 'juntou', 'caso_id': '46b3ae43-212f-492c-9180-637df708ea63'}
 ok    o reenvio de uma mensagem juntada não duplica
 ok    três mensagens seguidas, uma resposta  — [('3131', 'Que bom, Ana! Como posso ajudar?')]
-ok    o Mizan mostra as três juntas e a resposta  — [{'empresa_id': 'goias', 'caso_id': 'd8fc55af-35dd-4400-8f1e-f6954ea9e0a0', 'direcao': 'entrada', 'texto': 'oi\nsou eu sim\npode falar', 'trace_id': '351e9a1af46444e69452d653bdad897e', 'criado_em': da
+ok    o Mizan mostra as três juntas e a resposta  — [{'empresa_id': 'goias', 'caso_id': '46b3ae43-212f-492c-9180-637df708ea63', 'direcao': 'entrada', 'texto': 'oi\nsou eu sim\npode falar', 'trace_id': '0420e4713fbb4ce1b17b5630f2af694d', 'criado_em': da
 — o que o Telegram grava durante a resposta não se perde —
 ok    o agente não apaga o que o webhook gravou enquanto ele respondia
 ok    desligado no meio da resposta: o chat continua desligado e nada é enviado  — []
@@ -704,6 +769,7 @@ ok    desligado no meio da resposta: o chat continua desligado e nada é enviado
 
 ```
 — login: e-mail normalizado e IP real —
+[Login] limite no banco indisponível (AttributeError); valendo a contagem em memória
 ok    maiúsculas e espaços contam no mesmo limite do e-mail  — 429
 ok    outro IP (o primeiro do X-Forwarded-For) HERDA o bloqueio do e-mail  — 429
 ok    primeiro_ip lê o cliente, não o proxy
