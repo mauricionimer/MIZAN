@@ -17,7 +17,7 @@ Este repositório concentra os materiais de apresentacao e demonstracao do Mizan
 
 ## Relatorios de acompanhamento
 
-- [Relatorio TERCEIRA ENTREGA, 01/11/2026](docs/RELATORIO_01_11.md) ([PDF enviado](<entregaveis/akcit-camp-2026/Relatório TERCEIRA ENTREGA_Mizan_01-11-2026.pdf>))
+- [Entrega quinzenal Mizan, 1 de novembro de 2026](docs/RELATORIO_01_11.md) ([PDF enviado](<entregaveis/akcit-camp-2026/Relatório TERCEIRA ENTREGA_Mizan_01-11-2026.pdf>))
 - [Relatorio de 18/10/2026](docs/RELATORIO_18_10.md)
 - [Prova de seguranca (resultado mais recente)](docs/PROVA_SEGURANCA_RESULTADO.md)
 
