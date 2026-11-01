@@ -8,7 +8,7 @@ import time as _time
 import uuid
 from collections import OrderedDict, defaultdict
 from contextlib import asynccontextmanager
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from types import SimpleNamespace
 from typing import Optional
 
@@ -77,45 +77,40 @@ def _tentativas(chave: str) -> list:
     return lista
 
 
-def _checar_rate_limit(chave: str, maximo: int = _RATE_MAX) -> None:
+def _db_do_limite():
+    try:
+        return get_db()
+    except Exception:
+        return None
+
+
+def _checar_rate_limit(chave: str, maximo: int = _RATE_MAX, janela: int = _RATE_JANELA) -> None:
+    """Conta os erros na memória E no banco (limite_login.py): reiniciar o servidor
+    não zera a conta. Banco fora não abre nada: vale a contagem em memória."""
     agora = _time.time()
-    _tentativas_login[chave] = [t for t in _tentativas(chave) if agora - t < _RATE_JANELA]
-    # Complementa memória com registros persistidos (sobrevive a restart). Falha
-    # aqui não abre nada: a contagem em memória continua valendo.
-    if len(_tentativas_login[chave]) < maximo:
-        try:
-            res = get_db().table("rate_limit_login").select("tentativas").eq("chave", chave).limit(1).execute()
-            if res.data:
-                externas = [t for t in res.data[0].get("tentativas", []) if agora - t < _RATE_JANELA]
-                _tentativas_login[chave] = list(set(_tentativas_login[chave]) | set(externas))
-        except Exception:
-            pass
-    if len(_tentativas_login[chave]) >= maximo:
+    _tentativas_login[chave] = [t for t in _tentativas(chave) if agora - t < janela]
+    n = len(_tentativas_login[chave])
+    if n < maximo:
+        db = _db_do_limite()
+        do_banco = _limite_login.contar(db, chave, janela) if db is not None else None
+        if do_banco is not None:
+            n = max(n, do_banco)
+    if n >= maximo:
         raise HTTPException(status_code=429, detail="Muitas tentativas de login. Aguarde 15 minutos.")
 
 
 def _registrar_tentativa(chave: str, maximo: int = _RATE_MAX) -> None:
-    agora = _time.time()
-    _tentativas(chave).append(agora)
-    # Persiste apenas quando chega no limite (evita DB call em toda tentativa)
-    if len(_tentativas_login[chave]) >= maximo:
-        import threading
-        def _persist():
-            try:
-                get_db().table("rate_limit_login").upsert(
-                    {"chave": chave, "tentativas": _tentativas_login.get(chave, []), "updated_at": agora}
-                ).execute()
-            except Exception:
-                pass
-        threading.Thread(target=_persist, daemon=True).start()
+    _tentativas(chave).append(_time.time())
+    db = _db_do_limite()
+    if db is not None:
+        _limite_login.registrar(db, chave)        # na hora, cada erro (não só ao bater o limite)
 
 
 def _limpar_tentativas(chave: str) -> None:
     _tentativas_login.pop(chave, None)
-    try:
-        get_db().table("rate_limit_login").delete().eq("chave", chave).execute()
-    except Exception:
-        pass
+    db = _db_do_limite()
+    if db is not None:
+        _limite_login.limpar(db, chave)
 
 # ---------------------------------------------------------------------------
 # Cache TTL simples em memória
@@ -427,6 +422,8 @@ _ALLOWED_ORIGINS = [
 # cliente vê só "Failed to fetch", sem o código do erro. Ver erros.py.
 import erros as _erros                                     # noqa: E402
 import limite as _limite                                   # noqa: E402
+import limite_login as _limite_login                       # noqa: E402
+import dois_fatores as _2fa                                # noqa: E402
 import travas as _travas                                   # noqa: E402
 # Ordem de instalação, da mais interna para a mais externa: limite, captura de
 # erros, CORS. O limite rejeita antes de o corpo ser lido e precisa estar por
@@ -517,7 +514,22 @@ def _conferir_versao_da_senha(payload: dict, user: dict) -> None:
         raise HTTPException(status_code=401, detail="Sessão encerrada: a senha foi alterada. Entre de novo.")
 
 
-def _usuario_autenticado(credentials: HTTPAuthorizationCredentials) -> dict:
+def _conferir_2fa(payload: dict, user: dict, configurando: bool = False) -> None:
+    """Verificação em duas etapas (dois_fatores.py), a cada chamada:
+    - 2FA ligado: só vale token que passou pelo código (mfa). Sessão aberta antes de
+      ligar, ou em outro aparelho sem o código, cai (401) e entra de novo;
+    - papel obrigado (admin e comando) sem 2FA: só as rotas de configurar respondem; o
+      resto devolve 403 com o aviso, e a tela abre a configuração.
+    Antes da migração do banco ninguém é obrigado (ninguém fica trancado do lado de fora)."""
+    if _2fa.ativo(user):
+        if not payload.get("mfa"):
+            raise HTTPException(status_code=401, detail=_2fa.MSG_SESSAO_SEM_2FA)
+        return
+    if _2fa.obrigatorio(user) and not configurando:
+        raise HTTPException(status_code=403, detail=_2fa.MSG_OBRIGATORIO)
+
+
+def _usuario_autenticado(credentials: HTTPAuthorizationCredentials, configurando_2fa: bool = False) -> dict:
     """Valida JWT e verifica que o usuário ainda está ativo no banco.
     Levanta 401 para token inválido/expirado ou usuário desativado."""
     try:
@@ -528,6 +540,7 @@ def _usuario_autenticado(credentials: HTTPAuthorizationCredentials) -> dict:
     if not user or not user.get("ativo"):
         raise HTTPException(status_code=401, detail="Usuário inativo ou não encontrado.")
     _conferir_versao_da_senha(payload, user)
+    _conferir_2fa(payload, user, configurando_2fa)
 
     # O token prova QUEM é o usuário. O que ele pode fazer vem do cadastro, a
     # cada chamada. O JWT dura sete dias e carrega role e empresa_id de quando
@@ -1621,19 +1634,32 @@ def auth_login(body: LoginIn, request: Request):
             usuario = {**usuario, "senha_hash": novo_hash}
         except Exception as e:
             _erros.registrar({"path": "/auth/login", "method": "POST"}, e, 200)
+    from auth import versao_da_senha, publico
+    if _2fa.ativo(usuario):
+        # Senha certa, falta o código: nada de sessão ainda. O desafio só serve para
+        # /auth/login/2fa, vale 5 minutos e não abre nenhuma outra rota.
+        desafio = criar_token({"sub": usuario["id"], "fin": "2fa", "sv": versao_da_senha(usuario),
+                               "auth_time": int(_time.time())}, expira_s=_2fa.DESAFIO_VALIDADE_S)
+        return {"requer_2fa": True, "desafio": desafio}
+    token = _token_de_sessao(usuario, int(_time.time()), mfa=False)
+    resposta = {"token": token, "usuario": publico(usuario)}
+    if _2fa.obrigatorio(usuario):
+        resposta["configurar_2fa"] = True          # a tela abre a configuração antes do resto
+    return resposta
+
+
+def _token_de_sessao(usuario: dict, auth_time: int, mfa: bool) -> str:
     from auth import versao_da_senha
-    token = criar_token({"sub": usuario["id"], "email": usuario["email"],
-                         "nome": usuario["nome"], "role": usuario["role"],
-                         "empresa_id": usuario.get("empresa_id", ""),
-                         "sv": versao_da_senha(usuario),
-                         "auth_time": int(_time.time())})
-    return {"token": token, "usuario": {k: v for k, v in usuario.items() if k != "senha_hash"}}
+    return criar_token({"sub": usuario["id"], "email": usuario["email"],
+                        "nome": usuario["nome"], "role": usuario["role"],
+                        "empresa_id": usuario.get("empresa_id", ""),
+                        "sv": versao_da_senha(usuario), "auth_time": auth_time, "mfa": bool(mfa)})
 
 @app.get("/auth/me")
 def auth_me(credentials: HTTPAuthorizationCredentials = Security(bearer)):
     # Pelo cadastro, não pelo token: é daqui que a tela decide o que mostrar, e
     # um papel desatualizado exibiria menus que o servidor já recusa.
-    payload = _usuario_autenticado(credentials)
+    payload = _usuario_autenticado(credentials, configurando_2fa=True)
     return {"email": payload["email"], "nome": payload["nome"], "role": payload["role"]}
 
 @app.post("/auth/refresh")
@@ -1654,14 +1680,15 @@ def auth_refresh(credentials: HTTPAuthorizationCredentials = Security(bearer)):
     auth_time = payload.get("auth_time") or payload.get("iat") or 0
     if _time.time() - auth_time > SESSAO_MAXIMA_S:
         raise HTTPException(status_code=401, detail="Sessão expirada: entre de novo.")
-    new_token = criar_token({
-        "sub": user["id"], "email": user["email"],
-        "nome": user["nome"], "role": user["role"],
-        "empresa_id": user.get("empresa_id", ""),
-        "sv": versao_da_senha(user),
-        "auth_time": auth_time,
-    })
-    return {"token": new_token, "usuario": {k: v for k, v in user.items() if k != "senha_hash"}}
+    # Renovar não pula a segunda etapa: com o 2FA ligado, só renova quem passou por ela.
+    if _2fa.ativo(user) and not payload.get("mfa"):
+        raise HTTPException(status_code=401, detail=_2fa.MSG_SESSAO_SEM_2FA)
+    from auth import publico
+    new_token = _token_de_sessao(user, auth_time, mfa=bool(payload.get("mfa")))
+    resposta = {"token": new_token, "usuario": publico(user)}
+    if _2fa.obrigatorio(user) and not _2fa.ativo(user):
+        resposta["configurar_2fa"] = True
+    return resposta
 
 @app.get("/auth/usuarios")
 def auth_listar(credentials: HTTPAuthorizationCredentials = Security(bearer)):
@@ -1725,8 +1752,227 @@ def auth_alterar_senha(body: AlterarSenhaIn, credentials: HTTPAuthorizationCrede
     u = buscar_usuario_por_id(payload["sub"]) or {}
     novo = criar_token({"sub": payload["sub"], "email": payload["email"], "nome": payload.get("nome", ""),
                         "role": payload.get("role"), "empresa_id": payload.get("empresa_id", ""),
-                        "sv": versao_da_senha(u), "auth_time": int(_time.time())})
+                        "sv": versao_da_senha(u), "auth_time": int(_time.time()),
+                        "mfa": bool(payload.get("mfa"))})
     return {"ok": True, "token": novo}
+
+
+# ── Verificação em duas etapas (dois_fatores.py, sql/migracao_seguranca_2fa.sql) ──
+# Erros de código nestas rotas são 400 (não 401): na tela, 401 encerra a sessão.
+
+_2FA_LIMPO = {"totp_ativo": False, "totp_segredo": None, "totp_pendente": None, "totp_pendente_em": None,
+              "totp_ativado_em": None, "totp_ultimo_passo": None, "totp_recuperacao": None}
+_2FA_MAX_DIA = 15                  # além de 5 a cada 15 min: um teto por dia por pessoa
+
+
+class Login2faIn(BaseModel):
+    desafio: str = Field(..., max_length=2000)
+    codigo:  str = Field(..., max_length=20)
+
+
+class Codigo2faIn(BaseModel):
+    codigo: str = Field("", max_length=20)
+    senha:  str = Field("", max_length=200)
+
+
+class Desativar2faIn(BaseModel):
+    senha:  str = Field(..., max_length=200)
+    codigo: str = Field(..., max_length=20)
+
+
+def _checar_limite_2fa(uid: str) -> None:
+    _checar_rate_limit(f"2fa:{uid}")
+    _checar_rate_limit(f"2fa:dia:{uid}", _2FA_MAX_DIA, janela=86400)
+
+
+def _erro_2fa(uid: str) -> None:
+    _registrar_tentativa(f"2fa:{uid}")
+    _registrar_tentativa(f"2fa:dia:{uid}", _2FA_MAX_DIA)
+
+
+def _gravar_uso_2fa(usuario: dict, mudanca: dict) -> bool:
+    """Grava o código usado. O do app só vale se for mais novo que o último gravado
+    (dois pedidos com o mesmo código ao mesmo tempo: só um passa)."""
+    q = get_db().table("usuarios").update(mudanca).eq("id", usuario["id"])
+    if "totp_ultimo_passo" in mudanca:
+        q = q.or_(f"totp_ultimo_passo.is.null,totp_ultimo_passo.lt.{int(mudanca['totp_ultimo_passo'])}")
+    return bool(q.execute().data)
+
+
+def _usuario_2fa(payload: dict) -> dict:
+    u = buscar_usuario_por_id(payload["sub"]) or {}
+    if not _2fa.migrado(u):
+        raise HTTPException(status_code=503, detail="A verificação em duas etapas ainda não foi habilitada "
+                                                    "no banco (sql/migracao_seguranca_2fa.sql).")
+    return u
+
+
+@app.post("/auth/login/2fa")
+def auth_login_2fa(body: Login2faIn):
+    """Segunda etapa do login: o código de 6 dígitos do app (ou um de recuperação)."""
+    try:
+        d = validar_token(body.desafio, finalidade="2fa")
+    except ValueError:
+        raise HTTPException(status_code=401, detail="O tempo para digitar o código acabou. Entre de novo.")
+    uid = d["sub"]
+    _checar_limite_2fa(uid)
+    usuario = buscar_usuario_por_id(uid)
+    from auth import versao_da_senha, publico
+    if (not usuario or not usuario.get("ativo") or not _2fa.ativo(usuario)
+            or d.get("sv") != versao_da_senha(usuario)):
+        raise HTTPException(status_code=401, detail="Entre de novo.")
+    mudanca = _2fa.conferir_codigo(usuario, body.codigo)
+    if mudanca is None:
+        _erro_2fa(uid)
+        if _2fa.codigo_ja_usado(usuario, body.codigo):
+            raise HTTPException(status_code=401, detail="Esse código já foi usado. Espere o próximo código do app.")
+        raise HTTPException(status_code=401, detail="Código incorreto.")
+    try:
+        if not _gravar_uso_2fa(usuario, mudanca):
+            _erro_2fa(uid)
+            raise HTTPException(status_code=401, detail="Esse código já foi usado. Espere o próximo.")
+    except HTTPException:
+        raise
+    except Exception as e:
+        _erros.registrar({"path": "/auth/login/2fa", "method": "POST"}, e, 503)
+        raise HTTPException(status_code=503, detail="Não foi possível concluir agora. Tente de novo.")
+    _limpar_tentativas(f"2fa:{uid}")
+    if "totp_recuperacao" in mudanca:
+        _registrar_auditoria(acao="2fa_codigo_recuperacao_usado", entidade="usuario", entidade_id=uid,
+                             usuario_email=usuario.get("email"), empresa_id=usuario.get("empresa_id", ""),
+                             usuario_id=uid, detalhes={"restantes": len(mudanca["totp_recuperacao"])})
+    token = _token_de_sessao(usuario, int(d.get("auth_time") or _time.time()), mfa=True)
+    return {"token": token, "usuario": publico({**usuario, **mudanca})}
+
+
+@app.get("/auth/2fa")
+def auth_2fa_situacao(credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    payload = _usuario_autenticado(credentials, configurando_2fa=True)
+    u = buscar_usuario_por_id(payload["sub"]) or {}
+    return {"disponivel": _2fa.migrado(u), "ativo": _2fa.ativo(u), "obrigatorio": _2fa.obrigatorio(u),
+            "codigos_restantes": len(u.get("totp_recuperacao") or []), "ativado_em": u.get("totp_ativado_em")}
+
+
+@app.post("/auth/2fa/iniciar")
+def auth_2fa_iniciar(body: Codigo2faIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Novo segredo para ler no app (QR). Com o 2FA já ligado (trocar de celular), pede o
+    código atual: uma sessão roubada não troca o aparelho de ninguém."""
+    payload = _usuario_autenticado(credentials, configurando_2fa=True)
+    u = _usuario_2fa(payload)
+    uid = u["id"]
+    if _2fa.ativo(u):
+        _checar_limite_2fa(uid)
+        mudanca = _2fa.conferir_codigo(u, body.codigo)
+        if mudanca is None or not _gravar_uso_2fa(u, mudanca):
+            _erro_2fa(uid)
+            raise HTTPException(status_code=400, detail="Digite o código atual do app para trocar de celular.")
+    elif _time.time() - int(payload.get("auth_time") or 0) > _2fa.LOGIN_RECENTE_S:
+        # Sessão antiga (ou roubada) não cadastra o celular de outra pessoa: pede a senha.
+        _checar_limite_2fa(uid)
+        if not body.senha:
+            raise HTTPException(status_code=400, detail=_2fa.MSG_SENHA_PARA_CONFIGURAR)
+        if not verificar_senha(body.senha, u.get("senha_hash") or ""):
+            _erro_2fa(uid)
+            raise HTTPException(status_code=400, detail="Senha incorreta.")
+    segredo = _2fa.novo_segredo()
+    get_db().table("usuarios").update({"totp_pendente": _2fa.cifrar(segredo),
+                                       "totp_pendente_em": datetime.now(timezone.utc).isoformat()}).eq("id", uid).execute()
+    endereco = _2fa.uri(segredo, u.get("email") or "")
+    return {"segredo": segredo, "uri": endereco, "qr": _2fa.qr(endereco)}
+
+
+@app.post("/auth/2fa/confirmar")
+def auth_2fa_confirmar(body: Codigo2faIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Primeiro código do app: liga o 2FA e mostra os códigos de recuperação (uma vez)."""
+    payload = _usuario_autenticado(credentials, configurando_2fa=True)
+    u = _usuario_2fa(payload)
+    uid = u["id"]
+    _checar_rate_limit(f"2fa:conf:{uid}")
+    pendente = _2fa.decifrar(u.get("totp_pendente"))
+    try:
+        desde = datetime.fromisoformat(str(u.get("totp_pendente_em")).replace("Z", "+00:00"))
+        valido = (datetime.now(timezone.utc) - desde).total_seconds() <= _2fa.PENDENTE_VALIDADE_S
+    except (TypeError, ValueError):
+        valido = False
+    if not pendente or not valido:
+        raise HTTPException(status_code=400, detail="O QR code expirou. Comece de novo.")
+    passo = _2fa.verificar(pendente, body.codigo)
+    if passo is None:
+        _registrar_tentativa(f"2fa:conf:{uid}")
+        raise HTTPException(status_code=400, detail="Código incorreto. Confira se a hora do celular está "
+                                                    "automática e tente de novo.")
+    codigos, hashes = _2fa.novos_codigos_recuperacao()
+    get_db().table("usuarios").update({
+        "totp_segredo": _2fa.cifrar(pendente), "totp_ativo": True, "totp_pendente": None, "totp_pendente_em": None,
+        "totp_ativado_em": datetime.now(timezone.utc).isoformat(), "totp_ultimo_passo": passo,
+        "totp_recuperacao": hashes}).eq("id", uid).execute()
+    _limpar_tentativas(f"2fa:conf:{uid}")
+    _registrar_auditoria(acao="2fa_ativado", entidade="usuario", entidade_id=uid, usuario_email=u.get("email"),
+                         empresa_id=u.get("empresa_id", ""), usuario_id=uid)
+    # Esta sessão passa a valer como "com 2FA"; as outras abertas caem.
+    token = _token_de_sessao(u, int(payload.get("auth_time") or _time.time()), mfa=True)
+    return {"ok": True, "codigos_recuperacao": codigos, "token": token}
+
+
+@app.post("/auth/2fa/codigos")
+def auth_2fa_novos_codigos(body: Codigo2faIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Troca os códigos de recuperação (os antigos deixam de valer). Pede o código do app."""
+    payload = _usuario_autenticado(credentials, configurando_2fa=True)
+    u = _usuario_2fa(payload)
+    uid = u["id"]
+    if not _2fa.ativo(u):
+        raise HTTPException(status_code=400, detail="A verificação em duas etapas não está ligada.")
+    _checar_limite_2fa(uid)
+    mudanca = _2fa.conferir_codigo(u, body.codigo)
+    if mudanca is None or not _gravar_uso_2fa(u, mudanca):
+        _erro_2fa(uid)
+        raise HTTPException(status_code=400, detail="Código incorreto.")
+    codigos, hashes = _2fa.novos_codigos_recuperacao()
+    get_db().table("usuarios").update({"totp_recuperacao": hashes}).eq("id", uid).execute()
+    _registrar_auditoria(acao="2fa_novos_codigos", entidade="usuario", entidade_id=uid, usuario_email=u.get("email"),
+                         empresa_id=u.get("empresa_id", ""), usuario_id=uid)
+    return {"codigos_recuperacao": codigos}
+
+
+@app.post("/auth/2fa/desativar")
+def auth_2fa_desativar(body: Desativar2faIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Desliga o 2FA de quem não é obrigado a ter. Pede a senha E o código."""
+    payload = _usuario_autenticado(credentials, configurando_2fa=True)
+    u = _usuario_2fa(payload)
+    uid = u["id"]
+    if _2fa.obrigatorio(u):
+        raise HTTPException(status_code=403, detail="Para administradores a verificação em duas etapas é "
+                                                    "obrigatória. Para trocar de celular, configure de novo.")
+    if not _2fa.ativo(u):
+        return {"ok": True}
+    _checar_limite_2fa(uid)
+    mudanca = _2fa.conferir_codigo(u, body.codigo)
+    if not verificar_senha(body.senha or "", u.get("senha_hash") or "") or mudanca is None:
+        _erro_2fa(uid)
+        raise HTTPException(status_code=400, detail="Senha ou código incorreto.")
+    get_db().table("usuarios").update(_2FA_LIMPO).eq("id", uid).execute()
+    _registrar_auditoria(acao="2fa_desativado", entidade="usuario", entidade_id=uid, usuario_email=u.get("email"),
+                         empresa_id=u.get("empresa_id", ""), usuario_id=uid)
+    return {"ok": True, "token": _token_de_sessao(u, int(payload.get("auth_time") or _time.time()), mfa=False)}
+
+
+@app.delete("/auth/usuarios/{usuario_id}/2fa")
+def auth_2fa_redefinir(usuario_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """COMANDO redefine o 2FA de quem perdeu o celular e os códigos de recuperação. A
+    pessoa configura de novo no próximo acesso (se for obrigada) ou quando quiser."""
+    payload = _exigir_comando(credentials)
+    alvo = buscar_usuario_por_id(usuario_id)
+    if not alvo:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+    if not _2fa.migrado(alvo):
+        raise HTTPException(status_code=503, detail="A verificação em duas etapas ainda não foi habilitada no banco.")
+    get_db().table("usuarios").update(_2FA_LIMPO).eq("id", usuario_id).execute()
+    for chave in (f"2fa:{usuario_id}", f"2fa:dia:{usuario_id}"):
+        _limpar_tentativas(chave)
+    _registrar_auditoria(acao="2fa_redefinido", entidade="usuario", entidade_id=usuario_id,
+                         usuario_email=payload.get("email"), empresa_id=alvo.get("empresa_id", ""),
+                         usuario_id=payload.get("sub"), detalhes={"alvo": alvo.get("email")})
+    return {"ok": True}
 
 
 class AtivoIn(BaseModel):

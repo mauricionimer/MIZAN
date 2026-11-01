@@ -20,7 +20,7 @@ AQUI = Path(__file__).resolve().parent
 RAIZ = AQUI.parent
 SAIDA = RAIZ / "docs" / "PROVA_SEGURANCA_RESULTADO.md"
 
-PROVAS = ["test_seguranca_estatico.py", "test_seguranca_plano.py"]
+PROVAS = ["test_seguranca_estatico.py", "test_seguranca_plano.py", "test_dois_fatores.py"]
 ANTIGOS = ["test_api_key.py", "test_autorizacao.py", "test_segredos.py", "test_destino_conexao.py",
            "test_conexoes_escopo.py", "test_conexao_sheets.py", "test_erros_internos.py", "test_limite.py",
            "test_escopo_carteira.py", "test_auditoria_acesso.py", "test_varredura_contas.py",

@@ -2,7 +2,7 @@ import ThemeToggle from '../components/ThemeToggle'
 import { useState, useEffect } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { Eye, EyeOff, Loader2, Mail, Lock } from 'lucide-react'
+import { Eye, EyeOff, Loader2, Mail, Lock, ShieldCheck } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { LogoMark } from '../components/Logo'
 import { GlassFold } from '../components/ui/glass-fold'
@@ -19,9 +19,13 @@ export default function Login() {
   const { claro } = useTheme()
   const [searchParams] = useSearchParams()
   const sessionExpirada = searchParams.get('expired') === '1'
-  const { login, loading, erro } = useAuth()
+  const { login, confirmarCodigo, loading, erro, setErro } = useAuth()
   const [email, setEmail]       = useState('')
   const [senha, setSenha]       = useState('')
+  // Segunda etapa (2FA): o desafio que o servidor devolveu depois da senha certa.
+  const [desafio, setDesafio]   = useState(null)
+  const [codigo, setCodigo]     = useState('')
+  const [recuperacao, setRecuperacao] = useState(false)
   const [mostrarSenha, setMostrarSenha] = useState(false)
   const [empresaBrand, setEmpresaBrand] = useState(null)
 
@@ -59,6 +63,22 @@ export default function Login() {
     e.preventDefault()
     const user = await login(email, senha)
     if (!user) return
+    if (user.etapa === '2fa') { setDesafio(user.desafio); setCodigo(''); return }
+    entrar()
+  }
+
+  async function enviarCodigo(e) {
+    e.preventDefault()
+    const user = await confirmarCodigo(desafio, codigo)
+    if (!user) return
+    entrar()
+  }
+
+  function voltarParaSenha() {
+    setDesafio(null); setCodigo(''); setRecuperacao(false); setSenha(''); setErro('')
+  }
+
+  function entrar() {
     // Todo login começa no Início, inclusive após expiração da sessão
     // ou quando a pessoa chega por um link de outra área. O Início oferece
     // "Continuar de onde parou" com a tela que ela tinha aberta.
@@ -128,8 +148,46 @@ export default function Login() {
 
         {/* Card do formulário */}
         <div className="login-card">
-          <h1 className="login-title">Entrar</h1>
+          <h1 className="login-title">{desafio ? 'Verificação em duas etapas' : 'Entrar'}</h1>
 
+          {desafio ? (
+            <form onSubmit={enviarCodigo} className="space-y-5 mt-7">
+              <p className="text-sm text-center" style={{ color: 'var(--glass-muted)' }}>
+                {recuperacao
+                  ? 'Digite um dos seus códigos de recuperação (cada um vale uma vez).'
+                  : 'Abra o app autenticador no celular e digite o código de 6 dígitos do Mizan.'}
+              </p>
+              <FormInput
+                id="login-codigo"
+                type="text"
+                icon={<ShieldCheck size={18} />}
+                value={codigo}
+                onChange={e => setCodigo(recuperacao ? e.target.value : e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder={recuperacao ? 'xxxxx-xxxxx' : '000000'}
+                aria-label={recuperacao ? 'Código de recuperação' : 'Código de 6 dígitos'}
+                inputMode={recuperacao ? 'text' : 'numeric'}
+                autoComplete="one-time-code"
+                required
+                autoFocus
+              />
+              {erro && (
+                <div role="alert" className="text-sm rounded px-4 py-3"
+                  style={{ color: 'var(--danger)', background: 'var(--danger-soft)', border: '1px solid var(--danger)' }}>
+                  {erro}
+                </div>
+              )}
+              <button type="submit" disabled={loading || (!recuperacao && codigo.length !== 6)}
+                className="btn-primary login-enviar w-full py-3">
+                {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> Conferindo...</> : 'Confirmar'}
+              </button>
+              <div className="flex justify-between text-xs">
+                <button type="button" className="login-link" onClick={() => { setRecuperacao(r => !r); setCodigo(''); setErro('') }}>
+                  {recuperacao ? 'Usar o código do app' : 'Perdi o celular: usar código de recuperação'}
+                </button>
+                <button type="button" className="login-link" onClick={voltarParaSenha}>Voltar</button>
+              </div>
+            </form>
+          ) : (
           <form onSubmit={handleSubmit} className="space-y-5 mt-7">
             {sessionExpirada && (
               <div role="status" className="p-3.5 rounded text-sm text-center"
@@ -189,6 +247,7 @@ export default function Login() {
                 : 'Entrar'}
             </button>
           </form>
+          )}
 
           <p className="mt-7 text-center text-xs" style={{ color: 'var(--glass-muted)' }}>
             <a href="/privacidade" className="underline hover:text-[var(--glass-ink)] transition-colors">

@@ -4,7 +4,7 @@ import AppShell from '../components/AppShell'
 import { useConfirmar } from '../components/ConfirmarModal'
 import { useAuth } from '../context/AuthContext'
 import {
-  listarUsuarios, registrarUsuario, toggleUsuarioAtivo, alterarRoleUsuario,
+  listarUsuarios, registrarUsuario, toggleUsuarioAtivo, alterarRoleUsuario, redefinir2faUsuario,
   listarConexoes, listarPermissoesConexao, concederPermissaoConexao, revogarPermissaoConexao,
   listarEmpresas, adicionarUsuarioEmpresa, removerUsuarioEmpresa, deletarEmpresa,
   putEmpresaConfig, uploadEmpresaFoto, getEmpresaConfigPublica,
@@ -758,6 +758,19 @@ export default function AdminUsuarios() {
     } catch (e) { setErro(e.message) }
   }
 
+  // Para quem perdeu o celular e os códigos de recuperação (só COMANDO).
+  async function handleRedefinir2fa(u) {
+    const ok = await pedirConfirmacao({ titulo: `Redefinir a verificação em duas etapas de ${u.nome}?`,
+      texto: 'Use só se a pessoa perdeu o celular e os códigos de recuperação. No próximo acesso ela configura de novo com o celular novo.',
+      confirmar: 'Redefinir', perigo: true })
+    if (!ok) return
+    setErro('')
+    try {
+      await redefinir2faUsuario(u.id)
+      flash(`Verificação em duas etapas de ${u.nome} redefinida.`)
+    } catch (e) { setErro(e.message) }
+  }
+
   async function handleRegistrar(e) {
     e.preventDefault(); setFormErro('')
     const empresa = form.role === 'comando' ? ''
@@ -1017,6 +1030,14 @@ export default function AdminUsuarios() {
                                       ? <ShieldOff className="w-4 h-4 text-violet-400 shrink-0" />
                                       : <ShieldCheck className="w-4 h-4 shrink-0" />}
                                     {ROTULO_ROLE[u.role]?.acao || 'Promover'}
+                                  </button>
+                                )}
+                                {isComando && (
+                                  <button type="button" onClick={() => handleRedefinir2fa(u)} title="Redefinir a verificação em duas etapas"
+                                    className="flex items-center gap-1 px-2 py-1 rounded-lg transition-colors text-xs font-medium whitespace-nowrap" style={{ color: 'var(--ink-3)' }}
+                                    onMouseOver={e => { e.currentTarget.style.background = 'var(--raise-3)'; e.currentTarget.style.color = 'var(--ink)' }}
+                                    onMouseOut={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--ink-3)' }}>
+                                    2FA
                                   </button>
                                 )}
                               </>

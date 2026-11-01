@@ -153,6 +153,9 @@ async function executarPedido(caminho, { metodo = 'GET', corpo, form, token, que
   if (!res.ok) {
     const dados = await res.json().catch(() => null)
     const detail = dados?.detail ?? dados?.message
+    // Administrador sem a verificação em duas etapas: o servidor só responde às rotas
+    // de configurar. A tela abre a configuração (AuthContext escuta o evento).
+    if (res.status === 403 && detail === MSG_2FA_OBRIGATORIO) window.dispatchEvent(new Event('mizan:2fa-obrigatorio'))
     throw Object.assign(new Error(textoDoDetalhe(detail, res.status)), { status: res.status, detail })
   }
   const texto = await res.text()
@@ -342,6 +345,42 @@ export async function deletarConta(senha) {
 // Devolve { token } novo: as outras sessões abertas caem, esta continua.
 export async function alterarSenha(senhaAtual, novaSenha) {
   return pedir('/auth/alterar-senha', { metodo: 'POST', corpo: { senha_atual: senhaAtual, nova_senha: novaSenha } })
+}
+
+// ── Verificação em duas etapas (backend/dois_fatores.py) ────────────────────
+// Mesmo texto do servidor (dois_fatores.MSG_OBRIGATORIO): é por ele que a tela sabe
+// que precisa abrir a configuração.
+export const MSG_2FA_OBRIGATORIO = 'Configure a verificação em duas etapas para continuar: ' +
+  'ela é obrigatória para administradores.'
+
+export async function situacao2fa() {
+  return pedir('/auth/2fa')
+}
+
+// { segredo, uri, qr }. Com o 2FA já ligado (trocar de celular), pede o código atual;
+// numa sessão de mais de 15 minutos, pede a senha (MSG_SENHA_PARA_CONFIGURAR).
+export async function iniciar2fa(codigo = '', senha = '') {
+  return pedir('/auth/2fa/iniciar', { metodo: 'POST', corpo: { codigo, senha } })
+}
+
+export const MSG_SENHA_PARA_CONFIGURAR = 'Por segurança, digite sua senha para configurar.'
+
+// { codigos_recuperacao, token }: o token novo vale como sessão com 2FA.
+export async function confirmar2fa(codigo) {
+  return pedir('/auth/2fa/confirmar', { metodo: 'POST', corpo: { codigo } })
+}
+
+export async function novosCodigos2fa(codigo) {
+  return pedir('/auth/2fa/codigos', { metodo: 'POST', corpo: { codigo } })
+}
+
+export async function desativar2fa(senha, codigo) {
+  return pedir('/auth/2fa/desativar', { metodo: 'POST', corpo: { senha, codigo } })
+}
+
+// Só COMANDO: para quem perdeu o celular e os códigos de recuperação.
+export async function redefinir2faUsuario(usuarioId) {
+  return pedir(`/auth/usuarios/${_id(usuarioId)}/2fa`, { metodo: 'DELETE' })
 }
 
 // ── Contatos ─────────────────────────────────────────────────────────────────

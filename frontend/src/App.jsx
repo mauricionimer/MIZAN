@@ -90,6 +90,7 @@ const AlterarSenha = lazy(paginas.AlterarSenha)
 const EsqueciSenha = lazy(paginas.EsqueciSenha)
 const RedefinirSenha = lazy(paginas.RedefinirSenha)
 const Login = lazy(paginas.Login)
+const DoisFatores = lazy(paginas.DoisFatores)
 const Privacidade = lazy(paginas.Privacidade)
 const Backtest = lazy(paginas.Backtest)
 const PerformanceIA = lazy(paginas.PerformanceIA)
@@ -109,9 +110,11 @@ const AgentePerfil = lazy(paginas.AgentePerfil)
 const LaboratorioPagina = lazy(paginas.LaboratorioPagina)
 
 function RotaProtegida({ children, roles }) {
-  const { autenticado, usuario } = useAuth()
+  const { autenticado, usuario, precisa2fa } = useAuth()
   const location = useLocation()
   if (!autenticado) return <Navigate to="/login" state={{ from: location }} replace />
+  // Administrador sem a verificação em duas etapas: só a configuração, antes de tudo.
+  if (precisa2fa) return <DoisFatores obrigatorio />
   if (roles && !roles.includes(usuario?.role)) return <Navigate to="/inicio" replace />
   return children
 }
@@ -159,6 +162,7 @@ function RotasAnimadas() {
           <Route path="/ajuda" element={<Ajuda />} />
           <Route path="/feedback" element={<Feedback />} />
           <Route path="/alterar-senha" element={<AlterarSenha />} />
+          <Route path="/seguranca" element={<DoisFatores />} />
           <Route path="/bandit" element={P(['comando'], <BanditDashboard />)} />
           <Route path="/aprendizado" element={P(['comando'], <AprendizadoDashboard />)} />
           <Route path="/comando/duvidas" element={P(['comando'], <DuvidasComando />)} />

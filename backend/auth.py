@@ -31,14 +31,16 @@ def _assinar(msg: str) -> str:
     h = hmac.new(SECRET_KEY.encode(), msg.encode(), digestmod=hashlib.sha256)
     return _b64url(h.digest())
 
-def criar_token(payload: dict) -> str:
+def criar_token(payload: dict, expira_s: "int | None" = None) -> str:
     header      = _b64url(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
-    corpo       = {**payload, "iat": int(time.time()), "exp": int(time.time()) + TOKEN_EXPIRE}
+    corpo       = {**payload, "iat": int(time.time()), "exp": int(time.time()) + (expira_s or TOKEN_EXPIRE)}
     payload_enc = _b64url(json.dumps(corpo, ensure_ascii=False).encode())
     msg         = f"{header}.{payload_enc}"
     return f"{msg}.{_assinar(msg)}"
 
-def validar_token(token: str) -> dict:
+def validar_token(token: str, finalidade: "str | None" = None) -> dict:
+    """Token de sessão (finalidade None) ou de uso restrito (ex.: "2fa", o desafio entre
+    a senha certa e o código). Um nunca vale no lugar do outro."""
     try:
         partes = token.split(".")
         if len(partes) != 3:
@@ -50,6 +52,8 @@ def validar_token(token: str) -> dict:
         payload = json.loads(_b64url_dec(p))
         if payload.get("exp", 0) < time.time():
             raise ValueError("token expirado")
+        if payload.get("fin") != finalidade:
+            raise ValueError("token de outro uso")
         return payload
     except ValueError:
         raise
@@ -151,8 +155,23 @@ def _db():
     from db import get_db
     return get_db()
 
+# Nunca saem do servidor: hash da senha e tudo do 2FA (segredo, código pendente,
+# hashes de recuperação). A tela recebe só se o 2FA está ligado.
+CAMPOS_SECRETOS = frozenset({"senha_hash", "totp_segredo", "totp_pendente", "totp_pendente_em",
+                             "totp_recuperacao", "totp_ultimo_passo"})
+
+
+def publico(u: dict | None) -> dict:
+    """O cadastro como pode ir para a tela."""
+    u = u or {}
+    saida = {k: v for k, v in u.items() if k not in CAMPOS_SECRETOS}
+    if "totp_ativo" in u:
+        saida["totp_ativo"] = bool(u.get("totp_ativo"))
+    return saida
+
+
 def _sem_hash(u: dict) -> dict:
-    return {k: v for k, v in u.items() if k != "senha_hash"}
+    return publico(u)
 
 def _empresa_do_email(email: str) -> str:
     return email.split('@')[1] if '@' in email else 'mizan_default'

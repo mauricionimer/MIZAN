@@ -5,7 +5,7 @@ import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'framer-m
 import {
   UploadCloud, KeyRound, LogOut, Loader2, Menu, X,
   Zap, Brain, Command, Lock, HelpCircle, SlidersHorizontal,
-  MessageCircleQuestion, GraduationCap, KeySquare, CalendarClock, Gauge, TrendingUp, Handshake, Bot, LayoutGrid, FolderOpen,
+  MessageCircleQuestion, GraduationCap, KeySquare, CalendarClock, Gauge, TrendingUp, Handshake, Bot, LayoutGrid, FolderOpen, ShieldCheck,
 } from 'lucide-react'
 import ThemeToggle from './ThemeToggle'
 import useAvisosDeDuvida from './useAvisosDeDuvida'
@@ -119,6 +119,7 @@ function useItens() {
       itens: [
         { id: 'ajuda', label: 'Ajuda', icon: HelpCircle, rota: '/ajuda', aviso: avisos.respostas, tituloAviso: 'respostas novas' },
         { id: 'senha', label: 'Alterar senha', icon: KeyRound, rota: '/alterar-senha' },
+        { id: 'seguranca', label: 'Verificação em duas etapas', icon: ShieldCheck, rota: '/seguranca' },
       ],
     },
   ]

@@ -11,6 +11,7 @@ export const paginas = {
   AdminUsuarios: () => import('../pages/AdminUsuarios'),
   Auditoria: () => import('../pages/Auditoria'),
   AlterarSenha: () => import('../pages/AlterarSenha'),
+  DoisFatores: () => import('../pages/DoisFatores'),
   EsqueciSenha: () => import('../pages/EsqueciSenha'),
   RedefinirSenha: () => import('../pages/RedefinirSenha'),
   Login: () => import('../pages/Login'),

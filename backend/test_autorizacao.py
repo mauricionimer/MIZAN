@@ -324,13 +324,15 @@ for no in ast.walk(tree):
         ociosas.append(rota)
     chamadas = {n.func.id for st in no.body for n in ast.walk(st)
                 if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
-    if "validar_token" in chamadas and no.name not in ("auth_refresh",):
+    # auth_refresh e auth_login_2fa conferem o cadastro eles mesmos (usuário ativo, versão
+    # da senha e, no 2FA, o desafio de uso restrito, que não vale como sessão).
+    if "validar_token" in chamadas and no.name not in ("auth_refresh", "auth_login_2fa"):
         so_assinatura.append(rota)
 
 checar(not ociosas, "toda rota que recebe credencial a usa", str(ociosas))
 checar(not so_assinatura,
        "nenhuma rota confere só a assinatura do token",
-       f"{so_assinatura} (auth_refresh é a exceção: ele mesmo confere o cadastro)")
+       f"{so_assinatura} (auth_refresh e auth_login_2fa são as exceções: eles mesmos conferem o cadastro)")
 
 
 print("\nRESULTADO:", "tudo certo" if falhas == 0 else f"{falhas} falha(s)")
