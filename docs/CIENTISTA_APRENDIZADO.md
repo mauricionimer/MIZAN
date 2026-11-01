@@ -69,7 +69,7 @@ O monitor do score compara resultados pós-ativação com as métricas de valida
 
 ## Habilitação em produção
 
-1. Aplicar `backend/sql/migracao_cientista_aprendizado.sql` no banco de produção por seu administrador, após backup. As migrações anteriores de agente, recomendações, modelos e travas devem existir.
+1. Aplicar `backend/sql/migracao_cientista_aprendizado.sql` e depois `backend/sql/migracao_cientista_busca_segura.sql` no banco de produção por seu administrador, após backup. As migrações anteriores de agente, recomendações, modelos e travas devem existir.
 2. Configurar uma chave Fernet válida em `MIZAN_ENCRYPTION_KEY` e preservar `MIZAN_DATA_DIR`/Storage dos modelos.
 3. Publicar backend e frontend juntos. O agendador passa a propor, sem o retreino automático antigo. A migração ausente aparece como indisponibilidade; não autoriza intervenção experimental.
 4. No Laboratório, conferir a empresa, gerar avaliação e verificar exclusões. Aprovar e executar uma proposta elegível; revisar o candidato no COMANDO antes de ativá-lo.
