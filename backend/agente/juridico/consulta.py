@@ -55,7 +55,7 @@ def _conferencia(norma: dict, overlay: dict | None) -> dict:
     if c.get("sha256_arquivo") and c.get("sha256_arquivo") != norma.get("sha256_arquivo"):
         c = norma.get("conferencia") or {}
     return {"status": c.get("status") or "nao_conferida", "em": c.get("em"), "detalhe": c.get("detalhe"),
-            "divergentes": list(c.get("divergentes") or [])}
+            "divergentes": list(c.get("divergentes") or []), "conferidos": list(c.get("conferidos") or [])}
 
 
 def _dispositivo(r: dict, origem: str, conf: dict, pontos=None) -> dict:
@@ -63,7 +63,8 @@ def _dispositivo(r: dict, origem: str, conf: dict, pontos=None) -> dict:
             "texto": r["texto"][:MAX_TEXTO], "contexto": (r.get("contexto") or "")[:400],
             "situacao": r["situacao"], "notas": list(r.get("notas") or [])[:4],
             "conflito": bool(r.get("conflito")),
-            "conferencia": "divergente" if r["id"] in conf["divergentes"] else conf["status"],
+            "conferencia": "divergente" if r["id"] in conf["divergentes"] else ("conferida" if r["id"] in conf.get("conferidos", []) else
+                "nao_conferida" if conf["status"] == "divergente" else conf["status"]),
             "origem": origem, **({"pontuacao": pontos} if pontos is not None else {})}
 
 

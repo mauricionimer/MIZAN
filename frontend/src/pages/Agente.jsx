@@ -7,6 +7,7 @@ import { Bot, Send, Search, Loader2, Activity, ShieldCheck, AlertTriangle, Power
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import ErroCarga from '../components/ErroCarga'
+import AprendizadoCientista from '../components/AprendizadoCientista'
 import StatCard from '../components/StatCard'
 import { KpiBento } from '../components/ui/stats-bento'
 import EscritorioAgentes from '../components/EscritorioAgentes'
@@ -774,7 +775,7 @@ function SeloEvidencia({ s }) {
 }
 
 export function Laboratorio({ empresa }) {
-  const { isAdmin } = useAuth()
+  const { isAdmin, isComando } = useAuth()
   const [d, setD] = useState(null)
   const [erro, setErro] = useState(null)
   const [ocupado, setOcupado] = useState('')
@@ -790,6 +791,7 @@ export function Laboratorio({ empresa }) {
   const c = atual?.resultados?.comparacao
   return (
     <section className="space-y-4">
+      {(isAdmin || isComando) && <AprendizadoCientista empresa={empresa} />}
       <div className="rounded-xl border border-line bg-surface p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>

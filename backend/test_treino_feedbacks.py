@@ -6,7 +6,7 @@ Antes, o agendador retreinava o modelo GERAL com os pagamentos de todas as
 empresas juntos e o promovia sozinho. Aqui se confere que:
   - só entram as predições das carteiras da empresa;
   - a versão nasce inativa e o modelo geral não muda;
-  - o agendador treina só quem tem pagamentos novos suficientes;
+  - o agendador propõe ações; treino exige aprovação humana;
   - a rota antiga do retreino geral está desativada.
 
 O stub impõe os tetos reais do Supabase: mil linhas por resposta e in_ curto.
@@ -182,19 +182,28 @@ checar(pm.prever(amostra, "alfa") is None, "voltar ao modelo geral tira também 
 print("\n— o agendador —")
 T["feedbacks"].extend({"id": f"novo{i}", "predicao_id": f"a-p{i:06d}", "pagou": True,
            "created_at": datetime.now(timezone.utc).isoformat()} for i in range(1500, 1540))
+from aprendizado import repositorio as ar, experimentos, servico
+from test_cientista_aprendizado import Memoria
+from cryptography.fernet import Fernet
+os.environ["MIZAN_ENCRYPTION_KEY"] = Fernet.generate_key().decode()
+repo_cientista = Memoria()
+ar.Repositorio = lambda db: repo_cientista
+experimentos.reconciliar = lambda *a: None
+experimentos.monitorar = lambda *a: None
+servico.monitorar_modelos = lambda *a: None
 antes = len(me.carregar_versoes("alfa")["versoes"])
 res = scheduler.verificar_e_retreinar(min_feedbacks=30)
 emp = res.get("empresas", {})
-checar(emp.get("alfa", {}).get("acao") == "treinou" and emp["alfa"]["novos"] == 40,
-       "alfa: 40 pagamentos novos desde o último treino → treina", str(emp.get("alfa")))
-checar(emp.get("beta", {}).get("acao") == "aguardando", "beta: abaixo do mínimo → aguarda", str(emp.get("beta")))
-checar(len(me.carregar_versoes("alfa")["versoes"]) == antes + 1 and me.versao_ativa("alfa") is None,
-       "a versão do agendador também nasce inativa")
+checar(emp.get("alfa", {}).get("acao") == "retreino_score",
+       "alfa: resultados suficientes geram proposta, sem treino", str(emp.get("alfa")))
+checar(emp.get("beta", {}).get("acao") == "coleta_dados", "beta: poucos resultados pede coleta", str(emp.get("beta")))
+checar(len(me.carregar_versoes("alfa")["versoes"]) == antes,
+       "agendador não treina antes da aprovação")
 checar(hashlib.sha256(GLOBAL.read_bytes()).hexdigest() == hash_global, "o modelo GERAL não muda")
 checar(not TRAVAS, "as travas são devolvidas")
 res2 = scheduler.verificar_e_retreinar(min_feedbacks=30)
-checar(res2["empresas"]["alfa"]["acao"] == "aguardando" and res2["empresas"]["alfa"]["novos"] == 0,
-       "sem pagamento novo, não treina de novo", str(res2["empresas"]["alfa"]))
+checar(res2["empresas"]["alfa"]["proposta_id"] == emp["alfa"]["proposta_id"],
+       "mesma base não duplica proposta no ciclo seguinte")
 TRAVAS.add("retreino")
 checar(scheduler.verificar_e_retreinar(30).get("acao") == "pulado", "outra instância verificando: pula")
 TRAVAS.clear()

@@ -873,3 +873,18 @@ export async function criarDisponibilidade(token, dados, empresaId) {
 export async function removerDisponibilidade(token, itemId, empresaId) {
   return pedir(`/agente/disponibilidade/${_id(itemId)}`, { metodo: 'DELETE', token, query: { empresa_id: empresaId } })
 }
+
+export function cientistaAprendizado(empresaId) {
+  return pedir('/agente/aprendizado', { query: { empresa_id: empresaId } })
+}
+export function cientistaAcao(acao, empresaId, id, decisao) {
+  return pedir(`/agente/aprendizado/${id ? `${_id(id)}/` : ''}${acao}`, {
+    metodo: 'POST', corpo: { empresa_id: empresaId || null, decisao },
+  })
+}
+export function cientistaHistorico(id, empresaId) {
+  return pedir(`/agente/aprendizado/${_id(id)}/historico`, { query: { empresa_id: empresaId } })
+}
+export function cientistaBase(id, empresaId) {
+  return pedir(`/agente/aprendizado/${_id(id)}/base`, { query: { empresa_id: empresaId } })
+}

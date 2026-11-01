@@ -240,9 +240,15 @@ def avaliar(acao: str, fatos: dict | None = None, *, indice=None, conferencias=N
 
 def avaliar_e_registrar(repo, empresa_id: str, caso_id, acao: str, fatos: dict | None = None, *,
                         trace_id=None, indice=None, agora: datetime | None = None) -> dict:
-    """Avalia e grava o registro interno (falha no registro não muda a decisão)."""
+    """Avalia e grava; uma autorização sem registro exige revisão humana."""
     from agente.juridico import registro
     conferencias = registro.conferencias(repo)
     d = avaliar(acao, fatos, indice=indice, conferencias=conferencias, agora=agora)
     d["registro_id"] = registro.registrar(repo, empresa_id, caso_id, trace_id, d)
+    if not d["registro_id"]:
+        d["auditoria_pendente"] = True
+        d["incertezas"].append("registro de auditoria indisponível; repetir a consulta")
+        if d["decisao"] not in BLOQUEIA:
+            d["decisao"] = REVISAO
+            d["justificativa"] += " Autorização suspensa: não foi possível registrar a auditoria."
     return d

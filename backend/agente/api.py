@@ -730,12 +730,23 @@ def analisar_laboratorio(empresa_id: str, agora: datetime | None = None) -> dict
     r = cientista.analisar(ctx, obs, stats, sinais)
     rel = r["relatorio"]
     try:
-        return repo.gravar_recomendacao(empresa_id, {"texto": rel["recomendacao"], "selo": rel["selo"],
+        rec = repo.gravar_recomendacao(empresa_id, {"texto": rel["recomendacao"], "selo": rel["selo"],
                                                      "origem": r["origem"], "relatorio": rel,
                                                      "resultados": r["resultados"]})
     except Exception as e:
         print(f"[Agente] gravar recomendação: {type(e).__name__}")
         raise TabelaAusente(ERRO_TABELA) from e
+
+    # Texto e ação compartilham a origem; só desfechos reais autorizam treino.
+    if hasattr(repo, "db"):
+        from aprendizado import servico
+        try:
+            acao = servico.avaliar(empresa_id, ator="cientista:analise", recomendacao=rec)
+            rec["acao_aprendizado_id"] = acao["id"]
+        except Exception as e:
+            rec["erro_aprendizado"] = "Análise textual salva; a proposta de aprendizado não foi registrada. Confira o banco e gere nova avaliação."
+            print(f"[Cientista] proposta não registrada: {type(e).__name__}")
+    return rec
 
 
 def decidir_recomendacao(empresa_id: str, rec_id: str, status: str, quem: str | None) -> dict:

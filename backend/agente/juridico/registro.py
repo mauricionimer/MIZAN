@@ -5,7 +5,7 @@ os dispositivos e fontes, a data e as incertezas.
   Os fatos ficam cifrados com a chave Fernet da Mizan, por garantia.
 - Acesso: tabela com RLS (só o backend); a leitura é por rota de administrador
   (GET /agente/juridico/decisoes). O rastreio visível à operação só leva a ação e a decisão.
-- Falha ao gravar não muda a decisão: o lado seguro já foi escolhido antes.
+- Falha ao gravar impede autorização e cache; uma nova consulta tenta registrar novamente.
 """
 import json
 import time
@@ -29,7 +29,7 @@ def registrar(repo, empresa_id: str, caso_id, trace_id, decisao: dict) -> str | 
                                                          sort_keys=True, default=str)),
         }
         return gravar(linha)
-    except Exception as e:                              # tabela ausente, banco fora: a decisão vale assim mesmo
+    except Exception as e:                              # a ponte de decisão bloqueia autorizações sem registro
         print(f"[Jurídico] decisão não registrada: {type(e).__name__}")
         return None
 

@@ -1,4 +1,4 @@
-"""O bandit só aprende com ação que foi recomendada ao devedor (D2), e o log não leva CPF.
+"""O bandit só aprende com ação efetivamente registrada em contato (D2), e o log não leva CPF.
 
     python test_bandit_sem_acao.py
 
@@ -28,14 +28,15 @@ bandit.registrar_resultado = lambda **k: CHAMADAS.append(k)
 bandit.recomendar = lambda *a, **k: {"acao_id": 9, "contexto": [0.0] * 14}
 
 RECS = []
+CONTATOS = []
 class Q:
-    def __init__(s): s.l = list(RECS)
+    def __init__(s, tabela): s.l = list(RECS if tabela == "recomendacoes" else CONTATOS)
     def select(s, *a): return s
     def eq(s, c, v): s.l = [r for r in s.l if r.get(c) == v]; return s
     def order(s, *a, **k): return s
     def limit(s, n): s.l = s.l[:n]; return s
     def execute(s): return type("R", (), {"data": s.l})()
-DB = type("DB", (), {"table": staticmethod(lambda n: Q())})()
+DB = type("DB", (), {"table": staticmethod(lambda n: Q(n))})()
 PRED = {"id": "p1", "valor_divida": 1000.0, "renda_estimada": 3000.0, "dias_em_atraso": 90, "produto": "cartao"}
 
 saida = io.StringIO()
@@ -49,8 +50,11 @@ checar(CHAMADAS == [], "a recomendação de OUTRA empresa para o mesmo CPF não 
 
 RECS.append({"cpf": "12345678901", "empresa_id": "alfa", "acao_id": 3, "contexto": [0.2] * 14})
 main._fechar_loop_bandit(DB, "12345678901", True, 500.0, PRED, "alfa")
+checar(CHAMADAS == [], "recomendação exibida sem contato não ensina o bandit")
+CONTATOS.append({"id": "ct1", "cpf": "12345678901", "empresa_id": "alfa", "acao_bandit_id": 3})
+main._fechar_loop_bandit(DB, "12345678901", True, 500.0, PRED, "alfa")
 checar(len(CHAMADAS) == 1 and CHAMADAS[0]["acao_id"] == 3 and CHAMADAS[0]["empresa_id"] == "alfa",
-       "com recomendação desta empresa, aprende na ação recomendada", str(CHAMADAS))
+       "com contato desta empresa, aprende na ação realizada", str(CHAMADAS))
 checar(abs(CHAMADAS[0]["recompensa"] - 0.5) < 1e-9 and CHAMADAS[0]["pagou"] is True,
        "recompensa = recuperado ÷ dívida", str(CHAMADAS[0]["recompensa"]))
 

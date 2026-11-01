@@ -52,7 +52,7 @@ def _feedbacks_das_carteiras(db, carteiras: list, todas: bool) -> list:
     agora pega os ids das predições das carteiras dela e só os feedbacks
     dessas predições.
     """
-    colunas = "id, predicao_id, pagou, created_at"
+    colunas = "id, predicao_id, pagou, valor_recuperado, created_at"
     if todas:
         return _paginar(lambda: db.table("feedbacks").select(colunas).not_.is_("predicao_id", "null"))
     pred_ids: list = []
@@ -77,11 +77,12 @@ def datasets(db, empresas=None) -> dict:
     anterior: nenhum dos dois pode virar variável do modelo de score.
     """
     alvo = {_norm(e) for e in empresas} if empresas is not None else None
-    carteira_empresa = {}
-    for c in _paginar(lambda: db.table("carteiras").select("id, empresa_id")):
+    carteira_empresa, carteira_modelo = {}, {}
+    for c in _paginar(lambda: db.table("carteiras").select("id, empresa_id, modelo_versao")):
         emp = _norm(c.get("empresa_id"))
         if emp and (alvo is None or emp in alvo):
             carteira_empresa[c["id"]] = emp
+            carteira_modelo[c["id"]] = c.get("modelo_versao")
     if not carteira_empresa:
         return {}
 
@@ -102,13 +103,14 @@ def datasets(db, empresas=None) -> dict:
     ids = list(por_predicao)
     for i in range(0, len(ids), ITENS_IN):
         res = (db.table("predicoes")
-               .select("id, carteira_id, produto, uf, status, valor_divida, dias_em_atraso, "
+               .select("id, cpf, carteira_id, produto, uf, status, valor_divida, dias_em_atraso, "
                        "renda_estimada, score_recuperabilidade, created_at")
                .in_("id", ids[i:i + ITENS_IN]).execute())
         for p in res.data or []:
             emp = carteira_empresa.get(p.get("carteira_id"))
             if not emp:
                 continue                      # predição de outra empresa (ou de carteira apagada)
+            p["modelo_versao"] = carteira_modelo.get(p.get("carteira_id"))
             f = por_predicao[p["id"]]
             linhas.setdefault(emp, []).append((
                 {
@@ -141,14 +143,14 @@ def novos_desde(datas: list, desde: "str | None") -> int:
     return len(datas) if not desde else sum(1 for d in datas if d > desde)
 
 
-def treinar(df: pd.DataFrame, empresa_id: str, usuario_email: str = "", precos: "list | None" = None) -> dict:
+def treinar(df: pd.DataFrame, empresa_id: str, usuario_email: str = "", precos: "list | None" = None, *, cientista_acao_id=None) -> dict:
     """Treina e guarda, inativos, o modelo da empresa e o modelo de preço dela."""
     from model import modelos_empresa as me, price_model as pm, treino_empresa as te
     if df is None or df.empty:
         raise te.DadosInvalidos("Esta empresa ainda não tem pagamentos registrados ligados às suas análises.")
     conteudo = df.to_csv(index=False).encode()        # só para a impressão digital (SHA-256)
     empresa = _norm(empresa_id)
-    reg = te.treinar(conteudo, NOME, empresa, usuario_email, df=df, origem=ORIGEM)
+    reg = te.treinar(conteudo, NOME, empresa, usuario_email, df=df, origem=ORIGEM, cientista_acao_id=cientista_acao_id)
 
     preco = {"ok": False, "motivo": "sem pagamentos para o modelo de preço"}
     if precos:
