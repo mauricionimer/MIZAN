@@ -7,7 +7,11 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 AQUI = Path(__file__).resolve().parent
 sys.path.insert(0, str(AQUI))
-os.environ.update(SUPABASE_URL="http://127.0.0.1:1", SUPABASE_KEY="x", JWT_SECRET="teste")
+from cryptography.fernet import Fernet
+# Simula produção (SUPABASE_URL definida): lá a chave Fernet é obrigatória, e sem ela o
+# registro jurídico não grava e o canal fica em revisão humana.
+os.environ.update(SUPABASE_URL="http://127.0.0.1:1", SUPABASE_KEY="x", JWT_SECRET="teste",
+                  MIZAN_ENCRYPTION_KEY=Fernet.generate_key().decode())
 for v in ("MIZAN_AGENTE_CLIENTE", "MIZAN_AGENTE_TETO_DIA_USD"):
     os.environ.pop(v, None)
 os.environ["MIZAN_AGENTE_ATIVO"] = "1"

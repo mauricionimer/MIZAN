@@ -110,7 +110,7 @@ class Q:
 
 main.get_db = lambda: type("DB", (), {"table": staticmethod(lambda n: Q(n))})()
 main._registrar_auditoria = lambda *a, **k: None
-main._fechar_loop_bandit = lambda db, cpf, pagou, v, pred, emp: BANDIT_CHAMADAS.append((cpf, emp, (pred or {}).get("id")))
+main._fechar_loop_bandit = lambda db, cpf, pagou, v, pred, emp, feedback_id=None: BANDIT_CHAMADAS.append((cpf, emp, (pred or {}).get("id")))
 main._cache_del_prefix = lambda *a, **k: None
 main._writeback_pagamento = lambda *a, **k: None
 main.listar_usuarios = lambda empresa_id="": [{"email": "x@x", "empresa_id": empresa_id or "TODAS"}]
