@@ -267,8 +267,8 @@ try:
 except RuntimeError:
     checar(True, "produção sem chave: recusa gravar em claro")
 d2 = decisao.avaliar_e_registrar(RepoMemoria(), "emp", "c", "uso_dados_pessoais", {"finalidade": "cobranca", "sensiveis": False})
-checar(d2["decisao"] == "prosseguir_com_condicoes" and d2["registro_id"] is None,
-       "falha ao cifrar não muda a decisão (só não grava)")
+checar(d2["decisao"] == "revisao_humana" and d2["registro_id"] is None,
+       "falha ao cifrar suspende autorização e exige revisão")
 os.environ.pop("SUPABASE_URL")
 
 print("— sinais na mensagem (código, sem IA) —")

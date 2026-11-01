@@ -193,6 +193,7 @@ def _bandit_para_json(bandit: LinUCB) -> dict:
         "n_pagamentos":         list(bandit.n_pagamentos),
         "ofertas_apresentadas": {o: list(v) for o, v in bandit.ofertas_apresentadas.items()},
         "ofertas_pagas":        {o: list(v) for o, v in bandit.ofertas_pagas.items()},
+        "eventos_processados": list(getattr(bandit, "eventos_processados", [])),
         "alpha":                bandit.alpha,
         "n_acoes":              bandit.n_acoes,
         "d":                    bandit.d,
@@ -215,6 +216,7 @@ def _bandit_de_json(data: dict) -> LinUCB:
     # por oferta usa os contadores antigos até chegar feedback novo.
     bandit.ofertas_apresentadas = {o: list(v) for o, v in (data.get("ofertas_apresentadas") or {}).items()}
     bandit.ofertas_pagas        = {o: list(v) for o, v in (data.get("ofertas_pagas") or {}).items()}
+    bandit.eventos_processados = set(data.get("eventos_processados") or [])
     return bandit
 
 
@@ -476,6 +478,13 @@ def recomendar(devedor: dict, empresa_id: "str | None") -> dict:
     # cópia), então ler sem lock não pega metade de uma atualização.
     bandit = carregar_bandit(empresa_id)
     acao_id, scores = bandit.recomendar(contexto)
+    experimento = {}
+    try:
+        from aprendizado.experimentos import selecionar
+        acao_id, scores, experimento = selecionar(bandit, contexto, devedor, empresa_id, acao_id, scores)
+    except Exception as e:
+        # Falha fechada para intervenção: seleção original, sem experimento.
+        print(f"[Cientista] experimento indisponível: {type(e).__name__}")
     total_interacoes = sum(bandit.n_tentativas)
     n_acao           = bandit.n_tentativas[acao_id]
     recomp_acumulada = bandit.recompensa_acumulada[acao_id]
@@ -507,6 +516,7 @@ def recomendar(devedor: dict, empresa_id: "str | None") -> dict:
 
     return {
         "acao_id":           acao_id,
+        **experimento,
         "canal":             acao["canal"],
         "canal_label":       CANAL_LABELS[acao["canal"]],
         "oferta":            acao["oferta"],
@@ -523,7 +533,7 @@ def recomendar(devedor: dict, empresa_id: "str | None") -> dict:
 
 def registrar_resultado(acao_id: int, contexto: list[float], recompensa: float,
                         empresa_id: "str | None", pagou: "bool | None" = None,
-                        devedor: "str | None" = None) -> None:
+                        devedor: "str | None" = None, evento_id: "str | None" = None) -> None:
     """Soma um resultado ao LinUCB da empresa.
 
     Contatos (sem `devedor`) atualizam o LinUCB e os contadores por ação.
@@ -561,23 +571,32 @@ def registrar_resultado(acao_id: int, contexto: list[float], recompensa: float,
     cod = codigo_devedor(empresa_id, devedor) if devedor else None
     oferta = ACOES[acao_id]["oferta"]
 
-    def _aplicar(b: LinUCB) -> None:
+    def _aplicar(b: LinUCB) -> bool:
+        vistos = set(getattr(b, "eventos_processados", []))
+        if evento_id:
+            import hashlib
+            cod_evento = hashlib.sha256(str(evento_id).encode()).hexdigest()
+            if cod_evento in vistos:
+                return False
+            vistos.add(cod_evento)
+        b.eventos_processados = vistos
         b.atualizar(acao_id, ctx, premio, pagou=pagou)
         if cod:
             b.marcar_oferta(oferta, cod, bool(pagou))
+        return True
 
     for tentativa in range(MAX_TENTATIVAS_GRAVACAO):
         bandit, versao = _carregar_com_versao(chave)
         if bandit is None:
             with _lock_de(chave):
                 bandit = _copia(carregar_bandit(chave))
-                _aplicar(bandit)
+                if not _aplicar(bandit): return
                 ok = _gravar_se_versao(chave, bandit, 0)
                 if ok:
                     _bandit_cache[chave]    = bandit
                     _bandit_cache_ts[chave] = time.monotonic()
         else:
-            _aplicar(bandit)
+            if not _aplicar(bandit): return
             ok = _gravar_se_versao(chave, bandit, versao)
             if ok:
                 _publicar(chave, bandit)

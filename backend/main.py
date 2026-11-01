@@ -1413,16 +1413,16 @@ def _cpf_no_log(cpf) -> str:
 
 
 def _fechar_loop_bandit(db, cpf: str, pagou: bool, valor_recuperado: float, pred_data: dict | None,
-                        empresa_id: str | None) -> None:
+                        empresa_id: str | None, feedback_id: str | None = None) -> None:
     """
     Atualiza o bandit com um pagamento confirmado (ou um não pagamento), na
     ação que foi feita com este devedor nesta empresa:
 
       1. a do último contato registrado com canal e oferta (o que o operador
          de fato apresentou);
-      2. senão, a última recomendação registrada para ele.
+      A recomendação isolada não prova que a ação ocorreu.
 
-    Sem nenhuma das duas, NÃO atualiza. Antes havia um "aprendizado offline":
+    Sem contato efetivo, NÃO atualiza. Antes havia um "aprendizado offline":
     o bandit escolhia na hora a ação que teria recomendado e a creditava com o
     resultado, como se tivesse sido feita (achado D2).
     """
@@ -1445,21 +1445,23 @@ def _fechar_loop_bandit(db, cpf: str, pagou: bool, valor_recuperado: float, pred
                 q = q.eq("empresa_id", empresa_id)
             return q.order("created_at", desc=True).limit(n).execute().data or []
 
-        recs = _ultimos("recomendacoes", "acao_id, contexto", 1)
+        recs = _ultimos("recomendacoes", "*", 1)
+        contato_real = None
         acao_id = None
         try:
-            contatos = _ultimos("contatos", "canal, oferta, acao_bandit_id", 20)
+            contatos = _ultimos("contatos", "id, created_at, canal, oferta, acao_bandit_id", 20)
         except Exception:                 # banco ainda sem a coluna `oferta`
-            contatos = _ultimos("contatos", "canal, acao_bandit_id", 20)
+            contatos = _ultimos("contatos", "id, created_at, canal, acao_bandit_id", 20)
         for ct in contatos:
             acao_id = acao_id_de(ct.get("canal"), ct.get("oferta")) if ct.get("oferta") else None
             if acao_id is None:
                 acao_id = ct.get("acao_bandit_id")
             if acao_id is not None:
+                contato_real = ct
                 break
         contexto = recs[0]["contexto"] if recs else None
-        if acao_id is None and recs:
-            acao_id = recs[0]["acao_id"]
+        # Uma recomendação não prova que a ação foi aplicada.
+        # Sem contato efetivo não há recompensa atribuível ao bandit.
         if acao_id is None:
             return
         if contexto is None:
@@ -1470,8 +1472,14 @@ def _fechar_loop_bandit(db, cpf: str, pagou: bool, valor_recuperado: float, pred
             contexto = construir_contexto({**pred_data, "comprometimento_renda": (vd / rd) if rd > 0 else 1.0}).tolist()
         # devedor: conta a oferta apresentada a ele (uma vez) e o pagamento, que
         # é a base da chance de pagar por oferta (contatos não entram nela).
+        if recs:
+            try:
+                from aprendizado.experimentos import observar
+                observar(db, empresa_id, cpf, recs[0], contato_real, pagou, valor_recuperado, fonte_id=feedback_id)
+            except Exception as e:
+                print(f"[Cientista] observação pendente de reconciliação: {type(e).__name__}")
         registrar_resultado(acao_id=acao_id, contexto=contexto, recompensa=recompensa,
-                            empresa_id=empresa_id, pagou=bool(pagou), devedor=cpf)
+                            empresa_id=empresa_id, pagou=bool(pagou), devedor=cpf, evento_id=feedback_id)
     except Exception as _be:
         # sem o CPF: o log não é lugar de dado pessoal
         print(f"[Bandit] Erro ao fechar loop: {type(_be).__name__}")
@@ -6127,7 +6135,7 @@ def receber_feedback(
         db, payload.cpf, payload.pagou,
         float(payload.valor_recuperado or 0),
         pred_dict,
-        empresa_nome,
+        empresa_nome, feedback_id=feedback_id,
     )
     if payload.pagou:
         _cumprir_promessas(db, empresa_nome, payload.cpf, "pagamento confirmado", payload.valor_recuperado)
@@ -6264,7 +6272,7 @@ def confirmar_pagamento(
                 db, cpf, True,
                 float(body.valor_recuperado or 0),
                 pred_res.data[0] if (pred_res and pred_res.data) else None,
-                empresa_fb,
+                empresa_fb, feedback_id=feedback_id,
             )
         except Exception as _be:
             print(f"[Confirmar] Aviso — _fechar_loop_bandit falhou (não crítico): {_be}")
@@ -6473,7 +6481,7 @@ def webhook_pagamento(body: WebhookPagamentoIn, request: Request):
         db, body.cpf, body.pagou,
         float(body.valor_recuperado or 0),
         pred_dict,
-        empresa,
+        empresa, feedback_id=feedback_id,
     )
     if body.pagou:
         _cumprir_promessas(db, empresa, body.cpf, "pagamento confirmado", body.valor_recuperado)
@@ -6657,7 +6665,7 @@ async def feedback_lote(
                 _fechar_loop_bandit(
                     db, cpf, pagou, valor_recuperado,
                     pred_dict,
-                    empresa,
+                    empresa, feedback_id=feedback_id,
                 )
                 if pagou:
                     _cumprir_promessas(db, empresa, cpf, "pagamento confirmado", valor_recuperado)
@@ -7270,6 +7278,11 @@ def comando_ativar_modelo(body: AtivarModeloIn, credentials: HTTPAuthorizationCr
             status_code=409,
             detail=f"O modelo novo (AUC {auc_novo}) não supera o que a empresa usa hoje (AUC {auc_atual}) "
                    "na mesma fatia de teste. Confirme para ativar mesmo assim.")
+    from aprendizado.servico import registrar_ativacao
+    # A versão do Cientista precisa de intenção durável antes da ativação.
+    auditavel = bool(reg.get('cientista_acao_id')) or any(v.get('cientista_acao_id') and v.get('versao') == dados.get('versao_ativa') for v in dados['versoes'])
+    if auditavel:
+        _cientista_chamar(lambda: registrar_ativacao(empresa, dados.get('versao_ativa'), body.versao, payload.get('email') or payload['sub'], 'intencao'))
     try:
         _me.ativar(empresa, body.versao)
     except (KeyError, FileNotFoundError) as e:
@@ -7282,6 +7295,8 @@ def comando_ativar_modelo(body: AtivarModeloIn, credentials: HTTPAuthorizationCr
     _registrar_auditoria(acao="modelo_ativado", entidade="modelo", entidade_id=body.versao,
                          usuario_email=payload.get("email", ""), empresa_id=empresa,
                          usuario_id=payload.get("sub", ""), detalhes={"forcado": body.forcar})
+    if auditavel:
+        _cientista_chamar(lambda: registrar_ativacao(empresa, dados.get('versao_ativa'), body.versao, payload.get('email') or payload['sub'], 'confirmada'))
     return {"ok": True, "empresa_id": empresa, "versao_ativa": body.versao}
 
 
@@ -7291,6 +7306,11 @@ def comando_desativar_modelo(body: AtivarModeloIn, credentials: HTTPAuthorizatio
     payload = _exigir_comando(credentials)
     from model import modelos_empresa as _me
     empresa = (body.empresa_id or "").strip().lower()
+    dados = _me.carregar_versoes(empresa)
+    auditavel = any(v.get('cientista_acao_id') and v.get('versao') == dados.get('versao_ativa') for v in dados['versoes'])
+    from aprendizado.servico import registrar_ativacao
+    if auditavel:
+        _cientista_chamar(lambda: registrar_ativacao(empresa, dados.get('versao_ativa'), None, payload.get('email') or payload['sub'], 'intencao'))
     try:
         _me.desativar(empresa)
     except ValueError:
@@ -7303,6 +7323,8 @@ def comando_desativar_modelo(body: AtivarModeloIn, credentials: HTTPAuthorizatio
     _registrar_auditoria(acao="modelo_desativado", entidade="modelo", entidade_id=empresa,
                          usuario_email=payload.get("email", ""), empresa_id=empresa,
                          usuario_id=payload.get("sub", ""), detalhes={})
+    if auditavel:
+        _cientista_chamar(lambda: registrar_ativacao(empresa, dados.get('versao_ativa'), None, payload.get('email') or payload['sub'], 'confirmada'))
     return {"ok": True, "empresa_id": empresa, "usando": "global"}
 
 
@@ -7876,9 +7898,13 @@ def recomendacao_devedor(cpf: str, credentials: HTTPAuthorizationCredentials = S
             "oferta":   rec["oferta"],
             "score_ucb": rec["score_ucb"],
             "contexto": rec["contexto"],
+            **({"experimento_id": rec["experimento_id"], "exposicao_id": rec["exposicao_id"]}
+               if rec.get("experimento_id") else {}),
         }).execute()
     except Exception as _e:
-        print(f"[Bandit] Erro ao salvar recomendacao: {_e}")
+        print(f"[Bandit] Erro ao salvar recomendacao: {type(_e).__name__}")
+        if rec.get("experimento_id"):
+            raise HTTPException(status_code=503, detail="Não foi possível registrar a recomendação experimental. Tente novamente.")
 
     return {**rec, "cpf": cpf, "nome": pred.get("nome")}
 
@@ -9786,3 +9812,111 @@ def agente_trace(trace_id: str, empresa_id: Optional[str] = None,
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
+# Ciclo de aprendizado do Cientista: papéis e empresa validados antes de ler dados.
+class CientistaAcaoIn(BaseModel):
+    empresa_id: Optional[str] = None
+    decisao: Optional[str] = None
+
+
+def _cientista_escopo(credentials, empresa_id):
+    payload = _usuario_autenticado(credentials)
+    if payload.get('role') not in ('admin', 'comando'):
+        raise HTTPException(status_code=403, detail='Só administrador ou COMANDO acessa o aprendizado.')
+    if payload.get('role') != 'comando' and empresa_id and empresa_id.strip().lower() != str(payload.get('empresa_id') or '').strip().lower():
+        raise HTTPException(status_code=403, detail='A empresa solicitada não pertence ao usuário.')
+    return payload, _empresa_do_agente(payload, empresa_id)
+
+
+def _cientista_chamar(fn):
+    from aprendizado.repositorio import Conflito
+    try:
+        return fn()
+    except Conflito as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        print(f'[Cientista] operação indisponível: {type(e).__name__}')
+        raise HTTPException(status_code=503, detail='Aprendizado indisponível. Confira a migração migracao_cientista_aprendizado.sql e a conexão com o banco. Consulte o estado e o histórico antes de repetir a operação.')
+
+
+@app.get('/agente/aprendizado')
+def cientista_painel(empresa_id: Optional[str] = None, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    _, empresa = _cientista_escopo(credentials, empresa_id)
+    from aprendizado.repositorio import fabrica
+    from model import modelos_empresa as me
+    return _cientista_chamar(lambda: {'acoes': fabrica().listar(empresa), 'versao_ativa': me.carregar_versoes(empresa).get('versao_ativa')})
+
+
+@app.get('/agente/aprendizado/{acao_id}/historico')
+def cientista_historico(acao_id: str, empresa_id: Optional[str] = None, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    _, empresa = _cientista_escopo(credentials, empresa_id)
+    from aprendizado.repositorio import fabrica
+    return _cientista_chamar(lambda: fabrica().eventos(empresa, acao_id))
+
+
+@app.post('/agente/aprendizado/avaliar')
+def cientista_avaliar(body: CientistaAcaoIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    payload, empresa = _cientista_escopo(credentials, body.empresa_id)
+    from aprendizado.servico import avaliar
+    return _cientista_chamar(lambda: avaliar(empresa, payload.get('email') or payload['sub']))
+
+
+@app.post('/agente/aprendizado/experimento')
+def cientista_experimento(body: CientistaAcaoIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    payload, empresa = _cientista_escopo(credentials, body.empresa_id)
+    from aprendizado.servico import propor_experimento
+    return _cientista_chamar(lambda: propor_experimento(empresa, payload.get('email') or payload['sub']))
+
+
+@app.post('/agente/aprendizado/{acao_id}/decidir')
+def cientista_decidir(acao_id: str, body: CientistaAcaoIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    payload, empresa = _cientista_escopo(credentials, body.empresa_id)
+    from aprendizado.servico import decidir
+    return _cientista_chamar(lambda: decidir(empresa, acao_id, body.decisao, payload.get('email') or payload['sub']))
+
+
+@app.post('/agente/aprendizado/{acao_id}/executar', status_code=202)
+def cientista_executar(acao_id: str, body: CientistaAcaoIn, background_tasks: BackgroundTasks,
+                       credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    payload, empresa = _cientista_escopo(credentials, body.empresa_id)
+    from aprendizado.servico import executar
+    from aprendizado.repositorio import fabrica
+    r = _cientista_chamar(lambda: fabrica().obter(empresa, acao_id))
+    if r['status'] not in ('aprovada', 'erro', 'executando'):
+        raise HTTPException(status_code=409, detail='A execução exige proposta aprovada.')
+    ator = payload.get('email') or payload['sub']
+    def rodar():
+        try:
+            executar(empresa, acao_id, ator)
+        except Exception as e:
+            print(f'[Cientista] execução {acao_id}: {type(e).__name__}')
+    background_tasks.add_task(rodar)
+    return {'aceito': True, 'id': acao_id, 'mensagem': 'Execução solicitada. Acompanhe o estado e o histórico no Laboratório.'}
+
+
+@app.post('/agente/aprendizado/{acao_id}/encerrar')
+def cientista_encerrar(acao_id: str, body: CientistaAcaoIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    payload, empresa = _cientista_escopo(credentials, body.empresa_id)
+    from aprendizado.servico import encerrar
+    return _cientista_chamar(lambda: encerrar(empresa, acao_id, payload.get('email') or payload['sub']))
+
+
+@app.post('/agente/aprendizado/monitorar')
+def cientista_monitorar(body: CientistaAcaoIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    _, empresa = _cientista_escopo(credentials, body.empresa_id)
+    from aprendizado import servico, experimentos
+    def atualizar():
+        experimentos.reconciliar(empresa)
+        return {'experimentos': experimentos.monitorar(empresa), 'modelo': servico.monitorar_modelos(empresa)}
+    return _cientista_chamar(atualizar)
+
+
+@app.get('/agente/aprendizado/{acao_id}/base')
+def cientista_base(acao_id: str, empresa_id: Optional[str] = None, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    _, empresa = _cientista_escopo(credentials, empresa_id)
+    from aprendizado.repositorio import fabrica
+    return _cientista_chamar(lambda: fabrica().base(empresa, acao_id))

@@ -75,7 +75,7 @@ def conferir(norma: dict, registros: list, buscar=None, agora: datetime | None =
                 and len(r.get("texto") or "") >= MIN_TEXTO]
     divergentes = [r["id"] for r in vigentes if _comparavel(r["texto"]) not in oficial]
     return {**base, "status": "conferida" if not divergentes else "divergente",
-            "verificados": len(vigentes), "divergentes": divergentes[:200],
+            "verificados": len(vigentes), "divergentes": divergentes, "conferidos": [r["id"] for r in vigentes if r["id"] not in set(divergentes)],
             "sha256_fonte": hashlib.sha256(bruto if isinstance(bruto, bytes) else bruto.encode()).hexdigest(),
             "detalhe": ("todos os dispositivos conferem com a fonte oficial" if not divergentes
                         else f"{len(divergentes)} de {len(vigentes)} dispositivos com redação diferente da oficial")}

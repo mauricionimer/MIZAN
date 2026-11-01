@@ -1,7 +1,9 @@
 """
 Treino de modelo por empresa, a partir de uma carteira histórica, sem guardá-la.
 
-O arquivo entra como bytes, vira DataFrame, vira modelo — e some. Nada do
+O arquivo histórico entra como bytes, vira DataFrame, vira modelo — e some.
+No ciclo do Cientista, aprendizado/servico.py preserva antes uma fotografia
+pseudonimizada e cifrada da coorte para auditoria; esta função não a grava. Nada do
 conteúdo vai para disco, para o banco ou para o log. O que fica registrado é o
 que prova o treino sem identificar ninguém: SHA-256 do arquivo, contagens,
 período, colunas, métricas e a distribuição de score em faixas (a do PSI).
@@ -292,8 +294,6 @@ def _atual_viu_o_teste(empresa_id: str, impressao: str, origem: str, inicio_test
         return None
     if impressao and (reg.get("arquivo") or {}).get("sha256") == impressao:
         return "mesmo arquivo"
-    if origem == "feedbacks" and reg.get("origem") == "feedbacks":
-        return "mesmos pagamentos registrados"
     fim = (reg.get("periodo") or {}).get("fim")
     if fim and inicio_teste is not None:
         try:
@@ -305,7 +305,7 @@ def _atual_viu_o_teste(empresa_id: str, impressao: str, origem: str, inicio_test
 
 
 def treinar(conteudo: bytes, nome_arquivo: str, empresa_id: str, usuario_email: str = "",
-            df: "pd.DataFrame | None" = None, origem: str = "arquivo") -> dict:
+            df: "pd.DataFrame | None" = None, origem: str = "arquivo", cientista_acao_id=None) -> dict:
     """Treina o modelo da empresa e o deixa guardado, inativo. Descarta os dados.
 
     Devolve o registro da versão. Levanta DadosInvalidos para erro do arquivo.
@@ -345,12 +345,18 @@ def treinar(conteudo: bytes, nome_arquivo: str, empresa_id: str, usuario_email: 
         ordem = np.argsort(datas.to_numpy(), kind="stable")
         d, y, datas = d.iloc[ordem].reset_index(drop=True), y[ordem], datas.iloc[ordem].reset_index(drop=True)
         corte = int(n * (1 - FRACAO_TESTE))
+        if cientista_acao_id:
+            # Mesmo dia inteiro fica em um único lado do corte temporal.
+            while corte > 0 and datas.iloc[corte - 1] == datas.iloc[corte]:
+                corte -= 1
         i_tr, i_te = np.arange(corte), np.arange(corte, n)
         validacao = "temporal"
     else:
         rng = np.random.default_rng(42)
         perm = rng.permutation(n)
         corte = int(n * (1 - FRACAO_TESTE))
+        if cientista_acao_id:
+            raise DadosInvalidos("O Cientista exige datas válidas para validação temporal.")
         i_tr, i_te = perm[:corte], perm[corte:]
         validacao = "aleatoria"
         avisos.append("Sem coluna de data: a validação usa uma fatia aleatória, que tende a ser "
@@ -404,6 +410,7 @@ def treinar(conteudo: bytes, nome_arquivo: str, empresa_id: str, usuario_email: 
         "criado_em": datetime.now(timezone.utc).isoformat(),
         "empresa_id": empresa_id,
         "treinado_por": usuario_email,
+        "cientista_acao_id": cientista_acao_id,
         "tipo_alvo": "real",
         # "arquivo": carteira histórica enviada; "feedbacks": pagamentos registrados no Mizan
         "origem": origem,

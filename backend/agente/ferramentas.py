@@ -210,6 +210,7 @@ def _simular_acordo(ctx, fonte, dev, args):
     conta = oferta.calcular(_dados(ctx)["divida"], **cond)
     dec = auditor.auditar({"tipo": "propor_acordo", "params": cond}, ctx.caso, regras, versao, ctx.agora)
     sim = {"id": uuid.uuid4().hex[:12], "caso_id": ctx.caso["id"], "condicoes": cond, "conta": conta,
+           "criada_em": ctx.agora.isoformat(),
            "valida_ate": (ctx.agora + VALIDADE_SIMULACAO).isoformat()}
     if dec["permitida"]:
         d = _dados(ctx)
@@ -237,18 +238,36 @@ def _fatos_oferta(ctx, sim: dict) -> dict:
     """Fatos mínimos do aceite, conferidos em código no que já foi dito na conversa."""
     cond, conta = sim["condicoes"], sim["conta"]
     msgs = estado.conversa_atual(ctx.caso, ctx.repo.ultimas_mensagens(ctx.caso["empresa_id"], ctx.caso["id"], 30))
-    ditos, do_agente, do_devedor = set(), [], [ctx.saida.get("texto") or ""]
+    do_agente, do_devedor = [], [ctx.saida.get("texto") or ""]
+    # Uma oferta completa, enviada depois da simulação. Não soma números de
+    # mensagens antigas ou de propostas distintas. Simulações legadas precisam
+    # ser refeitas para permitir comprovar a divulgação.
+    ultima_oferta = None
     for m in msgs:
+        texto = m.get("texto") or ""
         if m.get("direcao") == "saida":
-            ditos |= set(guardrails.valores_do_texto(m.get("texto") or "")["dinheiro"])
-            do_agente.append(m.get("texto") or "")
+            do_agente.append(texto)
+            valores = guardrails.valores_do_texto(texto)
+            if valores["dinheiro"] or valores["parcelas"]:
+                ultima_oferta = (m, valores)
         else:
-            do_devedor.append(m.get("texto") or "")
-
-    def mostrou(v):
-        return any(abs(float(v) - x) <= guardrails.TOLERANCIA for x in ditos)
+            do_devedor.append(texto)
     n = int(cond["n_parcelas"])
-    return {"informa_total": mostrou(conta["total_pago"]), "informa_parcelas": n == 1 or mostrou(conta["parcela"]),
+    total = parcelas = False
+    if ultima_oferta and sim.get("criada_em"):
+        m, valores = ultima_oferta
+        from datetime import datetime
+        try:
+            posterior = datetime.fromisoformat(str(m.get("created_at") or m.get("criado_em")).replace("Z", "+00:00")) >= datetime.fromisoformat(sim["criada_em"])
+        except (ValueError, TypeError):
+            posterior = False
+        def mostrou(v):
+            return any(abs(float(v) - x) <= guardrails.TOLERANCIA for x in valores["dinheiro"])
+        total = posterior and mostrou(conta["total_pago"])
+        texto = (m.get("texto") or "").lower()
+        quantidade = (n in valores["parcelas"] and set(valores["parcelas"]) == {n}) or (n == 1 and ("à vista" in texto or "a vista" in texto))
+        parcelas = total and quantidade and mostrou(conta["parcela"]) and (not conta.get("entrada") or mostrou(conta["entrada"]))
+    return {"informa_total": total, "informa_parcelas": parcelas,
             "sinais_superendividamento": any(sinais.superendividamento(t) for t in do_devedor),
             "pressao": any(sinais.pressao(t) for t in do_agente), "n_parcelas": n}
 

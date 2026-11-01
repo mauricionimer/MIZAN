@@ -56,7 +56,7 @@ def da_empresa(repo, empresa_id, acao, fatos, trace_id=None, agora=None) -> dict
         if achado and achado[0] > agora:
             return {**achado[1], "reaproveitada": True}
     d = avaliar_e_registrar(repo, empresa_id, None, acao, fatos, trace_id=trace_id, agora=agora)
-    if d.get("consultado_em"):                     # falha técnica não fica guardada
+    if d.get("consultado_em") and d.get("registro_id"):                     # falha técnica não fica guardada
         with _LOCK:
             _CACHE[chave] = (agora + VALIDADE_EMPRESA, d)
     return d
