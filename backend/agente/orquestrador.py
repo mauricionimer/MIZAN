@@ -45,6 +45,7 @@ PRIORIDADE = {
     "contestacao": 90,
     "mensagem_devedor": 80,
     "pagamento": 60,
+    "retorno_combinado": 45,
     "vencimento": 40,
     "relogio": 20,
 }

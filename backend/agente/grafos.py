@@ -17,7 +17,7 @@ import re
 
 from datetime import datetime, timedelta, timezone
 
-from agente import estado, ferramentas, negociador, triagem
+from agente import estado, ferramentas, negociacao, negociador, triagem
 from agente.juridico import sinais
 from agente.orquestrador import FIM, Grafo
 
@@ -142,6 +142,7 @@ def grafo_mensagem(fonte) -> Grafo:
             ctx.saida["resposta"] = negociador.mensagem_fixa(ctx, fonte)
             return
         ctx.saida["resposta"] = negociador.conversar(ctx, fonte, ctx.saida.get("texto", ""))
+        ctx.saida["_resposta_negociador"] = bool(ctx.saida["resposta"])
 
     def enviar(ctx):
         texto = ctx.saida.get("resposta")
@@ -166,6 +167,8 @@ def grafo_mensagem(fonte) -> Grafo:
                 texto = f"Olá{', ' + nome if nome else ''}! {apresentacao} " + texto
         ctx.repo.gravar_mensagem(ctx.caso["empresa_id"], ctx.caso["id"], "saida", texto, ctx.rastreio.trace_id,
                              criado_em=ctx.agora)
+        if ctx.saida.get("_resposta_negociador"):
+            negociacao.apresentada(ctx, texto)
         ctx.saida["enviada"] = texto
         try:
             # Já vai ao Telegram aqui, sem esperar o resto da rodada fechar (gravações finais).
