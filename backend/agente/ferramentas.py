@@ -22,7 +22,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
-from agente import audio, auditor, conhecimento, estado, guardrails, juridico_orq
+from agente import audio, auditor, conhecimento, estado, guardrails, juridico_orq, negociacao
 from agente.juridico import sinais
 from model import oferta
 
@@ -175,6 +175,7 @@ def _verificar_identidade(ctx, fonte, dev, args):
     if len(certos) == 3 and dados == certos:
         d["identidade_ok"] = True
         d["divida"] = float(dev.get("valor_divida") or 0)
+        negociacao.etapa(ctx, "entendimento")
         return {"ok": True, "confirmada": True}
     d["falhas_identidade"] = falhas + 1
     return {"ok": True, "confirmada": False, "tentativas_restantes": MAX_TENTATIVAS_IDENTIDADE - falhas - 1}
@@ -213,8 +214,15 @@ def _simular_acordo(ctx, fonte, dev, args):
            "criada_em": ctx.agora.isoformat(),
            "valida_ate": (ctx.agora + VALIDADE_SIMULACAO).isoformat()}
     if dec["permitida"]:
+        negociacao_id = negociacao.estado(ctx)["id"]
         d = _dados(ctx)
+        sim["decisao_id"] = (d.get("estrategia") or {}).get("decisao_id") or negociacao_id
+        sim["familia"] = oferta.familia(cond["n_parcelas"], cond["desconto_pct"])
         d["simulacoes"] = ((d.get("simulacoes") or []) + [sim])[-MAX_SIMULACOES:]
+        negociacao.registrar(ctx, "simulacao_valida", f"simulacao:{sim['id']}",
+                             simulacao_id=sim["id"], decisao_id=sim["decisao_id"], familia=sim["familia"])
+        if args.get("cabe_por_mes") is not None:
+            negociacao.etapa(ctx, "capacidade", retomar=True)
     r = {"ok": True, "dentro_da_politica": dec["permitida"], "resumo": _resumo_conta(cond, conta),
          "valor_negociado": conta["valor_negociado"], "entrada": conta["entrada"], "parcela": conta["parcela"],
          "n_parcelas": cond["n_parcelas"], "total_pago": conta["total_pago"], "economia": conta["economia"]}
@@ -315,10 +323,13 @@ def _registrar_aceite(ctx, fonte, dev, args):
         "canal": "whatsapp", "resposta": "aceitou", "familia": oferta.familia(cond["n_parcelas"], cond["desconto_pct"]),
         **cond, "valor_divida": _dados(ctx)["divida"], "valor_negociado": conta["valor_negociado"],
         "entrada": conta["entrada"], "parcela": conta["parcela"], "total_pago": conta["total_pago"],
-        "agenda_data": data, "observacao": f"Simulação {sim['id']}"})
+        "agenda_data": data, "observacao": f"Simulação {sim['id']}; decisão {sim.get('decisao_id') or 'padrão'}"})
     d = _dados(ctx)
     d["simulacoes"] = [s for s in d.get("simulacoes") or [] if s["id"] != sim["id"]]   # usa uma vez só
-    d["acordo"] = {"simulacao_id": sim["id"], "condicoes": cond, "primeiro_pagamento": primeiro, "data": data}
+    d["acordo"] = {"simulacao_id": sim["id"], "decisao_id": sim.get("decisao_id"),
+                  "compromisso_id": item["id"], "condicoes": cond,
+                  "primeiro_pagamento": primeiro, "data": data}
+    negociacao.acordo(ctx, sim, item["id"])
     _ir_para(ctx, "acordo_ativo")
     ctx.caso["proxima_data"] = data
     return {"ok": True, "registrado": True, "resumo": _resumo_conta(cond, conta),
@@ -428,6 +439,9 @@ def _agendar_retorno(ctx, fonte, dev, args):
                                                     hora=args.get("hora"),
                                                     observacao=f"{PREFIXO_RETORNO}: {args['motivo']}"))
     ctx.caso["proxima_data"] = r["data"]
+    negociacao.registrar(ctx, "retorno_marcado", f"retorno_marcado:{r['compromisso_id']}:{r['data']}:{r.get('hora') or ''}",
+                         compromisso_id=r["compromisso_id"], data=r["data"], hora=r.get("hora"))
+    negociacao.etapa(ctx, "retorno")
     return {"ok": True, **{k: v for k, v in r.items() if k != "novo"},
             "_rastreio": {"compromisso": "retorno", "data": r["data"], "hora": r.get("hora"),
                           "remarcado": bool(r.get("remarcado_de")), "repetido": bool(r.get("ja_estava_marcado"))}}
@@ -674,6 +688,9 @@ def _marcar_promessa_quebrada(ctx, fonte, dev, args):
     ok = fonte.atualizar_agenda(ctx.caso["empresa_id"], dev["id"], args["compromisso_id"],
                                 {"situacao": "quebrada", "resolvido_em": ctx.agora.isoformat(),
                                  "resolvido_por": f"assistente: {args['motivo']}"[:120]})
+    if ok:
+        negociacao.registrar(ctx, "acordo_quebrado", f"quebra:{args['compromisso_id']}",
+                             compromisso_id=args["compromisso_id"])
     return {"ok": True} if ok else {"ok": False, "erro": "compromisso não encontrado ou já resolvido"}
 
 
@@ -798,4 +815,7 @@ def executar(ctx, fonte, nome: str, args) -> dict:
         r = f.executar(ctx, fonte, dev, args)
         # `_rastreio` é só para o passo (fontes, ids); não volta para a IA.
         p["detalhe"] = {"ok": bool(r.get("ok")), **r.pop("_rastreio", {})}
+    if r.get("ok") and nome in ("transferir_para_humano", "marcar_atendimento_humano"):
+        negociacao.registrar(ctx, "transferencia_humana", f"transferencia:{ctx.evento['id']}:{nome}",
+                             motivo=args.get("motivo"), compromisso_id=r.get("compromisso_id"))
     return r

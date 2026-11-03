@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from agente import auditor, estado, llm, orquestrador as orq
 from agente.rastreio import Rastreio
 from agente.fonte import FonteSupabase
-from agente.acompanhamento import grafo_pagamento, grafo_vencimento, planejar
+from agente.acompanhamento import grafo_pagamento, grafo_retorno, grafo_vencimento, planejar
 from agente.estrategista import grafo_abordagem, plano as _plano
 from agente.grafos import grafo_mensagem
 from agente.repositorio import RepoSupabase
@@ -140,7 +140,8 @@ def _por_que_calou(passos: list) -> str:
 def grafos(fonte) -> dict:
     from agente.grafos import registrar_falha_humana
     registro = {"mensagem_devedor": grafo_mensagem(fonte), "vencimento": grafo_vencimento(fonte),
-                "pagamento": grafo_pagamento(fonte), "abordagem": grafo_abordagem(fonte)}
+                "pagamento": grafo_pagamento(fonte), "retorno_combinado": grafo_retorno(fonte),
+                "abordagem": grafo_abordagem(fonte)}
     for g in registro.values():
         if g.preparar_falha is None:
             g.preparar_falha = lambda ctx, erro: registrar_falha_humana(ctx, fonte, erro)
@@ -210,7 +211,11 @@ def ver_caso(empresa_id: str, predicao_id: str, repo=None) -> dict:
         "caso": {"id": caso["id"], "situacao": caso["situacao"], "proxima_data": caso.get("proxima_data"),
                  "versao_politica": caso.get("versao_politica"), "resumo": caso.get("resumo"),
                  "identidade_confirmada": bool(d.get("identidade_ok")), "acordo": d.get("acordo"),
-                 "conversa_desde": d.get("conversa_desde")},
+                 "conversa_desde": d.get("conversa_desde"),
+                 "negociacao": {"id": (d.get("negociacao") or {}).get("id"),
+                                "etapa": (d.get("negociacao") or {}).get("etapa"),
+                                "eventos": (d.get("negociacao") or {}).get("eventos") or []}
+                 if d.get("negociacao") else None},
         "mensagens": [{"direcao": m["direcao"], "texto": m["texto"], "criado_em": m.get("criado_em"),
                        "trace_id": m.get("trace_id")} for m in msgs],
         "trace_id": ultimo_trace,
@@ -697,12 +702,22 @@ ERRO_TABELA = ("Falta a tabela das recomendações: rode backend/sql/migracao_re
 
 def laboratorio(empresa_id: str) -> dict:
     """Recomendações do Cientista, da mais nova para a mais antiga."""
+    from agente import negociacao
     try:
-        recs = fabrica_repo().recomendacoes(empresa_id, 10)
+        repo = fabrica_repo()
+        recs = repo.recomendacoes(empresa_id, 10)
     except Exception as e:
         print(f"[Agente] laboratório: {type(e).__name__}")
         return {"recomendacoes": [], "erro": ERRO_TABELA}
-    return {"recomendacoes": recs, "ia_ligada": llm.ia_ligada("cientista")}
+    try:
+        casos = repo.casos_da_empresa(empresa_id)
+        fonte = fabrica_fonte()
+        pagos = fonte.pagamentos(empresa_id, [c["predicao_id"] for c in casos])
+        funil = negociacao.metricas(casos, pagos)
+    except Exception as e:
+        print(f"[Agente] funil de negociação indisponível: {type(e).__name__}")
+        funil = None
+    return {"recomendacoes": recs, "ia_ligada": llm.ia_ligada("cientista"), "funil_negociacao": funil}
 
 
 def analisar_laboratorio(empresa_id: str, agora: datetime | None = None) -> dict:

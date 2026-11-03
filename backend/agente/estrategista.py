@@ -20,10 +20,11 @@ dívida, é o que prova o efeito do agente (e, com dado suficiente, mede quem s�
 paga se for cobrado).
 """
 import hashlib
+import uuid
 
 from datetime import datetime, timedelta, timezone
 
-from agente import auditor, estado, estrategista_ia, ferramentas
+from agente import auditor, estado, estrategista_ia, ferramentas, negociacao
 from agente.llm import ia_ligada
 from agente.orquestrador import Grafo, registrar_evento
 
@@ -193,7 +194,12 @@ def grafo_abordagem(fonte) -> Grafo:
             dados = dict(ctx.caso.get("dados") or {})
             dados["estrategia"] = {k: dec[k] for k in ("tom", "oferta_inicial", "concorda_bandit", "bandit_oferta",
                                                        "raciocinio")}
+            dados["estrategia"]["decisao_id"] = uuid.uuid5(
+                uuid.NAMESPACE_URL, f"mizan:{ctx.caso['empresa_id']}:{ctx.evento['id']}:estrategia").hex
             ctx.caso["dados"] = dados
+            negociacao.registrar(ctx, "estrategia_decidida", f"estrategia:{dados['estrategia']['decisao_id']}",
+                                 decisao_id=dados["estrategia"]["decisao_id"],
+                                 oferta_inicial=dec["oferta_inicial"], bandit_oferta=dec["bandit_oferta"])
             ctx.anotar("estrategista", f"abordar ({dec['tom']}" + (f", {dec['oferta_inicial']}" if dec["oferta_inicial"] else "")
                        + ")", dec["raciocinio"])
             # A primeira fala é sempre a abertura reservada escrita pelo sistema.

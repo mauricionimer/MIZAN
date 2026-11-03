@@ -18,7 +18,7 @@ grafos tratam cada um. A IA só entra quando o devedor responde.
 """
 from datetime import date, datetime, time, timedelta, timezone
 
-from agente import auditor, estado, ferramentas
+from agente import auditor, estado, ferramentas, negociacao
 from agente.orquestrador import FIM, Grafo, registrar_evento
 
 # O agente não procura estes casos (o grafo confere de novo na hora de agir).
@@ -87,8 +87,23 @@ def planejar(repo, fonte, empresa_id: str, agora: datetime) -> list:
         if dev is None:
             continue
         for item in fonte.agenda_pendente(empresa_id, dev["id"]):
+            if ferramentas.tipo_do_compromisso(item) == "retorno":
+                data = str(item["data"])[:10]
+                hora = str(item.get("hora") or "")[:5]
+                if date.fromisoformat(data) <= hoje:
+                    inicio = datetime.combine(date.fromisoformat(data),
+                                               time.fromisoformat(hora) if hora else time(pol["hora_inicio"]),
+                                               auditor.BRASILIA).astimezone(timezone.utc)
+                    # Se a política bloqueou o envio, o relógio pode tentar em outro dia.
+                    chave = f"retorno:{item['id']}:{data}:{hora}:{hoje.isoformat()}"
+                    ev, novo = registrar_evento(repo, empresa_id, caso["id"], "retorno_combinado", chave,
+                                                {"compromisso_id": item["id"], "data": data, "hora": hora},
+                                                origem="relogio", disponivel_em=inicio)
+                    if novo:
+                        criados.append(ev)
+                continue
             if item.get("tipo") != "promessa":
-                continue                                   # retorno é da equipe
+                continue
             venc = dia_util(date.fromisoformat(str(item["data"])[:10]))
             dados = {"compromisso_id": item["id"], "valor": item.get("valor"), "data": venc.isoformat()}
             fases = []
@@ -128,6 +143,65 @@ def texto_pagamento(nome: str, valor, falta: float | None) -> str:
         return (f"Olá, {nome}. Recebemos o seu pagamento de {_brl(valor)}, obrigado! Para completar o valor "
                 f"combinado faltam {_brl(falta)}. Nossa equipe vai entrar em contato para acertar.")
     return f"Olá, {nome}. Recebemos o seu pagamento de {_brl(valor)}. Obrigado!"
+
+
+def grafo_retorno(fonte) -> Grafo:
+    """Retoma uma conversa combinada; ignora tarefas da equipe e reuniões humanas."""
+    def conferir(ctx):
+        d = ctx.evento["dados"]
+        dev = fonte.devedor(ctx.caso["empresa_id"], ctx.caso["predicao_id"])
+        if dev is None:
+            raise LookupError("devedor não encontrado nesta empresa")
+        ctx.saida["_devedor"] = dev
+        pendentes = fonte.agenda_pendente(ctx.caso["empresa_id"], dev["id"])
+        item = next((a for a in pendentes if a["id"] == d["compromisso_id"]), None)
+        if (not item or ferramentas.tipo_do_compromisso(item) != "retorno" or
+                str(item["data"])[:10] != d["data"] or str(item.get("hora") or "")[:5] != d["hora"] or
+                ctx.caso.get("grupo_controle") or ctx.caso["situacao"] in NAO_COBRAR):
+            ctx.saida["pular"] = "retorno cancelado, remarcado ou caso indisponível"
+
+    def rota(ctx):
+        return FIM if ctx.saida.get("pular") else "enviar"
+
+    def enviar(ctx):
+        d = ctx.evento["dados"]
+        # O evento pode ter sido adiado por horário ou frequência. Confere a
+        # agenda de novo antes de falar: a pessoa pode ter cancelado nesse meio tempo.
+        ctx.saida.pop("pular", None)
+        conferir(ctx)
+        if ctx.saida.get("pular"):
+            return
+        if not _pode_procurar(ctx):
+            if ctx.saida.get("_regra_contato") == "R3_FREQUENCIA":
+                regras, _ = ctx.politica()
+                ctx.saida["adiar_para"] = proximo_horario(regras, ctx.agora + timedelta(days=1))
+            ctx.saida["pular"] = "Auditor não autorizou o contato"
+            return
+        nome = _nome(ctx, ctx.saida["_devedor"])
+        texto = (f"Olá, {nome}! Você pediu que eu retornasse para continuarmos nossa conversa. "
+                 "Podemos seguir por aqui?")
+        # Uma retomada do mesmo evento conserva o trace_id; não duplica a fala.
+        anteriores = ctx.repo.ultimas_mensagens(ctx.caso["empresa_id"], ctx.caso["id"], 50)
+        if not any(m["direcao"] == "saida" and m.get("trace_id") == ctx.rastreio.trace_id for m in anteriores):
+            _enviar(ctx, texto)
+        try:
+            from agente import canal_telegram
+            canal_telegram.entregar(ctx)
+        except Exception as e:
+            print(f"[Agente] entrega no Telegram falhou: {type(e).__name__}")
+        fonte.atualizar_agenda(ctx.caso["empresa_id"], ctx.saida["_devedor"]["id"], d["compromisso_id"],
+                               {"situacao": "cumprida", "resolvido_em": ctx.agora.isoformat(),
+                                "resolvido_por": "assistente: retorno realizado"})
+        negociacao.registrar(ctx, "retorno_cumprido", f"retorno_cumprido:{d['compromisso_id']}:{d['data']}:{d['hora']}",
+                             compromisso_id=d["compromisso_id"])
+        negociacao.etapa(ctx, "entendimento", retomar=True)
+        ctx.anotar("acompanhamento", "retornou", f"retorno combinado para {_data_br(d['data'])}")
+
+    g = (Grafo("retorno_combinado", "conferir")
+         .no("conferir", conferir, agente="acompanhamento", seguinte=rota)
+         .no("enviar", enviar, agente="acompanhamento"))
+    g.validar()
+    return g
 
 
 # ── decisão com IA (cardápio fechado; o código confere) ─────────────────────
@@ -235,6 +309,7 @@ def _contatos_7d(ctx) -> int:
 def _pode_procurar(ctx) -> bool:
     """Confere o Auditor para uma mensagem que o agente inicia. Fora do horário, adia."""
     d = ctx.auditar({"tipo": "enviar_mensagem", "params": {}}, contatos_7d=_contatos_7d(ctx))
+    ctx.saida["_regra_contato"] = d["regra"]
     if d["permitida"]:
         return True
     regras, _ = ctx.politica()
@@ -379,6 +454,8 @@ def grafo_vencimento(fonte) -> Grafo:
             fonte.atualizar_agenda(ctx.caso["empresa_id"], ctx.saida["_devedor"]["id"], d["compromisso_id"],
                                    {"situacao": "quebrada", "resolvido_em": ctx.agora.isoformat(),
                                     "resolvido_por": "assistente: sem resposta depois do atraso"})
+            negociacao.registrar(ctx, "acordo_quebrado", f"quebra:{d['compromisso_id']}",
+                                 compromisso_id=d["compromisso_id"])
         r = ferramentas.executar(ctx, fonte, "transferir_para_humano", {
             "motivo": "falha", "resumo": f"Promessa de {_brl(d['valor'])} para {_data_br(d['data'])} não foi paga "
                                          "e o devedor não respondeu à mensagem de atraso."})
@@ -421,6 +498,7 @@ def grafo_pagamento(fonte) -> Grafo:
             dados.pop(chave, None)
         dados["pagamentos"] = (dados.get("pagamentos") or []) + [{"valor": valor, "data": d.get("data"), "falta": falta}]
         ctx.caso["dados"] = dados
+        negociacao.pagamento(ctx, d.get("promessas") or [], valor)
         acordo = dados.get("acordo")
         if silencio:
             pass                                             # pessoa cuida, ou pediu para não ser contatado

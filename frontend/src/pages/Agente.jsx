@@ -360,6 +360,7 @@ function Conversa({ empresa }) {
               <UserRound className="h-4 w-4 text-ink-2" />
               <p className="text-sm font-semibold text-ink">{escolhido.nome}</p>
               <Selo situacao={dados?.caso?.situacao} />
+              {dados?.caso?.negociacao?.etapa && <span className="rounded border border-line px-1.5 py-px text-[11px] text-ink-2">Etapa: {dados.caso.negociacao.etapa}</span>}
               {dados?.caso?.identidade_confirmada && <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--success)' }}><ShieldCheck className="h-3.5 w-3.5" /> identidade confirmada</span>}
               <SeloTelegram tg={tg} />
               <button onClick={gerarConvite} disabled={enviando} title="Gera o link para o devedor conversar com o agente pelo Telegram (um link por pessoa)"
@@ -495,6 +496,18 @@ function Conversa({ empresa }) {
             <p className="mt-1">Primeiro pagamento de {fmtBRL(dados.caso.acordo.primeiro_pagamento)} em {fmtData(dados.caso.acordo.data)}.</p>
           </div>
         )}
+        {!!dados?.caso?.negociacao?.eventos?.length && <details className="mt-4 rounded-lg border border-line bg-surface-2 p-3 text-xs text-ink-2">
+          <summary className="cursor-pointer font-semibold text-ink">Trilha da negociação</summary>
+          <p className="mt-2 break-all">Negociação: {dados.caso.negociacao.id}</p>
+          <ol className="mt-2 space-y-1">
+            {dados.caso.negociacao.eventos.slice(-20).map(e => <li key={e.chave} className="break-all">
+              {e.tipo.replaceAll('_', ' ')} · {e.em ? new Date(e.em).toLocaleString('pt-BR') : '—'}
+              {e.decisao_id && <> · decisão {e.decisao_id}</>}
+              {e.simulacao_id && <> · simulação {e.simulacao_id}</>}
+              {e.compromisso_id && <> · compromisso {e.compromisso_id}</>}
+            </li>)}
+          </ol>
+        </details>}
       </section>
     </div>
   )
@@ -808,6 +821,24 @@ export function Laboratorio({ empresa }) {
         <ErroCarga erro={erro} compacto className="mt-3" />
         {!atual && !d.erro && <p className="mt-6 text-center text-sm text-ink-2">Nenhuma análise ainda.{isAdmin ? ' Clique em Gerar análise.' : ''}</p>}
       </div>
+      {d.funil_negociacao && <div className="rounded-xl border border-line bg-surface p-4">
+        <h3 className="text-sm font-semibold text-ink">Resultado das negociações</h3>
+        <p className="mt-1 text-xs text-ink-2">Contagens descritivas dos casos desta empresa desde o início deste registro. Proposta apresentada, aceite e pagamento confirmado são etapas distintas; o pagamento usa a baixa registrada, nunca apenas a promessa.</p>
+        <div className="mt-3 grid gap-2 text-xs sm:grid-cols-3 lg:grid-cols-4">
+          {[
+            ['Estratégias registradas', d.funil_negociacao.decisoes],
+            ['Propostas apresentadas', d.funil_negociacao.ofertas_apresentadas],
+            ['Acordos aceitos', d.funil_negociacao.acordos_aceitos],
+            ['Primeiro pagamento confirmado', d.funil_negociacao.primeiro_pagamento_confirmado],
+            ['Acordos quebrados', d.funil_negociacao.acordos_quebrados],
+            ['Retornos cumpridos', d.funil_negociacao.retornos_cumpridos],
+            ['Passagens para a equipe', d.funil_negociacao.transferencias_humanas],
+            ['Valor do primeiro pagamento confirmado', fmtBRL(d.funil_negociacao.valor_primeiro_pagamento_confirmado)],
+          ].map(([rotulo, valor]) => <div key={rotulo} className="rounded-md border border-line bg-raise-1 p-2">
+            <p className="text-ink-3">{rotulo}</p><p className="mt-1 text-base font-semibold text-ink">{valor}</p>
+          </div>)}
+        </div>
+      </div>}
       {atual && (
         <div className="rounded-xl border border-line bg-surface p-4">
           <div className="flex flex-wrap items-center gap-2 text-xs text-ink-2">
