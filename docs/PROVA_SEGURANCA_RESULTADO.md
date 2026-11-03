@@ -1,30 +1,31 @@
 # Prova de segurança: APROVADO
 
-- Data: 2026-11-01 22:37 UTC
-- Commit: `6935ac6`
+- Data: 2026-11-03 17:51 UTC
+- Commit: `08105bf`
 - Modo: provas + testes de segurança
 - Python 3.11.17 em Linux
 
 | Etapa | Resultado | Tempo |
 |---|---|---|
-| `test_seguranca_estatico.py` | ok | 33 s |
-| `test_seguranca_plano.py` | ok | 78 s |
-| `test_dois_fatores.py` | ok | 18 s |
-| `test_api_key.py` | ok | 2 s |
-| `test_autorizacao.py` | ok | 3 s |
-| `test_segredos.py` | ok | 2 s |
-| `test_destino_conexao.py` | ok | 2 s |
-| `test_conexoes_escopo.py` | ok | 2 s |
-| `test_conexao_sheets.py` | ok | 2 s |
-| `test_erros_internos.py` | ok | 2 s |
-| `test_limite.py` | ok | 10 s |
-| `test_escopo_carteira.py` | ok | 2 s |
-| `test_auditoria_acesso.py` | ok | 2 s |
-| `test_varredura_contas.py` | ok | 8 s |
+| `test_seguranca_estatico.py` | ok | 17 s |
+| `test_seguranca_plano.py` | ok | 36 s |
+| `test_dois_fatores.py` | ok | 7 s |
+| `test_api_key.py` | ok | 1 s |
+| `test_autorizacao.py` | ok | 2 s |
+| `test_segredos.py` | ok | 1 s |
+| `test_destino_conexao.py` | ok | 1 s |
+| `test_conexoes_escopo.py` | ok | 1 s |
+| `test_conexao_sheets.py` | ok | 1 s |
+| `test_erros_internos.py` | ok | 1 s |
+| `test_limite.py` | ok | 5 s |
+| `test_escopo_carteira.py` | ok | 1 s |
+| `test_auditoria_acesso.py` | ok | 1 s |
+| `test_varredura_contas.py` | ok | 4 s |
 | `test_agente_manipulacao.py` | ok | 0 s |
-| `test_agente_telegram.py` | ok | 18 s |
-| `test_revisao_api.py` | ok | 13 s |
-| `pip-audit` | ok | 17 s |
+| `test_agente_telegram.py` | ok | 15 s |
+| `test_agente_audio.py` | ok | 6 s |
+| `test_revisao_api.py` | ok | 6 s |
+| `pip-audit` | ok | 24 s |
 | `npm audit --omit=dev` | ok | 1 s |
 
 ## Saída de cada etapa
@@ -171,7 +172,7 @@ ok    10 códigos de recuperação; o banco guarda só hash
 ok    código de recuperação vale uma vez
 — limite de login no banco (sobrevive a reinício) —
 ok    4 erros + reinício + 1 erro: a senha certa fica bloqueada (429)  — [401, 401, 401, 401, 401, 429]
-ok    o banco guarda a chave em HMAC, sem e-mail nem IP  — [{"id": "login_tentativas-1", "chave": "d98872052f00fb3fbfa2937c8d92e6b7b255abb6e6ebeb33", "criado_em": "2026-11-01T22:3
+ok    o banco guarda a chave em HMAC, sem e-mail nem IP  — [{"id": "login_tentativas-1", "chave": "9bb4d1bb9ef5395a26508341b46a0349763143ee983f45bf", "criado_em": "2026-11-03T17:5
 [Login] limite no banco indisponível (RuntimeError); valendo a contagem em memória
 ok    banco fora: a contagem em memória continua barrando  — [401, 401, 401, 401, 401, 429]
 ok    login certo apaga os erros do e-mail
@@ -234,7 +235,7 @@ ok    o hash da aplicação bate com o do gerador e com o SHA-256 padrão
 ok    chave revogada (ativa=false) para de autenticar na hora
 ok    banco sem a coluna de hash: a chave antiga NÃO autentica (falha fechada)
 ok    e a retaguarda não aceita qualquer coisa
-ok    o uso é registrado, para dar para saber se a chave ainda está viva  — {'ultimo_uso': '2026-11-01T22:36:18.384601'}
+ok    o uso é registrado, para dar para saber se a chave ainda está viva  — {'ultimo_uso': '2026-11-03T17:50:20.451292'}
 ok    e falhar ao gravar o rastro não derruba a requisição válida
 ok    cada chave gerada é diferente
 ok    chave tem tamanho e prefixo esperados  — 49 caracteres
@@ -423,10 +424,10 @@ RESULTADO: tudo certo
 ```
 — exceção não tratada —
 ok    responde 500  — 500
-ok    a senha não vai na resposta  — {"detail":"Erro interno. Se persistir, informe o código ao suporte: eadc9d53","c
+ok    a senha não vai na resposta  — {"detail":"Erro interno. Se persistir, informe o código ao suporte: fcff96ca","c
 ok    o host interno também não
 ok    nem o nome da exceção
-ok    a resposta traz um código curto, repetido na mensagem  — eadc9d53
+ok    a resposta traz um código curto, repetido na mensagem  — fcff96ca
 ok    e o mesmo código está no log  — 1 evento(s)
 ok    o log guarda o tipo do erro  — RuntimeError = chegou não tratada, pelo middleware; HTTPException = pelo handler
 ok    e o traceback completo  — é ele que responde 'onde quebrou'
@@ -439,7 +440,7 @@ ok    e origem desconhecida continua sem CORS  — a lista de permitidas não mu
 — controle: o handler comum de Exception —
 ok    um handler comum de Exception devolve 500 SEM cabeçalho CORS  — é a premissa do módulo: sem isto o navegador esconde o corpo
 — HTTPException(500) com detail vazando —
-ok    o texto da exceção deixa de sair  — {"detail":"Erro interno. Se persistir, informe o código ao suporte: 18eee4b7","c
+ok    o texto da exceção deixa de sair  — {"detail":"Erro interno. Se persistir, informe o código ao suporte: ca223ffc","c
 ok    e vai para o log, com a credencial da URL mascarada  — Erro na análise: postgresql://***:***@db.interno.acme:5432/p
 ok    o traceback encadeado mostra a causa original  — o `raise ... from` implícito preserva o erro de dentro
 — o que não mudou —
@@ -623,7 +624,7 @@ ok    corpo inválido: 400
 — convite —
 ok    operador não gera convite
 ok    devedor de outra empresa: 404
-ok    admin recebe o link do bot  — {'codigo': 'd240b6fb314c4d98a26d3b615615778fxjdq9fT6SvX6', 'expira_em': '2026-11-08T22:36:
+ok    admin recebe o link do bot  — {'codigo': '0b1ba2e2828f4401a9317957c4167553WobfprE9XDFV', 'expira_em': '2026-11-10T17:50:
 ok    o caso guarda só o hash do segredo
 ok    o código cabe no limite do Telegram (64)  — 44
 — vínculo —
@@ -631,11 +632,11 @@ ok    o código cabe no limite do Telegram (64)  — 44
 ok    código adulterado não liga
 ok    e nada ficou ligado
 [Telegram] sendChatAction falhou: gaierror
-[Telegram] vinculado em 13.5s
+[Telegram] vinculado em 12.8s
 ok    convite certo liga o chat e o agente abre com a mesma abordagem do Mizan  — [('555', 'Olá, Maria! Aqui é o assistente virtual de Banco Demonstração. Tudo bem? Antes de seguirmos, posso confirmar se estou falando com você? É um assunto d
-ok    a abertura fica no caso (o chat do Mizan mostra a mesma conversa)  — [{'empresa_id': 'goias', 'caso_id': 'd240b6fb-314c-4d98-a26d-3b615615778f', 'direcao': 'saida', 'texto': 'Olá, Maria! Aqui é o assistente virtual de Banco Demon
+ok    a abertura fica no caso (o chat do Mizan mostra a mesma conversa)  — [{'empresa_id': 'goias', 'caso_id': '0b1ba2e2-828f-4401-a931-7957c4167553', 'direcao': 'saida', 'texto': 'Olá, Maria! Aqui é o assistente virtual de Banco Demon
 ok    a conversa recomeça na abertura do Telegram
-ok    a tela vê "ligado", sem o chat_id  — {'configurado': True, 'ligado': True, 'desde': '2026-11-01T22:36:54.546964+00:00', 'bloqueado': False, 'convite_pendente_ate': None, 'tentativa_outro_chat_em': None}
+ok    a tela vê "ligado", sem o chat_id  — {'configurado': True, 'ligado': True, 'desde': '2026-11-03T17:50:41.858082+00:00', 'bloqueado': False, 'convite_pendente_ate': None, 'tentativa_outro_chat_em': None}
 [Telegram] ja_ligado em 0.0s
 ok    a mesma pessoa abre o link de novo: "você já está conectado"
 [Telegram] ja_ligado em 0.0s
@@ -652,7 +653,7 @@ ok    um convite novo substitui o pendente
 [Telegram] convite_substituido em 0.0s
 ok    o link substituído não liga e diz para usar o mais novo
 [Telegram] sendChatAction falhou: gaierror
-[Telegram] vinculado em 0.2s
+[Telegram] vinculado em 0.1s
 ok    novo convite religa o caso a outro chat e solta o anterior
 [Telegram] sendChatAction falhou: gaierror
 [Telegram] vinculado em 0.1s
@@ -666,6 +667,7 @@ ok    depois de desligado, o chat só recebe a instrução
 [Telegram] vinculado em 0.1s
 — conversa —
 [Telegram] mensagem em 0.0s
+[Telegram] sendChatAction falhou: gaierror
 ok    mensagem aceita
 ok    a resposta do agente chegou ao Telegram do devedor  — [('555', 'Obrigado, Maria. Quanto você consegue pagar por mês?')]
 [Telegram] repetido em 0.0s
@@ -676,11 +678,11 @@ ok    a identidade foi confirmada pelo Telegram
 ok    com o Telegram ligado, a tela não escreve pelo devedor (a conversa é uma só)  — 409
 — Telegram novo no mesmo caso —
 [Telegram] sendChatAction falhou: gaierror
-[Telegram] vinculado em 0.1s
-[Telegram] sendChatAction falhou: gaierrorok    outra pessoa ligou: a identidade precisa ser confirmada de novo
-ok    e ela recebe a mesma abertura, não a resposta dada à outra pessoa  — [('4242', 'Olá, Maria! Aqui é o assistente virtual de Banco Demonstração. Tudo bem? Antes de seguirmos, posso confirmar se estou falando com você? É um assunto 
-ok    a IA lê só a conversa a partir daí, sem o que a outra pessoa disse  — [{'empresa_id': 'goias', 'caso_id': 'd240b6fb-314c-4d98-a26d-3b615615778f', 'direcao': 'saida', 'texto': 'Olá, Maria! Aqui é o assistente virtual de Banco Demon
 [Telegram] sendChatAction falhou: gaierror
+[Telegram] vinculado em 0.1s
+ok    outra pessoa ligou: a identidade precisa ser confirmada de novo
+ok    e ela recebe a mesma abertura, não a resposta dada à outra pessoa  — [('4242', 'Olá, Maria! Aqui é o assistente virtual de Banco Demonstração. Tudo bem? Antes de seguirmos, posso confirmar se estou falando com você? É um assunto 
+ok    a IA lê só a conversa a partir daí, sem o que a outra pessoa disse  — [{'empresa_id': 'goias', 'caso_id': '0b1ba2e2-828f-4401-a931-7957c4167553', 'direcao': 'saida', 'texto': 'Olá, Maria! Aqui é o assistente virtual de Banco Demon
 [Telegram] sendChatAction falhou: gaierror
 [Telegram] vinculado em 0.1s
 [Telegram] ja_ligado em 0.0s
@@ -698,39 +700,39 @@ ok    foto ou áudio: avisa que só lê texto, uma vez (sem repetir a cada foto)
 [Telegram] mensagem em 0.0s
 ok    falha de rede não derruba o atendimento
 ok    a mensagem continua registrada no caso
-[Telegram] mensagem em 0.0s[Telegram] sendChatAction falhou: gaierror
+[Telegram] mensagem em 0.0s
+[Telegram] sendChatAction falhou: gaierror
 ok    na rodada seguinte, o que tinha falhado vai antes, na ordem  — [('555', 'Posso explicar sim.'), ('555', 'Os juros já estão no valor.')]
 [Telegram] mensagem em 0.0s
 ok    e nada é entregue duas vezes  — [('555', 'Certo.')]
 — devedor bloqueou o bot —
-[Telegram] mensagem em 0.0s
 [Telegram] sendChatAction falhou: gaierror
-ok    o caso fica marcado como bloqueado
+[Telegram] mensagem em 0.0s
+[Telegram] sendChatAction falhou: gaierrorok    o caso fica marcado como bloqueado
 ok    e não se tenta mais enquanto ele não voltar
 [Telegram] mensagem em 0.0s
+[Telegram] sendChatAction falhou: gaierror
 ok    voltou a escrever: desbloqueia e a resposta chega  — ['Que bom que voltou.']
 ok    o que falhou com o bot bloqueado não chega atrasado  — ['Que bom que voltou.']
 — atendente responde pelo chat do Mizan —
-[Telegram] sendChatAction falhou: gaierror
 ok    enquanto o agente cuida do caso, a pessoa não fala por cima  — 409
 ok    a equipe assumiu o caso
 ok    o devedor fica sabendo que agora fala com uma pessoa  — [('555', 'A partir de agora, uma pessoa da equipe vai continuar o seu atendimento por aqui.')]
+[Telegram] sendChatAction falhou: gaierror
 ok    a resposta da pessoa é entregue  — 200
 ok    e chega exatamente ao Telegram ligado ao caso  — [('555', 'A partir de agora, uma pessoa da equipe vai continuar o seu atendimento por aqui.'), ('555', 'Oi, sou do banco. Posso ajudar?')]
 ok    fica registrada no caso, marcada como da pessoa
 ok    o aviso de passagem também fica no caso
-ok    lista de atendimentos: respondido, não espera  — [{'predicao_id': 'p1', 'nome': 'Maria das Dores', 'esperando': False, 'desde': '2026-11-01T22:37:09.018607+00:00', 'ultima_em': '2026-11-01T22:37:09.076470+00:00', 'telegram': True}]
+ok    lista de atendimentos: respondido, não espera  — [{'predicao_id': 'p1', 'nome': 'Maria das Dores', 'esperando': False, 'desde': '2026-11-03T17:50:55.340340+00:00', 'ultima_em': '2026-11-03T17:50:55.378317+00:00', 'telegram': True}]
 [Telegram] mensagem em 0.0s
-[Telegram] sendChatAction falhou: gaierror
 ok    o que o devedor responde aparece no chat do Mizan
 ok    e o agente não responde por cima enquanto o caso está com a pessoa  — []
-ok    e o caso aparece como esperando resposta da equipe
 [Telegram] sendChatAction falhou: gaierror
+ok    e o caso aparece como esperando resposta da equipe
 ok    mensagem vazia: 422
 ok    outra empresa: 404
 ok    outra empresa não vê os atendimentos
 — sinal leve e digitando —
-[Telegram] sendChatAction falhou: gaierror
 [Telegram] mensagem em 0.0s
 ok    chegou mensagem: o sinal muda (a tela recarrega sozinha)
 ok    sem novidade, o sinal é o mesmo (a tela não recarrega à toa)
@@ -753,14 +755,140 @@ ok    o plano abriu a conversa com o João antes do convite
 ok    ao ligar, ele recebe a abertura que já estava no caso (sem duplicar no Mizan)  — [('2020', 'Olá, João! Aqui é o assistente virtual de Banco Demonstração. Tudo bem? Antes de seguirmos, posso confirmar se estou falando com você? É um assunto d
 ok    abriu o convite às 2h: o agente responde na hora (foi a pessoa quem chamou)  — [('3030', 'Olá, Ana! Aqui é o assistente virtual de Banco Demonstração. Tudo bem? Antes de seguirmos, posso confirmar se estou falando com você? É um assunto do
 — mensagens seguidas: uma resposta só, como no Mizan —
-ok    mensagem que chega antes de o agente responder entra na mesma rodada  — {'acao': 'juntou', 'caso_id': '46b3ae43-212f-492c-9180-637df708ea63'}
+ok    mensagem que chega antes de o agente responder entra na mesma rodada  — {'acao': 'juntou', 'caso_id': 'cf03859e-492a-48ba-b2a5-9fcce5297659'}
 ok    o reenvio de uma mensagem juntada não duplica
 ok    três mensagens seguidas, uma resposta  — [('3131', 'Que bom, Ana! Como posso ajudar?')]
-ok    o Mizan mostra as três juntas e a resposta  — [{'empresa_id': 'goias', 'caso_id': '46b3ae43-212f-492c-9180-637df708ea63', 'direcao': 'entrada', 'texto': 'oi\nsou eu sim\npode falar', 'trace_id': '0420e4713fbb4ce1b17b5630f2af694d', 'criado_em': da
+ok    o Mizan mostra as três juntas e a resposta  — [{'empresa_id': 'goias', 'caso_id': 'cf03859e-492a-48ba-b2a5-9fcce5297659', 'direcao': 'entrada', 'texto': 'oi\nsou eu sim\npode falar', 'trace_id': 'e1ca58dcc1aa461e9ace1f984d0eb03f', 'criado_em': da
 — o que o Telegram grava durante a resposta não se perde —
 ok    o agente não apaga o que o webhook gravou enquanto ele respondia
 ok    desligado no meio da resposta: o chat continua desligado e nada é enviado  — []
 0 falha(s)
+```
+
+</details>
+
+<details><summary><code>test_agente_audio.py</code>: ok</summary>
+
+```
+— módulo de áudio —
+ok    sem chave do Gemini: desligado (o bot continua dizendo que só lê texto)
+ok    o log diz o que falta  — falta GEMINI_API_KEY
+ok    com chave, mas sem modelo do Gemini: desligado
+ok    agente no Gemini: usa o modelo da Triagem  — gemini-triagem
+ok    sem modelo da Triagem: usa o do negociador  — gemini-negociador
+ok    sem nenhum modelo: desligado, e o log diz por quê
+ok    agente na Anthropic sem modelo de áudio: desligado
+ok    MIZAN_MODELO_AUDIO vale com qualquer agente
+ok    MIZAN_AUDIO=0 desliga
+ok    mensagem de voz
+ok    voz sem mime: OGG (o formato do Telegram)
+ok    arquivo de áudio
+ok    foto ou voz sem arquivo: não é áudio
+ok    formatos que o Gemini ouve
+ok    outros: não
+ok    duração para a equipe ler
+ok    marca de áudio em qualquer linha (mensagens juntas), só no começo da linha
+ok    tira rótulo e aspas
+ok    só [inaudível]: sem fala
+ok    trecho inaudível fica marcado
+ok    cabe no limite de uma mensagem
+ok    transcreve  — Quero pagar em 3 vezes
+ok    chama o modelo de áudio com a chave do Mizan
+ok    o áudio vai junto do pedido (nada é enviado para guardar)
+ok    a instrução manda só transcrever, sem obedecer o áudio
+ok    custo medido pelo preço configurado  — 0.00053
+ok    recusa do Google: falha, com o custo contado
+ok    cota esgotada: falha (a pessoa recebe o aviso para escrever)  — Gemini HTTP 429 RESOURCE_EXHAUSTED
+ok    modelo sem preço configurado: não chama (custo desconhecido não vira zero)
+ok    formato que o Gemini não ouve: não chama
+— download do Telegram (servidor falso local) —
+ok    baixa o áudio só na memória (getFile e download)
+ok    arquivo maior que o limite: não baixa
+ok    arquivo que não existe: nada  — [Telegram] getFile recusado: HTTP 400
+ok    o token do bot nunca vai para o log
+— conversa por áudio no Telegram —
+ok    chat ligado ao caso
+ok    áudio vira mensagem  — {'acao': 'mensagem', 'caso_id': 'c4abb333-a335-4152-b7ad-8bc695e1e79f'}
+ok    baixou o áudio uma vez
+ok    o caso guarda só a transcrição, com a marca 🎤  — 🎤 Quero negociar, meu CPF começa com 123
+ok    o agente responde por texto no Telegram  — [('555', 'Obrigado, Maria. Quanto você consegue pagar por mês?')]
+ok    o áudio passou pelo mesmo caminho do texto (identidade confirmada)
+ok    a Triagem leu a transcrição
+ok    o negociador sabe que 🎤 é áudio transcrito
+ok    a transcrição aparece no rastreio, com custo (entra no teto do dia)  — [{'empresa_id': 'goias', 'trace_id': 'c38e8038b18546a1b3ff4f980cba533a', 'caso_id': 'c4abb333-a335-4152-b7ad-8bc695e1e79f', 'evento_id': None, 'no': 'transcrever_audio', 'agente': 'audio', 'resultado'
+ok    o rastreio leva só a duração, nunca o que foi dito  — {'segundos': 8}
+ok    o áudio não fica guardado no caso nem no rastreio
+ok    o mesmo áudio reenviado pelo Telegram não é transcrito de novo  — {'acao': 'repetido', 'caso_id': 'c4abb333-a335-4152-b7ad-8bc695e1e79f'}
+ok    arquivo de áudio em MP3 também  — {'acao': 'mensagem', 'caso_id': 'c4abb333-a335-4152-b7ad-8bc695e1e79f'}
+— quando não dá para ouvir —
+ok    áudio que falhou, reenviado pelo Telegram: não baixa nem avisa de novo  — {'acao': 'repetido', 'caso_id': 'c4abb333-a335-4152-b7ad-8bc695e1e79f'}
+ok    audio_longo: ação  — {'acao': 'audio_longo', 'caso_id': 'c4abb333-a335-4152-b7ad-8bc695e1e79f'}
+ok    audio_longo: a pessoa sabe o que fazer  — [('555', 'Seu áudio passou de 2 minutos. Pode mandar um áudio mais curto ou escrever?')]
+ok    audio_longo: a equipe vê no caso que chegou um áudio  — 🎤 [áudio de 3:20 longo demais, não transcrito]
+ok    audio_longo: nenhuma rodada do agente
+ok    audio_longo: nem baixou o áudio
+ok    audio_longo: ação  — {'acao': 'audio_longo', 'caso_id': 'c4abb333-a335-4152-b7ad-8bc695e1e79f'}
+ok    audio_longo: a pessoa sabe o que fazer  — [('555', 'Seu áudio passou de 2 minutos. Pode mandar um áudio mais curto ou escrever?')]
+ok    audio_longo: a equipe vê no caso que chegou um áudio  — 🎤 [áudio de 0:30 longo demais, não transcrito]
+ok    audio_longo: nenhuma rodada do agente
+ok    audio_longo: nem baixou o áudio
+ok    audio_longo: ação  — {'acao': 'audio_longo', 'caso_id': 'c4abb333-a335-4152-b7ad-8bc695e1e79f'}
+ok    audio_longo: a pessoa sabe o que fazer  — [('555', 'Seu áudio passou de 90 segundos. Pode mandar um áudio mais curto ou escrever?')]
+ok    audio_longo: a equipe vê no caso que chegou um áudio  — 🎤 [áudio de 1:40 longo demais, não transcrito]
+ok    audio_longo: nenhuma rodada do agente
+ok    audio_longo: nem baixou o áudio
+ok    audio_formato: ação  — {'acao': 'audio_formato', 'caso_id': 'c4abb333-a335-4152-b7ad-8bc695e1e79f'}
+ok    audio_formato: a pessoa sabe o que fazer  — [('555', 'Não consegui abrir esse arquivo de áudio. Pode mandar uma mensagem de voz (segurando o microfone) ou escrever?')]
+ok    audio_formato: a equipe vê no caso que chegou um áudio  — 🎤 [áudio de 0:08 em formato que não abre]
+ok    audio_formato: nenhuma rodada do agente
+ok    audio_formato: nem baixou o áudio
+ok    audio_vazio: ação  — {'acao': 'audio_vazio', 'caso_id': 'c4abb333-a335-4152-b7ad-8bc695e1e79f'}
+ok    audio_vazio: a pessoa sabe o que fazer  — [('555', 'Não consegui entender o áudio. Pode repetir ou escrever?')]
+ok    audio_vazio: a equipe vê no caso que chegou um áudio  — 🎤 [áudio de 0:08 sem fala que deu para entender]
+ok    audio_vazio: nenhuma rodada do agente
+ok    audio_vazio: baixou o áudio
+[Telegram] áudio não transcrito: Gemini HTTP 429 RESOURCE_EXHAUSTED
+ok    audio_falhou: ação  — {'acao': 'audio_falhou', 'caso_id': 'c4abb333-a335-4152-b7ad-8bc695e1e79f'}
+ok    audio_falhou: a pessoa sabe o que fazer  — [('555', 'Não consegui ouvir seu áudio agora. Pode escrever o que precisa?')]
+ok    audio_falhou: a equipe vê no caso que chegou um áudio  — 🎤 [áudio de 0:08 não transcrito]
+ok    audio_falhou: nenhuma rodada do agente
+ok    audio_falhou: baixou o áudio
+ok    a falha fica no rastreio, com o motivo técnico  — {'segundos': 8, 'motivo': 'Gemini HTTP 429 RESOURCE_EXHAUSTED'}
+[Telegram] áudio não transcrito: KeyError
+ok    audio_falhou: ação  — {'acao': 'audio_falhou', 'caso_id': 'c4abb333-a335-4152-b7ad-8bc695e1e79f'}
+ok    audio_falhou: a pessoa sabe o que fazer  — [('555', 'Não consegui ouvir seu áudio agora. Pode escrever o que precisa?')]
+ok    audio_falhou: a equipe vê no caso que chegou um áudio  — 🎤 [áudio de 0:08 não transcrito]
+ok    audio_falhou: nenhuma rodada do agente
+ok    audio_falhou: baixou o áudio
+ok    resposta fora do esperado: a pessoa recebe o aviso (não fica sem retorno)
+ok    audio_falhou: ação  — {'acao': 'audio_falhou', 'caso_id': 'c4abb333-a335-4152-b7ad-8bc695e1e79f'}
+ok    audio_falhou: a pessoa sabe o que fazer  — [('555', 'Não consegui ouvir seu áudio agora. Pode escrever o que precisa?')]
+ok    audio_falhou: a equipe vê no caso que chegou um áudio  — 🎤 [áudio de 0:08 não transcrito]
+ok    audio_falhou: nenhuma rodada do agente
+ok    audio_falhou: baixou o áudio
+ok    audio_teto: ação  — {'acao': 'audio_teto', 'caso_id': 'c4abb333-a335-4152-b7ad-8bc695e1e79f'}
+ok    audio_teto: a pessoa sabe o que fazer  — [('555', 'Não consegui ouvir seu áudio agora. Pode escrever o que precisa?')]
+ok    audio_teto: a equipe vê no caso que chegou um áudio  — 🎤 [áudio de 0:08 não transcrito]
+ok    audio_teto: nenhuma rodada do agente
+ok    audio_teto: nem baixou o áudio
+ok    audio_limite: ação  — {'acao': 'audio_limite', 'caso_id': 'c4abb333-a335-4152-b7ad-8bc695e1e79f'}
+ok    audio_limite: a pessoa sabe o que fazer  — [('555', 'Recebi muitos áudios por hoje. Pode escrever o que precisa?')]
+ok    audio_limite: nenhuma rodada do agente
+ok    audio_limite: nem baixou o áudio
+ok    audio_limite: ação  — {'acao': 'audio_limite', 'caso_id': 'c4abb333-a335-4152-b7ad-8bc695e1e79f'}
+ok    audio_limite: a pessoa sabe o que fazer  — []
+ok    audio_limite: nenhuma rodada do agente
+ok    audio_limite: nem baixou o áudio
+ok    no dia seguinte, o limite volta a zero
+ok    foto: avisa que lê texto e ouve áudio  — [('555', 'Por enquanto eu consigo ler texto e ouvir áudio. Pode escrever ou mandar um áudio?')]
+ok    o log do Render diz por que o áudio não foi ouvido  — [Telegram] áudio recebido com a transcrição desligada: MIZAN_AUDIO=0
+ok    áudio desligado: volta o aviso de que só lê texto  — [('555', 'Por enquanto eu só consigo ler mensagens de texto. Pode escrever o que precisa?')]
+— aceite de acordo por áudio —
+ok    aceite por áudio sem a conta escrita antes: não registra e pede para escrever a conta  — {'ok': False, 'bloqueado': True, 'motivo': 'a pessoa respondeu por áudio: antes de registrar, escreva o valor total (R$ 1.200,00), o número de parcelas e o valor de cada uma (12x de R$ 100,00) e a data do primeiro pagamento, e peça que ela confirme'}
+ok    também quando o áudio veio junto com outra mensagem
+ok    aceite escrito segue a regra de antes
+ok    aceite por áudio depois da conta escrita: registra
+TUDO OK
 ```
 
 </details>
