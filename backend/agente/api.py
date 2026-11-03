@@ -53,6 +53,8 @@ def _quem(p: dict) -> str:
     no = p.get("no") or ""
     if no.startswith("ferramenta:"):
         return "Ferramenta"
+    if no == "enviar" and p.get("agente") == "acompanhamento":
+        return "Acompanhamento"
     if no in ("receber", "enviar", "resposta_fixa", "avisar_equipe", "transferir"):
         return "Orquestrador"                     # passos do grafo, não das travas
     if no in ("triagem", "negociar", "guardrails", "auditor"):
