@@ -22,7 +22,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
-from agente import auditor, conhecimento, estado, guardrails, juridico_orq
+from agente import audio, auditor, conhecimento, estado, guardrails, juridico_orq
 from agente.juridico import sinais
 from model import oferta
 
@@ -275,6 +275,13 @@ def _fatos_oferta(ctx, sim: dict) -> dict:
 def _conferir_aceite(ctx, fonte, sim: dict, data: str) -> dict | None:
     """Base jurídica antes de registrar o acordo. None = pode registrar."""
     fatos = _fatos_oferta(ctx, sim)
+    if audio.veio_de_audio(ctx.saida.get("texto")) and not (fatos["informa_total"] and fatos["informa_parcelas"]):
+        # Aceite falado: um número mal transcrito não pode virar acordo. A pessoa lê a conta por escrito antes.
+        return {"ok": False, "bloqueado": True,
+                "motivo": f"a pessoa respondeu por áudio: antes de registrar, escreva o valor total "
+                          f"({_brl(sim['conta']['total_pago'])}), o número de parcelas e o valor de cada uma "
+                          f"({_resumo_conta(sim['condicoes'], sim['conta'])}) e a data do primeiro pagamento, "
+                          f"e peça que ela confirme"}
     j = ctx.consultar_juridico("oferta_credito", fatos)
     if j["decisao"] not in juridico_orq.BLOQUEIA:
         return None

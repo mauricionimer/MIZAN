@@ -44,6 +44,7 @@ const NOME_NO = {
   conferir: 'Acompanhamento: conferiu a data', decisao: 'Decisão do Acompanhamento', lembrar: 'Lembrete (mensagem pronta)',
   cobrar_atraso: 'Procurou pelo atraso', encerrar: 'Sem resposta: passou para uma pessoa', registrar: 'Pagamento registrado',
   consulta_juridica: 'Consulta jurídica interna', pedido_titular: 'Pedido sobre os dados pessoais',
+  transcrever_audio: 'Transcreveu o áudio do devedor',
 }
 const nomeNo = (n) => NOME_NO[n] || (n?.startsWith('ferramenta:') ? `Ferramenta: ${n.slice(11).replaceAll('_', ' ')}` : n)
 

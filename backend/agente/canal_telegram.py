@@ -34,8 +34,11 @@ Segurança
   - O webhook só aceita chamadas com o cabeçalho `X-Telegram-Bot-Api-Secret-Token`
     igual a TELEGRAM_WEBHOOK_SECRET (comparação em tempo constante). Sem a variável, recusa.
   - O token do bot (TELEGRAM_BOT_TOKEN) nunca vai para log, rastreio nem resposta.
-  - Só conversa privada; grupos e bots são ignorados. Foto, áudio e afins recebem
-    um aviso de que só lemos texto.
+  - Só conversa privada; grupos e bots são ignorados. Foto, vídeo e afins recebem
+    um aviso de que só lemos texto e áudio.
+  - Áudio (mensagem de voz ou arquivo de áudio) vira texto com a marca 🎤 e segue como
+    mensagem escrita; o agente responde por texto. O áudio fica só na memória e é
+    descartado (agente/audio.py, `_ouvir`).
   - Cada update do Telegram tem chave própria (`telegram:<update_id>`): reenvio não duplica.
   - O que vai ao Telegram é texto puro, sem formatação.
   - Cada conversa dispara no máximo MIZAN_IA_RODADAS_CASO rodadas de IA (padrão 30,
@@ -89,6 +92,13 @@ MSG_CONVITE_INVALIDO = MSG_CONVITE["invalido"]
 MSG_PAUSADO = ("Recebemos sua mensagem. O atendimento automático está pausado agora; "
                "uma pessoa da equipe vai responder por aqui.")
 MSG_SO_TEXTO = "Por enquanto eu só consigo ler mensagens de texto. Pode escrever o que precisa?"
+MSG_SO_TEXTO_E_AUDIO = "Por enquanto eu consigo ler texto e ouvir áudio. Pode escrever ou mandar um áudio?"
+MSG_AUDIO_LONGO = "Seu áudio passou de {limite}. Pode mandar um áudio mais curto ou escrever?"
+MSG_AUDIO_FORMATO = ("Não consegui abrir esse arquivo de áudio. Pode mandar uma mensagem de voz "
+                     "(segurando o microfone) ou escrever?")
+MSG_AUDIO_FALHOU = "Não consegui ouvir seu áudio agora. Pode escrever o que precisa?"
+MSG_AUDIO_VAZIO = "Não consegui entender o áudio. Pode repetir ou escrever?"
+MSG_AUDIO_LIMITE = "Recebi muitos áudios por hoje. Pode escrever o que precisa?"
 MSG_CANAL_EM_REVISAO = ("Recebemos seu acesso. Por enquanto o atendimento por aqui não está disponível; "
                         "a equipe vai falar com você pelo canal de sempre.")
 MSG_ESPERA = "Recebi suas mensagens, já te respondo."
@@ -244,6 +254,47 @@ def _apagar_mensagem(chat_id, message_id) -> bool:
 
 
 apagar_mensagem = _apagar_mensagem  # os testes trocam este nome
+
+
+def _baixar_arquivo(file_id: str, max_bytes: int) -> bytes | None:
+    """Baixa um arquivo que o devedor mandou (getFile e download), só na memória.
+
+    None se falhou ou passou de `max_bytes`. Nunca levanta erro e nunca imprime a URL
+    (ela leva o token)."""
+    import http.client
+    from urllib.parse import quote, urlsplit
+    token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+    if not token or not file_id:
+        return None
+    url = urlsplit(API)
+    classe = http.client.HTTPSConnection if url.scheme == "https" else http.client.HTTPConnection
+    conn = classe(url.hostname, url.port, timeout=TIMEOUT_S)
+    try:
+        conn.request("POST", f"/bot{token}/getFile", body=json.dumps({"file_id": file_id}).encode("utf-8"),
+                     headers={"Content-Type": "application/json"})
+        r = conn.getresponse()
+        corpo = r.read()
+        if r.status != 200:
+            print(f"[Telegram] getFile recusado: HTTP {r.status}")
+            return None
+        caminho = ((json.loads(corpo or b"{}") or {}).get("result") or {}).get("file_path")
+        if not caminho:
+            return None
+        conn.request("GET", f"/file/bot{token}/{quote(str(caminho))}")
+        r = conn.getresponse()
+        if r.status != 200:
+            print(f"[Telegram] download recusado: HTTP {r.status}")
+            return None
+        dados = r.read(max_bytes + 1)
+        return dados if len(dados) <= max_bytes else None
+    except (http.client.HTTPException, OSError, ValueError, AttributeError) as e:
+        print(f"[Telegram] download falhou: {type(e).__name__}")
+        return None
+    finally:
+        conn.close()
+
+
+baixar_arquivo = _baixar_arquivo    # os testes trocam este nome
 
 
 # ── estado do Telegram no caso ──────────────────────────────────────────────
@@ -717,6 +768,79 @@ def _ja_visto(chave: str) -> bool:
         return False
 
 
+def _visto(chave: str) -> bool:
+    """Como `_ja_visto`, mas só olha (não marca)."""
+    with _TRAVAS_LOCK:
+        return chave in _VISTAS
+
+
+def _ouvir(repo, caso: dict, chat_id, chave: str, arquivo: dict, agora: datetime) -> tuple:
+    """Transcreve o áudio do devedor. Devolve (texto com a marca 🎤, None) para seguir como
+    mensagem escrita, ou (None, ação) quando não deu para ouvir: a pessoa recebe o que fazer
+    e a equipe vê no caso que chegou um áudio (sem o áudio)."""
+    from agente import audio, llm, rastreio
+    from agente.repositorio import BRASILIA
+    emp = caso["empresa_id"]
+    if repo.evento_por_chave(emp, chave) or _visto(chave) or _ja_visto(f"audio:{chave}"):
+        return None, "repetido"                     # reenvio do Telegram: não baixa nem transcreve de novo
+    dur = audio.duracao(arquivo["segundos"])
+
+    def nao_ouvido(acao: str, aviso: str | None, nota: str) -> tuple:
+        repo.gravar_mensagem(emp, caso["id"], "entrada", f"{audio.MARCA}[áudio de {dur} {nota}]", chave,
+                             criado_em=agora)
+        if aviso:
+            enviar_texto(chat_id, aviso)
+        return None, acao
+
+    if not audio.formato(arquivo["mime"]):
+        return nao_ouvido("audio_formato", MSG_AUDIO_FORMATO, "em formato que não abre")
+    if arquivo["segundos"] > audio.max_segundos() or arquivo["bytes"] > audio.MAX_BYTES:
+        limite = audio.max_segundos()
+        texto_limite = f"{limite // 60} minutos" if limite % 60 == 0 and limite >= 120 else f"{limite} segundos"
+        return nao_ouvido("audio_longo", MSG_AUDIO_LONGO.format(limite=texto_limite), "longo demais, não transcrito")
+
+    # Áudios por conversa por dia: quem manda centenas não esgota a IA dos outros devedores.
+    dia = agora.astimezone(BRASILIA).date()
+    tg = _tg(caso)
+    conta = tg.get("audios") or {}
+    n = int(conta.get("n") or 0) if conta.get("dia") == dia.isoformat() else 0
+    if n >= audio.max_por_dia():
+        if _pode_avisar(repo, caso, "audio_limite", agora, timedelta(hours=1)):
+            enviar_texto(chat_id, MSG_AUDIO_LIMITE)
+        return None, "audio_limite"
+    try:
+        llm.conferir_teto(repo.custo_do_dia(emp, dia))
+    except llm.TetoExcedido:
+        return nao_ouvido("audio_teto", MSG_AUDIO_FALHOU, "não transcrito")
+    tg["audios"] = {"dia": dia.isoformat(), "n": n + 1}
+    _gravar_tg(repo, caso, tg)
+
+    enviar_acao(chat_id)                            # "digitando…" enquanto ouve
+    conteudo = baixar_arquivo(arquivo["file_id"], audio.MAX_BYTES)
+    if not conteudo:
+        return nao_ouvido("audio_falhou", MSG_AUDIO_FALHOU, "não transcrito")
+    rast = rastreio.Rastreio(emp, repo.gravar_passo, caso_id=caso["id"])
+    feito = None
+    with rast.span("transcrever_audio", "audio") as passo:
+        passo["versao_prompt"] = audio.VERSAO_PROMPT
+        passo["detalhe"] = {"segundos": int(arquivo["segundos"])}
+        try:
+            feito = audio.transcrever(conteudo, arquivo["mime"])
+            rast.somar_ia(feito.resposta)
+        except audio.AudioFalhou as e:
+            if e.resposta is not None:
+                rast.somar_ia(e.resposta)
+            passo["resultado"] = "erro"
+            passo["detalhe"]["motivo"] = e.motivo[:80]
+            print(f"[Telegram] áudio não transcrito: {e.motivo[:80]}")
+    del conteudo                                    # o áudio não fica guardado em lugar nenhum
+    if feito is None:
+        return nao_ouvido("audio_falhou", MSG_AUDIO_FALHOU, "não transcrito")
+    if not feito.texto:
+        return nao_ouvido("audio_vazio", MSG_AUDIO_VAZIO, "sem fala que deu para entender")
+    return audio.MARCA + feito.texto, None
+
+
 def _juntar_na_fila(repo, caso: dict, chave: str, texto: str) -> dict | None:
     """O devedor mandou outra mensagem antes de o agente começar a responder a anterior:
     ela entra no mesmo evento, e UMA resposta cobre as duas. No Mizan a caixa espera a
@@ -745,6 +869,8 @@ def receber(update: dict, repo=None, agora: datetime | None = None, processar=Tr
     chat_id, texto = chat["id"], (msg.get("text") or "").strip()
     repo = repo or api.fabrica_repo()
     agora = _agora(agora)
+    chave = f"telegram:{update.get('update_id', uuid.uuid4().hex)}"
+    caso = None
 
     if not texto:
         if not any(k in msg for k in _MIDIA):
@@ -753,9 +879,16 @@ def receber(update: dict, repo=None, agora: datetime | None = None, processar=Tr
         if not caso:
             enviar_texto(chat_id, MSG_SEM_VINCULO)
             return {"acao": "sem_vinculo"}
-        if _pode_avisar(repo, caso, "so_texto", agora):
-            enviar_texto(chat_id, MSG_SO_TEXTO)
-        return {"acao": "midia", "caso_id": caso["id"]}
+        from agente import audio
+        arquivo = audio.do_telegram(msg) if audio.ligado() else None
+        if arquivo is None:
+            if _pode_avisar(repo, caso, "so_texto", agora):
+                enviar_texto(chat_id, MSG_SO_TEXTO_E_AUDIO if audio.ligado() else MSG_SO_TEXTO)
+            return {"acao": "midia", "caso_id": caso["id"]}
+        texto, acao = _ouvir(repo, caso, chat_id, chave, arquivo, agora)
+        if not texto:
+            return {"acao": acao, "caso_id": caso["id"]}
+        # Daqui em diante, o áudio transcrito segue como uma mensagem escrita.
 
     if texto.startswith("/start"):
         partes = texto.split(maxsplit=1)
@@ -782,7 +915,7 @@ def receber(update: dict, repo=None, agora: datetime | None = None, processar=Tr
         enviar_texto(chat_id, MSG_CONVITE[motivo])
         return {"acao": f"convite_{motivo}"}
 
-    caso = repo.caso_por_telegram(chat_id)
+    caso = caso or repo.caso_por_telegram(chat_id)
     if not caso:
         enviar_texto(chat_id, MSG_SEM_VINCULO)
         return {"acao": "sem_vinculo"}
@@ -791,7 +924,6 @@ def receber(update: dict, repo=None, agora: datetime | None = None, processar=Tr
         tg.pop("bloqueado_em")                  # escreveu de novo: desbloqueou o bot
         _gravar_tg(repo, caso, tg)
     texto = texto[:api.MAX_TEXTO]
-    chave = f"telegram:{update.get('update_id', uuid.uuid4().hex)}"
 
     if not api.ligado():
         # Agente desligado: a mensagem não se perde (a equipe vê no caso) e o devedor sabe que foi recebida.
