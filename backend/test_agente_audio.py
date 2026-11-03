@@ -35,16 +35,23 @@ def checar(c, t, d=""):
 
 print("— módulo de áudio —")
 checar(not audio.ligado(), "sem chave do Gemini: desligado (o bot continua dizendo que só lê texto)")
+checar(audio.por_que_desligado() == "falta GEMINI_API_KEY", "o log diz o que falta", audio.por_que_desligado())
 os.environ.update(GEMINI_API_KEY="chave-teste")
 checar(not audio.ligado(), "com chave, mas sem modelo do Gemini: desligado")
 os.environ.update(MIZAN_AGENTE_CLIENTE="gemini", MIZAN_MODELO_TRIAGEM="gemini-triagem")
 checar(audio.ligado() and audio.modelo() == "gemini-triagem", "agente no Gemini: usa o modelo da Triagem", audio.modelo())
+os.environ.pop("MIZAN_MODELO_TRIAGEM")
+os.environ["MIZAN_MODELO_NEGOCIADOR"] = "gemini-negociador"
+checar(audio.modelo() == "gemini-negociador", "sem modelo da Triagem: usa o do negociador", audio.modelo())
+os.environ.pop("MIZAN_MODELO_NEGOCIADOR")
+checar(not audio.ligado() and audio.por_que_desligado().startswith("falta o modelo"), "sem nenhum modelo: desligado, e o log diz por quê")
+os.environ["MIZAN_MODELO_TRIAGEM"] = "gemini-triagem"
 os.environ["MIZAN_AGENTE_CLIENTE"] = "anthropic"
 checar(not audio.ligado(), "agente na Anthropic sem modelo de áudio: desligado")
 os.environ["MIZAN_MODELO_AUDIO"] = "gemini-audio-teste"
 checar(audio.ligado() and audio.modelo() == "gemini-audio-teste", "MIZAN_MODELO_AUDIO vale com qualquer agente")
 os.environ["MIZAN_AUDIO"] = "0"
-checar(not audio.ligado(), "MIZAN_AUDIO=0 desliga")
+checar(not audio.ligado() and audio.por_que_desligado() == "MIZAN_AUDIO=0", "MIZAN_AUDIO=0 desliga")
 os.environ.pop("MIZAN_AUDIO")
 for v in ("MIZAN_AGENTE_CLIENTE", "MIZAN_MODELO_TRIAGEM"):
     os.environ.pop(v)
@@ -252,6 +259,9 @@ RESP["erro"] = llm.IaOcupada("Gemini HTTP 429 RESOURCE_EXHAUSTED")
 sem_rodada(voz(25), "audio_falhou", canal_telegram.MSG_AUDIO_FALHOU, "🎤 [áudio de 0:08 não transcrito]", baixa=True)
 checar(passos_audio()[-1]["resultado"] == "erro" and "429" in passos_audio()[-1]["detalhe"]["motivo"],
        "a falha fica no rastreio, com o motivo técnico", str(passos_audio()[-1]["detalhe"]))
+RESP["erro"] = KeyError("candidates")
+sem_rodada(voz(31), "audio_falhou", canal_telegram.MSG_AUDIO_FALHOU, "🎤 [áudio de 0:08 não transcrito]", baixa=True)
+checar(passos_audio()[-1]["detalhe"]["motivo"] == "KeyError", "resposta fora do esperado: a pessoa recebe o aviso (não fica sem retorno)")
 RESP["erro"] = None
 BAIXAR["dados"] = None
 sem_rodada(voz(26), "audio_falhou", canal_telegram.MSG_AUDIO_FALHOU, "🎤 [áudio de 0:08 não transcrito]", baixa=True)
@@ -276,7 +286,10 @@ checar(ENVIADOS == [("555", canal_telegram.MSG_SO_TEXTO_E_AUDIO)], "foto: avisa 
 os.environ["MIZAN_AUDIO"] = "0"
 ENVIADOS.clear()
 n = len(BAIXADOS)
-r = receber(voz(41), agora=amanha + timedelta(hours=2))
+log = io.StringIO()
+with contextlib.redirect_stdout(log):
+    r = receber(voz(41), agora=amanha + timedelta(hours=2))
+checar("transcrição desligada: MIZAN_AUDIO=0" in log.getvalue(), "o log do Render diz por que o áudio não foi ouvido", log.getvalue().strip())
 checar(r["acao"] == "midia" and ENVIADOS == [("555", canal_telegram.MSG_SO_TEXTO)] and len(BAIXADOS) == n,
        "áudio desligado: volta o aviso de que só lê texto", str(ENVIADOS))
 os.environ.pop("MIZAN_AUDIO")

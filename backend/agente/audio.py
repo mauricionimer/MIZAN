@@ -1,7 +1,7 @@
 """Áudio do devedor: a mensagem de voz vira texto, e o agente responde por texto.
 
 Versão grátis: usa o Gemini que o Mizan já usa (GEMINI_API_KEY), no modelo da Triagem
-(ou em MIZAN_MODELO_AUDIO). Não há nada novo para instalar nem conta nova.
+(sem ele, o do negociador; ou o de MIZAN_MODELO_AUDIO). Não há nada novo para instalar nem conta nova.
 
 Como funciona
   1. O canal (Telegram) baixa o áudio só na memória: ele não vai para disco, log nem banco.
@@ -16,7 +16,7 @@ Variáveis de ambiente (lidas a cada áudio, sem reiniciar)
   MIZAN_AUDIO=0 ............ desliga: volta o aviso de que só lemos texto
   MIZAN_AUDIO_MAX_S ........ duração máxima em segundos (padrão 120)
   MIZAN_AUDIO_POR_DIA ...... áudios por conversa por dia (padrão 30)
-  MIZAN_MODELO_AUDIO ....... modelo do Gemini (padrão: o da Triagem; precisa de preço
+  MIZAN_MODELO_AUDIO ....... modelo do Gemini (padrão: o da Triagem ou o do negociador; precisa de preço
                              em MIZAN_AGENTE_PRECOS, como os outros)
   O custo entra no teto diário da empresa (MIZAN_AGENTE_TETO_DIA_USD), como o resto da IA.
 
@@ -96,15 +96,29 @@ def modelo() -> str:
     if proprio:
         return proprio
     if os.getenv("MIZAN_AGENTE_CLIENTE", "").strip().lower() == "gemini":
-        return os.getenv("MIZAN_MODELO_TRIAGEM", "").strip()
+        return (os.getenv("MIZAN_MODELO_TRIAGEM", "").strip()
+                or os.getenv("MIZAN_MODELO_NEGOCIADOR", "").strip())
     return ""
 
 
+def _desligado_por_variavel() -> bool:
+    return os.getenv("MIZAN_AUDIO", "1").strip().lower() in ("0", "false", "nao", "não", "desligado")
+
+
 def ligado() -> bool:
-    if os.getenv("MIZAN_AUDIO", "1").strip().lower() in ("0", "false", "nao", "não", "desligado"):
-        return False
     m = modelo()
-    return bool(_chave() and m and m != llm.MODELO_FALSO)
+    return not _desligado_por_variavel() and bool(_chave() and m and m != llm.MODELO_FALSO)
+
+
+def por_que_desligado() -> str:
+    """Para o log do Render: o que falta para o áudio funcionar (sem valores de chave)."""
+    if _desligado_por_variavel():
+        return "MIZAN_AUDIO=0"
+    if not _chave():
+        return "falta GEMINI_API_KEY"
+    if not modelo() or modelo() == llm.MODELO_FALSO:
+        return "falta o modelo: MIZAN_AGENTE_CLIENTE=gemini com MIZAN_MODELO_TRIAGEM, ou MIZAN_MODELO_AUDIO"
+    return "ligado"
 
 
 def formato(mime: str | None) -> str | None:

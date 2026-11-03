@@ -833,6 +833,10 @@ def _ouvir(repo, caso: dict, chat_id, chave: str, arquivo: dict, agora: datetime
             passo["resultado"] = "erro"
             passo["detalhe"]["motivo"] = e.motivo[:80]
             print(f"[Telegram] áudio não transcrito: {e.motivo[:80]}")
+        except Exception as e:                      # resposta fora do esperado: a pessoa não fica sem retorno
+            passo["resultado"] = "erro"
+            passo["detalhe"]["motivo"] = type(e).__name__
+            print(f"[Telegram] áudio não transcrito: {type(e).__name__}")
     del conteudo                                    # o áudio não fica guardado em lugar nenhum
     if feito is None:
         return nao_ouvido("audio_falhou", MSG_AUDIO_FALHOU, "não transcrito")
@@ -881,6 +885,8 @@ def receber(update: dict, repo=None, agora: datetime | None = None, processar=Tr
             return {"acao": "sem_vinculo"}
         from agente import audio
         arquivo = audio.do_telegram(msg) if audio.ligado() else None
+        if arquivo is None and audio.do_telegram(msg) is not None:
+            print(f"[Telegram] áudio recebido com a transcrição desligada: {audio.por_que_desligado()}")
         if arquivo is None:
             if _pode_avisar(repo, caso, "so_texto", agora):
                 enviar_texto(chat_id, MSG_SO_TEXTO_E_AUDIO if audio.ligado() else MSG_SO_TEXTO)

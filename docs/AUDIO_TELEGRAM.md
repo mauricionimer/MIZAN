@@ -38,14 +38,15 @@ O devedor pode mandar áudio no Telegram. O Mizan transcreve e o agente responde
 ## Configuração (Render)
 
 Por padrão, nada precisa mudar. O áudio liga sozinho quando o agente usa o Gemini
-(`MIZAN_AGENTE_CLIENTE=gemini` e `GEMINI_API_KEY`) e usa o mesmo modelo da Triagem.
+(`MIZAN_AGENTE_CLIENTE=gemini` e `GEMINI_API_KEY`) e usa o mesmo modelo da Triagem (sem ele, o do
+negociador).
 
 | Variável | Para que serve | Padrão |
 |---|---|---|
 | `MIZAN_AUDIO` | `0` desliga (volta o aviso "só leio texto") | ligado |
 | `MIZAN_AUDIO_MAX_S` | Duração máxima, em segundos | `120` |
 | `MIZAN_AUDIO_POR_DIA` | Áudios por conversa por dia | `30` |
-| `MIZAN_MODELO_AUDIO` | Outro modelo do Gemini só para áudio (cota separada no plano grátis). Precisa ser da mesma geração do da Triagem (com `thinkingLevel`) e ter preço em `MIZAN_AGENTE_PRECOS` | modelo da Triagem |
+| `MIZAN_MODELO_AUDIO` | Outro modelo do Gemini só para áudio (cota separada no plano grátis). Precisa ser da mesma geração do da Triagem (com `thinkingLevel`) e ter preço em `MIZAN_AGENTE_PRECOS` | modelo da Triagem ou do negociador |
 
 O custo entra no teto diário da empresa (`MIZAN_AGENTE_TETO_DIA_USD`), como o resto da IA. Um
 minuto de áudio dá uns 1.920 tokens de entrada.
@@ -76,3 +77,5 @@ minuto de áudio dá uns 1.920 tokens de entrada.
 4. Mande um áudio em silêncio: deve chegar "Não consegui entender o áudio".
 5. Se aparecer "Não consegui ouvir seu áudio agora", veja no log do Render a linha
    `[Telegram] áudio não transcrito: ...`, que mostra o motivo técnico.
+6. Se o bot responder que só lê texto, veja no log a linha
+   `[Telegram] áudio recebido com a transcrição desligada: ...`, que diz o que falta configurar.
