@@ -882,6 +882,112 @@ function SeloEvidencia({ s }) {
   return <span className="rounded px-1.5 py-0.5 text-[11px] font-semibold" style={{ color: SELO_COR[s], border: `1px solid ${SELO_COR[s]}` }}>{s}</span>
 }
 
+// Laboratório (desenho do canvas): cabeçalho com "Gerar análise", aviso de
+// demonstração, "Como funciona" ao lado das propostas do Cientista, a resposta
+// "A cobrança fez diferença?" com a faixa de confiança, e o funil das negociações.
+// As contas vêm prontas do servidor (feitas em código); aqui só se apresenta.
+const MIN_RESULTADOS_PROPOSTA = 50
+
+function FezDiferenca({ c, hipoteses }) {
+  const t = c.taxa_pagamento
+  const [lo, hi] = t.ic95 || [null, null]
+  const pontos = (x) => Math.round(Math.abs(x) * 100)
+  const frase = lo == null ? 'Ainda sem dados para comparar.'
+    : lo > 0 ? `Sim: quem o agente procurou pagou ${pontos(t.diferenca)} pontos a mais.`
+      : hi < 0 ? `Não: quem o agente procurou pagou ${pontos(t.diferenca)} pontos a menos.`
+        : 'Ainda não dá para dizer: a diferença pode ser zero.'
+  // Escala da faixa: de 0 até o maior valor absoluto envolvido, com folga.
+  const max = Math.max(0.05, Math.abs(lo ?? 0), Math.abs(hi ?? 0), Math.abs(t.diferenca ?? 0)) * 1.25
+  const x = (v) => `${50 + (v / max) * 50}%`
+  const cor = lo > 0 ? 'var(--success)' : hi < 0 ? 'var(--danger)' : 'var(--warning)'
+  return (
+    <section className="rounded-[22px] border border-line bg-surface px-6 py-[22px]" aria-labelledby="lab-dif">
+      <p className="section-label">A cobrança fez diferença?</p>
+      <h3 id="lab-dif" className="mt-1.5 text-[19px] font-semibold leading-snug text-ink">{frase}</h3>
+      <p className="mt-1 text-[13px] text-ink-2">
+        Comparação com um grupo parecido que não foi procurado.{lo != null && ` A diferença real fica entre ${pp(lo)} e ${pp(hi)} (95% de confiança).`} A conta é feita em código, não pela IA.
+        {!c.composicao?.comparaveis && ' Atenção: a composição dos grupos difere, então compare com cuidado.'}
+      </p>
+      <ul className="mt-5 flex flex-col gap-3">
+        {[['Procurados pelo agente', c.n?.agente, t.agente, 'var(--chart-1)'], ['Grupo sem contato', c.n?.sorteado, t.sorteado, 'var(--border-strong)']].map(([r, n, v, cr]) => (
+          <li key={r} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1.5 sm:grid-cols-[200px_minmax(0,1fr)_64px]">
+            <span><span className="block text-sm text-ink">{r}</span><span className="block text-[11px] text-ink-3">{(n ?? 0).toLocaleString('pt-BR')} devedores</span></span>
+            <span className="order-last col-span-2 h-3 overflow-hidden rounded-full bg-[var(--raised)] sm:order-none sm:col-span-1" aria-hidden="true">
+              <span className="block h-full rounded-full" style={{ width: `${Math.max(1.5, (v || 0) * 100)}%`, background: cr }} />
+            </span>
+            <b className="text-right text-sm tabular-nums text-ink">{pct(v)}</b>
+          </li>
+        ))}
+        {lo != null && (
+          <li className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1.5 sm:grid-cols-[200px_minmax(0,1fr)_64px]">
+            <span className="text-sm text-ink">Diferença</span>
+            <span className="relative order-last col-span-2 h-5 sm:order-none sm:col-span-1" role="img"
+              aria-label={`Diferença de ${pp(t.diferenca)}, entre ${pp(lo)} e ${pp(hi)}`}>
+              <span className="absolute inset-x-0 top-1/2 h-px bg-[var(--border-strong)]" />
+              <span className="absolute inset-y-0 w-px bg-[var(--text-muted)]" style={{ left: x(0) }} />
+              <span className="absolute top-1/2 h-2.5 -translate-y-1/2 rounded-full border"
+                style={{ left: x(Math.min(lo, hi)), width: `calc(${x(Math.max(lo, hi))} - ${x(Math.min(lo, hi))})`, background: `color-mix(in srgb, ${cor} 25%, transparent)`, borderColor: cor }} />
+              <span className="absolute inset-y-0 w-0.5 rounded" style={{ left: x(t.diferenca), background: cor }} />
+            </span>
+            <b className="text-right text-sm tabular-nums" style={{ color: cor }}>{t.diferenca > 0 ? '+' : ''}{pontos(t.diferenca) * Math.sign(t.diferenca || 0)}</b>
+          </li>
+        )}
+      </ul>
+      {lo != null && <p className="mt-2 text-[11px] text-ink-3 sm:pl-[216px]">a faixa colorida é onde a diferença real deve estar · a linha fina é o zero (nenhum efeito)</p>}
+      {!!hipoteses?.length && (
+        <details className="mt-4 rounded-[14px] border border-line bg-[var(--sunken)] px-4 py-3">
+          <summary className="cursor-pointer text-sm font-semibold text-ink">O que o Cientista testou ({hipoteses.length})</summary>
+          <ol className="mt-3 flex flex-col gap-3">
+            {hipoteses.map((h, i) => (
+              <li key={i} className="text-[13px]">
+                <p className="flex flex-wrap items-center gap-2 font-medium text-ink">{i + 1}. {h.hipotese} <SeloEvidencia s={h.selo} /></p>
+                <p className="mt-0.5 text-ink-2">{h.resultado}</p>
+                {h.condicoes && <p className="mt-0.5 text-ink-3">Vale para: {h.condicoes}</p>}
+                {h.proximo_experimento && <p className="mt-0.5 text-ink-3">Próximo experimento: {h.proximo_experimento}</p>}
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
+    </section>
+  )
+}
+
+function Funil({ f }) {
+  const etapas = [['Propostas feitas', f.ofertas_apresentadas], ['Acordos aceitos', f.acordos_aceitos], ['Primeiro pagamento', f.primeiro_pagamento_confirmado]]
+  const topo = etapas[0][1] || 0
+  const umEm = topo && f.primeiro_pagamento_confirmado ? Math.round(topo / f.primeiro_pagamento_confirmado) : null
+  return (
+    <section className="flex flex-col rounded-[22px] border border-line bg-surface px-6 py-[22px]" aria-labelledby="lab-funil">
+      <p className="section-label">Resultado das negociações</p>
+      <h3 id="lab-funil" className="mt-1.5 text-[19px] font-semibold leading-snug text-ink">
+        {umEm ? `De cada ${umEm} propostas, 1 chega ao primeiro pagamento.` : topo ? 'Nenhuma proposta chegou ao primeiro pagamento ainda.' : 'Nenhuma proposta feita ainda.'}
+      </h3>
+      <p className="mt-1 text-[13px] text-ink-2">Proposta, aceite e pagamento contam separado. O pagamento usa a baixa registrada, nunca só a promessa.</p>
+      <ul className="mt-5 flex flex-col gap-3">
+        {etapas.map(([r, v], i) => {
+          const ant = i ? etapas[i - 1][1] : null
+          return (
+            <li key={r} className="grid grid-cols-[150px_minmax(0,1fr)_auto] items-center gap-4">
+              <span className="text-sm text-ink-2">{r}</span>
+              <span className="flex justify-center" aria-hidden="true">
+                <span className="h-3 rounded-full" style={{ width: `${topo ? Math.max(4, ((v || 0) / topo) * 100) : 4}%`, background: i === etapas.length - 1 ? 'var(--chart-1)' : 'var(--border-strong)' }} />
+              </span>
+              <span className="text-right">
+                <b className="block text-sm tabular-nums text-ink">{(v || 0).toLocaleString('pt-BR')}</b>
+                <span className="block text-[11px] text-ink-3">{i === 0 ? 'desde o início' : ant ? `${Math.round(((v || 0) / ant) * 100)}% da etapa anterior` : '—'}</span>
+              </span>
+            </li>
+          )
+        })}
+      </ul>
+      <p className="mt-auto pt-5 text-[13px] text-ink-2">
+        {f.acordos_quebrados || 0} {f.acordos_quebrados === 1 ? 'acordo quebrado' : 'acordos quebrados'} · {f.retornos_cumpridos || 0} retornos cumpridos · {f.transferencias_humanas || 0} passados para a equipe · primeiro pagamento somou {fmtBRL(f.valor_primeiro_pagamento_confirmado)}
+      </p>
+    </section>
+  )
+}
+
 export function Laboratorio({ empresa }) {
   const { isAdmin, isComando } = useAuth()
   const [d, setD] = useState(null)
@@ -893,91 +999,100 @@ export function Laboratorio({ empresa }) {
     setOcupado(chave); setErro(null)
     try { await fn(); await carregar() } catch (err) { setErro(err) } finally { setOcupado('') }
   }
-  if (erro && !d) return <ErroCarga erro={erro} />
-  if (!d) return <div className="flex items-center gap-2 p-6 text-sm text-ink-2"><Loader2 className="h-4 w-4 animate-spin" /> carregando…</div>
-  const [atual, ...antigas] = d.recomendacoes
+  const [atual, ...antigas] = d?.recomendacoes || []
   const c = atual?.resultados?.comparacao
+  const cabecalho = (
+    <CabecalhoPagina rotulo="Resultados" icone={FlaskConical} titulo="Laboratório"
+      subtitulo="Compara quem o agente procurou com um grupo que não foi procurado, para saber se a cobrança fez diferença.">
+      {isAdmin && (
+        <button type="button" onClick={() => agir(() => agenteAnalisar(empresa), 'analisar')} disabled={!!ocupado || !d} className="btn-primary">
+          {ocupado === 'analisar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FlaskConical className="h-4 w-4" />} Gerar análise
+        </button>
+      )}
+    </CabecalhoPagina>
+  )
+  if (erro && !d) return <>{cabecalho}<ErroCarga erro={erro} onTentar={carregar} /></>
+  if (!d) return <>{cabecalho}<div className="flex items-center gap-2 p-6 text-sm text-ink-2"><Loader2 className="h-4 w-4 animate-spin" /> Carregando…</div></>
   return (
     <section className="space-y-4">
-      {(isAdmin || isComando) && <AprendizadoCientista empresa={empresa} />}
-      <div className="rounded-xl border border-line bg-surface p-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="flex items-center gap-2 text-sm font-semibold text-ink"><FlaskConical className="h-4 w-4" style={{ color: COR_AGENTE.Cientista }} /> Laboratório: o Agente Cientista</h2>
-            <p className="mt-1 max-w-3xl text-xs text-ink-2">Compara quem o agente procurou com o grupo sorteado que não foi procurado. As contas e o selo de evidência são feitos em código; a IA só interpreta e propõe. Uma recomendação só orienta o Estrategista depois que o administrador aprova, e nunca muda a política.</p>
-          </div>
-          {isAdmin && <button onClick={() => agir(() => agenteAnalisar(empresa), 'analisar')} disabled={!!ocupado}
-            className="flex items-center gap-1.5 rounded-md border border-blue-500/30 bg-blue-500/15 px-3 py-1.5 text-sm font-medium text-blue-300 disabled:opacity-50">
-            {ocupado === 'analisar' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FlaskConical className="h-4 w-4" />} Gerar análise</button>}
-        </div>
-        <p className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">Na demonstração, a carteira e os pagamentos são fictícios: os números servem para mostrar o método, não como resultado.</p>
-        {d.erro && <p className="mt-3 text-xs text-danger">{d.erro}</p>}
-        <ErroCarga erro={erro} compacto className="mt-3" />
-        {!atual && !d.erro && <p className="mt-6 text-center text-sm text-ink-2">Nenhuma análise ainda.{isAdmin ? ' Clique em Gerar análise.' : ''}</p>}
-      </div>
-      {d.funil_negociacao && <div className="rounded-xl border border-line bg-surface p-4">
-        <h3 className="text-sm font-semibold text-ink">Resultado das negociações</h3>
-        <p className="mt-1 text-xs text-ink-2">Contagens descritivas dos casos desta empresa desde o início deste registro. Proposta apresentada, aceite e pagamento confirmado são etapas distintas; o pagamento usa a baixa registrada, nunca apenas a promessa.</p>
-        <div className="mt-3 grid gap-2 text-xs sm:grid-cols-3 lg:grid-cols-4">
-          {[
-            ['Estratégias registradas', d.funil_negociacao.decisoes],
-            ['Propostas apresentadas', d.funil_negociacao.ofertas_apresentadas],
-            ['Acordos aceitos', d.funil_negociacao.acordos_aceitos],
-            ['Primeiro pagamento confirmado', d.funil_negociacao.primeiro_pagamento_confirmado],
-            ['Acordos quebrados', d.funil_negociacao.acordos_quebrados],
-            ['Retornos cumpridos', d.funil_negociacao.retornos_cumpridos],
-            ['Passagens para a equipe', d.funil_negociacao.transferencias_humanas],
-            ['Valor do primeiro pagamento confirmado', fmtBRL(d.funil_negociacao.valor_primeiro_pagamento_confirmado)],
-          ].map(([rotulo, valor]) => <div key={rotulo} className="rounded-md border border-line bg-raise-1 p-2">
-            <p className="text-ink-3">{rotulo}</p><p className="mt-1 text-base font-semibold text-ink">{valor}</p>
-          </div>)}
-        </div>
-      </div>}
-      {atual && (
-        <div className="rounded-xl border border-line bg-surface p-4">
-          <div className="flex flex-wrap items-center gap-2 text-xs text-ink-2">
-            <span className="font-semibold text-ink">Versão {atual.versao}</span> <SeloEvidencia s={atual.selo} />
-            <span>· {STATUS_REC[atual.status]}</span><span>· {atual.origem === 'ia' ? 'texto da IA' : 'texto em código (sem IA)'}</span>
-          </div>
-          <p className="mt-2 text-sm text-ink">{atual.relatorio?.resumo}</p>
-          {c && (
-            <div className="mt-3 grid gap-2 text-xs sm:grid-cols-3">
-              <div className="rounded-md border border-line bg-raise-1 p-2"><p className="text-ink-3">Casos</p><p className="text-ink">agente {c.n.agente} · sorteado {c.n.sorteado}</p></div>
-              <div className="rounded-md border border-line bg-raise-1 p-2"><p className="text-ink-3">Taxa de pagamento</p><p className="text-ink">{pct(c.taxa_pagamento.agente)} vs {pct(c.taxa_pagamento.sorteado)}</p><p className="text-ink-3">diferença {pp(c.taxa_pagamento.diferenca)} (IC 95%: {pp(c.taxa_pagamento.ic95[0])} a {pp(c.taxa_pagamento.ic95[1])})</p></div>
-              <div className="rounded-md border border-line bg-raise-1 p-2"><p className="text-ink-3">Grupos comparáveis?</p><p className="text-ink">{c.composicao.comparaveis ? 'sim' : 'não: a composição difere'}</p></div>
-            </div>
-          )}
-          <ol className="mt-3 space-y-2">
-            {(atual.relatorio?.hipoteses || []).map((h, i) => (
-              <li key={i} className="rounded-md border border-line p-2 text-xs">
-                <p className="flex flex-wrap items-center gap-2 font-medium text-ink">{i + 1}. {h.hipotese} <SeloEvidencia s={h.selo} /></p>
-                <p className="mt-1 text-ink-2">{h.resultado}</p>
-                {h.condicoes && <p className="mt-0.5 text-ink-3">Vale para: {h.condicoes}</p>}
-                {h.proximo_experimento && <p className="mt-0.5 text-ink-3">Próximo experimento: {h.proximo_experimento}</p>}
-              </li>
-            ))}
+      {cabecalho}
+      <p className="rounded-[14px] border border-[color-mix(in_srgb,var(--warning)_40%,transparent)] bg-[var(--warning-soft)] px-4 py-3 text-sm text-ink">
+        Modo demonstração: carteira e pagamentos são fictícios. Os números mostram o método, não um resultado.
+      </p>
+      {d.erro && <p role="alert" className="rounded-[14px] border border-line bg-surface px-4 py-3 text-sm text-[var(--danger)]">{d.erro}</p>}
+      <ErroCarga erro={erro} compacto />
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <section className="rounded-[22px] border border-line bg-surface px-6 py-[22px]">
+          <p className="section-label">Como funciona</p>
+          <ol className="mt-3 flex list-decimal flex-col gap-2.5 pl-5 text-sm leading-relaxed text-ink-2">
+            <li><b className="font-semibold text-ink">Separamos um grupo</b> de devedores parecidos que o agente não procura.</li>
+            <li><b className="font-semibold text-ink">Comparamos</b> quanto pagou cada grupo. A conta é feita em código, não pela IA.</li>
+            <li><b className="font-semibold text-ink">O Cientista sugere</b> o que mudar. Nada muda na política sem a sua aprovação.</li>
           </ol>
-          <div className="mt-3 rounded-md p-3 text-sm" style={{ borderLeft: `3px solid ${COR_AGENTE.Cientista}`, background: 'rgba(250,204,21,0.06)' }}>
-            <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: COR_AGENTE.Cientista }}>Recomendação para o Estrategista</p>
-            <p className="mt-1 text-ink">{atual.texto}</p>
-          </div>
-          {isAdmin && atual.status === 'proposta' && (
-            <div className="mt-3 flex gap-2">
-              <button onClick={() => agir(() => agenteDecidirRecomendacao(atual.id, 'aprovada', empresa), 'aprovar')} disabled={!!ocupado}
-                className="rounded-md border border-emerald-500/30 bg-emerald-500/15 px-3 py-1.5 text-sm font-medium text-emerald-300 disabled:opacity-50">Aprovar</button>
-              <button onClick={() => agir(() => agenteDecidirRecomendacao(atual.id, 'recusada', empresa), 'recusar')} disabled={!!ocupado}
-                className="rounded-md border border-line bg-raise-1 px-3 py-1.5 text-sm font-medium text-ink-2 disabled:opacity-50">Recusar</button>
-            </div>
+        </section>
+
+        <section className="flex flex-col rounded-[22px] border border-line bg-surface px-6 py-[22px]" aria-labelledby="lab-prop">
+          <p className="section-label">Proposta do Cientista</p>
+          {atual ? (
+            <>
+              <p className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-ink-3">
+                <b className="text-ink">Versão {atual.versao}</b> <SeloEvidencia s={atual.selo} /> · {STATUS_REC[atual.status] || atual.status} · {atual.origem === 'ia' ? 'texto da IA' : 'texto em código (sem IA)'}
+              </p>
+              <h3 id="lab-prop" className="mt-2 text-[17px] font-semibold leading-snug text-ink">{atual.texto}</h3>
+              {atual.relatorio?.resumo && <p className="mt-1.5 text-[13px] leading-relaxed text-ink-2">{atual.relatorio.resumo}</p>}
+              {isAdmin && atual.status === 'proposta' && (
+                <div className="mt-auto flex flex-wrap gap-2 pt-4">
+                  <button type="button" onClick={() => agir(() => agenteDecidirRecomendacao(atual.id, 'aprovada', empresa), 'aprovar')} disabled={!!ocupado} className="btn-primary">
+                    {ocupado === 'aprovar' ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Aprovar
+                  </button>
+                  <button type="button" onClick={() => agir(() => agenteDecidirRecomendacao(atual.id, 'recusada', empresa), 'recusar')} disabled={!!ocupado} className="btn-secondary">
+                    {ocupado === 'recusar' ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Recusar
+                  </button>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <h3 id="lab-prop" className="mt-1.5 text-[17px] font-semibold text-ink">Nenhuma proposta ainda</h3>
+              <p className="mt-1.5 text-[13px] leading-relaxed text-ink-2">
+                O Cientista propõe uma mudança quando há resultados registrados suficientes (pelo menos {MIN_RESULTADOS_PROPOSTA}).
+                {isAdmin ? ' Clique em Gerar análise para ver o que os dados de hoje já dizem.' : ''}
+              </p>
+            </>
           )}
+        </section>
+      </div>
+
+      {(c || d.funil_negociacao) && (
+        <div className={`grid gap-4 ${c && d.funil_negociacao ? 'lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]' : ''}`}>
+          {c && <FezDiferenca c={c} hipoteses={atual.relatorio?.hipoteses} />}
+          {d.funil_negociacao && <Funil f={d.funil_negociacao} />}
         </div>
       )}
+
       {!!antigas.length && (
-        <div className="rounded-xl border border-line bg-surface p-4">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-2">Versões anteriores</p>
-          <ul className="mt-2 space-y-1 text-xs">
-            {antigas.map(r => <li key={r.id} className="flex flex-wrap items-center gap-2 text-ink-2"><span className="text-ink">v{r.versao}</span> <SeloEvidencia s={r.selo} /> {STATUS_REC[r.status]} · {r.texto}</li>)}
+        <section className="rounded-[22px] border border-line bg-surface px-6 py-[22px]">
+          <p className="section-label">Versões anteriores</p>
+          <ul className="mt-2 divide-y divide-line">
+            {antigas.map(r => (
+              <li key={r.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 py-2.5 text-[13px] text-ink-2">
+                <b className="text-ink">v{r.versao}</b> <SeloEvidencia s={r.selo} /> <span className="text-ink-3">{STATUS_REC[r.status] || r.status}</span>
+                <span className="w-full text-ink-2 sm:w-auto sm:flex-1">{r.texto}</span>
+              </li>
+            ))}
           </ul>
-        </div>
+        </section>
+      )}
+
+      {(isAdmin || isComando) && (
+        <details className="group rounded-[22px] border border-line bg-surface px-6 py-[18px]">
+          <summary className="cursor-pointer list-none text-sm font-semibold text-ink">
+            Mais ações: retreino do modelo e experimento do bandit
+            <span className="ml-2 text-xs font-normal text-ink-3 group-open:hidden">abrir</span>
+          </summary>
+          <div className="mt-4"><AprendizadoCientista empresa={empresa} /></div>
+        </details>
       )}
     </section>
   )
