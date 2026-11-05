@@ -3,7 +3,7 @@
 // Regras em backend/agente/ (docs/PLANO_EXECUCAO_AGENTES.md).
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { useAoMudarNoServidor } from '../components/useMudancasDoServidor'
-import { Bot, Send, Search, Loader2, Activity, ShieldCheck, AlertTriangle, Power, UserRound, Coins, Landmark, Clock, Shuffle, CalendarDays, Scale, Hand, Undo2, CalendarClock, Users, BookOpen, FlaskConical, Headset, Unlink } from 'lucide-react'
+import { Bot, Send, Search, Loader2, Activity, ShieldCheck, AlertTriangle, Power, UserRound, Coins, Landmark, Clock, Shuffle, CalendarDays, Scale, Hand, Undo2, CalendarClock, BookOpen, FlaskConical, Headset, Unlink } from 'lucide-react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import CabecalhoPagina from '../components/CabecalhoPagina'
