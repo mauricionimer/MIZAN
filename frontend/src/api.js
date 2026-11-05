@@ -596,6 +596,11 @@ export async function apagarRoteiro(id) {
   return pedir(`/roteiros/${_id(id)}`, { metodo: 'DELETE' })
 }
 
+// Até onde vale cobrar: valor esperado acumulado ao longo da fila, em poucos pontos.
+export async function curvaDaFila(carteiraId, pontos = 40) {
+  return _ouVazio(pedir(`/carteiras/${_id(carteiraId)}/curva`, { query: { pontos } }), null)
+}
+
 export async function buscarAlcance(carteiraId, capacidade) {
   return _ouVazio(pedir(`/carteiras/${_id(carteiraId)}/alcance`, { query: { capacidade: Number(capacidade) || 0 } }), null)
 }

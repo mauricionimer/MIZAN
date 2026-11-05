@@ -74,7 +74,7 @@ test('regressão U9: voltar do devedor zerava busca, filtros, página e rolagem 
 })
 
 test('regressão U10/U20: pasta exigia dois cliques sem pista e o leitor de tela falava inglês', () => {
-  assert.match(fonte('pages/PastasDevedores.jsx'), /Ver fluxo <ArrowRight/)
+  assert.match(fonte('pages/PastasDevedores.jsx'), /'Abrir pasta' : 'Ver fluxo'} <ArrowRight/)
   const pasta = fonte('components/ui/glass-folder-cards.tsx')
   assert.doesNotMatch(pasta, /"Open "|"Close "|" contents"|"More options for "/)
 })

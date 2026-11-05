@@ -4384,6 +4384,53 @@ def alcance_da_operacao(
     }
 
 
+@app.get("/carteiras/{carteira_id}/curva")
+def curva_da_fila(carteira_id: str, pontos: int = 40,
+                  credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Até onde vale cobrar: o valor esperado acumulado ao longo da fila.
+
+    A fila já vem ordenada (maior valor esperado primeiro), então a curva sobe
+    rápido e depois achata. Devolve poucos pontos para o gráfico, mais o valor
+    do devedor em cada ponto ("o próximo da fila vale"). O número exato de um
+    corte continua vindo de /alcance, que soma de verdade.
+    """
+    payload = _usuario_autenticado(credentials)
+    db = get_db()
+    _exige_carteira_da_empresa(db, carteira_id, payload)
+    pontos = max(5, min(int(pontos or 40), 100))
+    chave = f"curva:{carteira_id}:{pontos}"
+    pronto = _cache_get(chave, 600)
+    if pronto is not None:
+        return pronto
+    linhas = _todas_as_linhas(
+        lambda: db.table("predicoes").select("rank, valor_esperado_recuperacao, valor_esperado_liquido")
+                  .eq("carteira_id", carteira_id).order("rank"))
+    liquido = any(l.get("valor_esperado_liquido") is not None for l in linhas)
+    valores = [float((l.get("valor_esperado_liquido") if liquido and l.get("valor_esperado_liquido") is not None
+                      else l.get("valor_esperado_recuperacao")) or 0) for l in linhas]
+    saida = {**pontos_da_curva(valores, pontos), "base": "liquido" if liquido else "bruto"}
+    _cache_set(chave, saida)
+    return saida
+
+
+def pontos_da_curva(valores: list, pontos: int = 40) -> dict:
+    """Soma acumulada da fila, amostrada em `pontos` cortes (o último é a fila toda)."""
+    total, n = sum(valores), len(valores)
+    saida = {"total_devedores": n, "total_valor": round(total, 2), "pontos": []}
+    if not n:
+        return saida
+    marcas = sorted({max(1, round(n * i / pontos)) for i in range(1, pontos + 1)})
+    acumulado, j = 0.0, 0
+    for i, v in enumerate(valores, start=1):
+        acumulado += v
+        if j < len(marcas) and i == marcas[j]:
+            saida["pontos"].append({"n": i, "valor": round(acumulado, 2),
+                                    "pct": round(acumulado / total * 100, 2) if total else 0.0,
+                                    "proximo": round(valores[i], 2) if i < n else 0.0})
+            j += 1
+    return saida
+
+
 @app.get("/carteiras/{carteira_id}/ranking")
 def pagina_do_ranking(
     carteira_id: str,
@@ -4848,9 +4895,11 @@ def carregar_carteira(carteira_id: str, incluir_ranking: bool = True,
     aging_buckets: dict[str, dict] = {}
     for d in ranking:
         label = _aging_label(int(d.get("dias_em_atraso") or 0))
-        b = aging_buckets.setdefault(label, {"aging": label, "total_devedores": 0, "valor_total": 0.0, "_s": []})
+        b = aging_buckets.setdefault(label, {"aging": label, "total_devedores": 0, "valor_total": 0.0,
+                                             "valor_esperado": 0.0, "_s": []})
         b["total_devedores"] += 1
         b["valor_total"] += d.get("valor_divida") or 0
+        b["valor_esperado"] += float(d.get("valor_esperado_recuperacao") or 0)
         b["_s"].append(d.get("score_recuperabilidade") or 0)
 
     aging_dist = []
@@ -4858,6 +4907,7 @@ def carregar_carteira(carteira_id: str, incluir_ranking: bool = True,
         sc = b.pop("_s")
         b["score_medio"] = round(sum(sc) / len(sc), 2) if sc else 0
         b["valor_total"] = round(b["valor_total"], 2)
+        b["valor_esperado"] = round(b["valor_esperado"], 2)
         aging_dist.append(b)
 
     # Distribuição cluster
@@ -5685,7 +5735,8 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
 
     resultado["aging"] = resultado["dias_em_atraso"].apply(_aging_label)
     aging_dist = (resultado.groupby("aging")
-        .agg(total_devedores=("valor_divida","count"), valor_total=("valor_divida","sum"), score_medio=("score_recuperabilidade","mean"))
+        .agg(total_devedores=("valor_divida","count"), valor_total=("valor_divida","sum"),
+             valor_esperado=("valor_esperado_recuperacao","sum"), score_medio=("score_recuperabilidade","mean"))
         .round(2).reset_index().to_dict(orient="records"))
 
     cluster_dist = (resultado.groupby("perfil_cluster")
