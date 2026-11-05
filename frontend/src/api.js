@@ -596,6 +596,11 @@ export async function apagarRoteiro(id) {
   return pedir(`/roteiros/${_id(id)}`, { metodo: 'DELETE' })
 }
 
+// Estado da plataforma (Ajuda): medições reais; serviço sem dado vem "sem medição".
+export async function estadoDaPlataforma(empresaId) {
+  return pedir('/ajuda/plataforma', { query: empresaId ? { empresa_id: empresaId } : {} })
+}
+
 // Até onde vale cobrar: valor esperado acumulado ao longo da fila, em poucos pontos.
 export async function curvaDaFila(carteiraId, pontos = 40) {
   return _ouVazio(pedir(`/carteiras/${_id(carteiraId)}/curva`, { query: { pontos } }), null)

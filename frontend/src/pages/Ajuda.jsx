@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { useSearchParams, useLocation } from 'react-router-dom'
 import { Search, Loader2, HelpCircle, ChevronDown, AlertTriangle, Info, BookOpen, Send, MessageCircleQuestion, CheckCircle2 } from 'lucide-react'
 import AppShell from '../components/AppShell'
+import CabecalhoPagina from '../components/CabecalhoPagina'
+import EstadoPlataforma from '../components/EstadoPlataforma'
 import { useAuth } from '../context/AuthContext'
 import { useAnalysis } from '../context/AnalysisContext'
 import DicaAjuda from '../components/DicaAjuda'
@@ -145,7 +147,7 @@ function CartaoDuvida({ d, mostrarAutor = false, destaque = false }) {
 }
 
 export default function Ajuda() {
-  const { token, isAdmin } = useAuth()
+  const { token, isAdmin, isComando } = useAuth()
   const { result, setVista } = useAnalysis()
   const location = useLocation()
 
@@ -228,10 +230,8 @@ export default function Ajuda() {
   return (
     <AppShell secao="ajuda" onIrPara={setVista} temResultado={!!result} titulo="Ajuda">
       <div className="mx-auto w-full max-w-3xl space-y-6">
-        <div>
-          <p className="section-label">Central de ajuda</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">Como posso ajudar?</h1>
-        </div>
+        <CabecalhoPagina rotulo="Central de ajuda" icone={HelpCircle} titulo="Como posso ajudar?"
+          subtitulo="Escreva a dúvida com as suas palavras, veja se a plataforma está funcionando ou peça ajuda ao Comando." />
 
 
         <form onSubmit={perguntar} className="flex gap-2">
@@ -249,6 +249,8 @@ export default function Ajuda() {
         </form>
 
         {erro && <Aviso>{erro}</Aviso>}
+
+        {!isComando && <EstadoPlataforma />}
 
         {busca && (
           <section className="space-y-3" aria-live="polite">

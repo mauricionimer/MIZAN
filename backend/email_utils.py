@@ -6,10 +6,22 @@ Remetente verificado: mauricionimer1@gmail.com
 import os
 import json
 import urllib.request
+from collections import deque
+from datetime import datetime, timezone
 
 BREVO_API_KEY = os.getenv("BREVO_API_KEY", "")
 SENDER_EMAIL  = "mauricionimer1@gmail.com"
 SENDER_NAME   = "Mizan"
+
+
+# Resultado dos últimos envios (sem destinatário nem assunto): alimenta o
+# "Estado da plataforma" da Ajuda. Vive na memória do processo.
+ENVIOS: deque = deque(maxlen=500)
+
+
+def _anotar(ok: bool) -> bool:
+    ENVIOS.append({"em": datetime.now(timezone.utc), "ok": ok})
+    return ok
 
 
 def enviar_email(destinatario: str, assunto: str, corpo_html: str) -> bool:
@@ -34,10 +46,10 @@ def enviar_email(destinatario: str, assunto: str, corpo_html: str) -> bool:
         )
         with urllib.request.urlopen(req, timeout=30) as resp:
             print(f"[Email] Enviado para {destinatario} (status {resp.status})")
-        return True
+        return _anotar(True)
     except Exception as e:
         print(f"[Email] Erro: {e}")
-        return False
+        return _anotar(False)
 
 
 def email_retreino(admin_email: str, treinadas: dict) -> bool:

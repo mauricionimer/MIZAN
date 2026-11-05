@@ -4222,6 +4222,56 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/ajuda/plataforma")
+def estado_da_plataforma(empresa_id: Optional[str] = None,
+                         credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Estado da plataforma para a Ajuda, medido de fontes reais (ver plataforma.py).
+
+    Serviço sem dado na janela vem como "sem medição". Não expõe texto de
+    conversa, destinatário de e-mail nem dado de devedor: só contagens e tempos.
+    """
+    from datetime import timedelta
+    import plataforma
+    import email_utils
+    payload = _usuario_autenticado(credentials)
+    agora = datetime.now(timezone.utc)
+    try:
+        emp = _empresa_da_agenda(payload, empresa_id)
+    except HTTPException:
+        emp = None                                    # comando sem empresa escolhida
+    chave = f"plataforma:{emp}"
+    pronto = _cache_get(chave, 60)
+    if pronto is not None:
+        return pronto
+
+    falhou = set()
+    passos = []
+    if emp:
+        try:
+            from agente import api as agente_api
+            if agente_api.ligado():
+                passos = agente_api.fabrica_repo().passos_metricas(emp, agora - timedelta(hours=24), 5000)
+        except Exception as e:
+            print(f"[Plataforma] passos: {type(e).__name__}"); falhou.add("agentes")
+    feedbacks = []
+    if emp:
+        try:
+            feedbacks = (get_db().table("feedbacks").select("data_pagamento, created_at")
+                         .eq("empresa", emp).eq("pagou", True).not_.is_("data_pagamento", "null")
+                         .gte("created_at", (agora - timedelta(days=30)).isoformat())
+                         .limit(2000).execute()).data or []
+        except Exception as e:
+            print(f"[Plataforma] pagamentos: {type(e).__name__}"); falhou.add("pagamentos")
+    servicos = [plataforma.servidor(), plataforma.agentes(passos),
+                plataforma.pagamentos(feedbacks), plataforma.email(list(email_utils.ENVIOS), agora)]
+    for s in servicos:
+        if s["id"] in falhou:
+            s["frase"] = "Não consegui medir agora; tento de novo em um minuto."
+    saida = {**plataforma.resumo(servicos), "medido_em": agora.isoformat()}
+    _cache_set(chave, saida)
+    return saida
+
+
 @app.get("/carteiras")
 def listar_carteiras(response: Response,
                      credentials: HTTPAuthorizationCredentials = Security(bearer),
