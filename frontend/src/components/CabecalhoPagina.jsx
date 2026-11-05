@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import DicaAjuda from './DicaAjuda'
+import { useAbasDaArea } from './AppShell'
 
 /**
  * O cabeçalho padrão de toda tela (guia: design/GUIA_DE_DESIGN.md, seção 4).
@@ -15,7 +16,9 @@ import DicaAjuda from './DicaAjuda'
 export default function CabecalhoPagina({
   voltar = { to: '/inicio', rotulo: 'Início' }, rotulo, icone: Icone, titulo, selo, ajuda, subtitulo, children, className = '',
 }) {
+  const abas = useAbasDaArea()
   return (
+    <>
     <header className={`mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-4 ${className}`}>
       <div className="flex min-w-0 flex-col gap-2">
         {voltar && (
@@ -34,5 +37,7 @@ export default function CabecalhoPagina({
       </div>
       {children && <div className="flex flex-wrap items-center gap-2.5">{children}</div>}
     </header>
+    {abas}
+    </>
   )
 }

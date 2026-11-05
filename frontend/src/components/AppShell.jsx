@@ -1,4 +1,4 @@
-import { Component, createContext, useContext, useEffect, useState, Suspense } from 'react'
+import { Component, createContext, useCallback, useContext, useEffect, useLayoutEffect, useState, Suspense } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useLocation, useOutlet } from 'react-router-dom'
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'framer-motion'
@@ -37,6 +37,15 @@ import { prepararPagina } from '../lib/paginas'
  */
 
 const ShellCtx = createContext(null)
+
+/* As abas da área (ex.: Painel · Análise · Pagamentos) ficam logo abaixo do
+   cabeçalho da tela, como no canvas. O CabecalhoPagina se registra e as
+   desenha; tela sem cabecalho padrão recebe as abas no topo, como antes. */
+export function useAbasDaArea() {
+  const shell = useContext(ShellCtx)
+  useLayoutEffect(() => shell?.registrarCabecalho?.(), [shell?.registrarCabecalho])
+  return shell?.abas ?? null
+}
 
 export default function AppShell({ acoes, children }) {
   const shell = useContext(ShellCtx)
@@ -135,8 +144,8 @@ function AbasDaArea({ item, ativoExato, acionar }) {
         return (
           <button key={aba.id} role="tab" aria-selected={on} onClick={() => acionar(aba)}
             onPointerEnter={() => prepararPagina(aba.rota)} onFocus={() => prepararPagina(aba.rota)}
-            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
-              on ? 'border-blue-500 text-ink' : 'border-transparent text-ink-2 hover:text-ink'}`}>
+            className={`-mb-px border-b-2 px-3 py-2.5 text-sm transition-colors ${
+              on ? 'border-[var(--royal)] font-semibold text-ink' : 'border-transparent text-ink-2 hover:text-ink'}`}>
             {aba.label}
           </button>
         )
@@ -230,6 +239,8 @@ export function ShellLayout() {
   const grupos = useItens()
   const [gaveta, setGaveta] = useState(false)
   const [slotAcoes, setSlotAcoes] = useState(null)
+  const [cabecalhos, setCabecalhos] = useState(0)
+  const registrarCabecalho = useCallback(() => { setCabecalhos(n => n + 1); return () => setCabecalhos(n => n - 1) }, [])
   const [saidaPendente, setSaidaPendente] = useState(null)   // ação de navegar à espera da confirmação
   // Botão "voltar" do navegador numa tela com alterações não salvas.
   useEffect(() => {
@@ -296,7 +307,7 @@ export function ShellLayout() {
   const variantes = reduzir ? SEM_MOVIMENTO : pagina
 
   return (
-    <ShellCtx.Provider value={{ slotAcoes }}>
+    <ShellCtx.Provider value={{ slotAcoes, registrarCabecalho, abas: <AbasDaArea item={areaAtual} ativoExato={ativoExato} acionar={acionar} /> }}>
       <div className="relative isolate flex min-h-screen bg-canvas font-sans text-ink">
         <FundoOndas />
 
@@ -357,7 +368,7 @@ export function ShellLayout() {
             <AnimatePresence mode="wait" initial={false}>
               <motion.div key={chave} variants={variantes} initial="inicial" animate="entra" exit="sai"
                 transition={TRANSICAO}>
-                <AbasDaArea item={areaAtual} ativoExato={ativoExato} acionar={acionar} />
+                {cabecalhos === 0 && <AbasDaArea item={areaAtual} ativoExato={ativoExato} acionar={acionar} />}
                 <ErroNaTela key={chave}><Suspense fallback={<Carregando />}>{outlet}</Suspense></ErroNaTela>
               </motion.div>
             </AnimatePresence>
