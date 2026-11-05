@@ -37,3 +37,17 @@ export function mensagem(e) {
   if (e.tipo === 'handoff') return `${e.de} → ${e.para} · #${curto(e.caso_id)}`
   return `${e.quem}: ${e.tipo === 'erro' ? 'erro na etapa' : e.resultado === 'bloqueado' ? 'etapa bloqueada' : e.tipo === 'fim' ? 'etapa concluída' : tarefa(e.no)} · #${curto(e.caso_id)}`
 }
+
+// Limites que cada agente segue. Sem números: os valores vêm da política de cada empresa (aba Regras).
+export const LIMITES = {
+  Triagem: ['Risco → pessoa na hora', 'Não responde: só lê e classifica'],
+  Negociador: ['Desconto e parcelas da política', 'Só no horário permitido', 'Pedido fora do limite → pessoa'],
+  Estrategista: ['Só ofertas do catálogo', 'Respeita o teste de comparação'],
+  Cientista: ['Nunca muda a política sozinho', 'Propõe; uma pessoa aprova'],
+  Acompanhamento: ['Lembretes dentro do limite de contatos', 'Confirma o pagamento antes de dar baixa'],
+  Orquestrador: ['Respeita a ordem da carteira', 'Um caso por vez em cada etapa'],
+  Supervisor: ['Situação sensível → pessoa'],
+  Auditor: ['Desconto e parcelas da política', 'Limite de contatos por semana', 'Só no horário permitido'],
+  Travas: ['Palavras proibidas', 'Números conferidos com a proposta'],
+  Ferramenta: ['Só age com autorização do Auditor'],
+}

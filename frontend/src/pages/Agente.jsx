@@ -1176,28 +1176,61 @@ function Agenda({ empresa }) {
   )
 }
 
-function Numero({ rotulo, valor, detalhe, barra }) {
-  return <StatCard label={rotulo} value={valor} nota={detalhe} barra={barra} />
+// Quantos casos estão com a equipe esperando resposta. Atualiza sozinho, como a fila da aba Conversas.
+function useEsperando(empresa) {
+  const [n, setN] = useState(null)
+  useEffect(() => {
+    let vivo = true
+    const ler = () => { if (!document.hidden) agenteAtendimentos(empresa).then(d => vivo && setN((d.itens || []).filter(i => i.esperando).length)).catch(() => {}) }
+    ler()
+    const t = setInterval(ler, 15000)
+    return () => { vivo = false; clearInterval(t) }
+  }, [empresa])
+  return n
 }
 
-function AoVivo({ empresa }) {
+// Um número do topo (prancha "Agentes · Ao vivo"): rótulo, valor e uma linha que diz o que ele significa.
+function Placar({ rotulo, valor, detalhe, tom, children }) {
+  const estilo = {
+    royal: 'border-transparent bg-[var(--royal)] text-[var(--on-brand)]',
+    aviso: 'border-[color-mix(in_srgb,var(--warning)_45%,transparent)] bg-[var(--warning-soft)] text-ink',
+  }[tom] || 'border-line bg-surface text-ink'
+  return (
+    <div className={`flex min-w-0 flex-col gap-1.5 rounded-[18px] border px-4 py-4 sm:rounded-[22px] sm:px-5 sm:py-[18px] ${estilo}`}>
+      <span className={`text-[11px] font-bold uppercase tracking-[.14em] ${tom === 'royal' ? 'opacity-80' : tom === 'aviso' ? 'text-[var(--warning)]' : 'text-ink-3'}`}>{rotulo}</span>
+      <span className="text-[28px] font-bold leading-none tabular-nums sm:text-[34px]">{valor}</span>
+      {detalhe && <span className={`text-[13px] ${tom === 'royal' ? 'opacity-85' : 'text-ink-2'}`}>{detalhe}</span>}
+      {children}
+    </div>
+  )
+}
+
+function AoVivo({ empresa, onFila }) {
   const navigate = useNavigate()
   const { empresaConfig, isComando } = useAuth()
   const dados = useEscritorio(empresa)
+  const esperando = useEsperando(empresa)
   const n = dados.numeros
   const usd = v => `US$ ${Number(v || 0).toFixed(2).replace('.', ',')}`
   const abrir = nome => navigate(`/agente/${encodeURIComponent(nome)}`)
   return (
-    <div className="space-y-5">
-<KpiBento>
-        <Numero rotulo="Conversas (24 h)" valor={n ? n.conversas : '—'} detalhe={n ? `${n.respostas} respostas` : null} />
-        <Numero rotulo="Acordos (24 h)" valor={n ? n.acordos : '—'} />
-        <Numero rotulo="Bloqueios (24 h)" valor={n ? n.bloqueios : '—'} detalhe="Auditor e travas" />
-        {isComando && (
-          <Numero rotulo="Gasto de IA hoje" valor={n ? usd(n.custo_hoje_usd) : '—'} detalhe={n ? `teto ${usd(n.teto_dia_usd)}` : null}
-            barra={n && n.teto_dia_usd ? n.custo_hoje_usd / n.teto_dia_usd : null} />
-        )}
-      </KpiBento>
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+        <Placar tom="royal" rotulo="Conversas · 24 h" valor={n ? n.conversas : '—'}
+          detalhe={n ? (n.respostas ? `${n.respostas} ${n.respostas === 1 ? 'resposta' : 'respostas'} dos clientes` : 'nenhuma resposta ainda') : null} />
+        <Placar rotulo="Acordos · 24 h" valor={n ? n.acordos : '—'} detalhe="fechados pelos agentes" />
+        <Placar rotulo="Bloqueios · 24 h" valor={n ? n.bloqueios : '—'} detalhe="mensagens barradas pelo Auditor" />
+        <Placar tom={esperando ? 'aviso' : undefined} rotulo="Esperando você" valor={esperando ?? '—'}>
+          <button type="button" onClick={onFila} className={`self-start text-[13px] font-semibold hover:underline ${esperando ? 'text-[var(--warning)]' : 'text-accent-text'}`}>
+            {esperando ? 'abrir a fila ↗' : 'ninguém na fila agora · ver conversas ↗'}
+          </button>
+        </Placar>
+      </div>
+      {isComando && n && (
+        <p className="text-[13px] text-ink-2">
+          Gasto de IA hoje: <b className="tabular-nums text-ink">{usd(n.custo_hoje_usd)}</b>{n.teto_dia_usd ? <> de {usd(n.teto_dia_usd)} do teto do dia</> : null}
+        </p>
+      )}
       <EscritorioAgentes key={empresa || 'atual'} dados={dados} nomeEmpresa={empresaConfig?.nome_exibicao} logoUrl={empresaConfig?.foto_url} onPerfil={abrir} mostrarCusto={isComando} />
     </div>
   )
@@ -1227,8 +1260,8 @@ export default function Agente() {
   return (
     <AppShell>
       <div className="mx-auto w-full max-w-7xl space-y-5">
-        <CabecalhoPagina rotulo="Operação" icone={Bot} titulo="Agentes" className="!mb-0"
-          subtitulo="O que cada agente está fazendo agora, o que precisa de você e as regras que eles seguem.">
+        <CabecalhoPagina rotulo="Agentes" icone={Bot} titulo="Equipe de agentes" className="!mb-0"
+          subtitulo="O que os agentes fizeram nas últimas 24 horas e quem está esperando por você.">
           {isComando && (
             <select value={alvo} onChange={e => setAlvo(e.target.value)} aria-label="Empresa"
               className="rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-sm text-ink focus:outline-none [color-scheme:dark]">
@@ -1240,7 +1273,7 @@ export default function Agente() {
         <div className="flex flex-wrap gap-1 border-b border-line" role="tablist">
           {[['aovivo', 'Ao vivo'], ['conversas', 'Conversas'], ['agenda', 'Agenda'], ['regras', 'Regras']].map(([k, l]) => (
             <button key={k} role="tab" aria-selected={aba === k} onClick={() => setAba(k)}
-              className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${aba === k ? 'border-blue-500 text-ink' : 'border-transparent text-ink-2 hover:text-ink'}`}>
+              className={`-mb-px border-b-2 px-3 py-2.5 text-sm ${aba === k ? 'border-[var(--royal)] font-semibold text-ink' : 'border-transparent font-medium text-ink-2 hover:text-ink'}`}>
               {l}
             </button>
           ))}
@@ -1250,7 +1283,7 @@ export default function Agente() {
         ) : aba === 'conversas' ? <Conversa empresa={empresa} />
           : aba === 'agenda' ? <Agenda empresa={empresa} />
           : aba === 'regras' ? <Regras empresa={empresa} />
-          : <AoVivo empresa={empresa} />}
+          : <AoVivo empresa={empresa} onFila={() => setAba('conversas')} />}
       </div>
     </AppShell>
   )
