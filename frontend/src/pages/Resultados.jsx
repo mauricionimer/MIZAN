@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { TrendingUp, Loader2, Info, Trophy, Banknote, ClipboardCheck, Percent, Receipt } from 'lucide-react'
 import AppShell from '../components/AppShell'
-import DicaAjuda from '../components/DicaAjuda'
+import CabecalhoPagina from '../components/CabecalhoPagina'
 import ErroCarga from '../components/ErroCarga'
 import StatCard from '../components/StatCard'
 import { KpiBento } from '../components/ui/stats-bento'
@@ -170,13 +170,8 @@ export default function Resultados() {
   return (
     <AppShell>
       <div className="mx-auto w-full max-w-6xl space-y-5">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight text-ink">
-              <TrendingUp className="h-5 w-5 text-accent-text" /> Resultados<DicaAjuda id="painel-de-resultados" />
-            </h1>
-            <p className="mt-1 text-sm text-ink-2">O que está funcionando, a partir dos pagamentos registrados.</p>
-          </div>
+        <CabecalhoPagina rotulo="Cobrança" icone={TrendingUp} titulo="Resultados" ajuda="painel-de-resultados" className="!mb-0"
+          subtitulo="O que está funcionando, a partir dos pagamentos registrados.">
           <div className="flex flex-wrap items-center gap-2">
             {isComando && (
               <select value={alvo} onChange={e => setAlvo(e.target.value)} aria-label="Empresa"
@@ -194,7 +189,7 @@ export default function Resultados() {
               ))}
             </div>
           </div>
-        </div>
+        </CabecalhoPagina>
 
         {isComando && !alvo && <div className="rounded-xl border border-line bg-surface p-6 text-sm text-ink-2">Escolha a empresa para ver os resultados.</div>}
         <ErroCarga erro={erro} ocupado={carregando} onTentar={() => setTentativa(t => t + 1)} />

@@ -4,10 +4,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Handshake, Loader2, ChevronDown, CalendarClock, AlertTriangle, XOctagon, Wallet, Check, Undo2, Info } from 'lucide-react'
 import AppShell from '../components/AppShell'
+import CabecalhoPagina from '../components/CabecalhoPagina'
 
 // Dentro de Pagamentos (aba) não repete o menu e o cabeçalho da página.
 const Casca = ({ embutido, children }) => embutido ? <>{children}</> : <AppShell>{children}</AppShell>
-import DicaAjuda from '../components/DicaAjuda'
 import ErroCarga from '../components/ErroCarga'
 import AvisoDesfazer from '../components/AvisoDesfazer'
 import { useAuth } from '../context/AuthContext'
@@ -201,16 +201,9 @@ export default function Acordos({ embutido = false }) {
   return (
     <Casca embutido={embutido}>
       <div className="mx-auto w-full max-w-6xl space-y-5">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight text-ink">
-              <Handshake className="h-5 w-5 text-blue-400" /> Acordos<DicaAjuda id="acordos-em-andamento" />
-            </h1>
-            <p className="mt-1 text-sm text-ink-2">
-              {isOperador ? 'Acordos parcelados dos devedores da sua fila: o que vence nos próximos dias e quem parou de pagar. A baixa de parcela é do administrador.'
-                : 'Acordos parcelados: o que vence nos próximos dias e quem parou de pagar.'}
-            </p>
-          </div>
+        <CabecalhoPagina rotulo="Cobrança" icone={Handshake} titulo="Acordos" ajuda="acordos-em-andamento" className="!mb-0"
+          subtitulo={isOperador ? 'Acordos parcelados dos devedores da sua fila: o que vence nos próximos dias e quem parou de pagar. A baixa de parcela é do administrador.'
+                : 'Acordos parcelados: o que vence nos próximos dias e quem parou de pagar.'}>
           {isComando && (
             <select value={alvo} onChange={e => setAlvo(e.target.value)} aria-label="Empresa"
               className="rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-sm text-ink focus:outline-none [color-scheme:dark]">
@@ -218,7 +211,7 @@ export default function Acordos({ embutido = false }) {
               {empresas.map(e => <option key={e.empresa_id} value={e.empresa_id}>{e.nome_exibicao || e.empresa_id}</option>)}
             </select>
           )}
-        </div>
+        </CabecalhoPagina>
 
         {isComando && !alvo && <div className="rounded-xl border border-line bg-surface p-6 text-sm text-ink-2">Escolha a empresa para ver os acordos.</div>}
         {aviso && <p className="flex items-center gap-1.5 text-sm text-emerald-400"><Check className="h-4 w-4" /> {aviso}</p>}

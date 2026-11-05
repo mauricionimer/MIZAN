@@ -1,12 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
+import CabecalhoPagina from '../components/CabecalhoPagina'
 import { useAuth } from '../context/AuthContext'
 import { buscarAuditoria, listarEmpresas } from '../api'
 import {
-  Download, Loader2, Filter, RefreshCw, ChevronDown,
-} from 'lucide-react'
-import DicaAjuda from '../components/DicaAjuda'
+  Download, Loader2, Filter, RefreshCw, ChevronDown, ScrollText } from 'lucide-react'
 
 const ACAO_LABEL = {
   carteira_criada:        'Carteira criada',
@@ -173,10 +172,8 @@ export default function Auditoria() {
     <AppShell titulo="Auditoria">
 
       <div className="w-full max-w-6xl mx-auto">
-        <div className="flex items-start justify-between mb-6">
-          <div>
-            <h1 className="text-xl font-bold text-ink tracking-tight">Trilha de auditoria<DicaAjuda id="auditoria-de-acoes" /></h1>
-          </div>
+        <CabecalhoPagina rotulo="Segurança" icone={ScrollText} titulo="Trilha de auditoria" ajuda="auditoria-de-acoes"
+          subtitulo="Quem fez o quê, e quando. Use os filtros e exporte o que precisar.">
           <button
             onClick={() => exportarCSV(linhas)}
             disabled={linhas.length === 0}
@@ -185,7 +182,7 @@ export default function Auditoria() {
           >
             <Download className="w-3.5 h-3.5" /> Exportar CSV ({linhas.length})
           </button>
-        </div>
+        </CabecalhoPagina>
 
         {/* Filtros */}
         <div className="rounded-2xl p-4 mb-6 flex flex-wrap items-end gap-3" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>

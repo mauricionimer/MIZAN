@@ -92,9 +92,10 @@ test('regressão U12: o admin procurava um botão de novo usuário que só o Com
 })
 
 test('regressão U14: o menu dizia "Política de cobrança" e a página "Premissas" (idem Simulação histórica)', () => {
-  assert.match(fonte('pages/Premissas.jsx'), /<h1[^>]*>Política de cobrança</)
-  assert.match(fonte('pages/Backtest.jsx'), /<h1[^>]*>Simulação histórica</)
-  assert.match(fonte('pages/Agenda.jsx'), /<p className="section-label">Hoje<\/p>/)
+  // O título vem do cabeçalho padrão (CabecalhoPagina) e tem que ser o mesmo nome do menu.
+  assert.match(fonte('pages/Premissas.jsx'), /<CabecalhoPagina[^>]*titulo="Política de cobrança"/)
+  assert.match(fonte('pages/Backtest.jsx'), /<CabecalhoPagina[^>]*titulo="Simulação histórica"/)
+  assert.match(fonte('pages/Agenda.jsx'), /<CabecalhoPagina rotulo="Hoje"/)
 })
 
 test('regressão U15/U16: botão da Agenda só apagava, e o erro da ação aparecia longe do devedor', () => {
@@ -123,4 +124,20 @@ test('regressão U19: Auditoria mostrava códigos como oferta_desfeita', () => {
   const s = fonte('pages/Auditoria.jsx')
   assert.match(s, /\{nomeDaAcao\(l\.acao\)\}/)
   for (const k of ['ofertas_atualizadas', 'premissas_atualizadas', 'fila_distribuida', 'parcela_paga']) assert.ok(s.includes(`  ${k}:`), `${k} sem nome`)
+})
+
+test('guarda: telas redesenhadas usam o cabeçalho padrão (com voltar) e não têm <h1> próprio', () => {
+  for (const p of ['Dashboard', 'Ajuda', 'Agente', 'PastasDevedores', 'PastaCliente', 'Acordos', 'Agenda', 'Auditoria',
+                   'Backtest', 'Ofertas', 'PerformanceIA', 'Premissas', 'Resultados']) {
+    const s = fonte(`pages/${p}.jsx`)
+    assert.match(s, /<CabecalhoPagina/, `${p} sem CabecalhoPagina`)
+    assert.doesNotMatch(s, /<h1[\s>]/, `${p} com <h1> próprio`)
+  }
+})
+
+test('regressão: excluir a conta apagava com um clique depois da senha', () => {
+  const s = fonte('pages/AlterarSenha.jsx')
+  assert.match(s, /if \(!entendo\)/, 'falta a marcação "Entendo"')
+  assert.match(s, /if \(!armado\) \{ setArmado\(true\)/, 'falta o segundo clique')
+  assert.match(s, /onClick=\{cancelar\} className="btn-primary"/, 'o botão seguro tem que ser o principal')
 })
