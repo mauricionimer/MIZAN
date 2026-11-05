@@ -4,7 +4,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { Eye, EyeOff, Loader2, Mail, Lock, ShieldCheck } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { LogoMark } from '../components/Logo'
+import { LogoCompleto } from '../components/Logo'
 import { GlassFold } from '../components/ui/glass-fold'
 import { FormInput } from '../components/ui/glass-form'
 import { getEmpresaConfigPublica, marcaPorEmail } from '../api'
@@ -125,8 +125,7 @@ export default function Login() {
         {/* Marca — grande à esquerda no desktop, no topo no mobile */}
         <div className="login-brand-bloco">
           <div className="login-brand">
-            <LogoMark className="login-brand-mark" />
-            <span className="login-brand-word">Mizan</span>
+            <LogoCompleto className="login-brand-logo" />
           </div>
           {/* "& Empresa": aparece quando o domínio do e-mail é de um cliente */}
           <AnimatePresence initial={false}>

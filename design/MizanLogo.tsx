@@ -1,3 +1,5 @@
+// ATENÇÃO: desenho antigo. A logo oficial está em design/logo/*.svg e o app usa
+// frontend/src/components/Logo.jsx (LogoCompleto e LogoMark).
 // Mizan — logo (símbolo de gráfico ascendente) + wordmark.
 // Símbolo: três barras inclinadas subindo, em degradê de azul.
 // Uso:
