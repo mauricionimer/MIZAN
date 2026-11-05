@@ -548,8 +548,8 @@ export async function buscarResultados(periodo, empresaId) {
 }
 
 // ── A4: acordos em andamento ─────────────────────────────────────────────────
-export async function listarAcordos(empresaId) {
-  return pedir('/acordos', { query: { empresa_id: empresaId } })
+export async function listarAcordos(empresaId, predicaoId) {
+  return pedir('/acordos', { query: { empresa_id: empresaId, predicao_id: predicaoId } })
 }
 
 export async function mudarParcela(id, acao) {
@@ -781,6 +781,16 @@ export async function agentePastas({ carteiraId, busca, cor, limit = 24, offset 
 
 export async function agenteCaso(predicaoId, empresaId) {
   return pedir(`/agente/casos/${_id(predicaoId)}`, { query: { empresa_id: empresaId } })
+}
+
+// Pasta do cliente: cabeçalho (quem é, semáforo, papéis) + perfil de comportamento.
+export async function agentePerfilCliente(predicaoId) {
+  return pedir(`/agente/casos/${_id(predicaoId)}/perfil`)
+}
+
+// A equipe escreve no caderno do caso; os agentes leem antes da próxima mensagem.
+export async function agenteAnotarCaderno(predicaoId, texto, empresaId) {
+  return pedir(`/agente/casos/${_id(predicaoId)}/caderno`, { metodo: 'POST', corpo: { texto, empresa_id: empresaId || null } })
 }
 
 export async function agenteFluxoDevedor(predicaoId) {

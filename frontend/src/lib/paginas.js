@@ -3,6 +3,7 @@ export const paginas = {
   Home: () => import('../pages/Home'),
   Inicio: () => import('../pages/Inicio'),
   PastasDevedores: () => import('../pages/PastasDevedores'),
+  PastaCliente: () => import('../pages/PastaCliente'),
   DebtorDetail: () => import('../pages/DebtorDetail'),
   Feedback: () => import('../pages/Feedback'),
   BanditDashboard: () => import('../pages/BanditDashboard'),
@@ -67,7 +68,8 @@ export function prepararPagina(rota) {
   const conexao = globalThis.navigator?.connection
   if (conexao?.saveData || /(^|-)2g$/.test(conexao?.effectiveType || '')) return
   const caminho = (rota || '/').split('?')[0]
-  const carregar = rotas[caminho] || (caminho.startsWith('/agente/') ? paginas.AgentePerfil : null)
+  const carregar = rotas[caminho] || (caminho.startsWith('/agente/') ? paginas.AgentePerfil
+    : caminho.startsWith('/pasta/') ? paginas.PastaCliente : null)
   // Uma falha de antecipação não bloqueia o clique: lazy pode tentar de novo.
   carregar?.().catch(() => {})
 }

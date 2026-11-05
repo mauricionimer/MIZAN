@@ -826,6 +826,46 @@ def salvar_politica(empresa_id: str, regras: dict, quem: str | None) -> dict:
     return {"versao": versao, "regras": limpa}
 
 
+def perfil_do_cliente(empresa_id: str, predicao_id: str, repo=None) -> dict:
+    """Perfil de comportamento para orientar a conversa (ver agente/perfil.py)."""
+    from agente import perfil, semaforo
+    repo = repo or fabrica_repo()
+    caso = repo.caso_de(empresa_id, predicao_id)
+    msgs = repo.ultimas_mensagens(empresa_id, caso["id"], 50) if caso else []
+    r = perfil.calcular(caso, msgs)
+    r["semaforo"] = semaforo.para_tela(caso)
+    r["situacao"] = (caso or {}).get("situacao")
+    r["papeis"] = semaforo.papeis(caso)
+    return r
+
+
+MAX_ANOTACAO = 200
+
+
+def anotar_pela_equipe(empresa_id: str, predicao_id: str, texto: str, quem: str | None,
+                       agora: datetime | None = None) -> dict:
+    """Uma anotação da equipe no caderno do caso. Os agentes leem antes de agir."""
+    texto = " ".join((texto or "").split())
+    if not texto:
+        raise ValueError("Escreva a anotação.")
+    if len(texto) > MAX_ANOTACAO:
+        raise ValueError(f"A anotação tem mais de {MAX_ANOTACAO} caracteres.")
+    agora = agora or datetime.now(timezone.utc)
+    repo = fabrica_repo()
+    caso = repo.caso_de(empresa_id, predicao_id)
+    if caso is None:
+        raise LookupError("Este devedor ainda não tem caso com o agente.")
+    dono = f"gestor:{quem or ''}"
+    if not repo.travar_caso(caso["id"], dono, agora + orq.DURACAO_TRAVA, agora):
+        raise CasoOcupado("O agente está processando este caso agora. Tente de novo em instantes.")
+    try:
+        estado.anotar(caso, "equipe", "anotação da equipe", texto, quando=agora)
+        repo.salvar_caso(caso["id"], {"dados": caso["dados"]}, dono=dono)
+    finally:
+        repo.soltar_caso(caso["id"], dono)
+    return {"caderno": list(reversed(estado.caderno(caso)))}
+
+
 def controle_do_gestor(empresa_id: str, predicao_id: str, acao: str, quem: str | None,
                        agora: datetime | None = None) -> dict:
     """Assumir (o agente para neste caso) ou devolver ao agente. Fica no rastreio."""

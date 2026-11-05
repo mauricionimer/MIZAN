@@ -3110,6 +3110,7 @@ def _abrir_acordo(db, empresa_id, cpf, feedback_id, pred: "dict | None", total: 
 
 @app.get("/acordos")
 def listar_acordos(situacao: Optional[str] = None, empresa_id: Optional[str] = None,
+                   predicao_id: Optional[str] = None,
                    credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """Acordos parcelados da empresa com a situação de cada um e o resumo.
 
@@ -3139,6 +3140,9 @@ def listar_acordos(situacao: Optional[str] = None, empresa_id: Optional[str] = N
     grupos: dict = {}
     for l in linhas:
         grupos.setdefault(l["feedback_id"], []).append(l)
+    if predicao_id:                     # a pasta de um devedor: só os acordos dele
+        grupos = {f: g for f, g in grupos.items() if str(g[0].get("predicao_id")) == str(predicao_id)}
+        linhas = [l for g in grupos.values() for l in g]
     ids_pred = list({g[0].get("predicao_id") for g in grupos.values() if g[0].get("predicao_id")})
     responsavel: dict = {}
     dono: dict = {}
@@ -3160,6 +3164,7 @@ def listar_acordos(situacao: Optional[str] = None, empresa_id: Optional[str] = N
         st = _situacao(ps, ref)
         p0 = ps[0]
         acordos.append({"id": fid, "cpf": p0["cpf"], "nome": p0.get("nome"), "carteira_id": p0.get("carteira_id"),
+                        "predicao_id": p0.get("predicao_id"),
                         "responsavel_nome": responsavel.get(p0.get("predicao_id")),
                         "aberto_em": str(p0.get("vencimento"))[:10], "valor_parcela": float(p0.get("valor") or 0),
                         **st, "parcelas": [{k: p.get(k) for k in ("id", "numero", "vencimento", "valor", "situacao", "pago_em")}
@@ -9446,6 +9451,7 @@ def agente_pastas(carteira_id: str, busca: Optional[str] = None, cor: Optional[s
             "semaforo": destaque.get(str(l["id"])) or sem.para_tela(c),
             "situacao": (c or {}).get("situacao"),
             "arquivos": sem.arquivos(c),
+            "papeis": sem.papeis(c),
         })
     return _sem_nan({"itens": itens, "filtrado": filtrado, "offset": offset, "limit": limit,
                      "contagem": {"vermelho": n_v, "amarelo": n_a, "branco": n_b, "total": total_busca},
@@ -9998,6 +10004,55 @@ def agente_controle(predicao_id: str, body: AgenteControleIn,
         raise HTTPException(status_code=422, detail=str(e))
     except agente_api.CasoOcupado as e:
         raise HTTPException(status_code=409, detail=str(e))
+
+
+@app.get("/agente/casos/{predicao_id}/perfil")
+def agente_perfil_cliente(predicao_id: str, empresa_id: Optional[str] = None,
+                          credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Perfil de comportamento do cliente (orientação de conversa, não diagnóstico),
+    com o cabeçalho da pasta: quem é, posição na fila, atraso e a cor do semáforo."""
+    from agente import api as agente_api
+    _, db, pred, emp = _contexto_fluxo_devedor(predicao_id, credentials)
+    linha = (db.table('predicoes').select('nome, rank, dias_em_atraso, valor_divida, score_recuperabilidade, carteira_id')
+             .eq('id', predicao_id).limit(1).execute().data or [{}])[0]
+    try:
+        r = agente_api.perfil_do_cliente(emp, predicao_id)
+    except Exception as e:                       # agente sem tabelas/desligado: a pasta abre mesmo assim
+        print(f"[Perfil] indisponível: {type(e).__name__}")
+        from agente import perfil, semaforo
+        r = {**perfil.calcular(None, []), 'semaforo': semaforo.para_tela(None), 'situacao': None,
+             'papeis': semaforo.papeis(None)}
+    r['devedor'] = {'id': predicao_id, 'nome': linha.get('nome'), 'rank': linha.get('rank'),
+                    'dias_em_atraso': linha.get('dias_em_atraso'), 'valor_divida': linha.get('valor_divida'),
+                    'score': linha.get('score_recuperabilidade'), 'carteira_id': linha.get('carteira_id')}
+    return _sem_nan(r)
+
+
+class AgenteAnotacaoIn(BaseModel):
+    texto: str
+    empresa_id: Optional[str] = None
+
+
+@app.post("/agente/casos/{predicao_id}/caderno")
+def agente_anotar_caderno(predicao_id: str, body: AgenteAnotacaoIn,
+                          credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """A equipe escreve no caderno do caso; os agentes leem antes da próxima mensagem."""
+    from agente import api as agente_api
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") not in ("operador", "admin"):
+        raise HTTPException(status_code=403, detail="Somente a operação da empresa pode anotar no caso.")
+    emp = _empresa_do_agente(payload, body.empresa_id)
+    try:
+        r = agente_api.anotar_pela_equipe(emp, predicao_id, body.texto, payload.get("sub"))
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except agente_api.CasoOcupado as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    _registrar_auditoria(acao='caderno_anotado', entidade='agente_caso', entidade_id=predicao_id,
+                         empresa_id=emp, usuario_id=payload.get('sub'), usuario_email=payload.get('email', ''))
+    return r
 
 
 @app.get("/agente/central")

@@ -169,12 +169,16 @@ function Atendimentos({ empresa, escolhido, onEscolher }) {
   )
 }
 
-function Conversa({ empresa }) {
+// `fixo` ({ id, nome }): a conversa de um devedor só, dentro da pasta do cliente
+// (sem a lista de devedores ao lado).
+export function Conversa({ empresa, fixo = null }) {
   const [params] = useSearchParams()
   const [busca, setBusca] = useState('')
   const [devedores, setDevedores] = useState([])
   // Vindo de uma pasta de devedor (?caso=<id>&nome=<nome>): abre direto no caso.
-  const [escolhido, setEscolhido] = useState(() => params.get('caso') ? { id: params.get('caso'), nome: params.get('nome') || 'Devedor' } : null)
+  const [escolhido, setEscolhido] = useState(() => fixo ? fixo : params.get('caso') ? { id: params.get('caso'), nome: params.get('nome') || 'Devedor' } : null)
+  // Na pasta, o nome chega depois (o servidor confirma): acompanha o devedor fixo.
+  useEffect(() => { if (fixo) setEscolhido(fixo) }, [fixo?.id, fixo?.nome]) // eslint-disable-line react-hooks/exhaustive-deps
   const [dados, setDados] = useState(null)
   const [texto, setTexto] = useState('')
   const [enviando, setEnviando] = useState(false)
@@ -326,8 +330,8 @@ function Conversa({ empresa }) {
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)_320px]">
-      <section className="rounded-xl border border-line bg-surface p-3">
+    <div className={`grid gap-4 ${fixo ? 'lg:grid-cols-[minmax(0,1fr)_320px]' : 'lg:grid-cols-[280px_minmax(0,1fr)_320px]'}`}>
+      {!fixo && <section className="rounded-xl border border-line bg-surface p-3">
         <Atendimentos empresa={empresa} escolhido={escolhido} onEscolher={setEscolhido} />
         <label className="flex items-center gap-2 rounded-lg border border-line bg-surface-2 px-2.5 py-1.5">
           <Search className="h-4 w-4 text-ink-3" />
@@ -346,9 +350,9 @@ function Conversa({ empresa }) {
           ))}
           {!devedores.length && <li className="px-2 py-6 text-center text-xs text-ink-2">Nenhum devedor na carteira mais recente.</li>}
         </ul>
-      </section>
+      </section>}
 
-      <section className="flex min-h-[60vh] flex-col rounded-xl border border-line bg-surface">
+      <section className="flex h-[72vh] min-h-[480px] flex-col overflow-hidden rounded-xl border border-line bg-surface">
         {!escolhido ? (
           <div className="m-auto max-w-sm p-6 text-center text-sm text-ink-2">
             <Bot className="mx-auto mb-3 h-8 w-8 opacity-60" />
@@ -373,6 +377,11 @@ function Conversa({ empresa }) {
                 ? <button onClick={() => controlar('devolver')} disabled={enviando} className="flex items-center gap-1 rounded-md border border-line bg-raise-1 px-2 py-1 text-xs font-medium text-ink hover:bg-raise-2"><Undo2 className="h-3.5 w-3.5" /> Devolver ao agente</button>
                 : <button onClick={() => controlar('assumir')} disabled={enviando} className="flex items-center gap-1 rounded-md border border-line bg-raise-1 px-2 py-1 text-xs font-medium text-ink hover:bg-raise-2"><Hand className="h-3.5 w-3.5" /> Assumir o caso</button>)}
             </header>
+            <p className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-line px-4 py-1.5 text-[11px] text-ink-3" aria-label="Legenda das cores">
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-raise-2 ring-1 ring-line" aria-hidden="true" />Cliente</span>
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-blue-600" aria-hidden="true" />Agente</span>
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-emerald-600" aria-hidden="true" />Equipe (pessoa)</span>
+            </p>
             {convite && (
               <div className="flex flex-wrap items-center gap-2 border-b border-line bg-raise-1 px-4 py-2 text-xs text-ink-2" role="status">
                 {convite.configurado && convite.link ? (

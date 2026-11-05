@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Search, Loader2, ArrowRight } from 'lucide-react'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { Search, Loader2, ArrowRight, FolderOpen } from 'lucide-react'
 import AppShell from '../components/AppShell'
+import CabecalhoPagina from '../components/CabecalhoPagina'
 import GlassFolder from '../components/ui/glass-folder-cards'
 import FluxoDevedorModal from '../components/FluxoDevedorModal'
 import ErroCarga from '../components/ErroCarga'
@@ -18,8 +19,9 @@ import { useAoMudarNoServidor } from '../components/useMudancasDoServidor'
  *   amarela  — em andamento
  *   vermelha — precisa de atenção agora
  * A cor vem do servidor (agente/semaforo.py): regras em código a partir do caso
- * mais a leitura da Triagem. Dentro da pasta ficam os papéis que os agentes
- * juntaram; clicar num deles abre o caso na tela de conversa dos agentes.
+ * mais a leitura da Triagem. Dentro da pasta ficam cinco papéis fixos
+ * (Resumo, Conversa, Fluxo, Caderno, Acordo); cada um abre a sua aba na
+ * pasta do cliente (/pasta/<id>?aba=...).
  */
 // Apenas o painel de fundo recebe a cor lisa; a frente continua translúcida.
 const COR_PASTA = { branco: '#f3f4f6', amarelo: '#c5a51b', vermelho: '#cf6461' }
@@ -145,14 +147,18 @@ export default function PastasDevedores() {
   const [fluxoAberto, setFluxoAberto] = useState(null)
   useEffect(() => { setFluxoAberto(null) }, [carteiraId, empresaId])
   const verCaso = useMemo(() => (d) => navigate(`/agente?aba=conversas&caso=${encodeURIComponent(d.id)}&nome=${encodeURIComponent(d.nome || '')}`), [navigate])
+  // Cada papel leva à sua aba na pasta do cliente. A volta traz as pastas como estavam.
+  const { pathname, search } = useLocation()
+  const abrirPapel = (d, aba) => navigate(`/pasta/${encodeURIComponent(d.id)}?aba=${aba}${empresa ? `&empresa=${encodeURIComponent(empresa)}` : ''}`,
+    { state: { de: pathname + search, devedor: { nome: d.nome, rank: d.rank, dias_em_atraso: d.dias_em_atraso, valor_divida: d.valor_divida, semaforo: d.semaforo } } })
 
   return (
     <AppShell>
       <div className="mx-auto max-w-6xl">
-        <h1 className="hub-titulo">Pastas de devedores</h1>
-        <p className="hub-sub">Uma pasta por devedor. A cor é a leitura dos agentes: branca, amarela ou vermelha.</p>
+        <CabecalhoPagina rotulo="Devedores" icone={FolderOpen} titulo="Pastas de devedores"
+          subtitulo="Uma pasta por devedor. A cor é a leitura dos agentes: branca, amarela ou vermelha. Abra a pasta e escolha um papel." />
 
-        <div className="mt-6 flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {isComando && (
             <select value={empresa} onChange={e => irPara({ empresa: e.target.value, carteira: null })} aria-label="Empresa"
               className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm text-ink focus:outline-none [color-scheme:dark]">
@@ -194,24 +200,24 @@ export default function PastasDevedores() {
         <ErroCarga erro={erroCarteiras} onTentar={() => setTentCarteiras(t => t + 1)} ocupado={carregandoCarteiras} className="mt-6" />
         <ErroCarga erro={erro} onTentar={() => buscar(0)} className="mt-6" />
 
-        <div className="mt-16 grid grid-cols-1 items-start justify-items-center gap-x-8 gap-y-14 md:grid-cols-2 xl:grid-cols-3">
+        <div className="mt-16 grid grid-cols-1 items-start justify-items-center gap-x-6 gap-y-14 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {itens.map((d, i) => (
             <div key={d.id} className="flex flex-col items-center gap-3">
               <GlassFolder
                 key={`${d.id}-${d.semaforo.cor}-${d.arquivos.length}`}
                 label={d.nome || 'Sem nome'} meta={`#${d.rank ?? '–'}${d.dias_em_atraso != null ? ` · ${d.dias_em_atraso} dias` : ''}`}
                 tone={tone} art="none" solidColor={COR_PASTA[d.semaforo.cor]}
-                files={[{ name: 'Fluxo do devedor', meta: 'Fases e situação atual' }, ...d.arquivos]} action="none" width={300} appearDelay={(i % POR_PAGINA % 6) * 90}
-                onFileSelect={(_, index) => index === 0 ? setFluxoAberto(d) : verCaso(d)}
+                files={d.papeis || [{ name: 'Fluxo do devedor', meta: 'Fases e situação atual' }, ...d.arquivos]} action="none" width={252} appearDelay={(i % POR_PAGINA % 8) * 70}
+                onFileSelect={(papel, index) => papel.id ? abrirPapel(d, papel.id) : index === 0 ? setFluxoAberto(d) : verCaso(d)}
               />
-              <p className="flex max-w-[300px] items-center gap-2 text-sm text-ink-2" title={`Cor decidida por: ${d.semaforo.origem === 'agente' ? 'avaliação do agente' : 'regras do sistema'}`}>
+              <p className="flex max-w-[252px] items-center gap-2 text-sm text-ink-2" title={`Cor decidida por: ${d.semaforo.origem === 'agente' ? 'avaliação do agente' : 'regras do sistema'}`}>
                 <span className="h-3 w-3 shrink-0 rounded-full ring-1 ring-black/25" style={{ background: PONTO[d.semaforo.cor] }} aria-hidden="true" />
                 <span><strong className="font-semibold text-ink">{d.semaforo.rotulo}</strong> · {d.semaforo.motivo}</span>
               </p>
               {/* Atalho de um clique: a pasta também abre e mostra os papéis. */}
-              <button type="button" onClick={() => setFluxoAberto(d)} aria-label={`Ver fluxo de ${d.nome || 'devedor'}`}
+              <button type="button" onClick={() => (d.papeis ? abrirPapel(d, 'resumo') : setFluxoAberto(d))} aria-label={`Abrir a pasta de ${d.nome || 'devedor'}`}
                 className="-mt-1 inline-flex min-h-[40px] items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-accent-text transition-colors hover:bg-raise-2">
-                Ver fluxo <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                {d.papeis ? 'Abrir pasta' : 'Ver fluxo'} <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
           ))}
