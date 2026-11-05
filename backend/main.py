@@ -3586,6 +3586,81 @@ def deletar_empresa(empresa_id: str, credentials: HTTPAuthorizationCredentials =
                          detalhes={"usuarios_removidos": len(membros.data or [])})
     return {"ok": True, "removidos": len(membros.data or [])}
 
+class ExcluirClienteIn(BaseModel):
+    confirmacao: str = Field("", max_length=200)
+    senha: str = Field("", max_length=200)
+    codigo: str = Field("", max_length=20)
+
+
+@app.post("/comando/empresas/{empresa_id}/excluir-tudo")
+def excluir_cliente_e_dados(empresa_id: str, body: ExcluirClienteIn,
+                            credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Exclui o cliente (empresa) e TODOS os dados dele, de uma vez. Não dá para desfazer.
+
+    Travas: só COMANDO; digitar o nome do cliente; a senha de quem está pedindo; e o código do
+    aplicativo autenticador, se ele estiver ligado. O banco apaga tudo numa única transação
+    (sql/migracao_excluir_cliente.sql). A trilha de auditoria fica, sem o e-mail."""
+    payload = _exigir_comando(credentials)
+    uid = payload["sub"]
+    db = get_db()
+    empresa_id = (empresa_id or "").strip()
+    usuarios = db.table("usuarios").select("id, role").eq("empresa_id", empresa_id).execute().data or [] if empresa_id else []
+    cfg = (db.table("empresa_config").select("nome_exibicao").eq("empresa_id", empresa_id).limit(1).execute().data or [{}])[0] if empresa_id else {}
+    tem_carteira = bool(empresa_id and db.table("carteiras").select("id").eq("empresa_id", empresa_id).limit(1).execute().data)
+    if not (usuarios or cfg or tem_carteira):
+        raise HTTPException(status_code=404, detail="Cliente não encontrado.")
+    if any(u.get("role") == "comando" for u in usuarios):
+        raise HTTPException(status_code=400, detail="Há um usuário COMANDO nesta empresa. Tire-o da empresa antes.")
+
+    nomes = {empresa_id.lower(), str(cfg.get("nome_exibicao") or "").strip().lower()} - {""}
+    if (body.confirmacao or "").strip().lower() not in nomes:
+        raise HTTPException(status_code=400, detail="Digite o nome do cliente exatamente como aparece, para confirmar.")
+
+    chave = f"excluir_cliente:{uid}"
+    _checar_rate_limit(chave)
+    quem = buscar_usuario_por_id(uid) or {}
+    if not verificar_senha(body.senha or "", quem.get("senha_hash") or ""):
+        _registrar_tentativa(chave)
+        raise HTTPException(status_code=401, detail="Senha incorreta.")
+    if _2fa.ativo(quem):
+        _checar_limite_2fa(uid)
+        mudanca = _2fa.conferir_codigo(quem, body.codigo)
+        if mudanca is None or not _gravar_uso_2fa(quem, mudanca):
+            _erro_2fa(uid)
+            _registrar_tentativa(chave)
+            raise HTTPException(status_code=401, detail="Código do aplicativo incorreto.")
+        _limpar_tentativas(f"2fa:{uid}")
+    _limpar_tentativas(chave)
+
+    try:
+        res = db.rpc("excluir_dados_cliente", {"p_empresa": empresa_id}).execute()
+    except Exception as e:
+        texto = str(e)
+        if "excluir_dados_cliente" in texto and ("PGRST202" in texto or "does not exist" in texto or "not find" in texto):
+            raise HTTPException(status_code=503, detail="O banco ainda não tem a função de excluir cliente: "
+                                                        "rode backend/sql/migracao_excluir_cliente.sql no Supabase.")
+        if "COMANDO" in texto:
+            raise HTTPException(status_code=400, detail="Há um usuário COMANDO nesta empresa. Tire-o da empresa antes.")
+        _erros.registrar({"path": "/comando/empresas/excluir-tudo", "method": "POST"}, e, 503)
+        raise HTTPException(status_code=503, detail="Não foi possível excluir agora. Nada foi apagado; tente de novo.")
+    apagados = res.data if isinstance(res.data, dict) else {}
+
+    # O que fica fora do banco: modelos do cliente (disco e Storage) e o que está em memória.
+    try:
+        import storage_ml
+        from model import modelos_empresa
+        apagados["modelos_arquivos"] = int(storage_ml.apagar_empresa(modelos_empresa.slug(empresa_id))) + int(modelos_empresa.apagar(empresa_id))
+        from agente import juridico_orq
+        juridico_orq.limpar_cache()
+    except Exception as e:
+        print(f"[Exclusão] limpeza de arquivos e memória: {type(e).__name__}")
+    apagados = {k: v for k, v in apagados.items() if v}
+    _registrar_auditoria(acao="cliente_excluido", entidade="empresa", entidade_id=empresa_id,
+                         usuario_email=payload.get("email", ""), empresa_id=empresa_id, usuario_id=uid,
+                         detalhes={"apagados": apagados})
+    return {"ok": True, "apagados": apagados, "total": sum(int(v) for v in apagados.values())}
+
+
 @app.delete("/empresas/{empresa_id}/usuarios/{usuario_id}")
 def remover_usuario_empresa(empresa_id: str, usuario_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     payload = _exigir_comando(credentials)
