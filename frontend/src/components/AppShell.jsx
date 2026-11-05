@@ -345,12 +345,18 @@ export function ShellLayout() {
               {/* Sem o nome da tela aqui: o menu já marca onde a pessoa está, e cada
                   tela tem o próprio título. */}
               <button onClick={() => acionar({ id: 'inicio', rota: '/inicio' })} title="Ir para o início"
-                className="flex min-w-0 items-center truncate rounded-md px-1 font-semibold text-ink hover:text-[var(--royal)]">
-                {ehMizan ? <LogoCompleto className="h-[18px] w-auto" title="Mizan — ir para o início" /> : nomeEmpresa}
+                className={`flex items-center rounded-md px-1 font-semibold text-ink hover:text-[var(--royal)] ${ehMizan ? 'shrink-0' : 'min-w-0 truncate'}`}>
+                {/* Em telas estreitas, com as ações da página no topo, a palavra não cabe: fica só o símbolo. */}
+                {ehMizan
+                  ? <>
+                      <LogoCompleto className="h-[18px] w-auto max-[420px]:hidden" title="Mizan — ir para o início" />
+                      <span className="hidden max-[420px]:block"><LogoMark size={22} title="Mizan — ir para o início" /></span>
+                    </>
+                  : nomeEmpresa}
               </button>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              <span ref={setSlotAcoes} className="flex items-center gap-2" />
+              <span ref={setSlotAcoes} className="flex items-center gap-2 max-[420px]:gap-1.5" />
               <ThemeToggle />
               <div className="ml-1 flex items-center gap-2.5 border-l border-line pl-3">
                 <div className="hidden text-right lg:block">
