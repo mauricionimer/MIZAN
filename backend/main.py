@@ -4217,8 +4217,10 @@ def auth_redefinir_senha(body: RedefinirSenhaIn):
     return {"ok": True}
 
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 def health():
+    """Rota leve, sem banco: o despertador externo chama a cada 5 min para o Render
+    grátis não dormir (docs/SERVIDOR_SEMPRE_LIGADO.md). HEAD para monitores que usam."""
     return {"status": "ok"}
 
 
