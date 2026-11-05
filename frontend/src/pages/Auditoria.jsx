@@ -5,7 +5,7 @@ import CabecalhoPagina from '../components/CabecalhoPagina'
 import { useAuth } from '../context/AuthContext'
 import { buscarAuditoria, listarEmpresas } from '../api'
 import {
-  Download, Loader2, Filter, RefreshCw, ChevronDown, ScrollText } from 'lucide-react'
+  Download, Loader2, ChevronDown, ScrollText } from 'lucide-react'
 
 const ACAO_LABEL = {
   carteira_criada:        'Carteira criada',
@@ -121,6 +121,13 @@ function textoDetalhe(v) {
   return String(v)
 }
 
+const PERIODOS = [['0', 'Hoje'], ['7', '7 dias'], ['30', '30 dias'], ['tudo', 'Tudo'], ['escolher', 'Escolher…']]
+// Data local (aaaa-mm-dd) de N dias atrás; 0 = hoje.
+function diaMenos(n) {
+  const d = new Date(); d.setDate(d.getDate() - n)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 export default function Auditoria() {
   const navigate = useNavigate()
   const { token, usuario, logout, isComando } = useAuth()
@@ -131,7 +138,13 @@ export default function Auditoria() {
   const [erro, setErro]       = useState('')
   const [expandido, setExpandido] = useState(null)
 
-  const [filtros, setFiltros] = useState({ acao: '', usuario_email: '', data_inicio: '', data_fim: '', empresa_id: '' })
+  const [filtros, setFiltros] = useState({ acao: '', usuario_email: '', data_inicio: diaMenos(30), data_fim: '', empresa_id: '' })
+  const [periodo, setPeriodo] = useState('30')
+  const escolherPeriodo = (k) => {
+    setPeriodo(k)
+    if (k === 'escolher') return
+    setFiltros(f => ({ ...f, data_inicio: k === 'tudo' ? '' : diaMenos(Number(k)), data_fim: '' }))
+  }
 
   // COMANDO vê a auditoria de todas as empresas: o seletor separa por empresa.
   // Admin não precisa: o servidor já filtra pela empresa dele.
@@ -172,122 +185,114 @@ export default function Auditoria() {
     <AppShell titulo="Auditoria">
 
       <div className="w-full max-w-6xl mx-auto">
-        <CabecalhoPagina rotulo="Segurança" icone={ScrollText} titulo="Trilha de auditoria" ajuda="auditoria-de-acoes"
-          subtitulo="Quem fez o quê, e quando. Use os filtros e exporte o que precisar.">
-          <button
-            onClick={() => exportarCSV(linhas)}
-            disabled={linhas.length === 0}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-ink transition-colors disabled:opacity-40"
-            style={{ background: 'var(--brand)' }}
-          >
-            <Download className="w-3.5 h-3.5" /> Exportar CSV ({linhas.length})
+        <CabecalhoPagina rotulo="Configurações" icone={ScrollText} titulo="Auditoria" ajuda="auditoria-de-acoes"
+          subtitulo="Tudo o que foi feito na conta, por quem e quando.">
+          <button type="button" onClick={() => exportarCSV(linhas)} disabled={linhas.length === 0} className="btn-secondary">
+            <Download className="h-4 w-4" aria-hidden="true" /> Exportar CSV ({linhas.length})
           </button>
         </CabecalhoPagina>
 
-        {/* Filtros */}
-        <div className="rounded-2xl p-4 mb-6 flex flex-wrap items-end gap-3" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
-          <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>
-            <Filter className="w-3.5 h-3.5" /> Filtros
-          </div>
-          <div>
-            <label className="block text-[11px] mb-1" style={{ color: 'var(--ink-3)' }}>Ação</label>
-            <select value={filtros.acao} onChange={e => setFiltros(f => ({ ...f, acao: e.target.value }))}
-              className="input-base text-xs py-1.5 w-48">
-              <option value="">Todas</option>
-              {Object.entries(ACAO_LABEL).sort((a, b) => a[1].localeCompare(b[1], 'pt-BR')).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        {/* Filtros: ação e período em pílulas (canvas). Mudar um filtro já recarrega. */}
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <select value={filtros.acao} onChange={e => setFiltros(f => ({ ...f, acao: e.target.value }))} aria-label="Ação"
+            className="input-base h-11 w-full rounded-[12px] px-3.5 sm:w-60">
+            <option value="">Todas as ações</option>
+            {Object.entries(ACAO_LABEL).sort((a, b) => a[1].localeCompare(b[1], 'pt-BR')).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+          {isComando && (
+            <select value={filtros.empresa_id} onChange={e => setFiltros(f => ({ ...f, empresa_id: e.target.value }))} aria-label="Empresa"
+              className="input-base h-11 w-full rounded-[12px] px-3.5 sm:w-56">
+              <option value="">Todas as empresas</option>
+              {empresas.map(e => <option key={e.empresa_id} value={e.empresa_id}>{nomeEmpresa(e.empresa_id)}</option>)}
+              <option value="_plataforma">Plataforma (sem empresa)</option>
             </select>
-          </div>
-          {isComando && (
-            <div>
-              <label className="block text-[11px] mb-1" style={{ color: 'var(--ink-3)' }}>Empresa</label>
-              <select value={filtros.empresa_id} onChange={e => setFiltros(f => ({ ...f, empresa_id: e.target.value }))}
-                className="input-base text-xs py-1.5 w-48">
-                <option value="">Todas as empresas</option>
-                {empresas.map(e => <option key={e.empresa_id} value={e.empresa_id}>{nomeEmpresa(e.empresa_id)}</option>)}
-                <option value="_plataforma">Plataforma (sem empresa)</option>
-              </select>
-            </div>
           )}
           {isComando && (
-            <div>
-              <label className="block text-[11px] mb-1" style={{ color: 'var(--ink-3)' }}>E-mail do usuário</label>
-              <input type="email" value={filtros.usuario_email} onChange={e => setFiltros(f => ({ ...f, usuario_email: e.target.value }))}
-                placeholder="nome@empresa.com" className="input-base text-xs py-1.5 w-52" />
+            <input type="email" value={filtros.usuario_email} onChange={e => setFiltros(f => ({ ...f, usuario_email: e.target.value }))}
+              placeholder="E-mail de quem fez" aria-label="E-mail do usuário" className="input-base h-11 w-full rounded-[12px] px-3.5 sm:w-56" />
+          )}
+          <div className="flex max-w-full gap-1 overflow-x-auto rounded-[14px] border border-line bg-surface p-1" role="tablist" aria-label="Período">
+            {PERIODOS.map(([k, l]) => (
+              <button key={k} type="button" role="tab" aria-selected={periodo === k} onClick={() => escolherPeriodo(k)}
+                className={`h-9 whitespace-nowrap rounded-[10px] px-3.5 text-sm transition-colors ${periodo === k ? 'bg-[var(--raised)] font-semibold text-ink' : 'text-ink-2 hover:text-ink'}`}>
+                {l}
+              </button>
+            ))}
+          </div>
+          {periodo === 'escolher' && (
+            <div className="flex flex-wrap items-center gap-2 text-sm text-ink-2">
+              <label className="flex items-center gap-2">De
+                <input type="date" value={filtros.data_inicio} onChange={e => setFiltros(f => ({ ...f, data_inicio: e.target.value }))}
+                  className="input-base h-11 w-auto rounded-[12px] px-3" /></label>
+              <label className="flex items-center gap-2">até
+                <input type="date" value={filtros.data_fim} onChange={e => setFiltros(f => ({ ...f, data_fim: e.target.value }))}
+                  className="input-base h-11 w-auto rounded-[12px] px-3" /></label>
             </div>
           )}
-          <div>
-            <label className="block text-[11px] mb-1" style={{ color: 'var(--ink-3)' }}>De</label>
-            <input type="date" value={filtros.data_inicio} onChange={e => setFiltros(f => ({ ...f, data_inicio: e.target.value }))}
-              className="input-base text-xs py-1.5" />
-          </div>
-          <div>
-            <label className="block text-[11px] mb-1" style={{ color: 'var(--ink-3)' }}>Até</label>
-            <input type="date" value={filtros.data_fim} onChange={e => setFiltros(f => ({ ...f, data_fim: e.target.value }))}
-              className="input-base text-xs py-1.5" />
-          </div>
-          <button onClick={() => carregar(0, false)} disabled={loading}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
-            style={{ background: 'var(--raise-3)', color: 'var(--ink-2)' }}>
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Aplicar
-          </button>
+          {loading && linhas.length > 0 && <Loader2 className="h-4 w-4 animate-spin text-ink-3" aria-label="Atualizando" />}
         </div>
 
-        {erro && <div className="mb-5 text-red-400 rounded-xl px-4 py-3 text-sm" style={{ background: 'rgb(var(--c-danger) / 0.08)', border: '1px solid rgb(var(--c-danger) / 0.18)' }}>{erro}</div>}
+        {erro && (
+          <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-[color-mix(in_srgb,var(--danger)_35%,transparent)] bg-[var(--danger-soft)] px-4 py-3 text-sm text-ink">
+            {erro}
+            <button type="button" onClick={() => carregar(0, false)} className="btn-secondary btn-sm">Tentar de novo</button>
+          </div>
+        )}
 
-        {/* Tabela */}
-        <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
+        <div className="overflow-hidden rounded-[22px] border border-line bg-surface">
           {loading && linhas.length === 0 ? (
-            <div className="flex items-center justify-center py-16 gap-2" style={{ color: 'var(--ink-3)' }}>
-              <Loader2 className="h-5 w-5 animate-spin" /> Carregando...
+            <div className="flex items-center justify-center gap-2 py-16 text-ink-3">
+              <Loader2 className="h-5 w-5 animate-spin" /> Carregando…
             </div>
           ) : linhas.length === 0 ? (
-            <div className="py-16 text-center text-sm" style={{ color: 'var(--ink-3)' }}>Nenhum registro de auditoria encontrado para esses filtros.</div>
+            <div className="py-16 text-center text-sm text-ink-3">Nenhum registro de auditoria encontrado para esses filtros.</div>
           ) : (
-            <div className="divide-y" style={{ borderColor: 'var(--line)' }}>
-              {linhas.map(l => (
-                <div key={l.id} className="px-5 py-3.5">
-                  <div
-                    className="flex items-center gap-3 cursor-pointer"
-                    onClick={() => setExpandido(prev => prev === l.id ? null : l.id)}
-                  >
-                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ring-1 shrink-0 ${ACAO_COR[l.acao] || 'bg-slate-500/10 text-ink-2 ring-slate-500/20'}`}>
-                      {nomeDaAcao(l.acao)}
-                    </span>
-                    {isComando && (
-                      <span className="text-[11px] px-2 py-0.5 rounded-full shrink-0"
-                        style={{ background: 'var(--raise-2)', color: 'var(--ink-2)' }}>
-                        {l.empresa_id ? nomeEmpresa(l.empresa_id) : 'Plataforma'}
+            <ul className="divide-y divide-line">
+              {linhas.map(l => {
+                const aberto = expandido === l.id
+                const perigo = (ACAO_COR[l.acao] || '').includes('red')
+                return (
+                  <li key={l.id}>
+                    <button type="button" onClick={() => setExpandido(prev => prev === l.id ? null : l.id)} aria-expanded={aberto}
+                      className={`grid w-full items-center gap-x-4 gap-y-1 px-6 py-3.5 text-left transition-colors hover:bg-raise-1 sm:grid-cols-[230px_minmax(0,1fr)_auto_16px] ${aberto ? 'bg-raise-1' : ''}`}>
+                      <span className={`flex min-w-0 items-center gap-2 text-sm font-semibold ${perigo ? 'text-[var(--danger)]' : 'text-ink'}`}>
+                        <span className="truncate">{nomeDaAcao(l.acao)}</span>
+                        {isComando && (
+                          <span className="shrink-0 rounded-full bg-raise-2 px-2 py-0.5 text-[11px] font-medium text-ink-2">
+                            {l.empresa_id ? nomeEmpresa(l.empresa_id) : 'Plataforma'}
+                          </span>
+                        )}
                       </span>
+                      <span className="min-w-0 truncate text-sm text-ink-2">
+                        {l.usuario_email || 'sistema'}{l.entidade && <span className="text-ink-3"> · {l.entidade}</span>}
+                      </span>
+                      <span className="whitespace-nowrap text-xs tabular-nums text-ink-3">{fmtData(l.created_at)}</span>
+                      <ChevronDown className={`hidden h-4 w-4 text-ink-3 transition-transform sm:block ${aberto ? 'rotate-180' : ''}`} aria-hidden="true" />
+                    </button>
+                    {aberto && (
+                      <dl className="mx-6 mb-4 grid grid-cols-[minmax(0,140px)_minmax(0,1fr)] gap-x-4 gap-y-1.5 rounded-[14px] border border-line bg-[var(--sunken)] px-4 py-3 text-[13px]">
+                        {l.detalhes && Object.entries(l.detalhes).map(([k, v]) => (
+                          <div key={k} className="contents">
+                            <dt className="text-ink-3">{rotuloDetalhe(k)}</dt>
+                            <dd className="min-w-0 break-words text-ink">{textoDetalhe(v)}</dd>
+                          </div>
+                        ))}
+                        <dt className="text-ink-3">E-mail</dt><dd className="min-w-0 break-words text-ink">{l.usuario_email || 'sistema'}</dd>
+                        {l.entidade_id && <><dt className="text-ink-3">Identificador</dt><dd className="min-w-0 break-all font-mono text-xs text-ink-2">{l.entidade_id}</dd></>}
+                      </dl>
                     )}
-                    <span className="text-sm text-ink truncate flex-1 min-w-0">
-                      {l.usuario_email || 'sistema'}
-                      {l.entidade && <span style={{ color: 'var(--ink-3)' }}> · {l.entidade}{l.entidade_id ? ` (${l.entidade_id.slice(0, 12)})` : ''}</span>}
-                    </span>
-                    <span className="text-xs tabular-nums shrink-0" style={{ color: 'var(--ink-3)' }}>{fmtData(l.created_at)}</span>
-                    {l.detalhes && <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${expandido === l.id ? 'rotate-180' : ''}`} style={{ color: 'var(--ink-4)' }} />}
-                  </div>
-                  {expandido === l.id && l.detalhes && (
-                    <dl className="mt-2.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-lg p-3 text-xs" style={{ background: 'var(--surface-2)', border: '1px solid var(--line)' }}>
-                      {Object.entries(l.detalhes).map(([k, v]) => (
-                        <div key={k} className="contents">
-                          <dt style={{ color: 'var(--ink-3)' }}>{rotuloDetalhe(k)}</dt>
-                          <dd className="min-w-0 break-words text-ink-2">{textoDetalhe(v)}</dd>
-                        </div>
-                      ))}
-                    </dl>
-                  )}
-                </div>
-              ))}
-            </div>
+                  </li>
+                )
+              })}
+            </ul>
           )}
         </div>
 
         {temMais && (
           <div className="flex justify-center mt-5">
             <button onClick={() => carregar(linhas.length, true)} disabled={loading}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-colors disabled:opacity-50"
-              style={{ background: 'var(--raise-3)', color: 'var(--ink-2)' }}>
-              {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null} Carregar mais
+              className="btn-secondary">
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Carregar mais
             </button>
           </div>
         )}
