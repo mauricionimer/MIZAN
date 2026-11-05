@@ -3,7 +3,7 @@
 // Regras em backend/agente/ (docs/PLANO_EXECUCAO_AGENTES.md).
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { useAoMudarNoServidor } from '../components/useMudancasDoServidor'
-import { Bot, Send, Search, Loader2, Activity, ShieldCheck, AlertTriangle, Power, UserRound, Coins, ListChecks, Landmark, Clock, Shuffle, CalendarDays, Scale, Hand, Undo2, CalendarClock, Users, BookOpen, FlaskConical, Headset, Unlink } from 'lucide-react'
+import { Bot, Send, Search, Loader2, Activity, ShieldCheck, AlertTriangle, Power, UserRound, Coins, Landmark, Clock, Shuffle, CalendarDays, Scale, Hand, Undo2, CalendarClock, Users, BookOpen, FlaskConical, Headset, Unlink } from 'lucide-react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import CabecalhoPagina from '../components/CabecalhoPagina'
@@ -185,6 +185,7 @@ export function Conversa({ empresa, fixo = null }) {
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState(null)
   const [valorPago, setValorPago] = useState('')
+  const [mostrarTodas, setMostrarTodas] = useState(false)
   const fim = useRef(null)
   const aguardando = ['pendente', 'processando'].includes(dados?.evento?.situacao)
   const quandoRetomar = dados?.evento?.situacao === 'pendente' ? Date.parse(dados.evento.disponivel_em || '') : NaN
@@ -330,11 +331,17 @@ export function Conversa({ empresa, fixo = null }) {
     } catch (err) { setErro(err); setTexto(mensagem) } finally { setEnviando(false) }
   }
 
+  const mensagens = dados?.mensagens || []
+  const ultimaDoAgente = (() => { for (let i = mensagens.length - 1; i >= 0; i--) { const m = mensagens[i]; if (m.direcao !== 'entrada' && m.trace_id !== 'pessoa' && m.trace_id !== 'aviso') return i } return -1 })()
+  const ofertas = (dados?.caso?.negociacao?.eventos || []).filter(e => e.tipo === 'oferta_apresentada').length
+  const nomeCliente = (escolhido?.nome || 'o cliente').split(' ')[0]
+  const inicio = mostrarTodas ? 0 : Math.max(0, mensagens.length - LIMITE_MENSAGENS)
+
   return (
-    <div className={`grid gap-4 ${fixo ? 'lg:grid-cols-[minmax(0,1fr)_320px]' : 'lg:grid-cols-[280px_minmax(0,1fr)_320px]'}`}>
-      {!fixo && <section className="rounded-xl border border-line bg-surface p-3">
+    <div className={`grid items-start gap-5 ${fixo ? 'lg:grid-cols-[minmax(0,1fr)_300px]' : 'lg:grid-cols-[280px_minmax(0,1fr)_300px]'}`}>
+      {!fixo && <section className="rounded-2xl border border-line bg-surface p-3">
         <Atendimentos empresa={empresa} escolhido={escolhido} onEscolher={setEscolhido} />
-        <label className="flex items-center gap-2 rounded-lg border border-line bg-surface-2 px-2.5 py-1.5">
+        <label className="flex items-center gap-2 rounded-xl border border-line bg-surface-2 px-3 py-2">
           <Search className="h-4 w-4 text-ink-3" />
           <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar devedor…" aria-label="Buscar devedor"
             className="w-full bg-transparent text-sm text-ink placeholder:text-ink-3 focus:outline-none" />
@@ -343,7 +350,7 @@ export function Conversa({ empresa, fixo = null }) {
           {devedores.map(d => (
             <li key={d.id}>
               <button onClick={() => setEscolhido(d)}
-                className={`w-full rounded-lg px-2.5 py-2 text-left transition-colors ${escolhido?.id === d.id ? 'bg-blue-500/15' : 'hover:bg-raise-1'}`}>
+                className={`w-full rounded-xl px-3 py-2 text-left transition-colors ${escolhido?.id === d.id ? 'bg-[var(--royal-soft)]' : 'hover:bg-raise-1'}`}>
                 <p className="truncate text-sm font-medium text-ink">{d.nome}</p>
                 <p className="text-xs text-ink-2">{fmtBRL(d.valor_divida)} · {d.dias_em_atraso} dias</p>
               </button>
@@ -353,7 +360,7 @@ export function Conversa({ empresa, fixo = null }) {
         </ul>
       </section>}
 
-      <section className="flex h-[72vh] min-h-[480px] flex-col overflow-hidden rounded-xl border border-line bg-surface">
+      <section aria-label="Mensagens" className="flex h-[760px] max-h-[82vh] min-h-[480px] flex-col overflow-hidden rounded-2xl border border-line bg-surface">
         {!escolhido ? (
           <div className="m-auto max-w-sm p-6 text-center text-sm text-ink-2">
             <Bot className="mx-auto mb-3 h-8 w-8 opacity-60" />
@@ -361,166 +368,243 @@ export function Conversa({ empresa, fixo = null }) {
           </div>
         ) : (
           <>
-            <header className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3">
-              <UserRound className="h-4 w-4 text-ink-2" />
-              <p className="text-sm font-semibold text-ink">{escolhido.nome}</p>
-              <Selo situacao={dados?.caso?.situacao} />
-              {dados?.caso?.negociacao?.etapa && <span className="rounded border border-line px-1.5 py-px text-[11px] text-ink-2">Etapa: {dados.caso.negociacao.etapa}</span>}
-              {dados?.caso?.identidade_confirmada && <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--success)' }}><ShieldCheck className="h-3.5 w-3.5" /> identidade confirmada</span>}
-              <SeloTelegram tg={tg} />
-              <button onClick={gerarConvite} disabled={enviando} title="Gera o link para o devedor conversar com o agente pelo Telegram (um link por pessoa)"
-                className="ml-auto flex items-center gap-1 rounded-md border border-line bg-raise-1 px-2 py-1 text-xs font-medium text-ink hover:bg-raise-2"><Send className="h-3.5 w-3.5" /> {tg?.ligado || tg?.convite_pendente_ate ? 'Novo convite' : 'Convite Telegram'}</button>
-              {(tg?.ligado || tg?.convite_pendente_ate) && (
-                <button onClick={desligarTelegram} disabled={enviando} title="O devedor para de receber pelo Telegram e o link deixa de valer"
-                  className="flex items-center gap-1 rounded-md border border-line bg-raise-1 px-2 py-1 text-xs font-medium text-ink-2 hover:bg-raise-2"><Unlink className="h-3.5 w-3.5" /> Desligar</button>
-              )}
-              {dados?.caso && (dados.caso.situacao === 'com_pessoa'
-                ? <button onClick={() => controlar('devolver')} disabled={enviando} className="flex items-center gap-1 rounded-md border border-line bg-raise-1 px-2 py-1 text-xs font-medium text-ink hover:bg-raise-2"><Undo2 className="h-3.5 w-3.5" /> Devolver ao agente</button>
-                : <button onClick={() => controlar('assumir')} disabled={enviando} className="flex items-center gap-1 rounded-md border border-line bg-raise-1 px-2 py-1 text-xs font-medium text-ink hover:bg-raise-2"><Hand className="h-3.5 w-3.5" /> Assumir o caso</button>)}
-            </header>
-            <p className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-line px-4 py-1.5 text-[11px] text-ink-3" aria-label="Legenda das cores">
-              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-raise-2 ring-1 ring-line" aria-hidden="true" />Cliente</span>
-              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-blue-600" aria-hidden="true" />Agente</span>
-              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-emerald-600" aria-hidden="true" />Equipe (pessoa)</span>
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-line px-5 py-3 text-[13px] text-ink-2">
+              <span className="flex flex-wrap items-center gap-x-3.5 gap-y-1" aria-label="Legenda das cores">
+                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-[4px] border border-[var(--border)] bg-[var(--raised)]" aria-hidden="true" />Cliente</span>
+                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-[4px] border border-[var(--border-strong)] bg-[var(--royal-soft)]" aria-hidden="true" />Agente</span>
+                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-[4px] border border-[var(--success)] bg-[var(--success-soft)]" aria-hidden="true" />Consultor da equipe (humano)</span>
+              </span>
+              <span className="tabular-nums">{mensagens.length} {mensagens.length === 1 ? 'mensagem' : 'mensagens'}{inicio > 0 ? ` · mostrando as últimas ${mensagens.length - inicio}` : ''}</span>
+            </div>
+            {!fixo && (
+              <div className="flex flex-wrap items-center gap-2 border-b border-line px-5 py-2">
+                <UserRound className="h-4 w-4 text-ink-2" aria-hidden="true" />
+                <p className="text-sm font-semibold text-ink">{escolhido.nome}</p>
+                <Selo situacao={dados?.caso?.situacao} />
+              </div>
+            )}
             {convite && (
-              <div className="flex flex-wrap items-center gap-2 border-b border-line bg-raise-1 px-4 py-2 text-xs text-ink-2" role="status">
+              <div className="flex flex-wrap items-center gap-2 border-b border-line bg-raise-1 px-5 py-2 text-xs text-ink-2" role="status">
                 {convite.configurado && convite.link ? (
                   <>
                     <span>Envie este link só a este devedor. Ele liga um Telegram (o primeiro que abrir) e vale até {new Date(convite.expira_em).toLocaleDateString('pt-BR')}:</span>
                     <input readOnly value={convite.link} onFocus={e => e.target.select()} aria-label="Link do convite"
-                      className="min-w-[16rem] flex-1 rounded border border-line bg-surface-2 px-2 py-1 text-ink" />
-                    <button onClick={() => { navigator.clipboard?.writeText(convite.link); setCopiado(true) }} className="rounded-md border border-line bg-raise-1 px-2 py-1 font-medium text-ink hover:bg-raise-2">{copiado ? 'Copiado' : 'Copiar'}</button>
+                      className="min-w-[16rem] flex-1 rounded-lg border border-line bg-surface-2 px-2 py-1 text-ink" />
+                    <button onClick={() => { navigator.clipboard?.writeText(convite.link); setCopiado(true) }} className="btn-secondary btn-sm">{copiado ? 'Copiado' : 'Copiar'}</button>
                   </>
                 ) : <span>O Telegram ainda não está configurado no servidor (variáveis TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET e TELEGRAM_BOT_USERNAME).</span>}
               </div>
             )}
-            {!enviando && aguardando && <p role="status" className="border-b border-line px-4 py-2 text-xs text-ink-2">
+            {!enviando && aguardando && <p role="status" className="border-b border-line px-5 py-2 text-xs text-ink-2">
               {dados.evento.situacao === 'processando' ? 'O agente está processando a mensagem.' : 'O agente tentará responder novamente automaticamente. A mensagem permanece na fila.'}
             </p>}
             {tg?.tentativa_outro_chat_em && (
-              <p role="status" className="flex items-start gap-1.5 border-b border-line px-4 py-2 text-xs" style={{ color: 'var(--warning)' }}>
+              <p role="status" className="flex items-start gap-1.5 border-b border-line px-5 py-2 text-xs" style={{ color: 'var(--warning)' }}>
                 <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" />
                 Em {fmtDiaHora(tg.tentativa_outro_chat_em)} alguém tentou abrir o link deste caso em outro Telegram e não conseguiu. Cada pessoa precisa do próprio link.
               </p>
             )}
-            {dados?.caso?.situacao === 'com_pessoa' && <p role="status" className="border-b border-line px-4 py-2 text-xs text-ink-2">
-              Este caso está com a equipe: o agente não responde. O devedor recebe só uma confirmação de que a mensagem chegou; a resposta é sua, pela caixa abaixo.
-            </p>}
-            <div className="flex-1 space-y-2 overflow-y-auto p-4">
-              {(dados?.mensagens || []).map((m, i) => {
+            <div role="log" aria-label="Histórico da conversa" className="flex flex-1 flex-col gap-3.5 overflow-y-auto px-5 pb-5 pt-4 sm:px-7">
+              {inicio > 0 && (
+                <button type="button" onClick={() => setMostrarTodas(true)}
+                  className="self-center rounded-full border border-line px-3.5 py-1.5 text-[13px] font-semibold text-accent-text hover:border-[var(--border-strong)]">
+                  ↑ Carregar {inicio} {inicio === 1 ? 'mensagem anterior' : 'mensagens anteriores'}
+                </button>
+              )}
+              {dados && !mensagens.length && <p className="m-auto text-sm text-ink-2">Nenhuma mensagem ainda.</p>}
+              {mensagens.map((m, i) => {
+                if (i < inicio) return null
                 const quem = m.direcao === 'entrada' ? 'devedor' : m.trace_id === 'pessoa' ? 'atendente' : m.trace_id === 'aviso' ? 'aviso' : 'assistente'
-                const estilo = {
-                  devedor: ['rounded-bl-sm bg-raise-2 text-ink', 'text-ink-3', 'Devedor'],
-                  atendente: ['rounded-br-sm bg-emerald-600 text-white', 'text-white/80', 'Atendente'],
-                  aviso: ['rounded-br-sm border border-line bg-raise-1 text-ink-2', 'text-ink-3', 'Aviso automático'],
-                  assistente: ['rounded-br-sm bg-blue-600 text-white', 'text-blue-100', 'Assistente'],
+                const bolha = {
+                  devedor: 'rounded-[18px_18px_18px_6px] border border-[var(--border)] bg-[var(--raised)] text-ink',
+                  atendente: 'rounded-[18px_18px_6px_18px] border border-[var(--success)] bg-[var(--success-soft)] text-ink',
+                  aviso: 'rounded-[18px_18px_6px_18px] border border-dashed border-line text-ink-2',
+                  assistente: 'rounded-[18px_18px_6px_18px] border border-[var(--border-strong)] bg-[var(--royal-soft)] text-ink',
                 }[quem]
+                const autor = { devedor: nomeCliente, atendente: '● Consultor da equipe', aviso: 'Aviso automático', assistente: 'Agente' }[quem]
+                const dia = diaDe(m.criado_em)
+                const diaAnt = i > inicio ? diaDe(mensagens[i - 1].criado_em) : null
                 return (
                   <Fragment key={i}>
-                  {i === iRecomeco && i > 0 && (
-                    <div className="flex items-center gap-2 py-1 text-[11px] text-ink-3" role="separator">
-                      <span className="h-px flex-1 bg-line" /> Telegram ligado: a conversa com o devedor recomeça aqui <span className="h-px flex-1 bg-line" />
+                    {dia && dia !== diaAnt && <span className="my-1 self-center rounded-full bg-[var(--raised)] px-3 py-1 text-xs text-ink-2">{dia}</span>}
+                    {i === iRecomeco && i > 0 && (
+                      <div className="flex items-center gap-2 py-1 text-[11px] text-ink-3" role="separator">
+                        <span className="h-px flex-1 bg-line" /> Telegram ligado: a conversa com o devedor recomeça aqui <span className="h-px flex-1 bg-line" />
+                      </div>
+                    )}
+                    <div className={`flex flex-col gap-1 ${quem === 'devedor' ? 'items-start' : 'items-end'}`}>
+                      <span className="text-xs text-ink-3">{autor} · {fmtHora(m.criado_em)}</span>
+                      <div className={`max-w-[min(560px,88%)] px-3.5 py-3 text-[15px] leading-relaxed ${bolha}`}>
+                        <p className="whitespace-pre-wrap break-words">{m.texto}</p>
+                      </div>
+                      {i === ultimaDoAgente && dados?.passos?.length > 0 && <PorQue passos={dados.passos} />}
                     </div>
-                  )}
-                  <div className={`flex ${quem === 'devedor' ? 'justify-start' : 'justify-end'}`}>
-                    <div className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm ${estilo[0]}`}>
-                      <p className="whitespace-pre-wrap">{m.texto}</p>
-                      <p className={`mt-1 text-[10px] ${estilo[1]}`}>{estilo[2]} · {fmtHora(m.criado_em)}</p>
-                    </div>
-                  </div>
                   </Fragment>
                 )
               })}
-              {!enviando && !aguardando && dados?.caso?.situacao !== 'com_pessoa' && dados?.silencio && (
+              {!enviando && !aguardando && !comPessoa && dados?.silencio && (
                 <div className="flex justify-center">
-                  <p className="flex max-w-[90%] items-start gap-1.5 rounded-lg border px-3 py-1.5 text-xs" style={{ color: 'var(--warning)', borderColor: 'var(--warning)' }}>
+                  <p className="flex max-w-[90%] items-start gap-1.5 rounded-xl border px-3 py-1.5 text-xs" style={{ color: 'var(--warning)', borderColor: 'var(--warning)' }}>
                     <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" /> O agente não respondeu. {dados.silencio}
                   </p>
                 </div>
               )}
-              {enviando && <div className="flex justify-end"><span className="flex items-center gap-2 rounded-2xl bg-raise-2 px-3 py-2 text-xs text-ink-2"><Loader2 className="h-3.5 w-3.5 animate-spin" /> o agente está respondendo…</span></div>}
+              {enviando && <div className="flex justify-end"><span className="flex items-center gap-2 rounded-full bg-raise-2 px-3 py-2 text-xs text-ink-2"><Loader2 className="h-3.5 w-3.5 animate-spin" /> o agente está respondendo…</span></div>}
               <div ref={fim} />
             </div>
-            <ErroCarga erro={erro} compacto className="mx-4 mb-2" />
+            <ErroCarga erro={erro} compacto className="mx-5 mb-2" />
             {entrega && (
-              <p role="status" className="mx-4 mb-2 flex items-start gap-1.5 text-xs"
+              <p role="status" className="mx-5 mb-2 flex items-start gap-1.5 text-xs"
                 style={{ color: entrega[0] === 'ok' ? 'var(--success)' : entrega[0] === 'aviso' ? 'var(--warning)' : 'var(--ink-2)' }}>
                 {entrega[0] === 'aviso' ? <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" /> : <Send className="mt-px h-3.5 w-3.5 shrink-0" />} {entrega[1]}
               </p>
             )}
-            {dados?.caso && (
-              <form onSubmit={pagar} className="flex flex-wrap items-center gap-2 border-t border-line px-3 pt-3 text-xs text-ink-2">
-                <Landmark className="h-4 w-4" /> Simular o banco confirmando um pagamento de R$
-                <input value={valorPago} onChange={e => setValorPago(e.target.value)} inputMode="decimal" placeholder="270,00" aria-label="Valor pago"
-                  className="w-24 rounded-md border border-line bg-surface-2 px-2 py-1 text-sm text-ink focus:outline-none" />
-                <button type="submit" disabled={enviando || !valorPago} className="rounded-md border border-line bg-raise-1 px-2.5 py-1 font-medium text-ink hover:bg-raise-2 disabled:opacity-50">Confirmar pagamento</button>
-              </form>
-            )}
-            <form onSubmit={enviar} className="flex gap-2 border-t border-line p-3">
-              <input value={texto} onChange={e => setTexto(e.target.value)} maxLength={2000} disabled={enviando || soAcompanha}
-                placeholder={comPessoa ? 'Responder como atendente (vai para o Telegram do devedor, se ligado)…'
-                  : soAcompanha ? 'Devedor no Telegram: assuma o caso para responder você'
-                  : 'Escreva como o devedor…'}
-                aria-label={comPessoa ? 'Resposta do atendente' : 'Mensagem do devedor'}
-                className="flex-1 rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm text-ink placeholder:text-ink-3 focus:outline-none" />
-              <button type="submit" disabled={enviando || soAcompanha || !texto.trim()} className="btn-primary flex items-center gap-1.5 disabled:opacity-50">
-                <Send className="h-4 w-4" /> {comPessoa ? 'Responder' : 'Enviar'}
-              </button>
+            <form onSubmit={enviar} className="flex flex-col gap-2.5 border-t border-line bg-[var(--sunken)] px-5 py-4">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className={`inline-flex h-8 items-center rounded-full border px-3 text-[13px] ${comPessoa ? 'border-[var(--royal)] bg-[var(--royal-soft)] font-semibold text-ink' : 'border-line text-ink-2'}`}>Responder ao cliente</span>
+                <span className={`inline-flex h-8 items-center rounded-full border px-3 text-[13px] ${!comPessoa ? 'border-[var(--royal)] bg-[var(--royal-soft)] font-semibold text-ink' : 'border-line text-ink-2'}`}>Testar o agente</span>
+                <span className="text-xs text-ink-3">{comPessoa ? 'Você está na conversa: o agente não responde.' : 'Para responder você mesmo, assuma a conversa.'}</span>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <input value={texto} onChange={e => setTexto(e.target.value)} maxLength={2000} disabled={enviando || soAcompanha}
+                  placeholder={comPessoa ? `Escreva para ${nomeCliente}…`
+                    : soAcompanha ? 'Cliente no Telegram: assuma a conversa para responder você'
+                    : `Escreva como se fosse ${nomeCliente}, para ver o que o agente responderia…`}
+                  aria-label={comPessoa ? 'Resposta ao cliente' : 'Mensagem de teste'}
+                  className="h-[46px] min-w-0 flex-1 rounded-[14px] border border-[var(--border)] bg-canvas px-3.5 text-[15px] text-ink placeholder:text-ink-3 focus:border-[var(--focus)] focus:outline-none" />
+                <button type="submit" disabled={enviando || soAcompanha || !texto.trim()} className="btn-primary h-[46px] rounded-[14px] px-5">Enviar</button>
+              </div>
             </form>
           </>
         )}
       </section>
 
-      <section className="rounded-xl border border-line bg-surface p-4">
-        <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink"><ListChecks className="h-4 w-4 text-accent-text" /> Por que o agente fez isso</h2>
-        <Passos passos={dados?.passos} />
-        {dados?.caderno?.length > 0 && (
-          <div className="mt-4 border-t border-line pt-3">
+      <aside className="flex flex-col gap-3.5">
+        {escolhido && (
+          <section className="flex flex-col gap-2.5 rounded-2xl border border-line bg-surface px-5 py-[18px]">
+            <span className="section-label">Nesta conversa</span>
+            <LinhaInfo rotulo="Mensagens" valor={mensagens.length} />
+            <LinhaInfo rotulo="Ofertas feitas" valor={ofertas} />
+            <LinhaInfo rotulo="Canal" valor={tg?.ligado ? 'Telegram' : 'Simulação'} />
+            <LinhaInfo rotulo="Quem conduz" valor={comPessoa ? 'Equipe' : 'Agente'} />
+            {dados?.caso?.negociacao?.etapa && <LinhaInfo rotulo="Etapa" valor={dados.caso.negociacao.etapa} />}
+            {dados?.caso?.identidade_confirmada && <span className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--success)' }}><ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" /> identidade confirmada</span>}
+          </section>
+        )}
+        {escolhido && (
+          <section className="flex flex-col gap-2 rounded-2xl border border-[var(--border-strong)] bg-[var(--royal-soft)] px-5 py-[18px]">
+            <span className="text-xs font-bold uppercase tracking-[0.14em] text-accent-text">Próximo passo</span>
+            {dados?.atendimento ? (
+              <>
+                <b className="text-base text-ink">Atendimento {fmtData(dados.atendimento.data)}, {dados.atendimento.hora}</b>
+                <span className="text-sm leading-relaxed text-ink-2">{dados.atendimento.atendente ? `Com ${dados.atendimento.atendente}.` : 'O administrador escolhe quem atende.'}</span>
+                <a href="/agenda" className="mt-1 text-sm font-semibold text-accent-text">Ver na agenda ↗</a>
+              </>
+            ) : dados?.caso?.acordo ? (
+              <>
+                <b className="text-base text-ink">Acompanhar o acordo</b>
+                <span className="text-sm leading-relaxed text-ink-2">Primeiro pagamento de {fmtBRL(dados.caso.acordo.primeiro_pagamento)} em {fmtData(dados.caso.acordo.data)}.</span>
+              </>
+            ) : comPessoa ? (
+              <>
+                <b className="text-base text-ink">Responder o cliente</b>
+                <span className="text-sm leading-relaxed text-ink-2">A conversa está com a equipe. Quando terminar, devolva para o agente.</span>
+              </>
+            ) : (
+              <>
+                <b className="text-base text-ink">O agente conduz</b>
+                <span className="text-sm leading-relaxed text-ink-2">Nada pede você agora. Se o cliente pedir uma pessoa, a pasta fica vermelha e entra na agenda.</span>
+              </>
+            )}
+          </section>
+        )}
+        {dados?.caso && (comPessoa
+          ? <button type="button" onClick={() => controlar('devolver')} disabled={enviando} className="btn-secondary w-full rounded-[14px]"><Undo2 className="h-4 w-4" aria-hidden="true" /> Devolver para o agente</button>
+          : <button type="button" onClick={() => controlar('assumir')} disabled={enviando} className="btn-secondary w-full rounded-[14px]"><Hand className="h-4 w-4" aria-hidden="true" /> Assumir a conversa</button>)}
+        {dados?.caso && (
+          <details className="rounded-2xl border border-line bg-surface px-5 py-4">
+            <summary className="cursor-pointer text-sm font-semibold text-ink">Telegram e testes</summary>
+            <div className="mt-3 flex flex-col gap-2.5">
+              <SeloTelegram tg={tg} />
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={gerarConvite} disabled={enviando} className="btn-secondary btn-sm"><Send className="h-3.5 w-3.5" aria-hidden="true" /> {tg?.ligado || tg?.convite_pendente_ate ? 'Novo convite' : 'Convite Telegram'}</button>
+                {(tg?.ligado || tg?.convite_pendente_ate) && <button type="button" onClick={desligarTelegram} disabled={enviando} className="btn-secondary btn-sm"><Unlink className="h-3.5 w-3.5" aria-hidden="true" /> Desligar</button>}
+              </div>
+              <form onSubmit={pagar} className="flex flex-col gap-2 border-t border-line pt-3 text-xs text-ink-2">
+                <span className="flex items-center gap-1.5"><Landmark className="h-4 w-4" aria-hidden="true" /> Simular o banco confirmando um pagamento</span>
+                <div className="flex gap-2">
+                  <input value={valorPago} onChange={e => setValorPago(e.target.value)} inputMode="decimal" placeholder="R$ 270,00" aria-label="Valor pago"
+                    className="min-w-0 flex-1 rounded-xl border border-line bg-surface-2 px-3 py-2 text-sm text-ink focus:outline-none" />
+                  <button type="submit" disabled={enviando || !valorPago} className="btn-secondary btn-sm">Confirmar</button>
+                </div>
+              </form>
+            </div>
+          </details>
+        )}
+        {!fixo && dados?.caderno?.length > 0 && (
+          <section className="rounded-2xl border border-line bg-surface px-5 py-4">
             <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-ink"><BookOpen className="h-3.5 w-3.5 text-accent-text" /> Caderno do caso</h3>
-            <p className="mb-2 text-[11px] text-ink-3">O que cada agente decidiu; o próximo lê antes de agir.</p>
             <ol className="space-y-1.5">
-              {dados.caderno.map((n, i) => {
-                const quem = QUEM_CADERNO[n.agente] || n.agente
-                return (
-                  <li key={i} className="text-xs">
-                    <span className="mr-1.5 rounded px-1.5 py-px text-[11px] font-semibold" style={{ color: COR_AGENTE[quem] || 'var(--ink-2)', background: 'color-mix(in srgb, currentColor 14%, transparent)' }}>{quem}</span>
-                    <span className="font-medium text-ink">{n.decisao}</span>
-                    {n.motivo && <span className="text-ink-2"> — {n.motivo}</span>}
-                    <span className="ml-1 text-[10px] text-ink-3">{fmtHora(n.quando)}</span>
-                  </li>
-                )
-              })}
+              {dados.caderno.map((n, i) => (
+                <li key={i} className="text-xs"><span className="font-medium text-ink">{QUEM_CADERNO[n.agente] || n.agente}: {n.decisao}</span>{n.motivo && <span className="text-ink-2"> — {n.motivo}</span>}</li>
+              ))}
             </ol>
-          </div>
+          </section>
         )}
-        {dados?.atendimento && (
-          <div className="mt-4 rounded-lg border border-line bg-surface-2 p-3 text-xs text-ink-2">
-            <p className="flex items-center gap-1.5 font-semibold text-ink"><CalendarClock className="h-3.5 w-3.5" /> Atendimento com pessoa marcado</p>
-            <p className="mt-1">{fmtData(dados.atendimento.data)} às {dados.atendimento.hora} · {dados.atendimento.atendente || 'o administrador escolhe quem atende (aba Agenda)'}.</p>
-          </div>
+        {!!dados?.caso?.negociacao?.eventos?.length && (
+          <details className="rounded-2xl border border-line bg-surface px-5 py-4 text-xs text-ink-2">
+            <summary className="cursor-pointer text-sm font-semibold text-ink">Trilha técnica da negociação</summary>
+            <p className="mt-2 break-all">Negociação: {dados.caso.negociacao.id}</p>
+            <ol className="mt-2 space-y-1">
+              {dados.caso.negociacao.eventos.slice(-20).map(e => <li key={e.chave} className="break-all">
+                {e.tipo.replaceAll('_', ' ')} · {e.em ? new Date(e.em).toLocaleString('pt-BR') : '—'}
+                {e.decisao_id && <> · decisão {e.decisao_id}</>}
+                {e.simulacao_id && <> · simulação {e.simulacao_id}</>}
+                {e.compromisso_id && <> · compromisso {e.compromisso_id}</>}
+              </li>)}
+            </ol>
+          </details>
         )}
-        {dados?.caso?.acordo && (
-          <div className="mt-4 rounded-lg border border-line bg-surface-2 p-3 text-xs text-ink-2">
-            <p className="font-semibold text-ink">Acordo registrado</p>
-            <p className="mt-1">Primeiro pagamento de {fmtBRL(dados.caso.acordo.primeiro_pagamento)} em {fmtData(dados.caso.acordo.data)}.</p>
-          </div>
-        )}
-        {!!dados?.caso?.negociacao?.eventos?.length && <details className="mt-4 rounded-lg border border-line bg-surface-2 p-3 text-xs text-ink-2">
-          <summary className="cursor-pointer font-semibold text-ink">Trilha da negociação</summary>
-          <p className="mt-2 break-all">Negociação: {dados.caso.negociacao.id}</p>
-          <ol className="mt-2 space-y-1">
-            {dados.caso.negociacao.eventos.slice(-20).map(e => <li key={e.chave} className="break-all">
-              {e.tipo.replaceAll('_', ' ')} · {e.em ? new Date(e.em).toLocaleString('pt-BR') : '—'}
-              {e.decisao_id && <> · decisão {e.decisao_id}</>}
-              {e.simulacao_id && <> · simulação {e.simulacao_id}</>}
-              {e.compromisso_id && <> · compromisso {e.compromisso_id}</>}
-            </li>)}
-          </ol>
-        </details>}
-      </section>
+      </aside>
     </div>
   )
+}
+
+const LIMITE_MENSAGENS = 40
+
+function LinhaInfo({ rotulo, valor }) {
+  return <div className="flex justify-between gap-3 text-sm"><span className="text-ink-2">{rotulo}</span><b className="text-right text-ink">{valor}</b></div>
+}
+
+/* "Por que o agente disse isso?": os passos da última resposta, logo embaixo dela. */
+function PorQue({ passos }) {
+  const [aberto, setAberto] = useState(false)
+  return (
+    <>
+      <button type="button" onClick={() => setAberto(a => !a)} aria-expanded={aberto}
+        className="py-0.5 text-[13px] font-semibold text-accent-text hover:underline">
+        {aberto ? 'Esconder o porquê' : 'Por que o agente disse isso?'}
+      </button>
+      {aberto && (
+        <div className="w-full max-w-[560px] rounded-[14px] border border-[var(--border)] bg-canvas px-3.5 py-3">
+          <Passos passos={passos} />
+        </div>
+      )}
+    </>
+  )
+}
+
+/* Separador de dia da conversa: "Hoje, 4 de novembro", "Ontem, …", "Segunda, 2 de novembro". */
+function diaDe(iso) {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return null
+  const hoje = new Date()
+  const ontem = new Date(); ontem.setDate(hoje.getDate() - 1)
+  const longo = d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })
+  if (d.toDateString() === hoje.toDateString()) return `Hoje, ${longo}`
+  if (d.toDateString() === ontem.toDateString()) return `Ontem, ${longo}`
+  const s = d.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).replace('-feira', '')
+  return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
 function Cartao({ icone: Icone, rotulo, valor, nota, cor }) {

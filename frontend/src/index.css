@@ -51,8 +51,13 @@
     --c-warning: 143 98 3;       --c-warning-soft: 253 243 221;
     --c-neutral: 98 105 147;     --c-neutral-soft: 234 239 249;
 
-    /* raio — levemente arredondado em tudo (brief, seção 3) */
-    --radius:4px; --radius-lg:6px;
+    /* raio (canvas aprovado, "Cantos"): cartão 22 px, campo e botão 12 px,
+       painel interno 14–18 px, pílula 999 px. */
+    --radius:12px; --radius-md:14px; --radius-lg:22px; --radius-pill:999px;
+    /* botão principal: royal mais fundo com texto branco (canvas: #3d55d9) */
+    --action:#4353c4; --action-hover:#3d48a8; --on-action:#ffffff;
+    /* brilho difuso do fundo das telas */
+    --glow-1:rgba(89,102,217,.10); --glow-2:rgba(120,80,200,.06);
 
     /* tipografia — uma família só */
     --font-display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
@@ -118,6 +123,8 @@
   }
 
   :root[data-theme="dark"] {
+    --action:#3d55d9; --action-hover:#4a62e6; --on-action:#ffffff;
+    --glow-1:rgba(107,119,227,.14); --glow-2:rgba(120,80,200,.10);
     /* superfícies */
     --canvas:#080b16; --card:#10152b; --raised:#1a2140; --sunken:#05070f;
     /* bordas */
@@ -157,7 +164,10 @@
   body {
     color: var(--ink);
     font-family: var(--font-sans);
-    background: var(--bg);
+    background:
+      radial-gradient(60% 40% at 75% 5%, var(--glow-1), transparent 70%),
+      radial-gradient(50% 50% at 0% 70%, var(--glow-2), transparent 70%),
+      var(--bg);
     background-attachment: fixed;
     transition: background-color 180ms ease, color 180ms ease;
   }
@@ -219,6 +229,12 @@
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);
   }
+  /* painel dentro de um cartão (canvas: #1a2140, raio 14–18) */
+  .painel {
+    background: var(--raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+  }
   .card-hover {
     @apply card transition-all duration-200;
   }
@@ -229,11 +245,11 @@
 
   /* ── Labels ── */
   .section-label {
-    font-size: 11px;
-    font-weight: 600;
+    font-size: 12px;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: var(--ink-2);
+    letter-spacing: 0.14em;
+    color: var(--text-muted);
   }
   .section-title {
     @apply text-sm font-semibold tracking-tight;
@@ -272,12 +288,13 @@
     font-family: var(--font-display);
     font-weight: 600;
     border-radius: var(--radius);
+    min-height: 44px;
     border: 1px solid transparent;
-    background: var(--royal);
-    color: var(--on-brand);
+    background: var(--action);
+    color: var(--on-action);
   }
-  .btn-primary:hover:not(:disabled) { background: var(--royal-hover); }
-  .btn-primary:active:not(:disabled) { background: var(--royal-pressed); }
+  .btn-primary:hover:not(:disabled) { background: var(--action-hover); }
+  .btn-primary:active:not(:disabled) { background: var(--action-hover); }
   .btn-primary:focus-visible { box-shadow: var(--focus-ring); }
   .btn-primary:disabled {
     @apply cursor-not-allowed;
@@ -293,6 +310,7 @@
     font-family: var(--font-display);
     font-weight: 600;
     border-radius: var(--radius);
+    min-height: 44px;
     background: var(--card);
     color: var(--text);
     border: 1px solid var(--border);
@@ -306,6 +324,7 @@
     font-family: var(--font-display);
     font-weight: 600;
     border-radius: var(--radius);
+    min-height: 44px;
     background: transparent;
     color: var(--accent-text);
     border: 1px solid transparent;
@@ -319,6 +338,7 @@
     font-family: var(--font-display);
     font-weight: 600;
     border-radius: var(--radius);
+    min-height: 44px;
     background: var(--danger);
     color: #fff;
     border: 1px solid transparent;
@@ -334,6 +354,7 @@
     font-family: var(--font-display);
     font-weight: 600;
     border-radius: var(--radius);
+    min-height: 44px;
     background: transparent;
     color: var(--danger);
     border: 1px solid transparent;
@@ -346,14 +367,14 @@
 
   /* Tamanho pequeno (ações dentro de cartões e linhas). No celular o alvo de
      toque tem 40px; no computador, 32px. Vem depois dos botões para vencer o padding. */
-  .btn-sm { padding: 6px 12px; font-size: 0.8125rem; gap: 6px; min-height: 40px; }
-  @media (min-width: 768px) { .btn-sm { min-height: 32px; } }
+  .btn-sm { padding: 6px 14px; font-size: 0.8125rem; gap: 6px; min-height: 40px; border-radius: 12px; }
+  @media (min-width: 768px) { .btn-sm { min-height: 36px; } }
 
   /* ── Badges de status — cor + texto, nunca só cor (brief, seção 5) ── */
   .badge {
     @apply inline-flex items-center gap-1.5 text-xs font-semibold;
-    border-radius: var(--radius);
-    padding: 4px 9px;
+    border-radius: 999px;
+    padding: 4px 11px;
   }
   .badge::before {
     content: '';
@@ -634,7 +655,10 @@
 
   .navbar-glass {
     @apply border-b sticky top-0 z-20;
+    -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
   }
+  /* canvas: rgba(12,18,48,.72) — a barra deixa o fundo aparecer */
+  .navbar-glass.navbar-glass { background: color-mix(in srgb, var(--deep) 72%, transparent); }
 
   /* ── Barra superior e sidebar: superfície da marca (--deep) ──
      --deep é tema-aware: azul bem claro no tema claro, azul-meia-noite no

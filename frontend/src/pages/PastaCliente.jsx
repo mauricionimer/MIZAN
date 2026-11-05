@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
-import { FolderOpen, Loader2, Send, Sparkles, ThumbsUp, ThumbsDown, Compass, Info } from 'lucide-react'
+import { Loader2, Send } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import AppShell from '../components/AppShell'
 import CabecalhoPagina from '../components/CabecalhoPagina'
@@ -19,9 +19,9 @@ import { NOME_FAMILIA } from '../utils/ofertas'
  */
 
 export const ABAS = [
-  { id: 'resumo', rotulo: 'Resumo do cliente' },
+  { id: 'resumo', rotulo: 'Resumo' },
   { id: 'conversa', rotulo: 'Conversa' },
-  { id: 'fluxo', rotulo: 'Fluxo do devedor' },
+  { id: 'fluxo', rotulo: 'Fluxo' },
   { id: 'caderno', rotulo: 'Caderno do caso' },
   { id: 'acordo', rotulo: 'Acordo e pagamentos' },
 ]
@@ -58,41 +58,42 @@ export default function PastaCliente() {
   const sem = perfil?.semaforo || state?.devedor?.semaforo
   const voltar = { to: state?.de || '/pastas', rotulo: 'Pastas' }
   const irAba = (nova) => setParams(p => { const n = new URLSearchParams(p); n.set('aba', nova); return n }, { replace: true })
+  const linhaInfo = [
+    dev.dias_em_atraso != null && `${dev.dias_em_atraso} dias em atraso`,
+    dev.valor_divida != null && `dívida de ${brl(dev.valor_divida)}`,
+    perfil && SITUACAO[perfil.situacao],
+  ].filter(Boolean).join(' · ')
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-6xl">
-        <CabecalhoPagina voltar={voltar} rotulo="Pasta do cliente" icone={FolderOpen} titulo={dev.nome || 'Devedor'}
-          subtitulo={sem ? <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="h-2.5 w-2.5 rounded-full" style={{ background: PONTO[sem.cor] }} aria-hidden="true" />
-            <strong className="font-semibold text-ink">{sem.rotulo}</strong><span>· {sem.motivo}</span>
-          </span> : null}>
-          <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
-            {dev.rank != null && <div><dt className="text-xs text-ink-3">Posição na fila</dt><dd className="font-semibold tabular-nums text-ink">#{dev.rank}</dd></div>}
-            {dev.dias_em_atraso != null && <div><dt className="text-xs text-ink-3">Em atraso</dt><dd className="font-semibold tabular-nums text-ink">{dev.dias_em_atraso} dias</dd></div>}
-            {dev.valor_divida != null && <div><dt className="text-xs text-ink-3">Dívida</dt><dd className="font-semibold tabular-nums text-ink">{brl(dev.valor_divida)}</dd></div>}
-          </dl>
+      <div className="mx-auto max-w-[1180px]">
+        <CabecalhoPagina voltar={voltar} className="mb-5"
+          rotulo={<>Pasta do devedor{sem && <SeloCor sem={sem} />}</>}
+          titulo={dev.nome || 'Devedor'}
+          selo={dev.rank != null && <span className="rounded-full bg-[var(--royal-soft)] px-2.5 py-0.5 text-[13px] font-semibold tabular-nums text-accent-text">#{dev.rank} da fila</span>}
+          subtitulo={linhaInfo || null}>
+          <button type="button" onClick={() => irAba('caderno')} className="btn-secondary">Registrar contato</button>
+          <button type="button" onClick={() => irAba('conversa')} className="btn-primary">Abrir conversa</button>
         </CabecalhoPagina>
 
-        <div className="mb-6 flex gap-1 overflow-x-auto border-b border-line" role="tablist" aria-label="Papéis da pasta">
+        <nav className="mb-6 flex gap-1 overflow-x-auto border-b border-line text-sm" role="tablist" aria-label="Arquivos da pasta">
           {ABAS.map(a => {
             const on = a.id === aba
             const meta = (perfil?.papeis || []).find(p => p.id === a.id)?.meta
             return (
-              <button key={a.id} type="button" role="tab" aria-selected={on} onClick={() => irAba(a.id)}
-                className={`relative -mb-px shrink-0 border-b-2 px-3 py-2 text-left text-sm transition-colors ${on ? 'border-[var(--royal)] text-ink' : 'border-transparent text-ink-2 hover:text-ink'}`}>
-                <span className="block font-medium">{a.rotulo}</span>
-                {meta && <span className="block text-[11px] text-ink-3">{meta}</span>}
+              <button key={a.id} type="button" role="tab" aria-selected={on} onClick={() => irAba(a.id)} title={meta || undefined}
+                className={`-mb-px shrink-0 border-b-2 px-3 py-2.5 transition-colors ${on ? 'border-[var(--royal)] font-semibold text-ink' : 'border-transparent text-ink-2 hover:text-ink'}`}>
+                {a.rotulo}
               </button>
             )
           })}
-        </div>
+        </nav>
 
         <ErroCarga erro={erro} onTentar={carregar} className="mb-4" />
         <AnimatePresence mode="wait" initial={false}>
           <motion.div key={aba} initial={reduzir ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
             exit={reduzir ? undefined : { opacity: 0, y: -6 }} transition={{ duration: 0.2 }} role="tabpanel">
-            {aba === 'resumo' && <Resumo perfil={perfil} carregando={carregando} irAba={irAba} />}
+            {aba === 'resumo' && <Resumo id={id} empresa={empresa} perfil={perfil} dev={dev} carregando={carregando} irAba={irAba} />}
             {aba === 'conversa' && <Conversa empresa={empresa} fixo={{ id, nome: dev.nome || 'Devedor' }} />}
             {aba === 'fluxo' && <Fluxo id={id} empresa={empresa} />}
             {aba === 'caderno' && <Caderno id={id} empresa={empresa} />}
@@ -104,96 +105,167 @@ export default function PastaCliente() {
   )
 }
 
-/* ── Resumo: situação, próximo passo e perfil do cliente ─────────────────── */
-function Resumo({ perfil, carregando, irAba }) {
+/* Pílula da cor da pasta, ao lado do rótulo: "● Vermelha · pediu uma pessoa". */
+const COR_SELO = {
+  branco: 'bg-[var(--raised)] text-ink-2',
+  amarelo: 'bg-[var(--warning-soft)] text-[var(--warning)]',
+  vermelho: 'bg-[var(--danger-soft)] text-[var(--danger)]',
+}
+function SeloCor({ sem }) {
+  return (
+    <span className={`rounded-full px-2.5 py-0.5 normal-case tracking-[0.04em] ${COR_SELO[sem.cor] || COR_SELO.branco}`}>
+      ● {sem.rotulo}{sem.motivo ? ` · ${sem.motivo}` : ''}
+    </span>
+  )
+}
+
+/* ── Resumo: números da dívida, situação, perfil e últimos contatos ───────── */
+function Resumo({ id, empresa, perfil, dev, carregando, irAba }) {
+  const { dados } = useCaso(id, empresa)
   if (carregando && !perfil) return <Carregando texto="Lendo a pasta…" />
   if (!perfil) return null
+  const score = dev.score != null ? Math.round(Number(dev.score)) : null
+  const contatos = (dados?.mensagens || []).slice(-4).reverse()
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
-      <Perfil perfil={perfil} />
-      <div className="flex flex-col gap-5">
-        <Aparece className="rounded-2xl border border-line bg-surface p-5">
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-ink-3">Situação</p>
-          <p className="mt-2 text-lg font-semibold text-ink">{SITUACAO[perfil.situacao] || 'Sem atendimento ainda'}</p>
-          <p className="mt-1 text-sm text-ink-2">{perfil.semaforo?.motivo}</p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button type="button" onClick={() => irAba('conversa')} className="btn-primary btn-sm">Abrir a conversa</button>
-            <button type="button" onClick={() => irAba('fluxo')} className="btn-secondary btn-sm">Ver o fluxo</button>
-          </div>
-        </Aparece>
-        <Aparece atraso={0.08} className="rounded-2xl border border-line bg-surface p-5">
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-ink-3">Base do perfil</p>
-          <ul className="mt-3 space-y-2 text-sm text-ink-2">
-            <li className="flex justify-between"><span>Mensagens do cliente</span><Contador className="font-semibold text-ink" valor={perfil.base?.mensagens_do_cliente || 0} /></li>
-            <li className="flex justify-between"><span>Leituras da Triagem</span><Contador className="font-semibold text-ink" valor={perfil.base?.leituras || 0} /></li>
-            <li className="flex justify-between"><span>Propostas feitas</span><Contador className="font-semibold text-ink" valor={perfil.base?.propostas || 0} /></li>
-          </ul>
-        </Aparece>
+    <div className="flex flex-col gap-5">
+      <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
+        <Numero rotulo="Dívida" valor={brl(dev.valor_divida)} />
+        <Numero rotulo="Em atraso" valor={dev.dias_em_atraso != null ? `${dev.dias_em_atraso} dias` : '—'} />
+        <Numero rotulo="Posição na fila" valor={dev.rank != null ? `#${dev.rank}` : '—'} />
+        <Numero rotulo="Chance de pagar" valor={score != null
+          ? <><span style={{ color: score >= 70 ? 'var(--success)' : score >= 40 ? 'var(--warning)' : 'var(--danger)' }}>{score}</span> <span className="text-sm font-medium text-ink-3">de 100</span></>
+          : '—'} />
+      </div>
+
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(300px,1fr)]">
+        <div className="flex flex-col gap-3.5">
+          <Aparece className="flex flex-col gap-2.5 rounded-2xl border border-line bg-surface px-6 py-[22px]">
+            <span className="section-label">Situação agora</span>
+            <p className="text-base leading-relaxed text-ink">
+              <b>{SITUACAO[perfil.situacao] || 'Sem atendimento ainda'}.</b> {perfil.semaforo?.motivo}
+            </p>
+            <div className="mt-1 flex flex-wrap gap-2">
+              <button type="button" onClick={() => irAba('conversa')} className="btn-primary btn-sm">Abrir conversa</button>
+              <button type="button" onClick={() => irAba('fluxo')} className="btn-secondary btn-sm">Ver o fluxo</button>
+            </div>
+          </Aparece>
+          <Perfil perfil={perfil} irAba={irAba} />
+        </div>
+
+        <aside className="flex flex-col gap-3.5">
+          <section className="flex flex-col gap-3 rounded-2xl border border-line bg-surface px-[22px] py-5">
+            <div className="flex items-center justify-between gap-3">
+              <span className="section-label">Últimos contatos</span>
+              <button type="button" onClick={() => irAba('fluxo')} className="text-[13px] text-accent-text hover:underline">Ver fluxo ↗</button>
+            </div>
+            {!dados && <p className="text-sm text-ink-3">Carregando…</p>}
+            {dados && !contatos.length && <p className="text-sm text-ink-2">Nenhum contato ainda.</p>}
+            {contatos.map((m, i) => {
+              const cliente = m.direcao === 'entrada'
+              const equipe = m.trace_id === 'pessoa'
+              return (
+                <div key={i} className="flex items-start gap-3">
+                  <span className="mt-[5px] h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ background: cliente ? 'var(--text-2)' : equipe ? 'var(--success)' : 'var(--royal)' }} aria-hidden="true" />
+                  <div className="flex min-w-0 flex-col gap-0.5">
+                    <span className="line-clamp-2 text-sm text-ink">{cliente ? 'Cliente: ' : equipe ? 'Equipe: ' : 'Agente: '}{m.texto}</span>
+                    <span className="text-xs text-ink-3">{dataHora(m.criado_em)}</span>
+                  </div>
+                </div>
+              )
+            })}
+          </section>
+          <section className="flex flex-col gap-2.5 rounded-2xl border border-line bg-surface px-[22px] py-5">
+            <span className="section-label">Base do perfil</span>
+            <LinhaNum rotulo="Mensagens do cliente" valor={perfil.base?.mensagens_do_cliente || 0} />
+            <LinhaNum rotulo="Leituras da Triagem" valor={perfil.base?.leituras || 0} />
+            <LinhaNum rotulo="Propostas feitas" valor={perfil.base?.propostas || 0} />
+          </section>
+          <details className="rounded-2xl border border-line bg-surface px-[22px] py-[18px]">
+            <summary className="cursor-pointer text-sm font-semibold text-ink">Não conseguiu falar com ele?</summary>
+            <p className="mt-2.5 text-sm leading-relaxed text-ink-2">Anote a tentativa no caderno do caso. Os agentes leem o caderno antes de cada mensagem.</p>
+            <button type="button" onClick={() => irAba('caderno')} className="btn-secondary btn-sm mt-3">Abrir o caderno</button>
+          </details>
+        </aside>
       </div>
     </div>
   )
 }
 
-function Perfil({ perfil }) {
-  const [aberto, setAberto] = useState(null)
-  if (!perfil.pronto) {
-    return (
-      <Aparece className="rounded-2xl border border-dashed border-line bg-surface p-6">
-        <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-accent-text"><Sparkles className="h-4 w-4" aria-hidden="true" />Perfil do cliente</p>
-        <p className="mt-3 text-lg font-semibold text-ink">Ainda não dá para dizer como ele é.</p>
-        <p className="mt-1 text-sm text-ink-2">{perfil.falta || 'O perfil aparece quando o cliente começar a responder.'} A leitura é feita pelas conversas e pelo histórico de pagamento.</p>
-        <div className="mt-5 space-y-4 opacity-40" aria-hidden="true">
-          {['Como está agora', 'Jeito de falar', 'Confiança'].map(n => (
-            <div key={n}><p className="mb-1 text-sm text-ink-2">{n}</p><div className="h-1.5 rounded-full bg-raise-2" /></div>
-          ))}
-        </div>
-        <p className="mt-5 flex items-start gap-1.5 text-xs text-ink-3"><Info className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />{perfil.aviso}</p>
-      </Aparece>
-    )
-  }
+function Numero({ rotulo, valor }) {
   return (
-    <Aparece className="rounded-2xl border border-line bg-surface p-6">
-      <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-accent-text"><Sparkles className="h-4 w-4" aria-hidden="true" />Perfil do cliente</p>
-      <p className="mt-3 text-xl font-semibold leading-snug text-ink">{perfil.frase}</p>
-      <p className="mt-1 text-xs text-ink-3">○ antes · ● agora. Toque num traço para ver de onde veio.</p>
-      <ul className="mt-5 space-y-4">
-        {perfil.tracos.map((t, i) => (
-          <li key={t.id}>
-            <button type="button" onClick={() => setAberto(aberto === t.id ? null : t.id)} aria-expanded={aberto === t.id}
-              className="w-full rounded-xl p-2 text-left transition-colors hover:bg-raise-1">
-              <span className="mb-1.5 flex items-center justify-between text-sm"><span className="font-medium text-ink">{t.nome}</span>
-                <span className="text-xs text-ink-3">{aberto === t.id ? 'fechar' : 'de onde veio'}</span></span>
-              <Regua esquerda={t.esquerda} direita={t.direita} antes={t.antes} agora={t.agora} atraso={i * 0.08}
-                rotulo={`${t.nome}: ${t.agora} de 100 entre ${t.esquerda} e ${t.direita}`} />
-            </button>
-            <AnimatePresence initial={false}>
-              {aberto === t.id && (
-                <motion.ul initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                  className="overflow-hidden px-2 text-xs text-ink-2">
-                  {t.fontes.map(f => <li key={f} className="mt-1 flex gap-1.5"><span aria-hidden="true">·</span>{f}</li>)}
-                </motion.ul>
-              )}
-            </AnimatePresence>
-          </li>
-        ))}
-      </ul>
-      <div className="mt-6 grid gap-4 border-t border-line pt-5 sm:grid-cols-3">
-        <Lista icone={ThumbsUp} cor="var(--success)" titulo="O que funciona" itens={perfil.funciona} />
-        <Lista icone={ThumbsDown} cor="var(--danger)" titulo="O que evitar" itens={perfil.evitar} />
-        <Lista icone={Compass} cor="var(--accent-text)" titulo="O que move ele" itens={perfil.move} />
-      </div>
-      <p className="mt-5 flex items-start gap-1.5 text-xs text-ink-3"><Info className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />{perfil.aviso} Não usa dados de saúde, religião ou política.</p>
+    <Aparece className="flex flex-col gap-1 rounded-[18px] border border-line bg-surface px-[18px] py-4">
+      <span className="text-[13px] text-ink-3">{rotulo}</span>
+      <b className="text-2xl tabular-nums text-ink">{valor}</b>
     </Aparece>
   )
 }
 
-function Lista({ icone: Icone, cor, titulo, itens }) {
+function LinhaNum({ rotulo, valor }) {
+  return <div className="flex justify-between text-sm"><span className="text-ink-2">{rotulo}</span><Contador className="font-semibold text-ink" valor={valor} /></div>
+}
+
+function Perfil({ perfil, irAba }) {
+  const [sel, setSel] = useState(0)
+  const aviso = 'É uma leitura de comportamento para orientar a conversa, não um diagnóstico. Não usa saúde, religião, política nem outros dados sensíveis. Cada ponto mostra de onde veio.'
+  if (!perfil.pronto) {
+    return (
+      <Aparece as="section" aria-label="Perfil do cliente" className="flex flex-col gap-3.5 rounded-2xl border border-line bg-surface px-6 py-[22px]">
+        <span className="section-label">Perfil do cliente · leitura da IA</span>
+        <b className="text-xl leading-snug text-ink">Ainda é cedo para ler o perfil dele.</b>
+        <span className="text-sm leading-relaxed text-ink-2">{perfil.falta || 'O perfil aparece quando o cliente começar a responder.'}</span>
+        <div className="space-y-4 opacity-40" aria-hidden="true">
+          {['Como está agora', 'Jeito de falar', 'Confiança na empresa'].map(n => (
+            <div key={n} className="grid grid-cols-[150px_minmax(0,1fr)] items-center gap-4"><span className="text-sm font-semibold text-ink">{n}</span><div className="h-1.5 rounded-full bg-[var(--raised)]" /></div>
+          ))}
+        </div>
+        <span className="border-t border-line pt-3 text-xs leading-relaxed text-ink-3">{aviso}</span>
+      </Aparece>
+    )
+  }
+  const t = perfil.tracos[sel] || perfil.tracos[0]
+  const base = perfil.base || {}
+  const baseadoEm = [base.mensagens_do_cliente && `${base.mensagens_do_cliente} mensagens`, base.leituras && `${base.leituras} leituras`, base.propostas && `${base.propostas} propostas`].filter(Boolean).join(', ')
   return (
-    <div>
-      <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold" style={{ color: cor }}><Icone className="h-3.5 w-3.5" aria-hidden="true" />{titulo}</p>
-      {itens?.length ? <ul className="space-y-1.5 text-sm text-ink-2">{itens.map(x => <li key={x}>{x}</li>)}</ul>
-        : <p className="text-sm text-ink-3">Nada ainda.</p>}
-    </div>
+    <Aparece as="section" aria-label="Perfil do cliente" className="flex flex-col gap-4 rounded-2xl border border-line bg-surface px-6 py-[22px]">
+      <span className="section-label">Perfil do cliente · leitura da IA</span>
+      <div className="flex flex-col gap-1.5">
+        <b className="text-xl leading-snug text-ink">{perfil.frase}</b>
+        {baseadoEm && <span className="text-[13px] text-ink-2">Baseado em {baseadoEm}</span>}
+      </div>
+      <div role="list" className="flex flex-col gap-1">
+        {perfil.tracos.map((x, k) => (
+          <button key={x.id} type="button" role="listitem" onClick={() => setSel(k)} aria-pressed={k === sel}
+            className={`grid grid-cols-1 items-center gap-x-4 gap-y-1 rounded-[14px] px-3 py-2.5 text-left sm:grid-cols-[180px_minmax(0,1fr)] ${k === sel ? 'bg-[var(--raised)]' : 'hover:bg-raise-1'}`}>
+            <span className="text-sm font-semibold text-ink">{x.nome}</span>
+            <Regua esquerda={x.esquerda} direita={x.direita} antes={x.antes} agora={x.agora} atraso={k * 0.08}
+              rotulo={`${x.nome}: ${x.agora} de 100 entre ${x.esquerda} e ${x.direita}`} />
+          </button>
+        ))}
+      </div>
+      {t && (
+        <div className="flex flex-col gap-1 rounded-2xl border border-[var(--border)] bg-canvas px-3.5 py-3">
+          <span className="text-sm font-semibold text-ink">{t.nome}</span>
+          <span className="text-xs leading-relaxed text-ink-3">De onde veio: {t.fontes?.length ? t.fontes.join(' · ') : 'sem fonte registrada'} · <button type="button" onClick={() => irAba('conversa')} className="text-accent-text hover:underline">ver na conversa ↗</button></span>
+        </div>
+      )}
+      <span className="flex items-center gap-3.5 text-xs text-ink-3">
+        <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-full bg-[var(--royal)]" aria-hidden="true" />agora</span>
+        <span className="inline-flex items-center gap-1.5"><span className="h-[9px] w-[9px] rounded-full border-[1.5px] border-[var(--text-muted)]" aria-hidden="true" />no primeiro contato</span>
+      </span>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="flex flex-col gap-2 rounded-2xl border border-[color-mix(in_srgb,var(--success)_35%,transparent)] bg-[var(--success-soft)] px-4 py-3.5">
+          <b className="text-[13px] text-[var(--success)]">Funciona com ele</b>
+          {perfil.funciona?.length ? perfil.funciona.map(x => <span key={x} className="text-[13px] leading-relaxed text-ink">✓ {x}</span>) : <span className="text-[13px] text-ink-2">Nada ainda.</span>}
+        </div>
+        <div className="flex flex-col gap-2 rounded-2xl border border-[color-mix(in_srgb,var(--danger)_35%,transparent)] bg-[var(--danger-soft)] px-4 py-3.5">
+          <b className="text-[13px] text-[var(--danger)]">Evitar</b>
+          {perfil.evitar?.length ? perfil.evitar.map(x => <span key={x} className="text-[13px] leading-relaxed text-ink">✕ {x}</span>) : <span className="text-[13px] text-ink-2">Nada ainda.</span>}
+        </div>
+      </div>
+      {!!perfil.move?.length && <span className="text-sm leading-relaxed text-ink"><b>O que move ele:</b> {perfil.move.map(x => x.replace(/\.+$/, '')).join('; ')}.</span>}
+      <span className="border-t border-line pt-3 text-xs leading-relaxed text-ink-3">{perfil.aviso ? `${perfil.aviso} ` : ''}{aviso}</span>
+    </Aparece>
   )
 }
 
@@ -216,7 +288,7 @@ function useCaso(id, empresa) {
 
 /* ── Fluxo: as fases reais + tudo o que aconteceu ─────────────────────────── */
 const FILTROS_FLUXO = [{ id: 'todos', rotulo: 'Tudo' }, { id: 'agente', rotulo: 'Agentes' }, { id: 'equipe', rotulo: 'Equipe' }, { id: 'cliente', rotulo: 'Cliente' }]
-const COR_QUEM = { agente: 'var(--royal)', equipe: 'var(--success)', cliente: 'var(--text-muted)' }
+const COR_QUEM = { agente: 'var(--royal)', equipe: 'var(--success)', cliente: 'var(--text-2)' }
 const NOME_EVENTO = { oferta_apresentada: 'Proposta apresentada', acordo_aceito: 'Acordo aceito', primeiro_pagamento_confirmado: 'Primeiro pagamento confirmado',
   acordo_quebrado: 'Acordo quebrado', retorno_cumprido: 'Retorno cumprido', transferencia_humana: 'Passou para a equipe' }
 
@@ -244,26 +316,31 @@ function Fluxo({ id, empresa }) {
   return (
     <div className="flex flex-col gap-5">
       <FluxoDevedor predicaoId={id} />
-      <section className="rounded-2xl border border-line bg-surface p-5" aria-label="Tudo o que aconteceu">
+      <section className="rounded-2xl border border-line bg-surface px-6 py-[22px]" aria-label="Tudo o que aconteceu">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-base font-semibold text-ink">Tudo o que aconteceu</h2>
+          <h2 className="section-label">Tudo o que aconteceu</h2>
           <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrar">
             {FILTROS_FLUXO.map(f => (
               <button key={f.id} type="button" aria-pressed={filtro === f.id} onClick={() => setFiltro(f.id)}
-                className={`rounded-full border px-3 py-1 text-xs font-medium ${filtro === f.id ? 'border-[var(--royal)] bg-raise-2 text-ink' : 'border-line text-ink-2 hover:text-ink'}`}>{f.rotulo}</button>
+                className={`h-8 rounded-full border px-3 text-[13px] ${filtro === f.id ? 'border-[var(--royal)] bg-[var(--royal-soft)] font-semibold text-ink' : 'border-line text-ink-2 hover:text-ink'}`}>{f.rotulo}</button>
             ))}
           </div>
         </div>
         <ErroCarga erro={erro} onTentar={carregar} compacto />
         {carregando && !dados && <Carregando texto="Montando a linha do tempo…" />}
         {dados && !visiveis.length && <p className="py-6 text-sm text-ink-2">Nada registrado {filtro === 'todos' ? 'ainda' : 'para este filtro'}.</p>}
-        <ol className="relative ml-2 border-l border-line">
+        <ol className="flex flex-col">
           {visiveis.slice(0, 60).map((i, k) => (
-            <li key={`${i.quando}-${k}`} className="relative pb-4 pl-5">
-              <Ponto atraso={Math.min(k, 12) * 0.03} className="absolute -left-[5px] top-1.5 h-2.5 w-2.5 rounded-full" style={{ background: COR_QUEM[i.quem] }} aria-hidden="true" />
-              <p className="text-sm font-medium text-ink">{i.titulo}</p>
-              {i.texto && <p className="mt-0.5 text-sm text-ink-2">{i.texto}</p>}
-              <p className="mt-0.5 text-[11px] text-ink-3">{dataHora(i.quando)}</p>
+            <li key={`${i.quando}-${k}`} className="grid grid-cols-[84px_22px_minmax(0,1fr)] gap-3 sm:grid-cols-[110px_22px_minmax(0,1fr)]">
+              <span className="pt-[3px] text-right text-xs tabular-nums text-ink-3">{dataHora(i.quando)}</span>
+              <span className="flex flex-col items-center">
+                <Ponto atraso={Math.min(k, 12) * 0.03} className="mt-1 h-3 w-3 shrink-0 rounded-full" style={{ background: COR_QUEM[i.quem] }} aria-hidden="true" />
+                <span className="mt-1 w-0.5 flex-1 bg-line" aria-hidden="true" />
+              </span>
+              <div className="flex min-w-0 flex-col gap-0.5 pb-4">
+                <span className="text-sm text-ink">{i.titulo}</span>
+                {i.texto && <span className="text-sm text-ink-2">{i.texto}</span>}
+              </div>
             </li>
           ))}
         </ol>
@@ -290,10 +367,10 @@ function Caderno({ id, empresa }) {
     } catch (err) { setErroNota(err) } finally { setSalvando(false) }
   }
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
-      <section className="rounded-2xl border border-line bg-surface p-5" aria-label="Anotações">
-        <h2 className="text-base font-semibold text-ink">Anotações</h2>
-        <p className="mt-1 text-xs text-ink-3">Mais recentes primeiro. <span style={{ color: 'var(--royal)' }}>Azul</span>: agentes · <span style={{ color: 'var(--success)' }}>verde</span>: equipe.</p>
+    <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <section className="rounded-2xl border border-line bg-surface px-6 py-[22px]" aria-label="Anotações">
+        <div className="flex items-center justify-between gap-3"><span className="section-label">{notas.length} {notas.length === 1 ? 'anotação' : 'anotações'}</span><span className="text-xs text-ink-3">mais recentes primeiro</span></div>
+        <p className="mt-1 text-xs text-ink-3"><span style={{ color: 'var(--success)' }}>Verde</span>: equipe (pessoas) · escuro: agentes.</p>
         <ErroCarga erro={erro} onTentar={carregar} compacto className="mt-3" />
         {carregando && !dados && <Carregando texto="Abrindo o caderno…" />}
         {dados && !notas.length && <p className="py-6 text-sm text-ink-2">O caderno está vazio. Quando um agente decidir algo sobre este cliente, aparece aqui.</p>}
@@ -302,7 +379,7 @@ function Caderno({ id, empresa }) {
             const equipe = n.agente === 'equipe'
             return (
               <Aparece as="li" key={`${n.quando}-${i}`} atraso={Math.min(i, 8) * 0.04}
-                className="rounded-r-xl border-l-[3px] bg-raise-1 px-4 py-3" style={{ borderColor: equipe ? 'var(--success)' : 'var(--royal)' }}>
+                className={`rounded-2xl border px-4 py-3.5 ${equipe ? 'border-[color-mix(in_srgb,var(--success)_35%,transparent)] bg-[var(--success-soft)]' : 'border-line bg-canvas'}`}>
                 <p className="text-xs font-semibold" style={{ color: equipe ? 'var(--success)' : 'var(--accent-text)' }}>{QUEM[n.agente] || n.agente} · <span className="font-normal text-ink-3">{dataHora(n.quando)}</span></p>
                 <p className="mt-1 text-sm font-medium text-ink">{n.decisao}</p>
                 {n.motivo && <p className="mt-0.5 text-sm text-ink-2">{n.motivo}</p>}
@@ -312,17 +389,17 @@ function Caderno({ id, empresa }) {
         </ul>
       </section>
       {!isComando && (
-        <form onSubmit={anotar} className="h-fit rounded-2xl border border-line bg-surface p-5">
-          <label htmlFor="nota" className="text-base font-semibold text-ink">Nova anotação</label>
+        <form onSubmit={anotar} className="h-fit rounded-2xl border border-line bg-surface px-6 py-[22px]">
+          <label htmlFor="nota" className="section-label">Nova anotação</label>
           <p className="mt-1 text-xs text-ink-3">Os agentes leem o caderno antes de cada mensagem. Não escreva CPF nem telefone: eles são removidos.</p>
           <textarea id="nota" value={texto} onChange={e => setTexto(e.target.value)} maxLength={200} rows={4}
-            placeholder="Ex.: prefere conversar depois das 18h"
-            className="mt-3 w-full resize-none rounded-xl border border-line bg-surface-2 px-3 py-2 text-sm text-ink placeholder:text-ink-3 focus:outline-none" />
+            placeholder="O que o próximo a atender precisa saber?"
+            className="mt-3 min-h-[110px] w-full resize-y rounded-[14px] border border-[var(--border)] bg-canvas px-3.5 py-3 text-sm text-ink placeholder:text-ink-3 focus:outline-none" />
           <div className="mt-2 flex items-center justify-between gap-2">
             <span className="text-xs tabular-nums text-ink-3">{texto.length}/200</span>
             <button type="submit" disabled={!texto.trim() || salvando} className="btn-primary btn-sm">
               {salvando ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Send className="h-4 w-4" aria-hidden="true" />}
-              {salvando ? 'Salvando…' : 'Anotar no caderno'}
+              {salvando ? 'Guardando…' : 'Guardar no caderno'}
             </button>
           </div>
           <ErroCarga erro={erroNota} compacto className="mt-3" />
@@ -357,7 +434,7 @@ function Acordo({ id, empresa, divida }) {
       <ErroCarga erro={erro || erroAc} onTentar={() => { carregar(); carregarAcordos() }} />
       {(carregando && !dados) || acordos === null ? <Carregando texto="Buscando propostas e parcelas…" /> : null}
       {acordo ? (
-        <Aparece className="rounded-2xl border border-line bg-surface p-6">
+        <Aparece className="rounded-2xl border border-line bg-surface px-6 py-[22px]">
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-ink-3">Hoje: acordo {acordo.situacao === 'quebrado' ? 'quebrado' : 'ativo'}</p>
           <div className="mt-3 grid gap-4 sm:grid-cols-3">
             <div><p className="text-xs text-ink-3">Já entrou</p><p className="text-2xl font-bold tabular-nums" style={{ color: 'var(--success)' }}><Contador valor={entrou} formatar={brl} /></p></div>
@@ -377,15 +454,15 @@ function Acordo({ id, empresa, divida }) {
           <p className="mt-2 text-xs text-ink-3">Verde: paga · contorno forte: a próxima · vermelho: atrasada.</p>
         </Aparece>
       ) : acordos !== null && (
-        <Aparece className="rounded-2xl border border-line bg-surface p-6">
+        <Aparece className="rounded-2xl border border-line bg-surface px-6 py-[22px]">
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-ink-3">Hoje: {propostas.length ? 'negociando' : 'sem acordo'}</p>
           <p className="mt-2 text-lg font-semibold text-ink">{propostas.length ? `${propostas.length} proposta${propostas.length > 1 ? 's' : ''} feita${propostas.length > 1 ? 's' : ''}, nenhum acordo fechado ainda.` : 'Nenhuma proposta foi feita a este cliente.'}</p>
           {divida != null && <p className="mt-1 text-sm text-ink-2">Dívida de {brl(divida)}.</p>}
         </Aparece>
       )}
       {!!propostas.length && (
-        <section className="rounded-2xl border border-line bg-surface p-5" aria-label="Propostas">
-          <h2 className="text-base font-semibold text-ink">Propostas e respostas</h2>
+        <section className="rounded-2xl border border-line bg-surface px-6 py-[22px]" aria-label="Propostas">
+          <h2 className="section-label">Propostas e respostas</h2>
           <ul className="mt-4 space-y-3">
             {propostas.slice().reverse().map((e, i) => (
               <li key={e.chave || i} className="flex flex-wrap items-center gap-3">

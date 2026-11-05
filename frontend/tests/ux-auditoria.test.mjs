@@ -95,7 +95,10 @@ test('regressão U14: o menu dizia "Política de cobrança" e a página "Premiss
   // O título vem do cabeçalho padrão (CabecalhoPagina) e tem que ser o mesmo nome do menu.
   assert.match(fonte('pages/Premissas.jsx'), /<CabecalhoPagina[^>]*titulo="Política de cobrança"/)
   assert.match(fonte('pages/Backtest.jsx'), /<CabecalhoPagina[^>]*titulo="Simulação histórica"/)
-  assert.match(fonte('pages/Agenda.jsx'), /<CabecalhoPagina rotulo="Hoje"/)
+  // Na entrada da Agenda o título é o nome do menu; dentro de uma área, o nome da área.
+  const agenda = fonte('pages/Agenda.jsx')
+  assert.match(agenda, /rotulo=\{areaEquipe \? 'Agenda · Hoje' : 'Hoje'\}/)
+  assert.match(agenda, /: 'Agenda'\}/)
 })
 
 test('regressão U15/U16: botão da Agenda só apagava, e o erro da ação aparecia longe do devedor', () => {

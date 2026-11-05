@@ -13,7 +13,7 @@ import DicaAjuda from './DicaAjuda'
  * Uma tela tem um título só: este. Nada de <h1> próprio nas páginas.
  */
 export default function CabecalhoPagina({
-  voltar = { to: '/inicio', rotulo: 'Início' }, rotulo, icone: Icone, titulo, ajuda, subtitulo, children, className = '',
+  voltar = { to: '/inicio', rotulo: 'Início' }, rotulo, icone: Icone, titulo, selo, ajuda, subtitulo, children, className = '',
 }) {
   return (
     <header className={`mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-4 ${className}`}>
@@ -23,15 +23,16 @@ export default function CabecalhoPagina({
             <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />{voltar.rotulo}
           </Link>
         )}
-        {rotulo && <span className="text-xs font-bold uppercase tracking-[0.14em] text-accent-text">{rotulo}</span>}
-        <div className="flex min-w-0 items-center gap-2.5">
+        {rotulo && <span className="flex flex-wrap items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-accent-text">{rotulo}</span>}
+        <div className="flex min-w-0 flex-wrap items-center gap-2.5">
           {Icone && <Icone className="h-[22px] w-[22px] shrink-0 text-accent-text" strokeWidth={1.8} aria-hidden="true" />}
           <h1 className="min-w-0 break-words font-display text-[28px] font-bold leading-tight tracking-tight text-ink">{titulo}</h1>
+          {selo}
           {ajuda && <DicaAjuda id={ajuda} />}
         </div>
         {subtitulo && <p className="max-w-3xl text-sm text-ink-2">{subtitulo}</p>}
       </div>
-      {children && <div className="flex flex-wrap items-center gap-2">{children}</div>}
+      {children && <div className="flex flex-wrap items-center gap-2.5">{children}</div>}
     </header>
   )
 }
