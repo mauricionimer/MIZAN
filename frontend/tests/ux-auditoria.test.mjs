@@ -152,3 +152,10 @@ test('regressão: Performance da IA lia KS/AUC no topo da resposta e mostrava "�
   assert.match(s, /med\.auc_roc \?\?/, 'AUC tem que vir de medicao.auc_roc')
   assert.match(s, /sep\.n_pagou \?\?/, 'pagaram tem que vir de separacao.n_pagou')
 })
+
+test('regressão: a pasta do devedor escondia "Resumo do cliente" (só mostrava 4 dos 5 papéis)', () => {
+  // backend/agente/semaforo.py manda 5 papéis com o Resumo primeiro; a pasta cortava o mais antigo.
+  const s = fonte('pages/PastasDevedores.jsx')
+  assert.match(s, /maxVisible=\{5\}/, 'a pasta tem que mostrar os 5 papéis')
+  assert.match(fonte('components/ui/glass-folder-cards.tsx'), /files\.length - maxVisible/, 'o corte tem que respeitar maxVisible')
+})

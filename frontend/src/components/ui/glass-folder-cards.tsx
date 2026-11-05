@@ -85,6 +85,8 @@ export type GlassFolderProps = {
   image?: string
   /** The folder's contents. Read once; after that the folder owns the list. */
   files?: FolderFile[]
+  /** How many sheets show in the fan; the oldest past this stay in the folder. */
+  maxVisible?: number
   /** `add` drops new files in, `more` opens a menu, `none` hides the key. */
   action?: "add" | "more" | "none"
   /** What `add` puts in the folder. Return nothing for an "Untitled" sheet. */
@@ -541,6 +543,7 @@ export default function GlassFolder({
   seed = 3,
   image,
   files: initialFiles = SAMPLE_FILES,
+  maxVisible = MAX_VISIBLE,
   action = "add",
   onAdd,
   onFilesChange,
@@ -710,7 +713,7 @@ export default function GlassFolder({
   }
 
   // the newest files sit at the front of the stack, nearest the glass
-  const start = Math.max(0, files.length - MAX_VISIBLE)
+  const start = Math.max(0, files.length - maxVisible)
   const visible = files.slice(start)
   const count = files.length
   const metaLine = meta ?? count + (count === 1 ? " item" : " itens")

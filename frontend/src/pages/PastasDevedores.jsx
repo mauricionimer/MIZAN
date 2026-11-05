@@ -207,7 +207,7 @@ export default function PastasDevedores() {
                 key={`${d.id}-${d.semaforo.cor}-${d.arquivos.length}`}
                 label={d.nome || 'Sem nome'} meta={`#${d.rank ?? '–'}${d.dias_em_atraso != null ? ` · ${d.dias_em_atraso} dias` : ''}`}
                 tone={tone} art="none" solidColor={COR_PASTA[d.semaforo.cor]}
-                files={d.papeis || [{ name: 'Fluxo do devedor', meta: 'Fases e situação atual' }, ...d.arquivos]} action="none" width={252} appearDelay={(i % POR_PAGINA % 8) * 70}
+                files={d.papeis || [{ name: 'Fluxo do devedor', meta: 'Fases e situação atual' }, ...d.arquivos]} action="none" maxVisible={5} width={252} appearDelay={(i % POR_PAGINA % 8) * 70}
                 onFileSelect={(papel, index) => papel.id ? abrirPapel(d, papel.id) : index === 0 ? setFluxoAberto(d) : verCaso(d)}
               />
               <p className="flex max-w-[252px] items-center gap-2 text-sm text-ink-2" title={`Cor decidida por: ${d.semaforo.origem === 'agente' ? 'avaliação do agente' : 'regras do sistema'}`}>
