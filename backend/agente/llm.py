@@ -258,6 +258,17 @@ _PARADA_GEMINI = {"STOP": "fim", "MAX_TOKENS": "limite", "MALFORMED_FUNCTION_CAL
 _RECUSA_GEMINI = {"SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "IMAGE_SAFETY", "LANGUAGE", "OTHER"}
 # Raciocínio por papel: classificar pede pouco; negociar, um pouco mais.
 _RACIOCINIO_GEMINI = {"triagem": "minimal", "negociador": "low"}
+_NIVEIS_RACIOCINIO = ("minimal", "low", "medium", "high")
+
+
+def nivel_raciocinio(papel: str) -> str | None:
+    """Quanto o Gemini pensa antes de responder. Padrão por papel; o Render pode subir (ou descer)
+    com MIZAN_RACIOCINIO_<PAPEL>, por exemplo MIZAN_RACIOCINIO_NEGOCIADOR=medium. Mais raciocínio
+    segue melhor as instruções, e custa mais tempo e cota. Valor inválido é ignorado."""
+    proprio = os.getenv(f"MIZAN_RACIOCINIO_{str(papel).upper()}", "").strip().lower()
+    if proprio in _NIVEIS_RACIOCINIO:
+        return proprio
+    return _RACIOCINIO_GEMINI.get(papel)
 _URL_GEMINI = "https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent"
 
 
@@ -404,8 +415,8 @@ class ClienteGemini:
                  "contents": _para_gemini(mensagens),
                  # O raciocínio conta no limite de saída: folga para não cortar a resposta.
                  "generationConfig": {"maxOutputTokens": max(4 * max_tokens, 4096)}}
-        if papel in _RACIOCINIO_GEMINI:
-            corpo["generationConfig"]["thinkingConfig"] = {"thinkingLevel": _RACIOCINIO_GEMINI[papel]}
+        if nivel_raciocinio(papel):
+            corpo["generationConfig"]["thinkingConfig"] = {"thinkingLevel": nivel_raciocinio(papel)}
         if ferramentas:
             corpo["tools"] = [{"functionDeclarations": [
                 {"name": f["name"], "description": f.get("description", ""),

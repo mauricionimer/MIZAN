@@ -33,6 +33,22 @@ FERRAMENTAS = [{"name": "simular_acordo", "description": "simula",
                                  "required": ["n_parcelas"], "additionalProperties": False}}]
 
 
+def test_nivel_de_raciocinio_pode_subir_no_render():
+    os.environ.pop("MIZAN_RACIOCINIO_NEGOCIADOR", None)
+    assert llm.nivel_raciocinio("negociador") == "low" and llm.nivel_raciocinio("triagem") == "minimal"
+    os.environ["MIZAN_RACIOCINIO_NEGOCIADOR"] = "Medium"
+    try:
+        assert llm.nivel_raciocinio("negociador") == "medium"
+        pedidos.clear()
+        cli = llm.ClienteGemini(chave="k", enviar=google([TEXTO]))
+        cli.gerar(sistema="S", mensagens=[{"role": "user", "content": "oi"}], modelo="gemini-teste", papel="negociador")
+        assert pedidos[0]["corpo"]["generationConfig"]["thinkingConfig"] == {"thinkingLevel": "medium"}
+        os.environ["MIZAN_RACIOCINIO_NEGOCIADOR"] = "altissimo"            # inválido: volta ao padrão
+        assert llm.nivel_raciocinio("negociador") == "low"
+    finally:
+        os.environ.pop("MIZAN_RACIOCINIO_NEGOCIADOR", None)
+
+
 def test_chamada_de_ferramenta_e_volta_com_assinatura():
     pedidos.clear()
     cli = llm.ClienteGemini(chave="k", enviar=google([CHAMADA, TEXTO]))
