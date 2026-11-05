@@ -483,7 +483,29 @@ AGENTES_TELA = {"Orquestrador": None, "Triagem": "triagem", "Negociador": "negoc
                 "Auditor": None, "Travas": None, "Ferramenta": None}
 
 
-def _resumo_agente(nome: str, passos: list) -> dict:
+def por_hora(passos: list, agora: datetime) -> dict:
+    """Atividade das últimas 24 h em 24 baldes de uma hora (o último é a hora corrente).
+
+    `acoes` conta as etapas; `atencao` conta erros e bloqueios, que são o que
+    pode pedir uma pessoa. Etapa sem data ou fora da janela fica de fora.
+    """
+    acoes, atencao = [0] * 24, [0] * 24
+    for p in passos:
+        try:
+            t = datetime.fromisoformat(str(p.get("criado_em")).replace("Z", "+00:00"))
+        except (TypeError, ValueError):
+            continue
+        if t.tzinfo is None:
+            t = t.replace(tzinfo=timezone.utc)
+        horas = int((agora - t).total_seconds() // 3600)
+        if 0 <= horas < 24:
+            acoes[23 - horas] += 1
+            if p.get("resultado") in ("erro", "bloqueado"):
+                atencao[23 - horas] += 1
+    return {"acoes": acoes, "atencao": atencao}
+
+
+def _resumo_agente(nome: str, passos: list, agora: datetime | None = None) -> dict:
     meus = [p for p in passos if _quem(p) == nome]
     duracoes = [int(p.get("duracao_ms") or 0) for p in meus if p.get("duracao_ms")]
     com_ia = [p for p in meus if p.get("modelo")]
@@ -498,7 +520,8 @@ def _resumo_agente(nome: str, passos: list) -> dict:
             "tempo_medio_ms": round(sum(duracoes) / len(duracoes)) if duracoes else None,
             "modelo": com_ia[-1].get("modelo") if com_ia else (llm.modelo_para(papel) if papel and llm.ia_ligada(papel) else None),
             "versao_prompt": next((p.get("versao_prompt") for p in reversed(meus) if p.get("versao_prompt")), None),
-            "ultimo_em": meus[-1].get("criado_em") if meus else None}
+            "ultimo_em": meus[-1].get("criado_em") if meus else None,
+            **({"por_hora": por_hora(meus, agora)} if agora else {})}
 
 
 def agentes(empresa_id: str, agora: datetime | None = None) -> dict:
@@ -508,7 +531,7 @@ def agentes(empresa_id: str, agora: datetime | None = None) -> dict:
     repo = fabrica_repo()
     passos = repo.passos_metricas(empresa_id, agora - timedelta(hours=24), 5000)
     return {"agora": agora.isoformat(), "ligado": ligado(), "amostra_limitada": len(passos) >= 5000,
-            "agentes": [_resumo_agente(n, passos) for n in AGENTES_TELA],
+            "agentes": [_resumo_agente(n, passos, agora) for n in AGENTES_TELA],
             "numeros": {
                 "respostas": sum(1 for p in passos if p.get("no") == "negociar" and p.get("resultado") == "ok"),
                 "conversas": len({p.get("caso_id") for p in passos if p.get("no") == "triagem" and p.get("caso_id")}),
@@ -533,7 +556,7 @@ def agente_perfil(empresa_id: str, nome: str, agora: datetime | None = None) -> 
             extra["sinais_equipe"] = sinais_equipe(empresa_id, agora, 30)
         except Exception as e:
             print(f"[Agente] sinais da equipe: {type(e).__name__}")
-    return {**_resumo_agente(nome, passos), **extra,
+    return {**_resumo_agente(nome, passos, agora), **extra,
             "ultimas": [{**_passo_publico(p), "trace_id": p.get("trace_id"), "caso_id": p.get("caso_id")}
                         for p in reversed(meus[-20:])]}
 
@@ -824,6 +847,46 @@ def salvar_politica(empresa_id: str, regras: dict, quem: str | None) -> dict:
     limpa = auditor.validar_politica(regras)                 # ValueError com o motivo
     versao = fabrica_repo().nova_versao_politica(empresa_id, limpa, quem)
     return {"versao": versao, "regras": limpa}
+
+
+def perfil_do_cliente(empresa_id: str, predicao_id: str, repo=None) -> dict:
+    """Perfil de comportamento para orientar a conversa (ver agente/perfil.py)."""
+    from agente import perfil, semaforo
+    repo = repo or fabrica_repo()
+    caso = repo.caso_de(empresa_id, predicao_id)
+    msgs = repo.ultimas_mensagens(empresa_id, caso["id"], 50) if caso else []
+    r = perfil.calcular(caso, msgs)
+    r["semaforo"] = semaforo.para_tela(caso)
+    r["situacao"] = (caso or {}).get("situacao")
+    r["papeis"] = semaforo.papeis(caso)
+    return r
+
+
+MAX_ANOTACAO = 200
+
+
+def anotar_pela_equipe(empresa_id: str, predicao_id: str, texto: str, quem: str | None,
+                       agora: datetime | None = None) -> dict:
+    """Uma anotação da equipe no caderno do caso. Os agentes leem antes de agir."""
+    texto = " ".join((texto or "").split())
+    if not texto:
+        raise ValueError("Escreva a anotação.")
+    if len(texto) > MAX_ANOTACAO:
+        raise ValueError(f"A anotação tem mais de {MAX_ANOTACAO} caracteres.")
+    agora = agora or datetime.now(timezone.utc)
+    repo = fabrica_repo()
+    caso = repo.caso_de(empresa_id, predicao_id)
+    if caso is None:
+        raise LookupError("Este devedor ainda não tem caso com o agente.")
+    dono = f"gestor:{quem or ''}"
+    if not repo.travar_caso(caso["id"], dono, agora + orq.DURACAO_TRAVA, agora):
+        raise CasoOcupado("O agente está processando este caso agora. Tente de novo em instantes.")
+    try:
+        estado.anotar(caso, "equipe", "anotação da equipe", texto, quando=agora)
+        repo.salvar_caso(caso["id"], {"dados": caso["dados"]}, dono=dono)
+    finally:
+        repo.soltar_caso(caso["id"], dono)
+    return {"caderno": list(reversed(estado.caderno(caso)))}
 
 
 def controle_do_gestor(empresa_id: str, predicao_id: str, acao: str, quem: str | None,

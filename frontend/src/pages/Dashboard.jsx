@@ -4,10 +4,6 @@ import { iniciarAtualizacaoVisivel } from '../lib/atualizacaoVisivel'
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
-  PieChart, Pie, Cell,
-} from 'recharts'
-import {
   buscarPagamentos, buscarStatusFeedbacks, confirmarPagamento,
   buscarPaginaRanking, buscarRankingCompleto,
   estadoDoModelo, buscarDistribuicao,
@@ -16,14 +12,16 @@ import { useDebounce } from '../hooks/useDebounce'
 import {
   Users, TrendingDown, BarChart2, Star,
   Download, Search, Loader2,
-  Tag, Percent, ArrowUpRight, Banknote, FileSpreadsheet,
-  CheckCircle2, XCircle, TrendingUp, X, AlertTriangle, Shuffle, ChevronDown, SlidersHorizontal,
+  FileSpreadsheet, LayoutDashboard,
+  CheckCircle2, XCircle, X, AlertTriangle, Shuffle, ChevronDown,
 } from 'lucide-react'
 import PriorityBadge from '../components/PriorityBadge'
 import { prioridadePorRank, CORTE_ALTA } from '../utils/prioridade'
 import { useAnalysis } from '../context/AnalysisContext'
 import { useAuth } from '../context/AuthContext'
 import AppShell from '../components/AppShell'
+import CabecalhoPagina from '../components/CabecalhoPagina'
+import { Precificacao, AteOndeCobrar, AgingValor, Perfis, RegimeBarras, QuemPagou } from '../components/PainelCarteira'
 import DicaAjuda from '../components/DicaAjuda'
 import DistribuirFila from '../components/DistribuirFila'
 import useModal from '../components/useModal'
@@ -35,15 +33,12 @@ const BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
 const AGING_ORDER = ['0-30 dias', '31-60 dias', '61-90 dias', '91-180 dias', '181+ dias']
 // Gráficos usam --chart-1..5 (brief, seção 5): os tokens invertem por tema,
 // então as séries seguem legíveis no claro e no escuro.
-const AGING_COLORS   = ['var(--chart-2)', 'var(--chart-1)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)']
-const CLUSTER_COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)']
 
 const fmtBRL = (v) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v)
 const fmtCentavos = (v) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
 const fmtNum  = (v) => new Intl.NumberFormat('pt-BR').format(v)
-const fmtPct  = (v) => `${v.toFixed(1)}%`
 
 function getStatus(cpf, statusMap) {
   const fb = statusMap[String(cpf ?? '')]
@@ -181,59 +176,8 @@ async function exportExcel(ranking, resumo) {
   XLSX.writeFile(wb, `mizan-carteira-${data}.xlsx`)
 }
 
-const CustomBarTooltip = ({ active, payload, label }) => {
-  if (!active || !payload?.length) return null
-  return (
-    <div className="rounded-lg border border-line bg-surface-2 px-3.5 py-2.5 text-xs shadow-xl">
-      <p className="mb-1 font-semibold text-ink">{label}</p>
-      <p className="text-ink-2">Devedores: <span className="font-bold text-blue-300">{fmtNum(payload[0].value)}</span></p>
-    </div>
-  )
-}
 
-function Slider({ label, hint, value, min, max, step, onChange, color = 'blue' }) {
-  const pct = ((value - min) / (max - min)) * 100
-  const trackColor = color === 'emerald' ? 'var(--success)' : 'var(--royal)'
-  return (
-    <div>
-      <div className="mb-1.5 flex items-center justify-between">
-        <span className="text-xs text-ink-2">{label}</span>
-        <span className="text-sm font-bold text-ink">{value}%</span>
-      </div>
-      <input
-        type="range" min={min} max={max} step={step} value={value}
-        onChange={e => onChange(Number(e.target.value))}
-        className="h-1.5 w-full cursor-pointer appearance-none rounded-full"
-        style={{ background: `linear-gradient(to right, ${trackColor} ${pct}%, var(--raise-3) ${pct}%)` }}
-      />
-      <p className="mt-1 text-xs text-ink-2">{hint}</p>
-    </div>
-  )
-}
 
-function PricingCard({ label, value, sub, highlight = false, accent = null, icon: Icon, ajuda, grande = false }) {
-  const lucroCard = accent === 'emerald'
-  const box = highlight
-    ? 'border-blue-500/40 bg-blue-600/15 shadow-[0_0_0_1px_rgb(var(--c-royal) / 0.25),0_8px_28px_-8px_rgb(var(--c-royal) / 0.4)]'
-    : lucroCard
-      ? 'border-emerald-500/30 bg-emerald-500/[0.08]'
-      : 'border-line bg-raise-1'
-  const head  = highlight ? 'text-blue-300'     : lucroCard ? 'text-emerald-300'    : 'text-ink-2'
-  const val   = highlight ? 'text-ink'        : lucroCard ? 'text-emerald-200'    : 'text-ink'
-  const subCl = highlight ? 'text-blue-200/80'  : lucroCard ? 'text-emerald-300/70' : 'text-ink-2'
-  return (
-    <div className={`flex h-full flex-col justify-between gap-3 rounded-xl border p-5 ${box}`}>
-      <div className="flex items-start justify-between gap-2">
-        <p className={`text-xs font-semibold uppercase tracking-wide ${head}`}>
-          {label}{ajuda && <DicaAjuda id={ajuda} />}
-        </p>
-        {Icon && <Icon className={`h-4 w-4 shrink-0 ${head}`} />}
-      </div>
-      <p className={`font-bold leading-none tabular-nums tracking-tight ${grande ? 'text-3xl sm:text-4xl' : 'text-2xl sm:text-3xl'} ${val}`}>{value}</p>
-      {sub && <p className={`mt-0.5 text-xs ${subCl}`}>{sub}</p>}
-    </div>
-  )
-}
 
 export default function Dashboard({ onIrPara }) {
   const { result, setResult, setVista, setAviso } = useAnalysis()
@@ -361,7 +305,6 @@ export default function Dashboard({ onIrPara }) {
   const [filtroResp, setFiltroResp]         = useState(filaSalva?.filtroResp ?? 'todos')
   const [abrirDistribuir, setAbrirDistribuir] = useState(false)
   // Ajustes que se usam pouco ficam fechados: parâmetros da simulação e filtros da fila.
-  const [verParametros, setVerParametros] = useState(false)
   const [verFiltros, setVerFiltros] = useState(filaSalva?.verFiltros ?? false)
   const [avisoFila, setAvisoFila]           = useState('')
   const [versaoDistrib, setVersaoDistrib]   = useState(0)
@@ -695,10 +638,8 @@ export default function Dashboard({ onIrPara }) {
       <AvisoDesfazer aviso={avisoPagamento} onFechar={() => setAvisoPagamento(null)} />
 
 
-          <div className="mb-7">
-            <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--ink-4)' }}>Análise de Carteira</p>
-            <h1 className="text-2xl font-semibold tracking-tight mt-1" style={{ color: 'var(--ink)' }}>Painel da carteira</h1>
-          </div>
+          <CabecalhoPagina rotulo="Análise de carteira" icone={LayoutDashboard} titulo="Painel da carteira"
+            subtitulo="Quanto a carteira deve render, até onde vale cobrar e quem chamar primeiro." />
 
           {/* Em que dados o score se apoia: o número mais importante para não
               superestimar o que a tela mostra. Some quando o modelo é de dados reais. */}
@@ -732,6 +673,7 @@ export default function Dashboard({ onIrPara }) {
                 Em que regime cada parte da carteira está
               </h3>
 
+              <RegimeBarras ciclo={resumo.ciclo_cobranca} />
               {/* Uma fase por cartão, lado a lado: o valor esperado em destaque e,
                   embaixo, quanto da carteira (valor de face) está naquela fase. */}
               <div className={`grid grid-cols-1 gap-4 ${resumo.ciclo_cobranca.length >= 3 ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
@@ -836,173 +778,26 @@ export default function Dashboard({ onIrPara }) {
             </div>
           )}
 
-          {/* ── Precificação ── */}
+          {/* ── Precificação ── a cascata, com as premissas à vista */}
           {!isOperador && (
-            <section className="mt-6 rounded-xl border border-line bg-surface p-6">
-              <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--ink-2)' }}>Precificação</p>
-                  <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--ink)' }}>Carteira de Crédito<DicaAjuda id="precificacao-simulador" /></h3>
-                </div>
-                <button type="button" onClick={() => setVerParametros(v => !v)} aria-expanded={verParametros}
-                  className="btn-secondary btn-sm">
-                  <SlidersHorizontal className="h-3.5 w-3.5" /> Parâmetros
-                  <span className="font-normal text-ink-2">· custo {custoCobranca}% · retorno {retornoAlvo}%</span>
-                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${verParametros ? 'rotate-180' : ''}`} />
-                </button>
-              </div>
-
-              {verParametros && (
-                <div className="mb-6 grid gap-5 rounded-xl border border-line bg-raise-1 p-4 sm:grid-cols-2">
-                  <Slider label="Custo de Cobrança" hint="Despesas operacionais e comissões"
-                    value={custoCobranca} min={5} max={50} step={1} onChange={setCustoCobranca} color="blue" />
-                  <Slider label="Retorno Alvo" hint="ROI mínimo desejado na operação"
-                    value={retornoAlvo} min={10} max={80} step={1} onChange={setRetornoAlvo} color="emerald" />
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 items-stretch gap-6">
-
-                {/* Duas linhas que ocupam a altura dos parâmetros: em cima os números
-                    de base, embaixo (maiores) os dois que decidem a compra. */}
-                <motion.div variants={lista} initial="inicial" animate="entra"
-                  className="grid grid-cols-1 gap-4 sm:grid-cols-6 sm:auto-rows-fr">
-                  <motion.div variants={item} className="sm:col-span-2"><PricingCard ajuda="valor-esperado" label="Valor Esperado de Recuperação" value={fmtBRL(pricing.ver)}
-                    icon={ArrowUpRight} /></motion.div>
-                  <motion.div variants={item} className="sm:col-span-2"><PricingCard label="Após o custo simulado" value={fmtBRL(pricing.liquido)} icon={Percent} /></motion.div>
-                  <motion.div variants={item} className="sm:col-span-2"><PricingCard ajuda="taxa-de-recuperacao" label="Taxa de Recuperação Estimada" value={`${pricing.taxaRecuperacao.toFixed(1)}%`} icon={TrendingUp} /></motion.div>
-                  <motion.div variants={item} className="sm:col-span-3"><PricingCard label="Preço Sugerido de Compra" value={fmtBRL(pricing.preco)} highlight grande icon={Tag} /></motion.div>
-                  <motion.div variants={item} className="sm:col-span-3"><PricingCard label="Lucro Final (simulado)" value={fmtBRL(pricing.lucro)} accent="emerald" grande icon={Banknote} /></motion.div>
-                </motion.div>
-              </div>
-
-            </section>
+            <div className="mt-6">
+              <Precificacao pricing={pricing} custo={custoCobranca} retorno={retornoAlvo}
+                onCusto={setCustoCobranca} onRetorno={setRetornoAlvo} />
+            </div>
           )}
 
-          {/* ── Charts ── */}
+          {/* ── Até onde vale cobrar ── */}
+          {!isOperador && carteiraId && <div className="mt-6"><AteOndeCobrar carteiraId={carteiraId} /></div>}
+
+          {/* ── Tempo de atraso e perfis ── */}
           <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-5">
-
-            {/* Aging Bar Chart */}
-            <div className="rounded-xl border border-line bg-surface p-6 lg:col-span-3">
-              <div className="mb-5">
-                <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--ink-2)' }}>Distribuição</p>
-                <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--ink)' }}>Aging da Carteira<DicaAjuda id="aging" /></h3>
-              </div>
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={agingData} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,141,166,0.28)" vertical={false} />
-                  <XAxis dataKey="aging" tick={{ fontSize: 11, fill: 'var(--ink-2)' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: 'var(--ink-2)' }} axisLine={false} tickLine={false} />
-                  <Tooltip content={<CustomBarTooltip />} cursor={{ fill: 'rgba(128,141,166,0.12)' }} />
-                  <Bar dataKey="total_devedores" radius={[4, 4, 0, 0]} maxBarSize={48}>
-                    {agingData.map((_, i) => <Cell key={i} fill={AGING_COLORS[i % AGING_COLORS.length]} />)}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-              <div className="mt-4 flex flex-wrap gap-3">
-                {agingData.map((d, i) => (
-                  <div key={d.aging} className="flex items-center gap-1.5">
-                    <div className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: AGING_COLORS[i] }} />
-                    <span className="text-xs text-ink-2">{d.aging}</span>
-                    <span className="text-xs text-ink-2">({fmtNum(d.total_devedores)})</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Cluster Pie */}
-            <div className="rounded-xl border border-line bg-surface p-6 lg:col-span-2">
-              <div className="mb-5">
-                <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--ink-2)' }}>Segmentação</p>
-                <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--ink)' }}>Perfis de Devedores<DicaAjuda id="perfil-cluster" /></h3>
-              </div>
-              <ResponsiveContainer width="100%" height={220}>
-                <PieChart>
-                  <Pie
-                    data={distribuicao_cluster} dataKey="total_devedores" nameKey="perfil_cluster"
-                    cx="50%" cy="50%" outerRadius={80} innerRadius={40} paddingAngle={2}
-                  >
-                    {distribuicao_cluster.map((_, i) => (
-                      <Cell key={i} fill={CLUSTER_COLORS[i % CLUSTER_COLORS.length]} stroke="var(--surface)" strokeWidth={2} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{ borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--surface-2)', fontSize: 11, color: 'var(--ink)' }}
-                    formatter={(v, _, { payload }) => [fmtNum(v), payload.perfil_cluster]}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="mt-2 space-y-1.5">
-                {distribuicao_cluster.map((d, i) => (
-                  <div key={d.perfil_cluster} className="flex items-center justify-between text-xs">
-                    <div className="flex min-w-0 items-center gap-1.5">
-                      <div className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: CLUSTER_COLORS[i] }} />
-                      <span className="truncate text-ink-2">{d.perfil_cluster}</span>
-                    </div>
-                    <span className="ml-2 shrink-0 text-ink-2">{fmtNum(d.total_devedores)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <div className="lg:col-span-3"><AgingValor aging={agingData} /></div>
+            <div className="lg:col-span-2"><Perfis clusters={distribuicao_cluster} /></div>
           </div>
 
-          {/* ── Resultados Reais ── */}
+          {/* ── Resultados Reais ── quem pagou */}
           {!isOperador && !loadingPerf && perf && perf.total_feedbacks > 0 && (
-            <section className="mt-6 overflow-hidden rounded-xl border border-line bg-surface">
-              <div className="flex items-center justify-between border-b border-line px-6 py-4">
-                <div>
-                  <p style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--ink-2)' }}>Resultados Reais</p>
-                  <h3 className="text-sm font-semibold mt-0.5" style={{ color: 'var(--ink)' }}>Quem Pagou<DicaAjuda id="quem-pagou" /></h3>
-                  <p className="text-xs mt-0.5" style={{ color: 'var(--ink-2)' }}>{perf.total_feedbacks} feedbacks registrados</p>
-                </div>
-                {perf.acuracia_geral != null && (
-                  <span className="rounded-md border border-blue-500/30 bg-blue-500/10 px-2.5 py-1 text-xs font-medium text-blue-300">
-                    Acurácia do modelo: {perf.acuracia_geral}%<DicaAjuda id="acuracia-geral" />
-                  </span>
-                )}
-              </div>
-              <div className="overflow-x-auto p-6">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-line">
-                      {['Faixa de Score', 'Feedbacks', 'Pagaram', 'Não Pagaram', 'Taxa de Pagamento', ''].map(h => (
-                        <th key={h} className="px-4 pb-3 text-left text-xs font-medium uppercase tracking-wider text-ink-2 first:pl-0">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {perf.metricas_por_faixa.map(f => {
-                      const taxa = f.taxa_pagamento ?? 0
-                      const barColor = taxa >= 60 ? 'var(--success)' : taxa >= 30 ? 'var(--warning)' : 'var(--danger)'
-                      return (
-                        <tr key={f.faixa} className="border-b border-line transition-colors last:border-0 hover:bg-raise-1">
-                          <td className="py-3 pl-0 pr-4 text-sm font-medium text-ink">{f.faixa}</td>
-                          <td className="px-4 py-3 tabular-nums text-ink-2">{f.total_feedbacks}</td>
-                          <td className="px-4 py-3">
-                            <span className="flex items-center gap-1 font-medium text-emerald-400">
-                              <CheckCircle2 className="h-3.5 w-3.5" />{f.pagaram}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="flex items-center gap-1 font-medium text-red-400">
-                              <XCircle className="h-3.5 w-3.5" />{f.nao_pagaram}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="text-sm font-bold" style={{ color: barColor }}>{taxa.toFixed(1)}%</span>
-                          </td>
-                          <td className="w-32 px-4 py-3">
-                            <div className="h-1.5 overflow-hidden rounded-full bg-raise-3">
-                              <div className="h-full rounded-full" style={{ width: `${Math.min(taxa, 100)}%`, backgroundColor: barColor }} />
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </section>
+            <div className="mt-6"><QuemPagou perf={perf} /></div>
           )}
 
           {/* ── Pagamentos individuais ── */}

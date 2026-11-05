@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Tags, Plus, Copy, Trash2, Save, Loader2, RotateCcw, ShieldAlert, Check, AlertTriangle } from 'lucide-react'
 import AppShell from '../components/AppShell'
+import CabecalhoPagina from '../components/CabecalhoPagina'
 import DicaAjuda from '../components/DicaAjuda'
 import ErroCarga from '../components/ErroCarga'
 import ConfirmarModal, { useConfirmar } from '../components/ConfirmarModal'
@@ -150,13 +151,8 @@ export default function Ofertas() {
   return (
     <AppShell>
       <div className="mx-auto w-full max-w-6xl space-y-5">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight text-ink">
-              <Tags className="h-5 w-5 text-blue-400" /> Ofertas<DicaAjuda id="catalogo-de-ofertas" />
-            </h1>
-            <p className="mt-1 text-sm text-ink-2">As ofertas que a equipe pode fazer e os limites do operador no simulador.</p>
-          </div>
+        <CabecalhoPagina rotulo="Configuração" icone={Tags} titulo="Ofertas" ajuda="catalogo-de-ofertas" className="!mb-0"
+          subtitulo="As ofertas que a equipe pode fazer e os limites do operador no simulador.">
           <div className="flex flex-wrap items-center gap-2">
             {isComando && (
               <select value={alvo} onChange={e => { const v = e.target.value; if (sujo) setTrocaEmpresa(v); else setAlvo(v) }} aria-label="Empresa"
@@ -166,7 +162,7 @@ export default function Ofertas() {
               </select>
             )}
           </div>
-        </div>
+        </CabecalhoPagina>
 
         {isComando && !alvo && <div className="rounded-xl border border-line bg-surface p-6 text-sm text-ink-2">Escolha a empresa para editar as ofertas dela.</div>}
         <ErroCarga erro={erroCarga} onTentar={carregar} />

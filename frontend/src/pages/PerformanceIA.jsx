@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Brain, Loader2, Target, BarChart3, Activity, MessageSquare, ShieldCheck, CheckCircle2, AlertTriangle, Info } from 'lucide-react'
 import AppShell from '../components/AppShell'
-import DicaAjuda from '../components/DicaAjuda'
+import CabecalhoPagina from '../components/CabecalhoPagina'
 import { useAuth } from '../context/AuthContext'
 import { listarEmpresas, listarModelosEmpresa } from '../api'
 
@@ -146,15 +146,15 @@ export default function PerformanceIA() {
   return (
     <AppShell>
       <div className="mx-auto w-full max-w-5xl space-y-5">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <h1 className="text-xl font-bold tracking-tight text-ink">Performance da IA<DicaAjuda id="performance-da-ia" /></h1>
+        <CabecalhoPagina rotulo="Modelo" icone={Activity} titulo="Performance da IA" ajuda="performance-da-ia" className="!mb-0"
+          subtitulo="O score acerta? Compare o previsto com o que de fato aconteceu.">
           {isComando && (
             <select value={alvo} onChange={e => setAlvo(e.target.value)} className="input-base w-56 text-sm">
               <option value="">Escolha a empresa…</option>
               {empresas.map(e => <option key={e.empresa_id} value={e.empresa_id}>{e.nome_exibicao || e.empresa_id}</option>)}
             </select>
           )}
-        </div>
+        </CabecalhoPagina>
 
         {carregando && <div className="flex items-center gap-2 text-sm text-ink-3"><Loader2 className="h-4 w-4 animate-spin" /> Carregando…</div>}
         {isComando && !alvo && <Vazio>Escolha uma empresa para ver a IA dela.</Vazio>}

@@ -1,8 +1,7 @@
 import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Upload as UploadIcon, Loader2, AlertTriangle, TrendingUp, TrendingDown,
-} from 'lucide-react'
+  Upload as UploadIcon, Loader2, AlertTriangle, TrendingUp, TrendingDown, History } from 'lucide-react'
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend,
@@ -11,6 +10,7 @@ import { rodarBacktest, traduzirErroRede } from '../api'
 import DicaAjuda from '../components/DicaAjuda'
 import IACalculando, { ETAPAS_BACKTEST } from '../components/IACalculando'
 import AppShell from '../components/AppShell'
+import CabecalhoPagina from '../components/CabecalhoPagina'
 
 const fmtBRL = (v) => v != null
   ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v)
@@ -92,7 +92,8 @@ export default function Backtest() {
   return (
     <AppShell>
       <div className="w-full mx-auto max-w-5xl space-y-5">
-        <h1 className="text-xl font-bold tracking-tight text-ink">Simulação histórica<DicaAjuda id="backtest" /></h1>
+        <CabecalhoPagina rotulo="Modelo" icone={History} titulo="Simulação histórica" ajuda="backtest" className="!mb-0"
+          subtitulo="A fila do MIZAN teria cobrado melhor? Teste numa carteira em que o desfecho já é conhecido." />
         {/* Entrada */}
         <section className="card p-5">
           <p className="text-sm leading-relaxed" style={{ color: 'var(--ink-2)' }}>

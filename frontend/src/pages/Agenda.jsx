@@ -4,9 +4,9 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, Users, ClipboardList, Bot, CalendarClock, Check, X, CalendarDays, ExternalLink, Loader2, Banknote, PhoneCall, RotateCcw } from 'lucide-react'
 import AppShell from '../components/AppShell'
+import CabecalhoPagina from '../components/CabecalhoPagina'
 import { AgendaBentoCard } from '../components/ui/bento'
 import DemandasAdministrativas from '../components/DemandasAdministrativas'
-import DicaAjuda from '../components/DicaAjuda'
 import ErroCarga from '../components/ErroCarga'
 import AvisoDesfazer from '../components/AvisoDesfazer'
 import FichaPassagem, { SeloPrioridade } from '../components/FichaPassagem'
@@ -397,21 +397,13 @@ export default function Agenda() {
   return (
     <AppShell>
       <div className="mx-auto w-full max-w-6xl space-y-5">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <p className="section-label">Hoje</p>
-            <h1 className="mt-1 flex items-center gap-2 text-xl font-bold tracking-tight text-ink">
-              <CalendarClock className="h-5 w-5 text-blue-400" /> Agenda<DicaAjuda id="agenda-de-retorno" />
-            </h1>
-            <p className="mt-1 text-sm text-ink-2">
-              {naEntrada ? 'Escolha uma área da agenda.'
+        <CabecalhoPagina rotulo="Hoje" icone={CalendarClock} titulo="Agenda" ajuda="agenda-de-retorno" className="!mb-0"
+          subtitulo={naEntrada ? 'Escolha uma área da agenda.'
                 : naLista ? 'Escolha um operador para ver a agenda dele.'
                 : areaEquipe === 'administracao' ? 'Aprovação de reuniões e demandas administrativas.'
                 : areaEquipe === 'virtuais' ? 'Retornos e compromissos dos atendimentos virtuais.'
                 : operador ? (operador.nome ? `Agenda de ${operador.nome}.` : 'Agenda do operador.')
-                : gestor ? 'Seus compromissos, por prazo.' : 'Seus compromissos, por prazo.'}
-            </p>
-          </div>
+                : gestor ? 'Seus compromissos, por prazo.' : 'Seus compromissos, por prazo.'}>
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             {isComando && (
               <select value={alvo} onChange={e => { setAlvo(e.target.value); setEquipe(null); irPara({ area: null, op: null }, { substituir: true }) }} aria-label="Empresa"
@@ -446,7 +438,7 @@ export default function Agenda() {
               <RotateCcw className={`h-3.5 w-3.5 ${carregando ? 'animate-spin' : ''}`} />
             </button>
           </div>
-        </div>
+        </CabecalhoPagina>
 
         {aviso && <p className="flex items-center gap-1.5 text-sm text-emerald-400"><Check className="h-4 w-4" /> {aviso}</p>}
         <ErroCarga erro={erro} onTentar={carregar} />

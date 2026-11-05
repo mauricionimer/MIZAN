@@ -3110,6 +3110,7 @@ def _abrir_acordo(db, empresa_id, cpf, feedback_id, pred: "dict | None", total: 
 
 @app.get("/acordos")
 def listar_acordos(situacao: Optional[str] = None, empresa_id: Optional[str] = None,
+                   predicao_id: Optional[str] = None,
                    credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """Acordos parcelados da empresa com a situação de cada um e o resumo.
 
@@ -3139,6 +3140,9 @@ def listar_acordos(situacao: Optional[str] = None, empresa_id: Optional[str] = N
     grupos: dict = {}
     for l in linhas:
         grupos.setdefault(l["feedback_id"], []).append(l)
+    if predicao_id:                     # a pasta de um devedor: só os acordos dele
+        grupos = {f: g for f, g in grupos.items() if str(g[0].get("predicao_id")) == str(predicao_id)}
+        linhas = [l for g in grupos.values() for l in g]
     ids_pred = list({g[0].get("predicao_id") for g in grupos.values() if g[0].get("predicao_id")})
     responsavel: dict = {}
     dono: dict = {}
@@ -3160,6 +3164,7 @@ def listar_acordos(situacao: Optional[str] = None, empresa_id: Optional[str] = N
         st = _situacao(ps, ref)
         p0 = ps[0]
         acordos.append({"id": fid, "cpf": p0["cpf"], "nome": p0.get("nome"), "carteira_id": p0.get("carteira_id"),
+                        "predicao_id": p0.get("predicao_id"),
                         "responsavel_nome": responsavel.get(p0.get("predicao_id")),
                         "aberto_em": str(p0.get("vencimento"))[:10], "valor_parcela": float(p0.get("valor") or 0),
                         **st, "parcelas": [{k: p.get(k) for k in ("id", "numero", "vencimento", "valor", "situacao", "pago_em")}
@@ -4217,6 +4222,56 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/ajuda/plataforma")
+def estado_da_plataforma(empresa_id: Optional[str] = None,
+                         credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Estado da plataforma para a Ajuda, medido de fontes reais (ver plataforma.py).
+
+    Serviço sem dado na janela vem como "sem medição". Não expõe texto de
+    conversa, destinatário de e-mail nem dado de devedor: só contagens e tempos.
+    """
+    from datetime import timedelta
+    import plataforma
+    import email_utils
+    payload = _usuario_autenticado(credentials)
+    agora = datetime.now(timezone.utc)
+    try:
+        emp = _empresa_da_agenda(payload, empresa_id)
+    except HTTPException:
+        emp = None                                    # comando sem empresa escolhida
+    chave = f"plataforma:{emp}"
+    pronto = _cache_get(chave, 60)
+    if pronto is not None:
+        return pronto
+
+    falhou = set()
+    passos = []
+    if emp:
+        try:
+            from agente import api as agente_api
+            if agente_api.ligado():
+                passos = agente_api.fabrica_repo().passos_metricas(emp, agora - timedelta(hours=24), 5000)
+        except Exception as e:
+            print(f"[Plataforma] passos: {type(e).__name__}"); falhou.add("agentes")
+    feedbacks = []
+    if emp:
+        try:
+            feedbacks = (get_db().table("feedbacks").select("data_pagamento, created_at")
+                         .eq("empresa", emp).eq("pagou", True).not_.is_("data_pagamento", "null")
+                         .gte("created_at", (agora - timedelta(days=30)).isoformat())
+                         .limit(2000).execute()).data or []
+        except Exception as e:
+            print(f"[Plataforma] pagamentos: {type(e).__name__}"); falhou.add("pagamentos")
+    servicos = [plataforma.servidor(), plataforma.agentes(passos),
+                plataforma.pagamentos(feedbacks), plataforma.email(list(email_utils.ENVIOS), agora)]
+    for s in servicos:
+        if s["id"] in falhou:
+            s["frase"] = "Não consegui medir agora; tento de novo em um minuto."
+    saida = {**plataforma.resumo(servicos), "medido_em": agora.isoformat()}
+    _cache_set(chave, saida)
+    return saida
+
+
 @app.get("/carteiras")
 def listar_carteiras(response: Response,
                      credentials: HTTPAuthorizationCredentials = Security(bearer),
@@ -4377,6 +4432,53 @@ def alcance_da_operacao(
         "restam": total - n,
         "total_devedores": total,
     }
+
+
+@app.get("/carteiras/{carteira_id}/curva")
+def curva_da_fila(carteira_id: str, pontos: int = 40,
+                  credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Até onde vale cobrar: o valor esperado acumulado ao longo da fila.
+
+    A fila já vem ordenada (maior valor esperado primeiro), então a curva sobe
+    rápido e depois achata. Devolve poucos pontos para o gráfico, mais o valor
+    do devedor em cada ponto ("o próximo da fila vale"). O número exato de um
+    corte continua vindo de /alcance, que soma de verdade.
+    """
+    payload = _usuario_autenticado(credentials)
+    db = get_db()
+    _exige_carteira_da_empresa(db, carteira_id, payload)
+    pontos = max(5, min(int(pontos or 40), 100))
+    chave = f"curva:{carteira_id}:{pontos}"
+    pronto = _cache_get(chave, 600)
+    if pronto is not None:
+        return pronto
+    linhas = _todas_as_linhas(
+        lambda: db.table("predicoes").select("rank, valor_esperado_recuperacao, valor_esperado_liquido")
+                  .eq("carteira_id", carteira_id).order("rank"))
+    liquido = any(l.get("valor_esperado_liquido") is not None for l in linhas)
+    valores = [float((l.get("valor_esperado_liquido") if liquido and l.get("valor_esperado_liquido") is not None
+                      else l.get("valor_esperado_recuperacao")) or 0) for l in linhas]
+    saida = {**pontos_da_curva(valores, pontos), "base": "liquido" if liquido else "bruto"}
+    _cache_set(chave, saida)
+    return saida
+
+
+def pontos_da_curva(valores: list, pontos: int = 40) -> dict:
+    """Soma acumulada da fila, amostrada em `pontos` cortes (o último é a fila toda)."""
+    total, n = sum(valores), len(valores)
+    saida = {"total_devedores": n, "total_valor": round(total, 2), "pontos": []}
+    if not n:
+        return saida
+    marcas = sorted({max(1, round(n * i / pontos)) for i in range(1, pontos + 1)})
+    acumulado, j = 0.0, 0
+    for i, v in enumerate(valores, start=1):
+        acumulado += v
+        if j < len(marcas) and i == marcas[j]:
+            saida["pontos"].append({"n": i, "valor": round(acumulado, 2),
+                                    "pct": round(acumulado / total * 100, 2) if total else 0.0,
+                                    "proximo": round(valores[i], 2) if i < n else 0.0})
+            j += 1
+    return saida
 
 
 @app.get("/carteiras/{carteira_id}/ranking")
@@ -4843,9 +4945,11 @@ def carregar_carteira(carteira_id: str, incluir_ranking: bool = True,
     aging_buckets: dict[str, dict] = {}
     for d in ranking:
         label = _aging_label(int(d.get("dias_em_atraso") or 0))
-        b = aging_buckets.setdefault(label, {"aging": label, "total_devedores": 0, "valor_total": 0.0, "_s": []})
+        b = aging_buckets.setdefault(label, {"aging": label, "total_devedores": 0, "valor_total": 0.0,
+                                             "valor_esperado": 0.0, "_s": []})
         b["total_devedores"] += 1
         b["valor_total"] += d.get("valor_divida") or 0
+        b["valor_esperado"] += float(d.get("valor_esperado_recuperacao") or 0)
         b["_s"].append(d.get("score_recuperabilidade") or 0)
 
     aging_dist = []
@@ -4853,6 +4957,7 @@ def carregar_carteira(carteira_id: str, incluir_ranking: bool = True,
         sc = b.pop("_s")
         b["score_medio"] = round(sum(sc) / len(sc), 2) if sc else 0
         b["valor_total"] = round(b["valor_total"], 2)
+        b["valor_esperado"] = round(b["valor_esperado"], 2)
         aging_dist.append(b)
 
     # Distribuição cluster
@@ -5680,7 +5785,8 @@ def _analisar_df(df: pd.DataFrame, nome_fonte: str, _usuario_id: str = None, _us
 
     resultado["aging"] = resultado["dias_em_atraso"].apply(_aging_label)
     aging_dist = (resultado.groupby("aging")
-        .agg(total_devedores=("valor_divida","count"), valor_total=("valor_divida","sum"), score_medio=("score_recuperabilidade","mean"))
+        .agg(total_devedores=("valor_divida","count"), valor_total=("valor_divida","sum"),
+             valor_esperado=("valor_esperado_recuperacao","sum"), score_medio=("score_recuperabilidade","mean"))
         .round(2).reset_index().to_dict(orient="records"))
 
     cluster_dist = (resultado.groupby("perfil_cluster")
@@ -9446,6 +9552,7 @@ def agente_pastas(carteira_id: str, busca: Optional[str] = None, cor: Optional[s
             "semaforo": destaque.get(str(l["id"])) or sem.para_tela(c),
             "situacao": (c or {}).get("situacao"),
             "arquivos": sem.arquivos(c),
+            "papeis": sem.papeis(c),
         })
     return _sem_nan({"itens": itens, "filtrado": filtrado, "offset": offset, "limit": limit,
                      "contagem": {"vermelho": n_v, "amarelo": n_a, "branco": n_b, "total": total_busca},
@@ -9998,6 +10105,55 @@ def agente_controle(predicao_id: str, body: AgenteControleIn,
         raise HTTPException(status_code=422, detail=str(e))
     except agente_api.CasoOcupado as e:
         raise HTTPException(status_code=409, detail=str(e))
+
+
+@app.get("/agente/casos/{predicao_id}/perfil")
+def agente_perfil_cliente(predicao_id: str, empresa_id: Optional[str] = None,
+                          credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Perfil de comportamento do cliente (orientação de conversa, não diagnóstico),
+    com o cabeçalho da pasta: quem é, posição na fila, atraso e a cor do semáforo."""
+    from agente import api as agente_api
+    _, db, pred, emp = _contexto_fluxo_devedor(predicao_id, credentials)
+    linha = (db.table('predicoes').select('nome, rank, dias_em_atraso, valor_divida, score_recuperabilidade, carteira_id')
+             .eq('id', predicao_id).limit(1).execute().data or [{}])[0]
+    try:
+        r = agente_api.perfil_do_cliente(emp, predicao_id)
+    except Exception as e:                       # agente sem tabelas/desligado: a pasta abre mesmo assim
+        print(f"[Perfil] indisponível: {type(e).__name__}")
+        from agente import perfil, semaforo
+        r = {**perfil.calcular(None, []), 'semaforo': semaforo.para_tela(None), 'situacao': None,
+             'papeis': semaforo.papeis(None)}
+    r['devedor'] = {'id': predicao_id, 'nome': linha.get('nome'), 'rank': linha.get('rank'),
+                    'dias_em_atraso': linha.get('dias_em_atraso'), 'valor_divida': linha.get('valor_divida'),
+                    'score': linha.get('score_recuperabilidade'), 'carteira_id': linha.get('carteira_id')}
+    return _sem_nan(r)
+
+
+class AgenteAnotacaoIn(BaseModel):
+    texto: str
+    empresa_id: Optional[str] = None
+
+
+@app.post("/agente/casos/{predicao_id}/caderno")
+def agente_anotar_caderno(predicao_id: str, body: AgenteAnotacaoIn,
+                          credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """A equipe escreve no caderno do caso; os agentes leem antes da próxima mensagem."""
+    from agente import api as agente_api
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") not in ("operador", "admin"):
+        raise HTTPException(status_code=403, detail="Somente a operação da empresa pode anotar no caso.")
+    emp = _empresa_do_agente(payload, body.empresa_id)
+    try:
+        r = agente_api.anotar_pela_equipe(emp, predicao_id, body.texto, payload.get("sub"))
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except agente_api.CasoOcupado as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    _registrar_auditoria(acao='caderno_anotado', entidade='agente_caso', entidade_id=predicao_id,
+                         empresa_id=emp, usuario_id=payload.get('sub'), usuario_email=payload.get('email', ''))
+    return r
 
 
 @app.get("/agente/central")

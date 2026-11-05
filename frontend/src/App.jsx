@@ -79,6 +79,7 @@ function ServerWarmupBanner() {
 const Home = lazy(paginas.Home)
 const Inicio = lazy(paginas.Inicio)
 const PastasDevedores = lazy(paginas.PastasDevedores)
+const PastaCliente = lazy(paginas.PastaCliente)
 const DebtorDetail = lazy(paginas.DebtorDetail)
 const Feedback = lazy(paginas.Feedback)
 const BanditDashboard = lazy(paginas.BanditDashboard)
@@ -157,6 +158,7 @@ function RotasAnimadas() {
         <Route element={<RotaProtegida><ShellLayout /></RotaProtegida>}>
           <Route path="/inicio" element={<Inicio />} />
           <Route path="/pastas" element={P(['operador', 'admin', 'comando'], <PastasDevedores />)} />
+          <Route path="/pasta/:id" element={P(['operador', 'admin', 'comando'], <PastaCliente />)} />
           <Route path="/" element={<Home />} />
           <Route path="/devedor/:rank" element={<DebtorDetail />} />
           <Route path="/ajuda" element={<Ajuda />} />

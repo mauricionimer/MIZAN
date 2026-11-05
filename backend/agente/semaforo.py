@@ -21,6 +21,7 @@ from agente import guardrails
 CORES = ("branco", "amarelo", "vermelho")
 ORDEM = {c: i for i, c in enumerate(CORES)}
 VALIDADE_IA_DIAS = 14
+MAX_LEITURAS = 12               # leituras guardadas para o perfil do cliente
 VALIDADE_LEITURA_DIAS = 7
 
 ROTULO = {"branco": "Sem pendência", "amarelo": "Em andamento", "vermelho": "Urgente"}
@@ -123,6 +124,10 @@ def guardar_leitura(caso: dict, triagem: dict, agora: datetime | None = None) ->
         "semaforo_motivo": guardrails.limpar_nota(triagem.get("semaforo_motivo") or "", 80),
         "quando": (agora or datetime.now(timezone.utc)).isoformat(),
     }
+    # Histórico curto para o perfil do cliente mostrar "antes × agora".
+    # Só rótulos (sem texto do devedor e sem sinais de risco).
+    resumo = {k: dados["leitura"][k] for k in ("intencao", "emocao", "urgencia", "quando")}
+    dados["leituras"] = (list(dados.get("leituras") or []) + [resumo])[-MAX_LEITURAS:]
     caso["dados"] = dados
 
 
@@ -152,3 +157,27 @@ def arquivos(caso: dict | None) -> list:
     if d.get("passagem"):
         out.append({"name": "Passagem p/ equipe", "meta": str((d["passagem"] or {}).get("motivo") or "").replace("_", " ")})
     return out[:4]
+
+
+def papeis(caso: dict | None) -> list:
+    """Os cinco papéis fixos da pasta, cada um leva a uma tela da pasta do cliente.
+
+    O `id` é a aba da tela (/pasta/<id>?aba=...). O `meta` resume o que há lá dentro.
+    """
+    d = (caso or {}).get("dados") or {}
+    n_notas = len(d.get("caderno") or [])
+    eventos = (d.get("negociacao") or {}).get("eventos") or []
+    propostas = sum(e.get("tipo") == "oferta_apresentada" for e in eventos)
+    situacao = str((caso or {}).get("situacao") or "").replace("_", " ")
+    if d.get("acordo"):
+        acordo = "quitado" if (caso or {}).get("situacao") == "quitado" else "acordo ativo"
+    else:
+        acordo = f"{propostas} proposta{'s' if propostas != 1 else ''}" if propostas else "sem acordo"
+    return [
+        {"id": "resumo", "name": "Resumo do cliente", "meta": "perfil e situação"},
+        {"id": "conversa", "name": "Conversa", "meta": situacao or "nenhuma ainda"},
+        {"id": "fluxo", "name": "Fluxo do devedor", "meta": "fases e o que aconteceu"},
+        {"id": "caderno", "name": "Caderno do caso",
+         "meta": f"{n_notas} anotaç{'ão' if n_notas == 1 else 'ões'}" if n_notas else "vazio"},
+        {"id": "acordo", "name": "Acordo e pagamentos", "meta": acordo},
+    ]

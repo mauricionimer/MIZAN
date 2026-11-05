@@ -94,6 +94,14 @@ def test_arquivos_da_pasta():
     assert nomes[0] == "Situação" and "Última leitura" in nomes and "Caderno do caso" in nomes
 
 
+def test_papeis_fixos_levam_a_uma_tela_cada():
+    ids = ["resumo", "conversa", "fluxo", "caderno", "acordo"]
+    assert [p["id"] for p in semaforo.papeis(None)] == ids
+    c = caso("negociando", caderno=[{"agente": "triagem"}])
+    p = {x["id"]: x["meta"] for x in semaforo.papeis(c)}
+    assert p["caderno"] == "1 anotação" and p["acordo"] == "sem acordo" and p["conversa"] == "negociando"
+
+
 if __name__ == "__main__":
     for nome, f in list(globals().items()):
         if nome.startswith("test_"):

@@ -202,12 +202,13 @@ fontes:
 - backend/main.py::_aging_label
 
 ## precificacao-simulador
-titulo: Precificação: custo, retorno, preço sugerido e lucro
+titulo: Precificação: custo, retorno e preço máximo de compra
 perfis: admin, comando
 telas: Precificação
 perguntas:
 - como o preço sugerido de compra é calculado
 - o que é preço sugerido
+- o que é preço máximo de compra
 - como funciona o simulador de precificação
 - o que é custo de cobrança no simulador
 - o que é retorno alvo
@@ -217,12 +218,12 @@ perguntas:
 - para que servem os controles de custo e retorno
 - como o lucro final é calculado na precificação
 curta: Simula quanto pagar por uma carteira para atingir um retorno desejado, dado o que se espera recuperar e o custo de cobrar.
-calculo: Após custo = valor esperado × (1 − custo%). Preço sugerido = após custo ÷ (1 + retorno%). Lucro = após custo − preço. Retorno = lucro ÷ preço. Taxa de recuperação estimada = valor esperado ÷ valor de face. O custo (5–50%, padrão 25) e o retorno (10–80%, padrão 30) são controles deslizantes.
+calculo: A tela mostra a conta em degraus: valor esperado de recuperação − custo de cobrança (valor esperado × custo%) − retorno que você quer = preço máximo de compra. Ou seja, preço máximo = valor esperado × (1 − custo%) ÷ (1 + retorno%); o degrau do retorno é o lucro da operação. O título diz o preço máximo e quanto ele fica abaixo do valor de face. O custo (5–50%, padrão 25) e o retorno (10–80%, padrão 30) são controles deslizantes, sempre à vista.
 fazer: Ajuste os dois controles para os números da sua operação e compare cenários. Os padrões servem só de ponto de partida.
-cuidado: Os padrões 25% e 30% são escolha de projeto: não são do cliente nem do mercado. O cálculo usa o valor esperado bruto e é feito na tela, sem gravar nada. O custo do controle não é a comissão por fase configurada em Premissas; por isso o card se chama "Após o custo simulado", e não "líquido".
+cuidado: Os padrões 25% e 30% são escolha de projeto: não são do cliente nem do mercado. O cálculo usa o valor esperado bruto e é feito na tela, sem gravar nada. O custo do controle não é a comissão por fase configurada em Premissas: é uma simulação feita só nesta tela.
 fontes:
-- frontend/src/pages/Dashboard.jsx::texto "Preço Sugerido de Compra"
-- frontend/src/pages/Dashboard.jsx::texto "Retorno Alvo"
+- frontend/src/components/PainelCarteira.jsx::texto "Preço máximo de compra"
+- frontend/src/components/PainelCarteira.jsx::texto "Retorno que você quer"
 
 ## perda-esperada
 titulo: Perda esperada, EAD e LGD

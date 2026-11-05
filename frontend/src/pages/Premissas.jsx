@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Loader2, CheckCircle2, AlertTriangle, HelpCircle, Save } from 'lucide-react'
+import { Loader2, CheckCircle2, AlertTriangle, HelpCircle, Save, SlidersHorizontal } from 'lucide-react'
 import AppShell from '../components/AppShell'
+import CabecalhoPagina from '../components/CabecalhoPagina'
 import { useAuth } from '../context/AuthContext'
 import { useAnalysis } from '../context/AnalysisContext'
 import { buscarPremissas, gravarPremissas, listarEmpresas } from '../api'
-import DicaAjuda from '../components/DicaAjuda'
 import { useProtegerSaida } from '../components/protecaoSaida'
 
 const ROTULO_ESCOLHA = {
@@ -128,10 +128,8 @@ export default function Premissas() {
   return (
     <AppShell secao="premissas" onIrPara={setVista} temResultado={!!result} titulo="Política de cobrança">
       <div className="mx-auto w-full max-w-3xl space-y-6">
-        <div>
-          <p className="section-label">Configuração da empresa</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">Política de cobrança<DicaAjuda id="como-configurar-premissas" /></h1>
-        </div>
+        <CabecalhoPagina rotulo="Configuração da empresa" icone={SlidersHorizontal} titulo="Política de cobrança" ajuda="como-configurar-premissas" className="!mb-0"
+          subtitulo="As premissas que o MIZAN usa para calcular valor esperado, preço e fila." />
 
         {isComando && (
           <div>

@@ -23,12 +23,28 @@ function Lista({ agentes, selecionado, onSelecionar }) {
     <span className="sr-only">{ESTADOS[a.status]?.nome}</span>
   </button>)}</div>
 }
+// Precisa de você? Erros e bloqueios das últimas 24 h são o que pode pedir uma pessoa.
+function Precisa({ m }) {
+  const n=(m?.erros||0)+(m?.bloqueios||0)
+  if(!m)return null
+  return <div className={`ao-precisa ${n?'ao-precisa-sim':''}`} role="status"><strong>{n?'Precisa de você':'Não precisa de você'}</strong><span>{n?`${n} ${n===1?'erro ou bloqueio':'erros ou bloqueios'} nas últimas 24 h. Veja as últimas ações.`:'Nenhum erro nem bloqueio nas últimas 24 h.'}</span></div>
+}
+// Atividade por hora nas últimas 24 h: a barra cresce com as etapas; a parte âmbar são erros e bloqueios.
+function Horas({ h }) {
+  const max=Math.max(1,...h.acoes), total=h.acoes.reduce((a,b)=>a+b,0)
+  return <><div className="ao-section-label">Atividade por hora · 24 h</div>
+    <div className="ao-horas" role="img" aria-label={`${total} etapas nas últimas 24 horas; pico de ${max} numa hora`}>
+      {h.acoes.map((v,i)=><span key={i} style={{'--h':`${(v/max)*100}%`,'--a':v?`${(h.atencao[i]/v)*100}%`:'0%','--d':`${i*18}ms`}} title={`${23-i===0?'Última hora':`Há ${23-i} h`}: ${v} etapas${h.atencao[i]?`, ${h.atencao[i]} com erro ou bloqueio`:''}`}/>)}
+    </div>
+    <div className="ao-horas-eixo"><span>há 24 h</span><span>agora</span></div></>
+}
 function Detalhe({ agente:a, seguir, onSeguir, onPerfil, mostrarCusto, resumoAntigo, amostra }) {
   if(!a)return <p className="ao-empty">Selecione um agente na sala ou na lista.</p>
   const m=a.metricas
   return <>
     <div className="ao-detail-top"><div className="ao-portrait" style={{'--ao-agent':a.cor}}><Retrato nome={a.nome} cor={a.cor} tamanho={46}/></div><div><h4>{a.nome}</h4><p>{a.papel}</p><Estado valor={a.status}/><span className="ao-sector">{TIMES[a.time]?.nome} · {a.ia?'Agente':'Código'}</span></div></div>
     <p className="ao-description">{a.desc}</p>
+    <Precisa m={m}/>
     <div className="ao-section-label">Tarefa atual</div>
     <div className="ao-task"><strong>{a.tarefa}</strong>{a.atual ? <span>Caso #{curto(a.atual.caso_id)} · {a.ativos.length>1?`${a.ativos.length} eventos em execução`:'Execução confirmada'}</span> : <span>{a.status==='desconhecido'?'Aguardando um sinal atualizado.':'Nenhuma execução informada pelo sistema.'}</span>}</div>
     {a.ativos.length>1&&<div className="ao-parallel">{a.ativos.slice(1).map(x=><span key={x.id}>Também: #{curto(x.caso_id)} · {x.no}</span>)}</div>}
@@ -40,6 +56,7 @@ function Detalhe({ agente:a, seguir, onSeguir, onPerfil, mostrarCusto, resumoAnt
       <div><strong>{m?.tokens!=null?m.tokens.toLocaleString('pt-BR'):'—'}</strong><span>tokens</span></div>
       <div><strong>{m?.bloqueios??'—'}</strong><span>bloqueios</span></div>
     </div>
+    {m?.por_hora&&<Horas h={m.por_hora}/>}
     {mostrarCusto&&m&&<p className="ao-model">Custo: US$ {Number(m.custo_usd||0).toFixed(4)}</p>}
     {m?.modelo&&<p className="ao-model" title={m.modelo}>Modelo: {m.modelo}{m.versao_prompt?` · prompt ${m.versao_prompt}`:''}</p>}
     <div className="ao-detail-buttons"><button type="button" className={seguir?'ao-follow-active':''} onClick={onSeguir} aria-pressed={seguir}><Crosshair size={13}/>{seguir?'Seguindo':'Seguir na sala'}</button><button type="button" onClick={()=>onPerfil(a.nome)} title="Abrir o perfil completo do agente"><ArrowUpRight size={14}/>Perfil</button></div>

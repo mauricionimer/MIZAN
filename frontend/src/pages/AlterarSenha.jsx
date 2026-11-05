@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import { useAuth } from '../context/AuthContext'
@@ -144,10 +144,21 @@ function ExcluirConta({ onExcluida }) {
   const [senha, setSenha]             = useState('')
   const [excluindo, setExcluindo]     = useState(false)
   const [erro, setErro]               = useState('')
+  // Duas travas antes de apagar: marcar que entendeu e confirmar com um
+  // segundo clique (que expira em 5 s). O botão seguro é o principal.
+  const [entendo, setEntendo]         = useState(false)
+  const [armado, setArmado]           = useState(false)
+  useEffect(() => {
+    if (!armado) return
+    const t = setTimeout(() => setArmado(false), 5000)
+    return () => clearTimeout(t)
+  }, [armado])
 
   async function confirmar(e) {
     e.preventDefault()
     if (!senha) { setErro('Digite sua senha para confirmar.'); return }
+    if (!entendo) { setErro('Marque que entendeu que não dá para desfazer.'); return }
+    if (!armado) { setArmado(true); setErro(''); return }
     setExcluindo(true); setErro('')
     try {
       await deletarConta(senha)
@@ -159,7 +170,7 @@ function ExcluirConta({ onExcluida }) {
   }
 
   function cancelar() {
-    setConfirmando(false); setSenha(''); setErro('')
+    setConfirmando(false); setSenha(''); setErro(''); setEntendo(false); setArmado(false)
   }
 
   return (
@@ -179,16 +190,24 @@ function ExcluirConta({ onExcluida }) {
             <strong>Não dá para desfazer.</strong>
           </div>
           <CampoSenha id="excluir-senha" label="Sua senha" autoComplete="current-password"
-            valor={senha} aoMudar={setSenha} />
+            valor={senha} aoMudar={v => { setSenha(v); setArmado(false) }} />
+          <label className="flex items-start gap-2.5 text-sm" style={{ color: 'var(--ink)' }}>
+            <input type="checkbox" checked={entendo} onChange={e => { setEntendo(e.target.checked); setArmado(false) }}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--danger)]" />
+            Entendo que a exclusão é definitiva e não dá para desfazer.
+          </label>
           <Erro>{erro}</Erro>
-          <div className="flex gap-2">
-            <button type="submit" disabled={excluindo} className="btn-danger">
-              {excluindo ? 'Excluindo…' : 'Excluir conta'}
+          {armado && (
+            <p role="alert" className="text-sm font-semibold" style={{ color: 'var(--danger)' }}>
+              Clique de novo em “Excluir definitivamente” para confirmar.
+            </p>
+          )}
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <button type="button" onClick={cancelar} className="btn-primary">
+              Manter minha conta
             </button>
-            <button type="button" onClick={cancelar}
-              className="px-4 py-2 rounded-xl text-sm font-medium transition-colors hover:bg-[var(--raise-2)]"
-              style={{ color: 'var(--ink-2)' }}>
-              Cancelar
+            <button type="submit" disabled={excluindo || !entendo || !senha} className="btn-danger ml-auto">
+              {excluindo ? 'Excluindo…' : armado ? 'Excluir definitivamente' : 'Excluir conta'}
             </button>
           </div>
         </form>
