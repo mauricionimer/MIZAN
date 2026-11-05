@@ -23,7 +23,7 @@ from agente import auditor, conhecimento, disponibilidade, estado, ferramentas, 
 from agente.juridico import sinais
 from agente.triagem import como_dado, mascarar
 
-VERSAO_PROMPT = "negociador-v16"           # v16: etapa persistida; v15: mensagens por áudio
+VERSAO_PROMPT = "negociador-v17"           # v17: diz quem é a instituição quando perguntam; v16: etapa persistida; v15: mensagens por áudio
 MAX_RODADAS = 8
 MAX_HISTORICO = 20
 
@@ -44,6 +44,13 @@ Como trabalhar:
   uma opção de pagamento que caiba no momento dela. Não pressione nem envie oferta nessa resposta. Depois da
   escolha, apresente as condições de forma simples e conduza para uma simulação. Só avance para simulação
   quando a pessoa demonstrar que quer tratar da pendência ou pedir uma condição.
+- Se a pessoa perguntar quem você é, de onde fala, de qual banco ou empresa, se é pessoa ou robô, se é golpe
+  ou se é da Mizan, responda PRIMEIRO, em uma ou duas frases, o nome que está em "instituicao" no briefing:
+  você é o assistente virtual dessa instituição (atendimento automático, não uma pessoa) e fala sobre uma
+  pendência financeira no nome dela. Nunca diga que não é a instituição, nunca ignore a pergunta e nunca
+  repita a mesma pergunta duas vezes seguidas. Depois, se a identidade ainda não foi confirmada, peça os três
+  primeiros dígitos do CPF e diga que você nunca pede senha, cartão nem dados da conta. A Mizan é a plataforma
+  de tecnologia que a instituição usa neste atendimento.
 - Antes de falar de valores, confirme a identidade com verificar_identidade (três primeiros dígitos
   do CPF). Sem confirmação, não diga valor, produto nem data da dívida.
 - Nunca diga um valor, percentual ou número de parcelas que não tenha vindo de uma ferramenta nesta
@@ -150,6 +157,38 @@ FIXAS = {
     "pedido_mantido": " Se algum dado precisar ser mantido, a resposta vai explicar o motivo.",
     "pedido_junto": "Também registrei seu pedido sobre os seus dados ({pedido}); a pessoa responsável vai te responder.",
 }
+
+
+QUEM_E = {
+    "base": ("Sou o assistente virtual de {empresa}: um atendimento automático, não uma pessoa. "
+             "Falo em nome de {empresa} sobre uma pendência financeira no seu nome. "),
+    "mizan": "A Mizan é a plataforma de tecnologia que {empresa} usa neste atendimento. ",
+    "cuidado": "Eu nunca peço senha, número de cartão, código de segurança ou dados da sua conta. ",
+    "cpf": ("Por segurança, antes de falar de valores preciso confirmar que é você: você lembra os três "
+            "primeiros dígitos do seu CPF? Se preferir, uma pessoa da equipe pode continuar por aqui."),
+    "seguir": "Quer seguir a conversa sobre a pendência? Se preferir, uma pessoa da equipe pode continuar por aqui.",
+}
+
+
+def nome_instituicao(ctx, fonte) -> str:
+    """O nome da empresa que o devedor conhece (o mesmo da primeira mensagem)."""
+    try:
+        return (fonte.nome_empresa(ctx.caso["empresa_id"]) or "").strip() or "nossa instituição"
+    except Exception as e:
+        print(f"[Agente] nome da empresa indisponível: {type(e).__name__}")
+        return "nossa instituição"
+
+
+def apresentar(ctx, fonte, texto_devedor: str) -> str:
+    """Resposta pronta a "quem é você?": diz de qual empresa fala e para quê, e só então
+    pede (ou retoma) a confirmação de identidade. Sem IA: a pergunta nunca fica sem resposta."""
+    empresa = nome_instituicao(ctx, fonte)
+    confirmada = bool((ctx.caso.get("dados") or {}).get("identidade_ok"))
+    partes = [QUEM_E["base"]]
+    if sinais.cita_mizan(texto_devedor):
+        partes.append(QUEM_E["mizan"])
+    partes += [QUEM_E["cuidado"], QUEM_E["seguir" if confirmada else "cpf"]]
+    return "".join(partes).format(empresa=empresa)
 
 
 def mensagem_fixa(ctx, fonte=None) -> str | None:
@@ -342,7 +381,8 @@ def _briefing(ctx, devedor_nome: str, consultas: dict | None = None) -> str:
             ctx.caso["empresa_id"], ctx.caso["id"], 50)) if m.get("direcao") == "entrada")
     except Exception:
         n_entradas = 0
-    b = {"primeiro_nome": como_dado(devedor_nome), "situacao": ctx.caso["situacao"], "hoje": hoje,
+    b = {"instituicao": ctx.saida.get("_instituicao") or "nossa instituição",
+         "primeiro_nome": como_dado(devedor_nome), "situacao": ctx.caso["situacao"], "hoje": hoje,
          "hoje_e": dia_semana,
          "momento_da_conversa": ("primeiro retorno: acolha, confirme a identidade e escute antes de propor"
                                   if n_entradas <= 1 else "conversa em andamento"),
@@ -483,6 +523,7 @@ def _conversar(ctx, fonte, texto_devedor: str, notas: list) -> str | None:
     if dev is None:
         raise LookupError("devedor não encontrado nesta empresa")
     ctx.saida["_devedor"] = dev
+    ctx.saida["_instituicao"] = nome_instituicao(ctx, fonte)
     nome = ferramentas._primeiro_nome(dev.get("nome"))
     historico, pendente = _historico(ctx)
     resultados, reprovacoes, revisado = [], 0, False

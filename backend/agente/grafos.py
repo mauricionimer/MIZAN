@@ -7,6 +7,7 @@
                         ├─ pedir pessoa ───────────► transferir ─┼─► resposta fixa ─► enviar ─► FIM
                         ├─ pedido sobre os dados ──► registrar ──┴─ (apagar, opor-se, revogar, revisar)
                         │                               └─ (acesso, origem, correção...) ─► negociar
+                        ├─ "quem é você?" ─────────► negociar (resposta pronta com o nome da empresa)
                         └─ o resto ─────────────────► negociar ──────────────────────► enviar ─► FIM
 
 As decisões de segurança são código; só "negociar" usa a IA de conversa. O pedido do
@@ -140,6 +141,10 @@ def grafo_mensagem(fonte) -> Grafo:
     def negociar(ctx):
         if not ctx.pode_falar:
             ctx.saida["resposta"] = negociador.mensagem_fixa(ctx, fonte)
+            return
+        if sinais.pergunta_quem_e(ctx.saida.get("texto", "")):
+            # "Quem é você?": a empresa e o motivo do contato, em código (nunca sem resposta).
+            ctx.saida["resposta"] = negociador.apresentar(ctx, fonte, ctx.saida.get("texto", ""))
             return
         ctx.saida["resposta"] = negociador.conversar(ctx, fonte, ctx.saida.get("texto", ""))
         ctx.saida["_resposta_negociador"] = bool(ctx.saida["resposta"])
