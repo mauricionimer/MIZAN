@@ -131,7 +131,7 @@ test('regressão U19: Auditoria mostrava códigos como oferta_desfeita', () => {
 
 test('guarda: telas redesenhadas usam o cabeçalho padrão (com voltar) e não têm <h1> próprio', () => {
   for (const p of ['Dashboard', 'Ajuda', 'Agente', 'PastasDevedores', 'PastaCliente', 'Acordos', 'Agenda', 'Auditoria',
-                   'Backtest', 'Ofertas', 'PerformanceIA', 'Premissas', 'Resultados']) {
+                   'Backtest', 'Ofertas', 'PerformanceIA', 'Premissas', 'Resultados', 'AdminUsuarios']) {
     const s = fonte(`pages/${p}.jsx`)
     assert.match(s, /<CabecalhoPagina/, `${p} sem CabecalhoPagina`)
     assert.doesNotMatch(s, /<h1[\s>]/, `${p} com <h1> próprio`)

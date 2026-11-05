@@ -71,8 +71,7 @@ export default function ExcluirClienteModal({ aberto, token, empresaId, nome, to
         onClick={feito ? () => onExcluido?.() : onFechar}>
         <div ref={caixa} role="alertdialog" aria-modal="true" aria-labelledby="excluir-cliente-titulo"
           onClick={e => e.stopPropagation()}
-          className="w-full max-w-md max-h-[92vh] overflow-y-auto rounded-2xl p-5 shadow-2xl"
-          style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
+          className="w-full max-w-md max-h-[92vh] overflow-y-auto rounded-[22px] border border-line bg-surface px-6 py-[22px] shadow-2xl">
           {feito ? (
             <div className="text-center py-2">
               <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
@@ -104,8 +103,8 @@ export default function ExcluirClienteModal({ aberto, token, empresaId, nome, to
               </div>
 
               <div className="mt-4 space-y-3">
-                <label className="flex items-start gap-2 text-sm cursor-pointer" style={{ color: 'var(--ink)' }}>
-                  <input type="checkbox" checked={entendo} onChange={e => { setEntendo(e.target.checked); setArmado(false) }} className="mt-1" />
+                <label className="flex cursor-pointer items-start gap-2.5 rounded-[14px] border border-line bg-canvas px-3.5 py-3 text-sm" style={{ color: 'var(--ink)' }}>
+                  <input type="checkbox" checked={entendo} onChange={e => { setEntendo(e.target.checked); setArmado(false) }} className="mt-1 h-4 w-4 accent-[var(--danger)]" />
                   Entendo que não dá para desfazer
                 </label>
                 <div>

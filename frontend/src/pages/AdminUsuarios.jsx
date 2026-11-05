@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
+import CabecalhoPagina from '../components/CabecalhoPagina'
 import { useConfirmar } from '../components/ConfirmarModal'
 import { useAuth } from '../context/AuthContext'
 import {
@@ -99,7 +100,7 @@ function CardPermissoes({ conexao, operadores, token }) {
   const tipoCor      = TIPO_COR[conexao.tipo] ?? 'bg-slate-500/10 text-ink-2 ring-1 ring-slate-500/20'
 
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--line)', boxShadow: '0 2px 12px rgba(0,0,0,0.40)' }}>
+    <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
       {modal}
       <div className="flex items-center gap-3 px-5 py-4 border-b" style={{ borderColor: 'var(--line)' }}>
         <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--raise-3)' }}>
@@ -310,7 +311,7 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
   const nomeExibicao = cfg?.nome_exibicao || empresa.empresa_id
 
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--line)', boxShadow: '0 2px 12px rgba(0,0,0,0.40)' }}>
+    <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
       {modal}
       <ExcluirClienteModal aberto={excluindo} token={token} empresaId={empresa.empresa_id} nome={cfg?.nome_exibicao || empresa.empresa_id}
         totalUsuarios={membros.length} onFechar={() => setExcluindo(false)} onExcluido={() => { setExcluindo(false); onAtualizar() }} />
@@ -517,13 +518,13 @@ function TelaDisponibilidade({ token, empresaId }) {
     <>
       {modalConfirmar}
       <div className="mb-8">
-        <h1 className="text-xl font-bold text-ink tracking-tight">Disponibilidade dos operadores<DicaAjuda id="disponibilidade-operador" /></h1>
+        <h2 className="text-[17px] font-semibold text-ink">Disponibilidade dos operadores<DicaAjuda id="disponibilidade-operador" /></h2>
         <p className="text-sm mt-1" style={{ color: 'var(--ink-2)' }}>
           Horários em que cada operador está disponível, usados para avisar o devedor.
         </p>
       </div>
 
-      <div className="mb-6 rounded-2xl p-6" style={{ background: 'var(--surface)', border: '1px solid var(--line)', boxShadow: '0 2px 12px rgba(0,0,0,0.40)' }}>
+      <div className="mb-6 rounded-2xl p-6" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
         <h2 className="text-sm font-bold text-ink mb-5">Adicionar faixa de horário</h2>
         {operadores.length === 0 && !carregando ? (
           <p className="text-sm" style={{ color: 'var(--ink-3)' }}>Nenhum operador ativo nesta empresa ainda.</p>
@@ -573,7 +574,7 @@ function TelaDisponibilidade({ token, empresaId }) {
       ) : operadores.length === 0 ? null : (
         <div className="space-y-4">
           {porOperador.map(({ operador, faixas: faixasDoOp }) => (
-            <div key={operador.id} className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--line)', boxShadow: '0 2px 12px rgba(0,0,0,0.40)' }}>
+            <div key={operador.id} className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
               <div className="px-5 py-3 border-b flex items-center gap-2.5" style={{ borderColor: 'var(--line)' }}>
                 <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{ background: 'var(--raise-3)', color: 'var(--ink-2)' }}>
                   {operador.nome[0]?.toUpperCase()}
@@ -615,6 +616,10 @@ const ROTULO_ROLE = {
   comando:  { destino: 'admin',    acao: 'Rebaixar', desce: true,  titulo: 'Rebaixar para administrador' },
   admin:    { destino: 'operador', acao: 'Rebaixar', desce: true,  titulo: 'Rebaixar para operador' },
   operador: { destino: 'admin',    acao: 'Promover', desce: false, titulo: 'Promover a administrador' },
+}
+
+function iniciais(nome = '') {
+  return String(nome || '').trim().split(/[\s._-]+/).filter(Boolean).slice(0, 2).map(p => p[0]).join('').toUpperCase() || '·'
 }
 
 export default function AdminUsuarios() {
@@ -792,10 +797,18 @@ export default function AdminUsuarios() {
       {modalConfirmar}
 
       <div className="w-full max-w-5xl mx-auto">
+        <CabecalhoPagina rotulo="Configurações" titulo="Usuários" ajuda="usuarios-e-papeis"
+          subtitulo={isComando ? 'Todas as pessoas e empresas da plataforma.' : 'Quem trabalha na sua empresa e o que cada um pode fazer.'}>
+          {isComando && aba === 'usuarios' && (
+            <button type="button" onClick={() => { setShowForm(!showForm); setFormErro('') }} className="btn-primary">
+              <UserPlus className="w-4 h-4" aria-hidden="true" /> Novo usuário
+            </button>
+          )}
+        </CabecalhoPagina>
 
         {/* Abas */}
         {(isAdmin || isComando) && (
-          <div className="flex gap-1 mb-8 p-1 rounded-xl w-fit max-w-full overflow-x-auto" style={{ background: 'var(--raise-2)' }}>
+          <div className="mb-6 flex w-fit max-w-full gap-1 overflow-x-auto rounded-[14px] border border-line bg-surface p-1">
             {[
               ['usuarios', <Users key="i" className="w-4 h-4" aria-hidden="true" />, 'Usuários'],
               ...(isComando ? [['empresas', <Building2 key="i" className="w-4 h-4" aria-hidden="true" />, 'Empresas']] : []),
@@ -804,8 +817,7 @@ export default function AdminUsuarios() {
               ...(isAdmin ? [['disponibilidade', <CalendarClock key="i" className="w-4 h-4" aria-hidden="true" />, 'Disponibilidade']] : []),
             ].map(([id, icon, label]) => (
               <button key={id} type="button" onClick={() => setAba(id)} aria-pressed={aba === id}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                style={aba === id ? { background: 'var(--surface)', color: 'var(--ink)', boxShadow: '0 1px 4px rgba(0,0,0,0.30)' } : { color: 'var(--ink-3)' }}>
+                className={`flex h-10 items-center gap-2 whitespace-nowrap rounded-[10px] px-4 text-sm transition-colors ${aba === id ? 'bg-[var(--raised)] font-semibold text-ink' : 'text-ink-3 hover:text-ink'}`}>
                 {icon}{label}
               </button>
             ))}
@@ -820,26 +832,13 @@ export default function AdminUsuarios() {
           <>
             {/* Perfil da empresa (admin/comando) */}
             {(isAdmin || isComando) && usuario?.empresa_id && (
-              <div className="mb-8 rounded-2xl p-5" style={{ background: 'var(--surface)', border: '1px solid var(--line)', boxShadow: '0 2px 12px rgba(0,0,0,0.40)' }}>
-                <div className="flex items-center justify-between mb-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide flex items-center gap-1.5" style={{ color: 'var(--ink-3)' }}>
-                    <Building2 className="h-3.5 w-3.5" /> Perfil da empresa<DicaAjuda id="perfil-da-empresa" />
-                  </p>
-                  {!editandoBrand ? (
-                    <button type="button" onClick={abrirEdicaoBrand} className="flex items-center gap-1 text-xs transition-colors font-semibold" style={{ color: 'var(--accent-text)' }}>
-                      <Pencil className="w-3 h-3" aria-hidden="true" /> Editar
-                    </button>
-                  ) : (
-                    <button type="button" onClick={() => setEditandoBrand(false)} className="text-xs transition-colors" style={{ color: 'var(--ink-3)' }}>Cancelar</button>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-4">
+              <div className="mb-6 rounded-[18px] border border-line bg-surface px-5 py-4">
+                <div className="flex flex-wrap items-center gap-4">
                   <div className="relative shrink-0">
-                    <div className="w-16 h-16 rounded-2xl overflow-hidden flex items-center justify-center" style={{ background: 'var(--raise-3)', border: '1px solid var(--line)' }}>
+                    <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-[14px] border border-line bg-[var(--raised)] text-sm font-bold text-ink">
                       {empresaConfig?.foto_url
                         ? <img src={empresaConfig.foto_url} alt="Logo" className="w-full h-full object-cover" />
-                        : <Building2 className="w-6 h-6" style={{ color: 'var(--ink-3)' }} />}
+                        : iniciais(empresaConfig?.nome_exibicao || usuario?.empresa_id)}
                     </div>
                     {editandoBrand && (
                       <label className="absolute -bottom-1.5 -right-1.5 w-7 h-7 rounded-full flex items-center justify-center cursor-pointer transition-colors shadow-md" title="Trocar foto"
@@ -871,13 +870,21 @@ export default function AdminUsuarios() {
                       </div>
                     ) : (
                       <>
-                        <p className="font-bold text-ink text-base truncate">{empresaConfig?.nome_exibicao || usuario?.empresa_id}</p>
-                        <p className="text-xs mt-0.5 flex items-center gap-1.5" style={{ color: 'var(--ink-3)' }}>
-                          <span className="inline-block w-2.5 h-2.5 rounded-full border border-line-2" style={{ background: empresaConfig?.cor_primaria || '#5966d9' }} />
+                        <p className="truncate text-base font-semibold text-ink">{empresaConfig?.nome_exibicao || usuario?.empresa_id}</p>
+                        <p className="mt-0.5 flex items-center gap-1.5 text-[13px] text-ink-3">
+                          <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-line-2" style={{ background: empresaConfig?.cor_primaria || 'var(--royal)' }} aria-hidden="true" />
+                          Perfil da empresa · {usuariosExibidos.length} {usuariosExibidos.length === 1 ? 'usuário' : 'usuários'}<DicaAjuda id="perfil-da-empresa" />
                         </p>
                       </>
                     )}
                   </div>
+                  {!editandoBrand ? (
+                    <button type="button" onClick={abrirEdicaoBrand} className="btn-secondary btn-sm shrink-0">
+                      <Pencil className="w-3.5 h-3.5" aria-hidden="true" /> Editar perfil
+                    </button>
+                  ) : (
+                    <button type="button" onClick={() => setEditandoBrand(false)} className="btn-ghost btn-sm shrink-0">Cancelar</button>
+                  )}
                 </div>
 
                 {msgBrand && (
@@ -888,33 +895,20 @@ export default function AdminUsuarios() {
               </div>
             )}
 
-            <div className="flex items-center justify-between mb-8">
-              <div>
-                <h1 className="text-xl font-bold text-ink tracking-tight">Usuários do sistema<DicaAjuda id="usuarios-e-papeis" /></h1>
-                <p className="text-sm mt-1" style={{ color: 'var(--ink-2)' }}>
-                  {isComando ? 'Gerencie todos os usuários e empresas.' : 'Gerencie os operadores da sua empresa.'}
-                </p>
-                {/* Só o Comando cria contas: o admin precisa saber o caminho. */}
-                {!isComando && (
-                  <p className="mt-1 text-sm" style={{ color: 'var(--ink-3)' }}>
-                    Para incluir alguém, peça ao Comando.{' '}
-                    <button type="button" className="font-semibold text-accent-text hover:underline"
-                      onClick={() => navigate('/ajuda', { state: { de: '/admin/usuarios',
-                        pedir: 'Quero incluir uma pessoa na minha empresa como operador. Como passo os dados de acesso dela?' } })}>
-                      Pedir ao Comando
-                    </button>
-                  </p>
-                )}
-              </div>
-              {isComando && (
-                <button type="button" onClick={() => { setShowForm(!showForm); setFormErro('') }} className="btn-primary">
-                  <UserPlus className="w-4 h-4" aria-hidden="true" /> Novo usuário
+            {/* Só o Comando cria contas: o admin precisa saber o caminho. */}
+            {!isComando && (
+              <p className="mb-4 text-sm text-ink-3">
+                Para incluir alguém, peça ao Comando.{' '}
+                <button type="button" className="font-semibold text-accent-text hover:underline"
+                  onClick={() => navigate('/ajuda', { state: { de: '/admin/usuarios',
+                    pedir: 'Quero incluir uma pessoa na minha empresa como operador. Como passo os dados de acesso dela?' } })}>
+                  Pedir ao Comando
                 </button>
-              )}
-            </div>
+              </p>
+            )}
 
             {isComando && showForm && (
-              <div className="mb-6 rounded-2xl p-6" style={{ background: 'var(--surface)', border: '1px solid var(--line)', boxShadow: '0 2px 12px rgba(0,0,0,0.40)' }}>
+              <div className="mb-6 rounded-2xl p-6" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
                 <h2 className="text-sm font-bold text-ink mb-5">Criar novo usuário</h2>
                 <form onSubmit={handleRegistrar} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
@@ -976,16 +970,16 @@ export default function AdminUsuarios() {
             {carregando ? (
               <div className="text-center py-16 text-sm" style={{ color: 'var(--ink-3)' }}>Carregando…</div>
             ) : (
-              <div className="rounded-2xl overflow-x-auto" style={{ background: 'var(--surface)', border: '1px solid var(--line)', boxShadow: '0 2px 12px rgba(0,0,0,0.40)' }}>
+              <div className="rounded-2xl overflow-x-auto" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b" style={{ background: 'var(--raised)', borderColor: 'var(--line)' }}>
-                      <th className="text-left px-5 py-3.5 text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--ink-3)' }}>Nome</th>
-                      <th className="text-left px-5 py-3.5 text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--ink-3)' }}>E-mail</th>
-                      {isComando && <th className="text-left px-5 py-3.5 text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--ink-3)' }}>Empresa</th>}
-                      <th className="text-center px-5 py-3.5 text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--ink-3)' }}>Permissão</th>
-                      <th className="text-center px-5 py-3.5 text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--ink-3)' }}>Status</th>
-                      <th className="text-center px-5 py-3.5 text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--ink-3)' }}>Ações</th>
+                      <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-ink-3">Nome</th>
+                      <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-ink-3">E-mail</th>
+                      {isComando && <th className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-ink-3">Empresa</th>}
+                      <th className="px-5 py-3 text-center text-[11px] font-bold uppercase tracking-[0.14em] text-ink-3">Permissão</th>
+                      <th className="px-5 py-3 text-center text-[11px] font-bold uppercase tracking-[0.14em] text-ink-3">Status</th>
+                      <th className="px-5 py-3 text-center text-[11px] font-bold uppercase tracking-[0.14em] text-ink-3">Ações</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -994,13 +988,18 @@ export default function AdminUsuarios() {
                         style={{ borderColor: 'var(--line)' }}
                         onMouseOver={e => e.currentTarget.style.background = 'var(--raise-1)'}
                         onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
-                        <td className="px-5 py-4 font-medium text-ink">{u.nome}</td>
+                        <td className="px-5 py-3.5">
+                          <span className="flex items-center gap-3">
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--royal-soft)] text-xs font-bold text-accent-text" aria-hidden="true">{iniciais(u.nome)}</span>
+                            <span className="font-medium text-ink">{u.nome}</span>
+                          </span>
+                        </td>
                         <td className="px-5 py-4" style={{ color: 'var(--ink-2)' }}>{u.email}</td>
                         {isComando && <td className="px-5 py-4 text-xs" style={{ color: 'var(--ink-3)' }}>{u.empresa_id || '—'}</td>}
                         <td className="px-5 py-4 text-center"><BadgeRole role={u.role} /></td>
                         <td className="px-5 py-4 text-center">
-                          <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${u.ativo ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20' : 'bg-raise-2 text-ink-3 ring-1 ring-line'}`}>
-                            {u.ativo ? 'Ativo' : 'Inativo'}
+                          <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${u.ativo ? 'bg-[var(--success-soft)] text-[var(--success)]' : 'bg-raise-2 text-ink-3'}`}>
+                            <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />{u.ativo ? 'Ativo' : 'Inativo'}
                           </span>
                         </td>
                         <td className="px-5 py-4">
@@ -1057,7 +1056,7 @@ export default function AdminUsuarios() {
           <>
             <div className="flex items-center justify-between mb-8">
               <div>
-                <h1 className="text-xl font-bold text-ink tracking-tight">Empresas parceiras</h1>
+                <h2 className="text-[17px] font-semibold text-ink">Empresas parceiras</h2>
                 <p className="text-sm mt-1" style={{ color: 'var(--ink-2)' }}>Agrupe usuários por empresa. Adicione pelo e-mail de contas já cadastradas.</p>
               </div>
             </div>
@@ -1113,7 +1112,7 @@ export default function AdminUsuarios() {
         {aba === 'permissoes' && (isAdmin || isComando) && (
           <>
             <div className="mb-8">
-              <h1 className="text-xl font-bold text-ink tracking-tight">Permissões de banco de dados<DicaAjuda id="conexao-com-banco" /></h1>
+              <h2 className="text-[17px] font-semibold text-ink">Permissões de banco de dados<DicaAjuda id="conexao-com-banco" /></h2>
             </div>
 
             {carregando ? (
