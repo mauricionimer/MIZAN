@@ -4,9 +4,9 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { MessageSquareText, Plus, Copy, Trash2, Save, Loader2, Building2, User, Sparkles, Check, AlertTriangle } from 'lucide-react'
 import AppShell from '../components/AppShell'
 
-// Dentro de Pagamentos (aba) não repete o menu e o cabeçalho da página.
+// Página própria (Configurações › Roteiros; o operador chega pelo link em Pagamentos).
 const Casca = ({ embutido, children }) => embutido ? <>{children}</> : <AppShell>{children}</AppShell>
-import DicaAjuda from '../components/DicaAjuda'
+import CabecalhoPagina from '../components/CabecalhoPagina'
 import ErroCarga from '../components/ErroCarga'
 import ConfirmarModal, { useConfirmar } from '../components/ConfirmarModal'
 import { useProtegerSaida } from '../components/protecaoSaida'
@@ -174,21 +174,16 @@ export default function Roteiros({ embutido = false }) {
   return (
     <Casca embutido={embutido}>
       <div className="mx-auto w-full max-w-6xl space-y-5">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight text-ink">
-              <MessageSquareText className="h-5 w-5 text-blue-400" /> Roteiros<DicaAjuda id="roteiros-de-abordagem" />
-            </h1>
-            <p className="mt-1 text-sm text-ink-2">Mensagens prontas por canal. Na ficha do devedor elas saem preenchidas com o nome, a dívida e a proposta.</p>
-          </div>
+        <CabecalhoPagina rotulo="Configurações" icone={MessageSquareText} titulo="Roteiros" ajuda="roteiros-de-abordagem" className="!mb-2"
+          subtitulo="Mensagens prontas por canal. Na pasta do devedor elas saem preenchidas com o nome, a dívida e a proposta.">
           {isComando && (
             <select value={alvo} onChange={e => { const v = e.target.value; pedir(() => setAlvo(v)) }} aria-label="Empresa"
-              className="rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-sm text-ink focus:outline-none [color-scheme:dark]">
+              className="input-base h-[44px] w-auto rounded-[12px] text-sm">
               <option value="">Escolha a empresa…</option>
               {empresas.map(e => <option key={e.empresa_id} value={e.empresa_id}>{e.nome_exibicao || e.empresa_id}</option>)}
             </select>
           )}
-        </div>
+        </CabecalhoPagina>
 
         <div className="flex gap-1 overflow-x-auto rounded-xl border border-line bg-surface-2 p-1" role="tablist" aria-label="Canal">
           {CANAIS.map(c => (

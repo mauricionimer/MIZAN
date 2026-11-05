@@ -94,6 +94,7 @@ function useItens() {
     { id: 'config', label: 'Configurações', icon: SlidersHorizontal, rota: '/ofertas', abas: [
       { id: 'ofertas', label: 'Ofertas', rota: '/ofertas' },
       { id: 'premissas', label: 'Política de cobrança', rota: '/premissas' },
+      { id: 'roteiros', label: 'Roteiros', rota: '/roteiros' },
       { id: 'usuarios', label: 'Usuários', rota: '/admin/usuarios' },
       { id: 'auditoria', label: 'Auditoria', rota: '/auditoria' },
       { id: 'backtest', label: 'Simulação histórica', rota: '/backtest' },
