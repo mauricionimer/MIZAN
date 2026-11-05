@@ -516,13 +516,14 @@ def _conferir_versao_da_senha(payload: dict, user: dict) -> None:
 
 def _conferir_2fa(payload: dict, user: dict, configurando: bool = False) -> None:
     """Verificação em duas etapas (dois_fatores.py), a cada chamada:
-    - 2FA ligado: só vale token que passou pelo código (mfa). Sessão aberta antes de
-      ligar, ou em outro aparelho sem o código, cai (401) e entra de novo;
+    - 2FA ligado: o código vale na configuração e ao trocar a senha. Só com
+      MIZAN_2FA_LOGIN=1 a sessão precisa ter passado pelo código (mfa): sessão aberta antes
+      de ligar, ou em outro aparelho sem o código, cai (401) e entra de novo;
     - papel obrigado (admin e comando) sem 2FA: só as rotas de configurar respondem; o
       resto devolve 403 com o aviso, e a tela abre a configuração.
     Antes da migração do banco ninguém é obrigado (ninguém fica trancado do lado de fora)."""
     if _2fa.ativo(user):
-        if not payload.get("mfa"):
+        if _2fa.exigir_no_login() and not payload.get("mfa"):
             raise HTTPException(status_code=401, detail=_2fa.MSG_SESSAO_SEM_2FA)
         return
     if _2fa.obrigatorio(user) and not configurando:
@@ -1635,7 +1636,7 @@ def auth_login(body: LoginIn, request: Request):
         except Exception as e:
             _erros.registrar({"path": "/auth/login", "method": "POST"}, e, 200)
     from auth import versao_da_senha, publico
-    if _2fa.ativo(usuario):
+    if _2fa.ativo(usuario) and _2fa.exigir_no_login():
         # Senha certa, falta o código: nada de sessão ainda. O desafio só serve para
         # /auth/login/2fa, vale 5 minutos e não abre nenhuma outra rota.
         desafio = criar_token({"sub": usuario["id"], "fin": "2fa", "sv": versao_da_senha(usuario),
@@ -1643,7 +1644,7 @@ def auth_login(body: LoginIn, request: Request):
         return {"requer_2fa": True, "desafio": desafio}
     token = _token_de_sessao(usuario, int(_time.time()), mfa=False)
     resposta = {"token": token, "usuario": publico(usuario)}
-    if _2fa.obrigatorio(usuario):
+    if _2fa.obrigatorio(usuario) and not _2fa.ativo(usuario):
         resposta["configurar_2fa"] = True          # a tela abre a configuração antes do resto
     return resposta
 
@@ -1680,8 +1681,8 @@ def auth_refresh(credentials: HTTPAuthorizationCredentials = Security(bearer)):
     auth_time = payload.get("auth_time") or payload.get("iat") or 0
     if _time.time() - auth_time > SESSAO_MAXIMA_S:
         raise HTTPException(status_code=401, detail="Sessão expirada: entre de novo.")
-    # Renovar não pula a segunda etapa: com o 2FA ligado, só renova quem passou por ela.
-    if _2fa.ativo(user) and not payload.get("mfa"):
+    # Renovar não pula a segunda etapa quando o login a exige (MIZAN_2FA_LOGIN=1).
+    if _2fa.ativo(user) and _2fa.exigir_no_login() and not payload.get("mfa"):
         raise HTTPException(status_code=401, detail=_2fa.MSG_SESSAO_SEM_2FA)
     from auth import publico
     new_token = _token_de_sessao(user, auth_time, mfa=bool(payload.get("mfa")))
@@ -2030,6 +2031,12 @@ class RedefinirSenhaIn(BaseModel):
     token: str
     nova_senha: str
 
+
+class EsqueciSenha2faIn(BaseModel):
+    email: str = Field(..., max_length=254)
+    codigo: str = Field(..., max_length=20)
+    nova_senha: str = Field(..., max_length=200)
+
 @app.patch("/auth/usuarios/{usuario_id}/ativo")
 def auth_toggle_ativo(usuario_id: str, body: AtivoIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
     payload = _exigir_admin_ou_comando(credentials)
@@ -2105,13 +2112,72 @@ def auth_esqueci_senha(body: EsqueciSenhaIn, background_tasks: BackgroundTasks):
                                         "global": not _ok_geral}))
         return {"ok": True, "mensagem": "Se o e-mail estiver cadastrado, você receberá as instruções em breve."}
 
-    token = criar_reset_token(_email)
+    # Conta com o aplicativo autenticador: nada sai por e-mail. O código do aplicativo é o
+    # único caminho (/auth/esqueci-senha/2fa); um link por e-mail seria um atalho em volta
+    # dele. A resposta é a mesma, para não revelar quem tem 2FA.
+    usuario = buscar_usuario(_email) if _email else None
+    token = None if (usuario and _2fa.ativo(usuario)) else criar_reset_token(_email)
     if token:
-        usuario = buscar_usuario(_email)
         nome = usuario.get("nome", "usuário") if usuario else "usuário"
         link = f"{FRONTEND_URL}/redefinir-senha?token={token}"
         background_tasks.add_task(email_redefinir_senha, _email, nome, link)
     return {"ok": True, "mensagem": "Se o e-mail estiver cadastrado, você receberá as instruções em breve."}
+
+
+_ESQUECI_2FA_MAX_DIA = 10         # além de 5 a cada 15 min: quem tem só o código decide a senha, teto mais baixo
+
+
+@app.post("/auth/esqueci-senha/2fa")
+def auth_esqueci_senha_2fa(body: EsqueciSenha2faIn, request: Request):
+    """Trocar a senha com o código do aplicativo autenticador (ou um código de recuperação),
+    sem e-mail. Só vale para conta com o 2FA ligado.
+
+    - A resposta de falha é a mesma para e-mail que não existe, conta sem 2FA e código errado.
+    - Cada falha conta no limite por e-mail (existindo ou não), por dia e por IP.
+    - A força da senha é conferida ANTES de gastar o código: senha fraca não queima o código.
+    - Trocar a senha derruba todas as sessões abertas (versão da senha dentro do token)."""
+    from auth import validar_forca_senha, hash_senha
+    email = (body.email or "").strip().lower()
+    try:
+        validar_forca_senha(body.nova_senha)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    chave_email = f"esqueci2fa:{email}"
+    chave_dia = f"esqueci2fa:dia:{email}"
+    chave_ip = f"esqueci2fa:ip:{_limite.ip_da_requisicao(request)}"
+    _checar_rate_limit(chave_email)
+    _checar_rate_limit(chave_dia, _ESQUECI_2FA_MAX_DIA, janela=86400)
+    _checar_rate_limit(chave_ip, _RATE_MAX_IP)
+
+    def falhou():
+        _registrar_tentativa(chave_email)
+        _registrar_tentativa(chave_dia)
+        _registrar_tentativa(chave_ip, _RATE_MAX_IP)
+        raise HTTPException(status_code=400, detail=_2fa.MSG_RESET_FALHOU)
+
+    usuario = buscar_usuario(email) if email else None
+    if not usuario or not usuario.get("ativo") or not _2fa.ativo(usuario):
+        falhou()
+    mudanca = _2fa.conferir_codigo(usuario, body.codigo)
+    if mudanca is None:
+        falhou()
+    try:
+        if not _gravar_uso_2fa(usuario, mudanca):
+            falhou()
+        db = get_db()
+        db.table("usuarios").update({"senha_hash": hash_senha(body.nova_senha)}).eq("id", usuario["id"]).execute()
+        db.table("reset_tokens").update({"usado": True}).eq("email", email).execute()   # links antigos morrem
+    except HTTPException:
+        raise
+    except Exception as e:
+        _erros.registrar({"path": "/auth/esqueci-senha/2fa", "method": "POST"}, e, 503)
+        raise HTTPException(status_code=503, detail="Não foi possível concluir agora. Tente de novo.")
+    for chave in (chave_email, chave_dia, _chave_login_email(email), f"2fa:{usuario['id']}", f"2fa:dia:{usuario['id']}"):
+        _limpar_tentativas(chave)           # quem provou ser o dono sai de qualquer bloqueio
+    _registrar_auditoria(acao="senha_redefinida_2fa", entidade="usuario", entidade_id=usuario["id"],
+                         usuario_email=email, empresa_id=usuario.get("empresa_id", ""), usuario_id=usuario["id"],
+                         detalhes={"codigo_de_recuperacao": "totp_recuperacao" in mudanca})
+    return {"ok": True}
 
 @app.get("/conexoes")
 def listar_conexoes(credentials: HTTPAuthorizationCredentials = Security(bearer)):
@@ -4204,8 +4270,12 @@ async def sincronizar_conexao(conexao_id: str, credentials: HTTPAuthorizationCre
 
 @app.post("/auth/redefinir-senha")
 def auth_redefinir_senha(body: RedefinirSenhaIn):
+    def _sem_link_com_2fa(u):
+        if u and _2fa.ativo(u):
+            raise ValueError(_2fa.MSG_RESET_USE_O_APP)
+
     try:
-        ok = redefinir_senha_com_token(body.token, body.nova_senha)
+        ok = redefinir_senha_com_token(body.token, body.nova_senha, recusar_se=_sem_link_com_2fa)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     if not ok:

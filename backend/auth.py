@@ -293,8 +293,11 @@ def criar_reset_token(email: str) -> str | None:
                                      "expires_at": expires}).execute()
     return token
 
-def redefinir_senha_com_token(token: str, nova_senha: str) -> "str | bool":
-    """Valida o token e redefine a senha. Devolve o e-mail redefinido, ou False se inválido/expirado."""
+def redefinir_senha_com_token(token: str, nova_senha: str, recusar_se=None) -> "str | bool":
+    """Valida o token e redefine a senha. Devolve o e-mail redefinido, ou False se inválido/expirado.
+
+    `recusar_se(usuario)` pode levantar ValueError para impedir a troca (conta com 2FA: o
+    link por e-mail não pode ser um atalho em volta do código do aplicativo)."""
     from datetime import datetime, timezone
     db = _db()
     res = db.table("reset_tokens").select("*").eq("token", hash_reset_token(token)).eq("usado", False).execute()
@@ -303,6 +306,8 @@ def redefinir_senha_com_token(token: str, nova_senha: str) -> "str | bool":
     rec = res.data[0]
     if datetime.fromisoformat(rec["expires_at"]) < datetime.now(timezone.utc):
         return False
+    if recusar_se is not None:
+        recusar_se(buscar_usuario(rec["email"]))
     validar_forca_senha(nova_senha)
     db.table("usuarios").update({"senha_hash": hash_senha(nova_senha)}).eq("email", rec["email"]).execute()
     # Todos os links pedidos para este e-mail morrem juntos, não só o usado: um

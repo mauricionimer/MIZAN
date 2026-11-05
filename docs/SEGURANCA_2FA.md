@@ -9,7 +9,11 @@
   3. digitar o código de 6 dígitos;
   4. guardar os 10 códigos de recuperação.
 
-  Daí em diante, todo login pede a senha e o código do app.
+  Daí em diante, **o login pede só a senha**. O código do app é pedido na primeira vez (para
+  configurar) e quando a pessoa **esquece a senha**.
+- **Esqueci minha senha:** a tela pede o e-mail, o código do app (ou um código de recuperação)
+  e a nova senha. **Nenhum e-mail é enviado** para quem usa o app. O link por e-mail fica só
+  como reserva para conta que ainda não configurou o app.
 - **Operador:** o 2FA é opcional. Ele liga no menu **Conta → Verificação em duas etapas**.
 - **Perdeu o celular:** na tela do código, use "Perdi o celular: usar código de
   recuperação". Cada código vale uma vez. Para trocar de aparelho, use **Conta → Verificação
@@ -32,7 +36,9 @@
 - Os códigos de recuperação ficam só como hash com sal.
 - O cadastro que vai para a tela nunca leva esses campos (`auth.publico`).
 
-**Login em duas etapas**
+**Login em duas etapas (opcional, desligado por padrão)**
+- Com `MIZAN_2FA_LOGIN=1` no Render, o login volta a pedir o código a cada entrada. Sem a
+  variável, vale só a senha. Os itens abaixo descrevem esse modo.
 - Senha certa com 2FA ligado devolve um **desafio**: um token de uso restrito, que vale
   5 minutos e não abre nenhuma outra rota.
 - Com o código, sai a sessão marcada como "com 2FA".
@@ -43,6 +49,16 @@
 - Renovar a sessão e trocar a senha mantêm a marca.
 - Cada código vale uma vez: o último passo usado fica gravado, e dois pedidos com o mesmo
   código não passam juntos.
+
+**Esqueci minha senha com o app** (`POST /auth/esqueci-senha/2fa`)
+- Recebe e-mail, código (do app ou de recuperação) e nova senha. Conta sem 2FA, e-mail que
+  não existe e código errado dão **a mesma resposta**.
+- Limite: 5 erros em 15 minutos e 10 por dia por e-mail (mesmo trocando de IP), e 30 por IP.
+  A força da senha é conferida antes de gastar o código.
+- Trocar a senha derruba todas as sessões abertas, apaga o bloqueio de login e fica na auditoria
+  (`senha_redefinida_2fa`).
+- O pedido por e-mail (`/auth/esqueci-senha`) não gera link para conta com 2FA, e um link antigo
+  também não troca a senha dela. Senão o e-mail seria um atalho em volta do app.
 
 **Administrador sem 2FA**
 - As rotas respondem 403 com um aviso, e a tela abre a configuração.
@@ -67,8 +83,9 @@ redefinição pelo COMANDO.
 3. **Interruptor de emergência:** `MIZAN_2FA_OBRIGATORIO` no Render.
    - Padrão: `admin,comando`.
    - `0` desliga a obrigação (quem já ligou o 2FA continua usando).
-4. **Último recurso, se o único COMANDO perder celular e códigos:** no SQL Editor do
+4. **Voltar a pedir o código a cada login:** `MIZAN_2FA_LOGIN=1` no Render (sem deploy de código).
+5. **Último recurso, se o único COMANDO perder celular e códigos:** no SQL Editor do
    Supabase,
    `update usuarios set totp_ativo = false, totp_segredo = null, totp_recuperacao = null where email = '...';`
-5. **Depois de conferir que o login funciona:** a tabela antiga `rate_limit_login` pode ser
+6. **Depois de conferir que o login funciona:** a tabela antiga `rate_limit_login` pode ser
    apagada (comando no fim da migração).
