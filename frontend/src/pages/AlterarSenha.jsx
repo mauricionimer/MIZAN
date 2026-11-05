@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import { useAuth } from '../context/AuthContext'
-import { KeyRound, Eye, EyeOff, Trash2, CheckCircle2 } from 'lucide-react'
+import { KeyRound, Eye, EyeOff, Trash2, CheckCircle2, ShieldCheck, UserRound } from 'lucide-react'
 import { alterarSenha, deletarConta } from '../api'
-import DicaAjuda from '../components/DicaAjuda'
+import CabecalhoPagina from '../components/CabecalhoPagina'
 
 const VAZIO = { senha_atual: '', nova_senha: '', confirmar: '' }
 
@@ -14,7 +14,7 @@ function CampoSenha({ id, label, valor, aoMudar, autoComplete }) {
   const [mostrar, setMostrar] = useState(false)
   return (
     <div>
-      <label htmlFor={id} className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>{label}</label>
+      <label htmlFor={id} className="mb-1.5 block text-[13px] font-semibold text-ink-2">{label}</label>
       <div className="relative">
         <input
           id={id}
@@ -23,7 +23,7 @@ function CampoSenha({ id, label, valor, aoMudar, autoComplete }) {
           autoComplete={autoComplete}
           value={valor}
           onChange={e => aoMudar(e.target.value)}
-          className="input-base pr-11"
+          className="input-base h-[46px] rounded-[12px] pl-3.5 pr-11 text-[15px]"
         />
         <button type="button" onClick={() => setMostrar(s => !s)}
           aria-label={mostrar ? `Ocultar ${label.toLowerCase()}` : `Mostrar ${label.toLowerCase()}`}
@@ -40,7 +40,7 @@ function CampoSenha({ id, label, valor, aoMudar, autoComplete }) {
 function Erro({ children }) {
   if (!children) return null
   return (
-    <div role="alert" className="rounded-xl px-4 py-3 text-sm"
+    <div role="alert" className="rounded-[14px] px-4 py-3 text-sm"
       style={{ color: 'var(--danger)', background: 'rgb(var(--c-danger) / 0.10)', border: '1px solid rgb(var(--c-danger) / 0.20)' }}>
       {children}
     </div>
@@ -48,7 +48,7 @@ function Erro({ children }) {
 }
 
 export default function AlterarSenha() {
-  const { logout, isComando, trocarToken } = useAuth()
+  const { logout, isComando, trocarToken, usuario } = useAuth()
   const navigate = useNavigate()
   const homePath = isComando ? '/comando' : '/'
 
@@ -79,44 +79,38 @@ export default function AlterarSenha() {
     }
   }
 
+  const papel = { comando: 'Comando', admin: 'Administrador', operador: 'Operador' }[usuario?.role] || usuario?.role
+  const iniciais = String(usuario?.nome || usuario?.email || '').trim().split(/\s+/).slice(0, 2).map(p => p[0]).join('').toUpperCase()
+
   return (
-    <AppShell titulo="Alterar senha">
+    <AppShell titulo="Minha conta">
+      <div className="mx-auto w-full max-w-6xl space-y-4">
+        <CabecalhoPagina rotulo="Conta" icone={UserRound} titulo="Minha conta" ajuda="senha-e-sessao" className="!mb-2"
+          subtitulo="Seus dados de acesso e segurança." />
 
-      <div className="w-full max-w-md mx-auto">
-        <div className="rounded-2xl p-8"
-          style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--line)',
-            boxShadow: '0 16px 48px rgba(0,0,0,0.50), 0 4px 12px rgba(0,0,0,0.30)',
-          }}>
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-              style={{ background: 'rgb(var(--c-royal) / 0.12)', border: '1px solid rgb(var(--c-royal) / 0.20)' }}>
-              <KeyRound className="w-5 h-5" style={{ color: 'var(--accent-text)' }} aria-hidden="true" />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold text-ink tracking-tight">Alterar senha<DicaAjuda id="senha-e-sessao" /></h1>
-              <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Mínimo de 8 caracteres, com letras e números</p>
-            </div>
+        <section className="flex flex-wrap items-center gap-4 rounded-[22px] border border-line bg-surface px-6 py-5">
+          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[var(--royal-soft)] text-lg font-bold text-accent-text" aria-hidden="true">{iniciais || '·'}</span>
+          <div className="min-w-0">
+            <p className="truncate text-[19px] font-semibold text-ink">{usuario?.nome || 'Sem nome'}</p>
+            <p className="truncate text-sm text-ink-2">{[usuario?.email, papel, usuario?.empresa_id].filter(Boolean).join(' · ')}</p>
           </div>
+        </section>
 
-          <div className="border-t my-5" style={{ borderColor: 'var(--line)' }} />
-
-          {sucesso ? (
-            <div className="text-center py-6" role="status">
-              <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
-                style={{ background: 'rgb(var(--c-success) / 0.12)', border: '1px solid rgb(var(--c-success) / 0.20)' }}>
-                <CheckCircle2 className="w-7 h-7" style={{ color: 'var(--success)' }} aria-hidden="true" />
+        <div className="grid items-start gap-4 lg:grid-cols-2">
+          <section className="rounded-[22px] border border-line bg-surface px-6 py-[22px]" aria-labelledby="conta-senha">
+            <h2 id="conta-senha" className="flex items-center gap-2 text-[17px] font-semibold text-ink"><KeyRound className="h-4 w-4 text-ink-3" aria-hidden="true" /> Senha</h2>
+            <p className="mt-0.5 text-[13px] text-ink-2">Mínimo de 8 caracteres, com letras e números.</p>
+            {sucesso ? (
+              <div className="mt-5 flex flex-col items-start gap-3 rounded-[14px] border border-[color-mix(in_srgb,var(--success)_35%,transparent)] bg-[var(--success-soft)] px-4 py-4" role="status">
+                <p className="flex items-center gap-2 font-semibold text-ink"><CheckCircle2 className="h-5 w-5 text-[var(--success)]" aria-hidden="true" /> Senha alterada</p>
+                <p className="text-sm text-ink-2">As outras sessões abertas com a senha antiga foram encerradas.</p>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => navigate(homePath)} className="btn-primary">Voltar ao início</button>
+                  <button type="button" onClick={() => setSucesso(false)} className="btn-secondary">Trocar de novo</button>
+                </div>
               </div>
-              <h2 className="text-base font-bold text-ink mb-1 tracking-tight">Senha alterada</h2>
-              <p className="text-sm mb-6" style={{ color: 'var(--ink-2)' }}>As outras sessões abertas com a senha antiga foram encerradas.</p>
-              <button type="button" onClick={() => navigate(homePath)} className="btn-primary px-6 py-2.5">
-                Voltar
-              </button>
-            </div>
-          ) : (
-            <>
-              <form onSubmit={handleSubmit} className="space-y-4">
+            ) : (
+              <form onSubmit={handleSubmit} className="mt-5 space-y-4">
                 <CampoSenha id="senha-atual" label="Senha atual" autoComplete="current-password"
                   valor={form.senha_atual} aoMudar={mudar('senha_atual')} />
                 <CampoSenha id="senha-nova" label="Nova senha" autoComplete="new-password"
@@ -124,13 +118,22 @@ export default function AlterarSenha() {
                 <CampoSenha id="senha-confirmar" label="Confirmar nova senha" autoComplete="new-password"
                   valor={form.confirmar} aoMudar={mudar('confirmar')} />
                 <Erro>{erro}</Erro>
-                <button type="submit" disabled={carregando} className="btn-primary w-full py-2.5 disabled:opacity-50">
+                <button type="submit" disabled={carregando} className="btn-primary w-full disabled:opacity-50">
                   {carregando ? 'Salvando…' : 'Salvar nova senha'}
                 </button>
               </form>
-              <ExcluirConta onExcluida={() => { logout(); navigate('/login') }} />
-            </>
-          )}
+            )}
+          </section>
+
+          <div className="space-y-4">
+            <section className="rounded-[22px] border border-line bg-surface px-6 py-[22px]" aria-labelledby="conta-2fa">
+              <h2 id="conta-2fa" className="flex items-center gap-2 text-[17px] font-semibold text-ink"><ShieldCheck className="h-4 w-4 text-ink-3" aria-hidden="true" /> Verificação em duas etapas</h2>
+              <p className="mt-0.5 text-[13px] leading-relaxed text-ink-2">Além da senha, um código do aplicativo autenticador no celular. Protege a conta se a senha vazar.</p>
+              <button type="button" onClick={() => navigate('/seguranca')} className="btn-secondary mt-4">Abrir verificação em duas etapas</button>
+            </section>
+
+            <ExcluirConta onExcluida={() => { logout(); navigate('/login') }} empresa={usuario?.empresa_id} />
+          </div>
         </div>
       </div>
     </AppShell>
@@ -139,7 +142,7 @@ export default function AlterarSenha() {
 
 // O servidor pede a senha de novo para excluir: só o token aberto no
 // navegador não basta.
-function ExcluirConta({ onExcluida }) {
+function ExcluirConta({ onExcluida, empresa }) {
   const [confirmando, setConfirmando] = useState(false)
   const [senha, setSenha]             = useState('')
   const [excluindo, setExcluindo]     = useState(false)
@@ -174,24 +177,26 @@ function ExcluirConta({ onExcluida }) {
   }
 
   return (
-    <div className="mt-8 border-t pt-6" style={{ borderColor: 'var(--line)' }}>
-      <p className="text-[11px] font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--danger)' }}>Excluir conta</p>
+    <section className="rounded-[22px] border border-[color-mix(in_srgb,var(--danger)_40%,transparent)] bg-surface px-6 py-[22px]" aria-labelledby="conta-excluir">
+      <h2 id="conta-excluir" className="flex items-center gap-2 text-[17px] font-semibold text-[var(--danger)]"><Trash2 className="h-4 w-4" aria-hidden="true" /> Excluir conta</h2>
+      <p className="mt-0.5 text-[13px] leading-relaxed text-ink-2">Direito previsto na LGPD. Os registros de auditoria da empresa continuam, sem o seu nome. Não dá para desfazer.</p>
       {!confirmando ? (
-        <button type="button" onClick={() => setConfirmando(true)}
-          className="flex items-center gap-2 text-sm px-3 py-2 rounded-xl transition-colors font-medium hover:bg-red-500/10"
-          style={{ color: 'var(--danger)' }}>
-          <Trash2 className="h-4 w-4" aria-hidden="true" /> Excluir minha conta (LGPD)
+        <button type="button" onClick={() => setConfirmando(true)} className="btn-ghost-danger mt-4">
+          <Trash2 className="h-4 w-4" aria-hidden="true" /> Excluir minha conta
         </button>
       ) : (
-        <form onSubmit={confirmar} className="space-y-3">
-          <div className="text-sm rounded-xl px-4 py-3 leading-relaxed"
-            style={{ color: 'var(--ink)', background: 'rgb(var(--c-danger) / 0.10)', border: '1px solid rgb(var(--c-danger) / 0.20)' }}>
-            Sua conta e seu nome saem dos registros. O histórico de contatos e as conexões ficam com a empresa, sem o seu nome.{' '}
-            <strong>Não dá para desfazer.</strong>
+        <form onSubmit={confirmar} className="mt-4 space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-[14px] border border-[color-mix(in_srgb,var(--danger)_35%,transparent)] bg-[var(--danger-soft)] px-4 py-3 text-[13px] leading-relaxed text-ink">
+              <b className="block">Apaga</b>Seu nome, e-mail, senha e acesso. Você sai da MIZAN na hora.
+            </div>
+            <div className="rounded-[14px] border border-line bg-[var(--sunken)] px-4 py-3 text-[13px] leading-relaxed text-ink">
+              <b className="block">Continua</b>Carteiras, pagamentos, contatos e auditoria{empresa ? ` da empresa ${empresa}` : ' da empresa'}, sem o seu nome.
+            </div>
           </div>
           <CampoSenha id="excluir-senha" label="Sua senha" autoComplete="current-password"
             valor={senha} aoMudar={v => { setSenha(v); setArmado(false) }} />
-          <label className="flex items-start gap-2.5 text-sm" style={{ color: 'var(--ink)' }}>
+          <label className="flex items-start gap-2.5 rounded-[14px] border border-line px-4 py-3 text-sm text-ink">
             <input type="checkbox" checked={entendo} onChange={e => { setEntendo(e.target.checked); setArmado(false) }}
               className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--danger)]" />
             Entendo que a exclusão é definitiva e não dá para desfazer.
@@ -212,6 +217,6 @@ function ExcluirConta({ onExcluida }) {
           </div>
         </form>
       )}
-    </div>
+    </section>
   )
 }
