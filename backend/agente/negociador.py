@@ -23,7 +23,7 @@ from agente import auditor, conhecimento, disponibilidade, estado, ferramentas, 
 from agente.juridico import sinais
 from agente.triagem import como_dado, mascarar
 
-VERSAO_PROMPT = "negociador-v17"           # v17: diz quem é a instituição quando perguntam; v16: etapa persistida; v15: mensagens por áudio
+VERSAO_PROMPT = "negociador-v18"           # v18: não repete a mensagem anterior e responde primeiro à pergunta; v17: diz quem é a instituição quando perguntam; v16: etapa persistida; v15: mensagens por áudio
 MAX_RODADAS = 8
 MAX_HISTORICO = 20
 
@@ -51,6 +51,9 @@ Como trabalhar:
   repita a mesma pergunta duas vezes seguidas. Depois, se a identidade ainda não foi confirmada, peça os três
   primeiros dígitos do CPF e diga que você nunca pede senha, cartão nem dados da conta. A Mizan é a plataforma
   de tecnologia que a instituição usa neste atendimento.
+- Responda sempre ao que a pessoa acabou de dizer ou perguntar antes de voltar ao seu objetivo. Não repita a
+  mesma pergunta ou frase da mensagem anterior: se ela não respondeu, mude o jeito de perguntar, explique por que
+  precisa daquilo e, se já pediu duas vezes, ofereça uma pessoa da equipe.
 - Antes de falar de valores, confirme a identidade com verificar_identidade (três primeiros dígitos
   do CPF). Sem confirmação, não diga valor, produto nem data da dívida.
 - Nunca diga um valor, percentual ou número de parcelas que não tenha vindo de uma ferramenta nesta
@@ -262,6 +265,25 @@ def _mensagem_fixa(ctx, fonte=None) -> str | None:
                     f"{prox['hora_inicio']}h; se preferir outro horário, é só me avisar.")
         return FIXAS["com_pessoa"]
     return None
+
+
+def _normalizar(texto: str) -> str:
+    return re.sub(r"[^a-z0-9 ]+", "", re.sub(r"\s+", " ", sinais.sem_acento(str(texto or "")).lower())).strip()
+
+
+def repete_anterior(ctx, texto: str) -> bool:
+    """A resposta é quase igual a uma das duas últimas do assistente? Repetir a mesma pergunta
+    sem ouvir a pessoa é o que mais afasta quem conversa com o atendimento."""
+    import difflib
+    novo = _normalizar(texto)
+    if len(novo) < 40:
+        return False
+    try:
+        anteriores = [m["texto"] for m in estado.conversa_atual(ctx.caso, ctx.repo.ultimas_mensagens(
+            ctx.caso["empresa_id"], ctx.caso["id"], 8)) if m.get("direcao") == "saida"][-2:]
+    except Exception:
+        return False
+    return any(difflib.SequenceMatcher(None, novo, _normalizar(a)).ratio() >= 0.85 for a in anteriores)
 
 
 def _historico(ctx) -> list:
@@ -576,6 +598,9 @@ def _conversar(ctx, fonte, texto_devedor: str, notas: list) -> str | None:
 
         texto = (r.texto or "").strip()
         motivos = guardrails.conferir(texto, _permitidos(ctx, resultados, texto_devedor), feitas=feitas)
+        if not motivos and repete_anterior(ctx, texto):
+            motivos = ["repete quase igual uma mensagem anterior: responda ao que a pessoa disse agora, com outras palavras, "
+                       "sem repetir a mesma pergunta; se ela não respondeu, explique por que precisa disso ou ofereça uma pessoa da equipe"]
         with ctx.rastreio.span("guardrails", "codigo") as p:
             p["detalhe"] = {"reprovado": bool(motivos), "n_motivos": len(motivos)}
             if motivos:

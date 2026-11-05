@@ -110,8 +110,26 @@ ch = chamadas_do_negociador()
 checar(len(ch) == 1, "a IA de conversa foi chamada")
 corpo = json.dumps(ch[0]["mensagens"], ensure_ascii=False) if ch else ""
 checar('"instituicao": "Goiás Bank"' in corpo.replace('\\"', '"'), "o briefing leva o nome da empresa", corpo[:0])
-checar("PRIMEIRO, em uma ou duas frases" in ch[0]["sistema"] and negociador.VERSAO_PROMPT == "negociador-v17",
-       "e a regra de dizer quem é está no prompt (negociador-v17)")
+checar("PRIMEIRO, em uma ou duas frases" in ch[0]["sistema"] and negociador.VERSAO_PROMPT.startswith("negociador-v"),
+       "e a regra de dizer quem é está no prompt")
+
+print("— não repete a mesma pergunta —")
+PERGUNTA = "Para conversarmos com segurança, você lembra os três primeiros dígitos do seu CPF? Assim consigo te ajudar com a pendência."
+OUTRA = "Entendo, sem problema. Preciso só dos três primeiros dígitos para proteger seus dados. Se preferir, uma pessoa da equipe continua com você."
+ROTEIRO[:] = [tri("duvida"), Resposta(texto=PERGUNTA)]
+receber(20, "Hum")
+n0 = len(chamadas_do_negociador())
+ROTEIRO[:] = [tri("duvida"), Resposta(texto=PERGUNTA), Resposta(texto=OUTRA)]
+receber(21, "Não sei se quero falar disso agora")
+ch = chamadas_do_negociador()[n0:]
+checar(len(ch) == 2, "resposta igual à anterior: a IA é chamada de novo", str(len(ch)))
+checar(ENVIADOS[-1][1] == OUTRA, "e a pessoa recebe a versão nova, não a repetição", ENVIADOS[-1][1][:60])
+retorno = json.dumps(ch[1]["mensagens"][-1], ensure_ascii=False) if len(ch) > 1 else ""
+checar("repete quase igual" in retorno, "a IA é avisada de que repetiu")
+ROTEIRO[:] = [tri("duvida"), Resposta(texto="Combinado, vamos no seu tempo. Quando quiser retomar, é só me escrever por aqui.")]
+n1 = len(chamadas_do_negociador())
+receber(22, "Tá bom, depois eu vejo")
+checar(len(chamadas_do_negociador()) - n1 == 1, "resposta diferente passa de primeira")
 
 print()
 print("tudo certo" if not falhas else f"{falhas} falha(s)")
