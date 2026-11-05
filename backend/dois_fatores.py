@@ -7,6 +7,8 @@
 - Um código vale uma vez: guardamos o último passo usado e recusamos repetir.
 - Códigos de recuperação (10, de uso único) para quem perde o celular. O banco guarda
   só o hash com sal de cada um.
+- O código NÃO é pedido a cada login: vale na configuração (primeira vez) e para trocar a
+  senha ("esqueci minha senha"). MIZAN_2FA_LOGIN=1 volta a pedir o código a cada login.
 - Obrigatório para os papéis de MIZAN_2FA_OBRIGATORIO (padrão: admin e comando). Com
   "0" ou "nenhum", ninguém é obrigado (interruptor de emergência). A obrigação só
   vale depois da migração (sql/migracao_seguranca_2fa.sql): sem as colunas no banco,
@@ -34,6 +36,10 @@ MSG_OBRIGATORIO = ("Configure a verificação em duas etapas para continuar: "
 MSG_SESSAO_SEM_2FA = "Sessão sem a verificação em duas etapas. Entre de novo."
 MSG_SENHA_PARA_CONFIGURAR = "Por segurança, digite sua senha para configurar."
 LOGIN_RECENTE_S = 15 * 60          # configurar sem pedir a senha de novo só logo depois de entrar
+MSG_RESET_FALHOU = ("Não foi possível redefinir a senha. Confira o e-mail e o código do aplicativo "
+                    "(ou um código de recuperação).")
+MSG_RESET_USE_O_APP = ("Esta conta usa a verificação em duas etapas: redefina a senha com o código do "
+                       "aplicativo, em \"Esqueci minha senha\".")
 COLUNAS = ("totp_ativo", "totp_segredo", "totp_pendente", "totp_pendente_em",
            "totp_ativado_em", "totp_ultimo_passo", "totp_recuperacao")
 
@@ -146,6 +152,12 @@ def decifrar(valor: str | None) -> str | None:
 
 
 # ── regra de quem precisa ──────────────────────────────────────────────
+
+def exigir_no_login() -> bool:
+    """Pede o código do app a cada login? Padrão: não (só na configuração e ao trocar a senha).
+    MIZAN_2FA_LOGIN=1 volta a pedir, sem deploy de código."""
+    return os.getenv("MIZAN_2FA_LOGIN", "0").strip().lower() in ("1", "true", "sim", "yes", "on")
+
 
 def papeis_obrigados() -> frozenset:
     bruto = os.getenv("MIZAN_2FA_OBRIGATORIO", "admin,comando").strip().lower()

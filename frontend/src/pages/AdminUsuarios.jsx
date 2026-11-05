@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext'
 import {
   listarUsuarios, registrarUsuario, toggleUsuarioAtivo, alterarRoleUsuario, redefinir2faUsuario,
   listarConexoes, listarPermissoesConexao, concederPermissaoConexao, revogarPermissaoConexao,
-  listarEmpresas, adicionarUsuarioEmpresa, removerUsuarioEmpresa, deletarEmpresa,
+  listarEmpresas, adicionarUsuarioEmpresa, removerUsuarioEmpresa,
   putEmpresaConfig, uploadEmpresaFoto, getEmpresaConfigPublica,
   verDominios, gravarDominios,
   listarDisponibilidade, criarDisponibilidade, removerDisponibilidade,
@@ -15,6 +15,7 @@ import {
   Users, UserPlus, ShieldCheck, ShieldOff, ToggleLeft, ToggleRight, Database, Lock, Unlock, Building2, Plus, X, UserMinus, Mail, Trash2, Camera, Pencil, Check, AtSign, CalendarClock,
 } from 'lucide-react'
 import DicaAjuda from '../components/DicaAjuda'
+import ExcluirClienteModal from '../components/ExcluirClienteModal'
 
 // Nome do papel para a tela (o valor gravado continua 'admin', 'comando'...).
 const NOME_PAPEL = { comando: 'Comando', admin: 'Administrador', operador: 'Operador' }
@@ -304,21 +305,15 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
     } catch (err) { setErro(err.message) }
   }
 
-  async function handleDeletar() {
-    const ok = await pedir({ titulo: `Excluir a empresa “${empresa.empresa_id}”?`,
-      texto: `Os ${membros.length} usuário(s) dela ficam sem empresa. Não dá para desfazer.`, confirmar: 'Excluir empresa', perigo: true })
-    if (!ok) return
-    try {
-      await deletarEmpresa(token, empresa.empresa_id)
-      onAtualizar()
-    } catch (err) { setErro(err.message) }
-  }
+  const [excluindo, setExcluindo] = useState(false)
 
   const nomeExibicao = cfg?.nome_exibicao || empresa.empresa_id
 
   return (
     <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--line)', boxShadow: '0 2px 12px rgba(0,0,0,0.40)' }}>
       {modal}
+      <ExcluirClienteModal aberto={excluindo} token={token} empresaId={empresa.empresa_id} nome={cfg?.nome_exibicao || empresa.empresa_id}
+        totalUsuarios={membros.length} onFechar={() => setExcluindo(false)} onExcluido={() => { setExcluindo(false); onAtualizar() }} />
       <div className="px-5 py-4 border-b flex items-center justify-between gap-3" style={{ borderColor: 'var(--line)' }}>
         <div className="relative shrink-0">
           <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center" style={{ background: 'rgb(var(--c-royal) / 0.12)', border: '1px solid rgb(var(--c-royal) / 0.20)' }}>
@@ -386,7 +381,7 @@ function CardEmpresa({ empresa, token, onAtualizar }) {
             onMouseOut={e => e.currentTarget.style.background = 'rgb(var(--c-royal) / 0.10)'}>
             <Plus className="w-3.5 h-3.5" /> Adicionar usuário
           </button>
-          <button type="button" onClick={handleDeletar} title="Excluir empresa" aria-label={`Excluir a empresa ${nomeExibicao}`}
+          <button type="button" onClick={() => setExcluindo(true)} title="Excluir cliente e todos os dados" aria-label={`Excluir o cliente ${nomeExibicao} e todos os dados`}
             className="p-1.5 rounded-lg transition-colors" style={{ color: 'var(--ink-4)' }}
             onMouseOver={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.background = 'rgb(var(--c-danger) / 0.08)' }}
             onMouseOut={e => { e.currentTarget.style.color = 'var(--ink-4)'; e.currentTarget.style.background = 'transparent' }}>

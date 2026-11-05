@@ -133,6 +133,21 @@ def upload_empresa(slug: str, pasta: Path) -> bool:
         return False
 
 
+def apagar_empresa(slug: str) -> int:
+    """Apaga do Storage os arquivos de modelo da empresa (exclusão do cliente).
+    Devolve quantos arquivos saíram; nunca levanta erro (o Storage pode estar fora)."""
+    try:
+        b = _bucket()
+        itens = b.list(f"empresas/{slug}") or []
+        caminhos = [f"empresas/{slug}/{i['name']}" for i in itens if i.get("name")]
+        if caminhos:
+            b.remove(caminhos)
+        return len(caminhos)
+    except Exception as e:
+        print(f"[Storage] Não apagou os modelos da empresa {slug}: {type(e).__name__}")
+        return 0
+
+
 def sincronizar_empresa(slug: str, pasta: Path) -> None:
     """Traz do Storage a versão ativa da empresa se ela mudou desde a última vez.
 

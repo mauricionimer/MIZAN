@@ -429,6 +429,11 @@ export async function deletarEmpresa(token, empresaId) {
   return pedir(`/empresas/${_id(empresaId)}`, { metodo: 'DELETE', token })
 }
 
+// Exclui o cliente e TODOS os dados dele (só COMANDO). Pede o nome digitado, a senha e, se ligado, o código do app.
+export async function excluirClienteETudo(token, empresaId, { confirmacao, senha, codigo }) {
+  return pedir(`/comando/empresas/${_id(empresaId)}/excluir-tudo`, { metodo: 'POST', token, corpo: { confirmacao, senha, codigo } })
+}
+
 export async function getEmpresaConfigPublica(_legado, empresaId) {
   // O primeiro argumento (e-mail) não é mais enviado: o servidor não responde
   // por e-mail, para não revelar quem tem conta. Mantido só por compatibilidade.

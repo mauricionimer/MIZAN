@@ -314,6 +314,7 @@ print("\n— S6: /docs fechado em produção —")
 for rota in ("/docs", "/redoc", "/openapi.json"):
     checar(c.get(rota).status_code == 404, "S6", f"{rota} dá 404")
 checar(c.get("/health").status_code == 200, "S6", "controle: /health continua 200")
+checar(c.head("/health").status_code == 200, "S6", "controle: /health aceita HEAD (monitores de disponibilidade)")
 
 
 # ═════ S7: tempo do login não revela o e-mail ════════════════════════════════

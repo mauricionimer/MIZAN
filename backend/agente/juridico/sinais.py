@@ -89,6 +89,30 @@ def superendividamento(texto: str) -> bool:
     return bool(_SUPERENDIVIDAMENTO.search(_t(texto)))
 
 
+# A pessoa quer saber com quem fala: quem é, de qual empresa, se é pessoa ou robô, se é golpe.
+# Só vale em mensagem curta: "quem é você? quero parcelar" vai inteira para a conversa.
+_QUEM_E = re.compile(
+    r"\bquem (e|eh|es|sao) (voce|vc|ce|tu|o senhor|a senhora|esse|essa|isso|vcs|voces)\b"
+    r"|\bquem (esta|ta|ta ai|esta ai) (falando|escrevendo|ai|me escrevendo|mandando)\b|\bquem fala\b|\bcom quem (eu )?(estou|to|tou) (falando|conversando)\b"
+    r"|\bde onde (voce|vc|vcs|voces|e|eh) ?(e|eh|fala|falam|esta falando|ta falando|sao)?\b"
+    r"|\b(de|da|do) (qual|que) (empresa|banco|instituicao|financeira|lugar)\b|\bqual (e )?(a |o )?(sua |seu )?(empresa|banco|instituicao|financeira)\b"
+    r"|\b(voce|vc|vcs|voces) (e|eh|sao) (da|do|de|um|uma|o|a) ?(mizan|banco|empresa|robo|bot|golpe|golpista|pessoa|humano|maquina|atendente)?\b.{0,25}\?"
+    r"|\b(e|eh) (da|do|de) (mizan|algum banco|banco|empresa)\b|\bda mizan\b|\bou algum banco\b"
+    r"|(?<!nao )\b(isso )?(e|eh) (golpe|fraude|falso|golpista)\b|\b(isso )?(e|eh) (de verdade|seguro|confiavel|oficial)\b.{0,12}\?"
+    r"|\bnao (vou|posso|quero) (passar|dar) (nada )?(sem saber|ate saber)\b"
+    r"|\b(voce|vc) (e|eh) (uma )?(pessoa|gente|humano|robo|maquina|bot|ia|inteligencia artificial)\b|\bfalo com (um )?(robo|bot|humano|pessoa)\b")
+
+
+def pergunta_quem_e(texto: str) -> bool:
+    """A mensagem é, sobretudo, uma pergunta sobre quem está falando (mensagem curta)."""
+    t = _t(texto)
+    return len(t.split()) <= 16 and bool(_QUEM_E.search(t))
+
+
+def cita_mizan(texto: str) -> bool:
+    return "mizan" in _t(texto)
+
+
 # Pressão para aceitar, no texto do próprio agente (as travas já barram ameaça).
 _PRESSAO = re.compile(r"\b(so (ate )?hoje|ultima (chance|oportunidade)|agora ou nunca|e pegar ou largar"
                       r"|nao (vai|vou) (ter|conseguir) (de novo|outra (vez|chance|oferta))|corra|aproveite (ja|logo|agora))\b")

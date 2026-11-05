@@ -12,6 +12,9 @@ os.environ.update(SUPABASE_URL="http://127.0.0.1:1", SUPABASE_KEY="x",
                   JWT_SECRET="segredo-de-teste-com-mais-de-32-caracteres",
                   MIZAN_ENCRYPTION_KEY=Fernet.generate_key().decode())
 os.environ.pop("MIZAN_2FA_OBRIGATORIO", None)
+# O corpo deste teste cobre o modo estrito (código a cada login). O comportamento padrão, sem
+# o código no login, e a troca de senha pelo aplicativo ficam na seção do fim.
+os.environ["MIZAN_2FA_LOGIN"] = "1"
 import auth                                                              # noqa: E402
 import db as _db_mod                                                     # noqa: E402
 import dois_fatores as d2                                                # noqa: E402
@@ -265,6 +268,108 @@ checar(r.status_code == 400 and r.json()["detail"] == d2.MSG_SENHA_PARA_CONFIGUR
 checar(c.post("/auth/2fa/iniciar", json={"senha": "errada"}, headers=H(antigo)).status_code == 400, "senha errada: recusa")
 r = c.post("/auth/2fa/iniciar", json={"senha": SENHA}, headers=H(antigo))
 checar(r.status_code == 200 and r.json().get("segredo"), "com a senha certa: segue")
+
+print("— padrão: o código não é pedido a cada login —")
+os.environ.pop("MIZAN_2FA_LOGIN")
+reset(usuario("adm"), usuario("sem", role="operador"))
+tk0 = entrar("adm@x.com").json()["token"]
+sg = c.post("/auth/2fa/iniciar", json={}, headers=H(tk0)).json()["segredo"]
+r = c.post("/auth/2fa/confirmar", json={"codigo": cod_agora(sg)}, headers=H(tk0))
+RECS = r.json()["codigos_recuperacao"]
+checar(r.status_code == 200 and u_banco("adm")["totp_ativo"], "primeira vez: configura o aplicativo (com a senha)")
+r = entrar("adm@x.com")
+checar(r.status_code == 200 and "requer_2fa" not in r.json() and r.json().get("token") and "configurar_2fa" not in r.json(),
+       "depois de configurar, o login pede só a senha")
+tk_novo = r.json()["token"]
+checar(c.get(ROTA, headers=H(tk_novo)).status_code == 200, "e a sessão funciona, sem o código")
+checar(c.get(ROTA, headers=H(tk0)).status_code == 200 and c.post("/auth/refresh", headers=H(tk_novo)).status_code == 200,
+       "sessões sem a marca do código valem e renovam")
+reset(usuario("adm2"))
+u_banco("adm2").update({"totp_ativo": False})
+r = entrar("adm2@x.com")
+checar(r.json().get("configurar_2fa") is True and c.get(ROTA, headers=H(r.json()["token"])).status_code == 403,
+       "administrador que ainda não configurou continua obrigado a configurar")
+os.environ["MIZAN_2FA_LOGIN"] = "1"
+reset(usuario("adm"))
+u_banco("adm").update({"totp_ativo": True, "totp_segredo": d2.cifrar(sg)})
+checar(entrar("adm@x.com").json().get("requer_2fa") is True, "MIZAN_2FA_LOGIN=1 volta a pedir o código a cada login")
+os.environ.pop("MIZAN_2FA_LOGIN")
+
+print("— esqueci a senha: código do aplicativo, sem e-mail —")
+import email_utils                                                       # noqa: E402
+ENVIADOS = []
+email_utils.email_redefinir_senha = lambda e, n, l: ENVIADOS.append(e)
+NOVA = "Outra-Senha-456"
+def reset_2fa(email, codigo, nova=NOVA, ip="203.0.113.9"):
+    return c.post("/auth/esqueci-senha/2fa", json={"email": email, "codigo": codigo, "nova_senha": nova},
+                  headers={"X-Forwarded-For": ip})
+def com_2fa(*extras):
+    reset(usuario("adm"), usuario("sem", role="operador"), *extras)
+    u_banco("adm").update({"totp_ativo": True, "totp_segredo": d2.cifrar(sg), "totp_recuperacao": RECS_HASH})
+RECS, RECS_HASH = d2.novos_codigos_recuperacao(3)
+
+com_2fa()
+antiga = entrar("adm@x.com").json()["token"]
+checar(c.get(ROTA, headers=H(antiga)).status_code == 200, "(sessão aberta antes da troca)")
+r = reset_2fa("adm@x.com", cod_agora(sg), nova="123")
+checar(r.status_code == 400 and "8 caracteres" in r.json()["detail"], "senha fraca: recusada")
+checar(u_banco("adm").get("totp_ultimo_passo") is None, "e o código não é gasto por causa disso")
+r = reset_2fa("adm@x.com", "000000")
+checar(r.status_code == 400 and r.json()["detail"] == d2.MSG_RESET_FALHOU, "código errado: recusado")
+r_inexistente = reset_2fa("ninguem@x.com", cod_agora(sg))
+r_sem2fa = reset_2fa("sem@x.com", cod_agora(sg))
+checar(r_inexistente.status_code == 400 and r_inexistente.json() == r.json() == r_sem2fa.json(),
+       "e-mail que não existe, conta sem 2FA e código errado dão a MESMA resposta (não revela quem tem conta)")
+hash_antes = u_banco("adm")["senha_hash"]
+r = reset_2fa("adm@x.com", cod_agora(sg))
+checar(r.status_code == 200 and r.json() == {"ok": True}, "código certo: senha trocada")
+checar(u_banco("adm")["senha_hash"] != hash_antes and entrar("adm@x.com").status_code == 401, "a senha antiga deixa de valer")
+checar(entrar("adm@x.com", NOVA).status_code == 200, "a nova senha entra (sem pedir o código)")
+checar(c.get(ROTA, headers=H(antiga)).status_code == 401, "as sessões abertas antes caem")
+checar("senha_redefinida_2fa" in AUDIT, "a troca fica na auditoria")
+checar(not ENVIADOS, "nenhum e-mail foi enviado")
+r = reset_2fa("adm@x.com", cod_agora(sg), nova="Terceira-Senha-789")
+checar(r.status_code == 400 and entrar("adm@x.com", NOVA).status_code == 200, "o mesmo código não troca a senha duas vezes")
+r = reset_2fa("adm@x.com", RECS[0], nova="Quarta-Senha-1011")
+checar(r.status_code == 200 and entrar("adm@x.com", "Quarta-Senha-1011").status_code == 200 and len(u_banco("adm")["totp_recuperacao"]) == 2,
+       "código de recuperação também troca a senha (e é gasto)")
+r = reset_2fa("adm@x.com", RECS[0], nova="Quinta-Senha-1213")
+checar(r.status_code == 400, "código de recuperação usado não vale de novo")
+
+com_2fa()
+for _ in range(5):
+    entrar("adm@x.com", "errada")
+checar(entrar("adm@x.com").status_code == 429, "(login bloqueado por senhas erradas)")
+checar(reset_2fa("adm@x.com", cod_agora(sg, 1), nova="Sexta-Senha-1415").status_code == 200
+       and entrar("adm@x.com", "Sexta-Senha-1415").status_code == 200, "quem prova ser o dono pelo aplicativo sai do bloqueio de login")
+
+com_2fa()
+cods = [reset_2fa("adm@x.com", "000000", ip=f"198.51.100.{i}").status_code for i in range(6)]
+checar(cods == [400] * 5 + [429], "5 códigos errados: bloqueio de 15 minutos por e-mail (mesmo trocando de IP)", str(cods))
+checar(reset_2fa("adm@x.com", cod_agora(sg, 1)).status_code == 429, "e nem o código certo passa durante o bloqueio")
+com_2fa()
+cods = [reset_2fa(f"alvo{i}@x.com", "000000", ip="198.51.100.77").status_code for i in range(31)]
+checar(cods == [400] * 30 + [429], "um IP testando muitos e-mails: bloqueado depois de 30", str(cods[-3:]))
+
+print("— o link por e-mail não é um atalho em volta do aplicativo —")
+com_2fa()
+ENVIADOS.clear()
+T["reset_tokens"] = []
+r1 = c.post("/auth/esqueci-senha", json={"email": "adm@x.com"})
+r2 = c.post("/auth/esqueci-senha", json={"email": "sem@x.com"})
+r3 = c.post("/auth/esqueci-senha", json={"email": "ninguem@x.com"})
+checar(r1.json() == r2.json() == r3.json(), "o pedido por e-mail responde igual para os três casos")
+checar(ENVIADOS == ["sem@x.com"], "e-mail só sai para conta SEM o aplicativo", str(ENVIADOS))
+checar([t["email"] for t in T["reset_tokens"]] == ["sem@x.com"], "nem token é criado para conta com 2FA")
+for t in T["reset_tokens"]:
+    t["usado"] = False
+token_sem = "link-antigo-de-conta-com-2fa"
+T["reset_tokens"].append({"token": auth.hash_reset_token(token_sem), "email": "adm@x.com", "usado": False,
+                          "expires_at": "2999-01-01T00:00:00+00:00"})
+r = c.post("/auth/redefinir-senha", json={"token": token_sem, "nova_senha": "Setima-Senha-1617"})
+checar(r.status_code == 400 and r.json()["detail"] == d2.MSG_RESET_USE_O_APP,
+       "link antigo (de antes de ligar o 2FA) não troca a senha de conta com 2FA")
+checar(entrar("adm@x.com", "Setima-Senha-1617").status_code == 401, "e a senha não mudou")
 
 print()
 print("tudo certo" if not falhas else f"{falhas} falha(s)")

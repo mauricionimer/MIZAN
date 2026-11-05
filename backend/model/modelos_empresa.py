@@ -61,6 +61,20 @@ def pasta(empresa_id: str) -> Path:
     return destino
 
 
+def apagar(empresa_id: str) -> bool:
+    """Exclusão do cliente: tira os modelos da empresa do disco e do cache deste processo."""
+    import shutil
+    try:
+        alvo = pasta(empresa_id)
+    except ValueError:
+        return False
+    with _trava:
+        _cache.pop(slug(empresa_id), None)
+    existia = alvo.exists()
+    shutil.rmtree(alvo, ignore_errors=True)
+    return existia
+
+
 # ── versões ──────────────────────────────────────────────────────────────
 
 def carregar_versoes(empresa_id: str) -> dict:
