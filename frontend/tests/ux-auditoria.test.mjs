@@ -144,3 +144,11 @@ test('regressão: excluir a conta apagava com um clique depois da senha', () => 
   assert.match(s, /if \(!armado\) \{ setArmado\(true\)/, 'falta o segundo clique')
   assert.match(s, /onClick=\{cancelar\} className="btn-primary"/, 'o botão seguro tem que ser o principal')
 })
+
+test('regressão: Performance da IA lia KS/AUC no topo da resposta e mostrava "—" com medição real', () => {
+  // backend/model/diagnostico.py devolve a separação em `separacao` e as métricas em `medicao`.
+  const s = fonte('pages/PerformanceIA.jsx')
+  assert.match(s, /sep\.ks \?\?/, 'KS tem que vir de separacao.ks')
+  assert.match(s, /med\.auc_roc \?\?/, 'AUC tem que vir de medicao.auc_roc')
+  assert.match(s, /sep\.n_pagou \?\?/, 'pagaram tem que vir de separacao.n_pagou')
+})
