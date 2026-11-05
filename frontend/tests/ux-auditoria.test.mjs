@@ -131,7 +131,7 @@ test('regressão U19: Auditoria mostrava códigos como oferta_desfeita', () => {
 
 test('guarda: telas redesenhadas usam o cabeçalho padrão (com voltar) e não têm <h1> próprio', () => {
   for (const p of ['Dashboard', 'Ajuda', 'Agente', 'PastasDevedores', 'PastaCliente', 'Acordos', 'Agenda', 'Auditoria',
-                   'Backtest', 'Ofertas', 'PerformanceIA', 'Premissas', 'Resultados', 'AdminUsuarios', 'AlterarSenha']) {
+                   'Backtest', 'Ofertas', 'PerformanceIA', 'Premissas', 'Resultados', 'AdminUsuarios', 'AlterarSenha', 'PainelOperador', 'Feedback', 'Roteiros']) {
     const s = fonte(`pages/${p}.jsx`)
     assert.match(s, /<CabecalhoPagina/, `${p} sem CabecalhoPagina`)
     assert.doesNotMatch(s, /<h1[\s>]/, `${p} com <h1> próprio`)
@@ -151,4 +151,11 @@ test('regressão: Performance da IA lia KS/AUC no topo da resposta e mostrava "�
   assert.match(s, /sep\.ks \?\?/, 'KS tem que vir de separacao.ks')
   assert.match(s, /med\.auc_roc \?\?/, 'AUC tem que vir de medicao.auc_roc')
   assert.match(s, /sep\.n_pagou \?\?/, 'pagaram tem que vir de separacao.n_pagou')
+})
+
+test('regressão: a pasta do devedor escondia "Resumo do cliente" (só mostrava 4 dos 5 papéis)', () => {
+  // backend/agente/semaforo.py manda 5 papéis com o Resumo primeiro; a pasta cortava o mais antigo.
+  const s = fonte('pages/PastasDevedores.jsx')
+  assert.match(s, /maxVisible=\{5\}/, 'a pasta tem que mostrar os 5 papéis')
+  assert.match(fonte('components/ui/glass-folder-cards.tsx'), /files\.length - maxVisible/, 'o corte tem que respeitar maxVisible')
 })

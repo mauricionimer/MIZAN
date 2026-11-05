@@ -99,6 +99,7 @@ const Agenda = lazy(paginas.Agenda)
 const PainelOperador = lazy(paginas.PainelOperador)
 const Resultados = lazy(paginas.Resultados)
 const Acordos = lazy(paginas.Acordos)
+const Roteiros = lazy(paginas.Roteiros)
 const Ofertas = lazy(paginas.Ofertas)
 const Retencao = lazy(paginas.Retencao)
 const TreinoModelo = lazy(paginas.TreinoModelo)
@@ -179,7 +180,7 @@ function RotasAnimadas() {
           <Route path="/laboratorio" element={P(['admin', 'comando'], <LaboratorioPagina />)} />
           <Route path="/acordos" element={P(['operador', 'admin', 'comando'], <Acordos />)} />
           <Route path="/resultados" element={P(['admin', 'comando'], <Resultados />)} />
-          <Route path="/roteiros" element={<Navigate to="/feedback?secao=roteiros" replace />} />
+          <Route path="/roteiros" element={P(['operador', 'admin', 'comando'], <Roteiros />)} />
           <Route path="/agenda" element={P(['operador', 'admin', 'comando'], <Agenda />)} />
           <Route path="/backtest" element={P(['admin', 'comando'], <Backtest />)} />
           <Route path="/premissas" element={P(['admin', 'comando'], <Premissas />)} />

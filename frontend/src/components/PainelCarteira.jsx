@@ -15,7 +15,7 @@ const fmtPct = (v) => `${Math.round(v || 0)}%`
 
 function Secao({ rotulo, titulo, ajuda, subtitulo, children, className = '', direita }) {
   return (
-    <Aparece as="section" className={`rounded-xl border border-line bg-surface p-6 ${className}`}>
+    <Aparece as="section" className={`h-full rounded-[22px] border border-line bg-surface p-6 ${className}`}>
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="section-label">{rotulo}</p>
@@ -103,7 +103,7 @@ export function Precificacao({ pricing, custo, retorno, onCusto, onRetorno }) {
             </li>
           ))}
         </ol>
-        <div className="space-y-5 rounded-xl border border-line bg-raise-1 p-4">
+        <div className="space-y-5 rounded-[18px] border border-line bg-[var(--sunken)] p-4">
           <p className="text-xs font-semibold text-ink-2">Mude as premissas e veja o preço mudar</p>
           <Regulador rotulo="Custo de cobrança" dica="despesas e comissões" valor={custo} min={5} max={50} onChange={onCusto} cor="var(--warning)" />
           <Regulador rotulo="Retorno que você quer" dica="o ganho mínimo da operação" valor={retorno} min={10} max={80} onChange={onRetorno} cor="var(--success)" />
@@ -196,10 +196,10 @@ export function AteOndeCobrar({ carteiraId }) {
 
   if (erro || (curva && !curva.pontos?.length)) return null
   if (!curva) {
-    return <div className="h-[300px] animate-pulse rounded-xl border border-line bg-surface" aria-label="Carregando a curva da fila" />
+    return <div className="h-[300px] animate-pulse rounded-[22px] border border-line bg-surface" aria-label="Carregando a curva da fila" />
   }
 
-  const W = 900, H = 240, P = 8
+  const W = 600, H = 240, P = 8
   const n = curva.total_devedores || 1
   const x = (k) => P + ((W - 2 * P) * k) / n
   const y = (pct) => H - P - ((H - 2 * P) * pct) / 100
@@ -208,7 +208,7 @@ export function AteOndeCobrar({ carteiraId }) {
   const pct = exato?.pct ?? ponto.pct
 
   return (
-    <Secao rotulo="Fila de cobrança" ajuda="fila-ordem"
+    <Secao rotulo="Até onde vale cobrar" ajuda="fila-ordem"
       titulo={`Cobrar os primeiros ${corte}% traz ${fmtPct(pct)} do que a carteira pode render`}
       subtitulo="A fila já vem do maior valor esperado para o menor: a curva sobe rápido e depois achata."
       direita={(
@@ -221,7 +221,7 @@ export function AteOndeCobrar({ carteiraId }) {
           ))}
         </div>
       )}>
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_240px]">
+      <div className="grid gap-5">
         <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img"
           aria-label={`Curva acumulada: os primeiros ${corte}% da fila trazem ${fmtPct(pct)} do valor esperado`}>
           {[25, 50, 75, 100].map(g => (
@@ -232,7 +232,7 @@ export function AteOndeCobrar({ carteiraId }) {
           <line x1={x(ponto.n)} x2={x(ponto.n)} y1={y(0)} y2={y(ponto.pct)} stroke="var(--text-muted)" strokeDasharray="4 4" />
           <circle cx={x(ponto.n)} cy={y(ponto.pct)} r="6" fill="var(--royal)" stroke="var(--card)" strokeWidth="3" />
         </svg>
-        <dl className="grid grid-cols-2 gap-4 lg:grid-cols-1">
+        <dl className="grid grid-cols-2 gap-4 border-t border-line pt-4">
           <div>
             <dt className="text-xs text-ink-3">Cobrar os primeiros</dt>
             <dd className="mt-0.5 text-xl font-bold tabular-nums text-ink">{fmtNum(ponto.n)}</dd>
