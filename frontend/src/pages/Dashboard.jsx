@@ -778,7 +778,7 @@ export default function Dashboard({ onIrPara }) {
             </div>
           )}
 
-          {/* ── Precificação: a cascata, com as premissas à vista ── */}
+          {/* ── Precificação ── a cascata, com as premissas à vista */}
           {!isOperador && (
             <div className="mt-6">
               <Precificacao pricing={pricing} custo={custoCobranca} retorno={retornoAlvo}
@@ -795,7 +795,7 @@ export default function Dashboard({ onIrPara }) {
             <div className="lg:col-span-2"><Perfis clusters={distribuicao_cluster} /></div>
           </div>
 
-          {/* ── Resultados reais: quem pagou ── */}
+          {/* ── Resultados Reais ── quem pagou */}
           {!isOperador && !loadingPerf && perf && perf.total_feedbacks > 0 && (
             <div className="mt-6"><QuemPagou perf={perf} /></div>
           )}
