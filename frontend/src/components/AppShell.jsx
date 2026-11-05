@@ -14,7 +14,7 @@ import useMudancasDoServidor from './useMudancasDoServidor'
 import ConfirmarModal from './ConfirmarModal'
 import useModal from './useModal'
 import { saidaTravada, liberarSaida, confirmarVoltar } from './protecaoSaida'
-import { LogoMark } from './Logo'
+import { LogoMark, LogoCompleto } from './Logo'
 import FundoOndas from './FundoOndas'
 import { useAuth } from '../context/AuthContext'
 import { useAnalysis } from '../context/AnalysisContext'
@@ -242,6 +242,8 @@ export function ShellLayout() {
   }, [])
 
   const nomeEmpresa = empresaConfig?.nome_exibicao || 'Mizan'
+  // Sem empresa cliente (ou a própria MIZAN): a marca aparece como a logo oficial, não como texto.
+  const ehMizan = !empresaConfig?.nome_exibicao || nomeEmpresa.trim().toLowerCase() === 'mizan'
   const nomeUser = usuario?.nome || 'Operador'
   const iniciais = nomeUser.split(' ').map(p => p[0]).slice(0, 2).join('').toUpperCase()
 
@@ -285,8 +287,9 @@ export function ShellLayout() {
     : <LogoMark size={26} />
   const cabecaDoMenu = (
     <div className="flex h-16 shrink-0 items-center gap-2.5 px-5">
-      {marca}
-      <span className="truncate text-[15px] font-bold tracking-tight text-ink">{nomeEmpresa}</span>
+      {ehMizan && !empresaConfig?.foto_url
+        ? <LogoCompleto className="h-[22px] w-auto text-ink" />
+        : <>{marca}<span className="truncate text-[15px] font-bold tracking-tight text-ink">{nomeEmpresa}</span></>}
     </div>
   )
   const chave = pathname
@@ -330,7 +333,9 @@ export function ShellLayout() {
               {/* Sem o nome da tela aqui: o menu já marca onde a pessoa está, e cada
                   tela tem o próprio título. */}
               <button onClick={() => acionar({ id: 'inicio', rota: '/inicio' })} title="Ir para o início"
-                className="truncate rounded-md px-1 font-semibold text-ink hover:text-[var(--royal)]">{nomeEmpresa}</button>
+                className="flex min-w-0 items-center truncate rounded-md px-1 font-semibold text-ink hover:text-[var(--royal)]">
+                {ehMizan ? <LogoCompleto className="h-[18px] w-auto" title="Mizan — ir para o início" /> : nomeEmpresa}
+              </button>
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <span ref={setSlotAcoes} className="flex items-center gap-2" />

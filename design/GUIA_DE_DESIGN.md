@@ -65,6 +65,25 @@ componente.** Use as classes do Tailwind ligadas aos tokens ou `var(--token)`.
 - **Exceção conhecida:** a "Sala dos Agentes" (`components/escritorio/`) tem
   paleta própria de pixel-art em hex. Não espalhe esse estilo para fora dela.
 
+### Logo
+
+- Arquivos oficiais em `design/logo/`:
+  - `mizan-logo-escuro.svg`: palavra em `#f4f2fa`, para fundo escuro;
+  - `mizan-logo-claro.svg`: palavra em `#1a0033`, para fundo claro;
+  - `mizan-simbolo.svg`: só as barras.
+- As duas versões da logo só mudam a cor da palavra. As barras são sempre `#b8c0ee`, `#8f9be9` e `#5966d9`.
+- No app, use `components/Logo.jsx`:
+  - `<LogoCompleto />`: barras + palavra desenhada, com a cor da palavra vinda de `currentColor` (por exemplo `text-ink`);
+  - `<LogoMark />`: só as barras, para ícone ao lado de um nome.
+- **Nunca escreva "Mizan" em texto para fazer de logo.**
+- Onde a marca aparece hoje:
+  - login;
+  - "Esqueci a senha" e "Redefinir senha";
+  - topo e menu (logo completa quando não há empresa cliente; com empresa cliente, o símbolo e o nome dela);
+  - favicon;
+  - cabeçalho do PDF (barras desenhadas);
+  - e-mails (barras em tabela HTML, porque cliente de e-mail não mostra SVG).
+
 ---
 
 ## 4. Moldura da tela: o cabeçalho padrão

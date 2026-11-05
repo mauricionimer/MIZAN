@@ -9,6 +9,8 @@ const fmtNum = (v) => new Intl.NumberFormat('pt-BR').format(v)
 const fmtPct = (v) => `${v.toFixed(1)}%`
 
 const C = {
+  marca:     [26,  0,   51],   // fundo da marca (#1a0033), o mesmo do login e dos e-mails
+  marca2:    [43,  20,  84],
   blue:      [37,  99,  235],
   blue2:     [29,  78,  216],
   blueLight: [147, 197, 253],
@@ -69,11 +71,30 @@ export function gerarRelatorioPDF(result, pricing, custoCobranca, retornoAlvo) {
     doc.text(String(str), x, ry, { align })
   }
 
+  // Marca oficial: as três barras do SVG da logo (design/logo), em escala.
+  // x, yBase = canto inferior esquerdo; h = altura em mm.
+  const BARRAS_MIZAN = [
+    { p: [[65.27, 110], [111.1, 110], [95.82, 220], [50, 220]], cor: [184, 192, 238] },
+    { p: [[137.06, 55], [182.89, 55], [159.98, 220], [114.15, 220]], cor: [143, 155, 233] },
+    { p: [[208.85, 0], [254.67, 0], [224.13, 220], [178.3, 220]], cor: [89, 102, 217] },
+  ]
+  function marcaMizan(x, yBase, h) {
+    const k = h / 220
+    for (const b of BARRAS_MIZAN) {
+      const pts = b.p.map(([px, py]) => [x + (px - 50) * k, yBase - h + py * k])
+      const deltas = pts.slice(1).map((pt, i) => [pt[0] - pts[i][0], pt[1] - pts[i][1]])
+      doc.setFillColor(...b.cor)
+      doc.lines(deltas, pts[0][0], pts[0][1], [1, 1], 'F', true)
+    }
+    return (204.67 * k)                                    // largura desenhada
+  }
+
   // ── Page header (pages 2+) ────────────────────────────────────
 
   function pageHeader(subtitle = 'Relatorio de Analise de Carteira') {
-    fill(0, 0, PW, 12, C.blue)
-    t('MIZAN', M, 8, { size: 8, color: C.white, bold: true })
+    fill(0, 0, PW, 12, C.marca)
+    const lw = marcaMizan(M, 9, 5)
+    t('Mizan', M + lw + 1.5, 8, { size: 8, color: C.white, bold: true })
     t(subtitle, PW / 2, 8, { size: 7.5, color: C.blueLight, align: 'center' })
     t(`Pagina ${page}`, PW - M, 8, { size: 7, color: C.blueLight, align: 'right' })
     y = 18
@@ -132,13 +153,12 @@ export function gerarRelatorioPDF(result, pricing, custoCobranca, retornoAlvo) {
   // ═══════════════════════════════════════════════════════════
 
   // Header cover
-  fill(0, 0, PW, 30, C.blue)
-  fill(0, 24, PW, 6, C.blue2)
+  fill(0, 0, PW, 30, C.marca)
+  fill(0, 24, PW, 6, C.marca2)
 
   // Branding
-  fill(M, 6, 14, 14, C.blue2)
-  t('M', M + 7, 15.5, { size: 13, color: C.white, bold: true, align: 'center' })
-  t('MIZAN', M + 18, 11, { size: 14, color: C.white, bold: true })
+  marcaMizan(M + 1, 19, 13)
+  t('Mizan', M + 18, 11, { size: 14, color: C.white, bold: true })
   t('Relatorio de Analise de Carteira de Credito', M + 18, 17, { size: 8.5, color: C.blueLight })
 
   // Date + summary

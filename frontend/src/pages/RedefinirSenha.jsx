@@ -2,7 +2,7 @@ import ThemeToggle from '../components/ThemeToggle'
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { KeyRound, Eye, EyeOff, Loader2, CheckCircle2 } from 'lucide-react'
-import { LogoMark } from '../components/Logo'
+import { LogoCompleto } from '../components/Logo'
 import { textoDoDetalhe } from '../api'
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8001'
@@ -51,10 +51,7 @@ export default function RedefinirSenha() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6">
       <ThemeToggle className="fixed top-4 right-4 z-50" />
-      <div className="flex items-center gap-2.5 mb-10">
-        <LogoMark className="h-6 w-6 shrink-0" />
-        <span className="text-ink text-xl font-bold tracking-tight">Mizan</span>
-      </div>
+      <LogoCompleto className="mb-10 h-8 w-auto text-ink" />
 
       <div className="w-full max-w-sm rounded-2xl p-8"
         style={{

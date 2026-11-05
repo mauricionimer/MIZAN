@@ -14,6 +14,22 @@ SENDER_EMAIL  = "mauricionimer1@gmail.com"
 SENDER_NAME   = "Mizan"
 
 
+# Cabeçalho dos e-mails com a marca. Cliente de e-mail não mostra SVG (o Gmail
+# bloqueia), então as três barras da logo são desenhadas com células de tabela,
+# nas cores e proporções oficiais (design/logo).
+CABECALHO_MARCA = (
+    '<table role="presentation" cellpadding="0" cellspacing="0" style="display:inline-table;'
+    'background:#1a0033;border-radius:12px"><tr><td style="padding:12px 18px">'
+    '<table role="presentation" cellpadding="0" cellspacing="0"><tr>'
+    '<td style="vertical-align:bottom;padding-right:3px"><div style="width:6px;height:10px;background:#b8c0ee;border-radius:1px"></div></td>'
+    '<td style="vertical-align:bottom;padding-right:3px"><div style="width:6px;height:15px;background:#8f9be9;border-radius:1px"></div></td>'
+    '<td style="vertical-align:bottom;padding-right:10px"><div style="width:6px;height:20px;background:#5966d9;border-radius:1px"></div></td>'
+    '<td style="vertical-align:bottom;color:#f4f2fa;font-family:Arial,sans-serif;font-size:22px;font-weight:bold;'
+    'line-height:20px;letter-spacing:-0.5px">Mizan</td>'
+    '</tr></table></td></tr></table>'
+)
+
+
 # Resultado dos últimos envios (sem destinatário nem assunto): alimenta o
 # "Estado da plataforma" da Ajuda. Vive na memória do processo.
 ENVIOS: deque = deque(maxlen=500)
@@ -63,9 +79,7 @@ def email_retreino(admin_email: str, treinadas: dict) -> bool:
     corpo = f"""
     <div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;padding:32px">
       <div style="text-align:center;margin-bottom:24px">
-        <div style="display:inline-block;background:#2563eb;border-radius:12px;padding:10px 18px">
-          <span style="color:white;font-size:20px;font-weight:bold">⚖ Mizan</span>
-        </div>
+        {CABECALHO_MARCA}
       </div>
       <h2 style="color:#1e293b">Modelos novos treinados, ainda não ativos</h2>
       <p style="color:#475569">Cada empresa abaixo teve o próprio modelo treinado só com os pagamentos dela.</p>
@@ -90,9 +104,7 @@ def email_drift(admin_email: str, score_atual: float, score_historico: float, n_
     corpo = f"""
     <div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;padding:32px">
       <div style="text-align:center;margin-bottom:24px">
-        <div style="display:inline-block;background:#2563eb;border-radius:12px;padding:10px 18px">
-          <span style="color:white;font-size:20px;font-weight:bold">⚖ Mizan</span>
-        </div>
+        {CABECALHO_MARCA}
       </div>
       <h2 style="color:#1e293b">Alerta de drift detectado</h2>
       <p style="color:#475569">O score médio de recuperabilidade mudou significativamente nos últimos {n_dias} dias.</p>
@@ -153,9 +165,7 @@ def email_sync_mudancas(
     corpo = f"""
     <div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;padding:32px">
       <div style="text-align:center;margin-bottom:24px">
-        <div style="display:inline-block;background:#2563eb;border-radius:12px;padding:10px 18px">
-          <span style="color:white;font-size:20px;font-weight:bold">⚖ Mizan</span>
-        </div>
+        {CABECALHO_MARCA}
       </div>
       <h2 style="color:#1e293b;margin-bottom:4px">Mudanças detectadas na carteira</h2>
       <p style="color:#64748b;margin-top:0">Conexão: <strong>{nome_conexao}</strong></p>
@@ -182,9 +192,7 @@ def email_redefinir_senha(destinatario: str, nome: str, link: str) -> bool:
     corpo = f"""
     <div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:32px">
       <div style="text-align:center;margin-bottom:24px">
-        <div style="display:inline-block;background:#2563eb;border-radius:12px;padding:10px 18px">
-          <span style="color:white;font-size:20px;font-weight:bold">⚖ Mizan</span>
-        </div>
+        {CABECALHO_MARCA}
       </div>
       <h2 style="color:#1e293b">Olá, {nome}!</h2>
       <p style="color:#475569">Recebemos uma solicitação para redefinir a senha da sua conta.</p>
