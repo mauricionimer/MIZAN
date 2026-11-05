@@ -29,43 +29,49 @@ const doServidor = (p, txt) => {
 const mostraPadrao = (p) => (p.padrao == null ? 'não informado' : p.tipo === 'escolha'
   ? ROTULO_ESCOLHA[p.padrao] || p.padrao : `${paraTela(p, p.padrao)}${p.unidade === '%' || !p.unidade ? '%' : ` ${p.unidade}`}`)
 
+// Grupos do canvas: cada cartão responde uma pergunta; premissa nova sem grupo cai em "Outras".
+const GRUPOS = [
+  { titulo: 'Quanto vale cobrar', sub: 'Entram no valor esperado de cada devedor e na comparação cobrar × vender.',
+    chaves: ['recuperacao_se_pagar', 'comissao_especializada_pct', 'cessao_pct'] },
+  { titulo: 'Quanto o devedor aguenta pagar', sub: 'Limitam a parcela proposta pela sobra do mês de cada pessoa.',
+    chaves: ['buffer_margem_pct', 'comprometimento_max_pct'] },
+  { titulo: 'Fila e equipe', sub: 'Como a fila é ordenada e quanto cada operador deve render por dia.',
+    chaves: ['criterio_priorizacao', 'meta_contatos_dia'] },
+]
+
 function Campo({ p, valor, erro, onChange, onAjuda }) {
   const id = `prem-${p.chave}`
   return (
-    <div className="rounded-xl border border-line bg-surface p-5">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <label htmlFor={id} className="text-sm font-semibold text-ink">{p.rotulo}</label>
-        <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${p.definida ? 'bg-emerald-500/15 text-emerald-500' : 'bg-raise-2 text-ink-3'}`}>
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <label htmlFor={id} className="text-[13px] font-semibold text-ink-2">{p.rotulo}</label>
+        <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${p.definida ? 'bg-[var(--success-soft)] text-[var(--success)]' : 'bg-raise-2 text-ink-3'}`}>
           {p.definida ? 'Informada' : 'Padrão'}
         </span>
       </div>
-      <p className="mt-1 text-xs leading-relaxed text-ink-2">{p.descricao}</p>
-
-      <div className="mt-3 flex items-center gap-2">
-        {p.tipo === 'escolha' ? (
-          <select id={id} value={valor} onChange={e => onChange(e.target.value)}
-            className="h-10 w-full max-w-sm rounded-lg border border-line bg-page px-3 text-sm text-ink">
-            <option value="">Padrão: {mostraPadrao(p)}</option>
-            {p.opcoes.map(o => <option key={o} value={o}>{ROTULO_ESCOLHA[o] || o}</option>)}
-          </select>
-        ) : (
-          <>
-            <input id={id} inputMode={p.tipo === 'inteiro' ? 'numeric' : 'decimal'} value={valor} onChange={e => onChange(e.target.value)}
-              placeholder={p.padrao == null ? 'não informado' : paraTela(p, p.padrao)}
-              aria-invalid={!!erro} aria-describedby={erro ? `${id}-erro` : undefined}
-              className={`h-10 w-32 rounded-lg border bg-page px-3 text-right text-sm text-ink ${erro ? 'border-red-500/60' : 'border-line'}`} />
-            <span className="text-sm text-ink-2">{p.unidade || '%'}</span>
-          </>
-        )}
-      </div>
-      {erro && <p id={`${id}-erro`} className="mt-1.5 text-xs text-red-400">{erro}</p>}
-
-      <div className="mt-3 flex flex-wrap items-center justify-end gap-2 text-[11px] text-ink-3">
+      {p.tipo === 'escolha' ? (
+        <select id={id} value={valor} onChange={e => onChange(e.target.value)}
+          className="input-base h-[46px] rounded-[12px] px-3.5 text-[15px]">
+          <option value="">Padrão: {mostraPadrao(p)}</option>
+          {p.opcoes.map(o => <option key={o} value={o}>{ROTULO_ESCOLHA[o] || o}</option>)}
+        </select>
+      ) : (
+        <div className="relative">
+          <input id={id} inputMode={p.tipo === 'inteiro' ? 'numeric' : 'decimal'} value={valor} onChange={e => onChange(e.target.value)}
+            placeholder={p.padrao == null ? 'não informado' : paraTela(p, p.padrao)}
+            aria-invalid={!!erro} aria-describedby={erro ? `${id}-erro` : `${id}-desc`}
+            className={`input-base h-[46px] rounded-[12px] pl-3.5 pr-24 text-[15px] tabular-nums ${erro ? '!border-[var(--danger)]' : ''}`} />
+          <span className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center text-sm text-ink-3">{p.unidade || '%'}</span>
+        </div>
+      )}
+      {erro && <p id={`${id}-erro`} className="text-xs text-[var(--danger)]">{erro}</p>}
+      <p id={`${id}-desc`} className="text-xs leading-relaxed text-ink-3">
+        {p.descricao}{' '}
         <button type="button" onClick={() => onAjuda(p.ajuda_id)}
-          className="inline-flex items-center gap-1 text-blue-400 hover:text-blue-300">
-          <HelpCircle className="h-3.5 w-3.5" /> O que é isto?
+          className="inline-flex items-center gap-1 font-semibold text-accent-text hover:underline">
+          <HelpCircle className="h-3 w-3" aria-hidden="true" /> O que é isto?
         </button>
-      </div>
+      </p>
     </div>
   )
 }
@@ -127,15 +133,15 @@ export default function Premissas() {
 
   return (
     <AppShell secao="premissas" onIrPara={setVista} temResultado={!!result} titulo="Política de cobrança">
-      <div className="mx-auto w-full max-w-3xl space-y-6">
-        <CabecalhoPagina rotulo="Configuração da empresa" icone={SlidersHorizontal} titulo="Política de cobrança" ajuda="como-configurar-premissas" className="!mb-0"
+      <div className="mx-auto w-full max-w-5xl space-y-5">
+        <CabecalhoPagina rotulo="Configurações" icone={SlidersHorizontal} titulo="Política de cobrança" ajuda="como-configurar-premissas" className="!mb-0"
           subtitulo="As premissas que o MIZAN usa para calcular valor esperado, preço e fila." />
 
         {isComando && (
           <div>
             <label htmlFor="empresa-alvo" className="mb-1 block text-xs font-medium text-ink-2">Empresa</label>
             <select id="empresa-alvo" value={alvo} onChange={e => setAlvo(e.target.value)}
-              className="h-10 w-full max-w-sm rounded-lg border border-line bg-surface px-3 text-sm text-ink">
+              className="input-base h-11 max-w-sm rounded-[12px] px-3.5">
               <option value="">Escolha a empresa…</option>
               {empresas.map(emp => (
                 <option key={emp.empresa_id} value={emp.empresa_id}>{emp.nome_exibicao || emp.empresa_id}</option>
@@ -145,12 +151,12 @@ export default function Premissas() {
         )}
 
         {erroGeral && (
-          <div className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300" role="alert">
+          <div className="flex items-start gap-2 rounded-[14px] border border-[color-mix(in_srgb,var(--danger)_35%,transparent)] bg-[var(--danger-soft)] px-4 py-3 text-sm text-ink" role="alert">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> {erroGeral}
           </div>
         )}
         {msg && (
-          <div className="flex items-start gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-300" role="status">
+          <div className="flex items-start gap-2 rounded-[14px] border border-[color-mix(in_srgb,var(--success)_35%,transparent)] bg-[var(--success-soft)] px-4 py-3 text-sm text-ink" role="status">
             <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /> {msg}
           </div>
         )}
@@ -161,13 +167,25 @@ export default function Premissas() {
 
         {dados && (
           <form onSubmit={salvar} className="space-y-4">
-            {dados.premissas.map(p => (
-              <Campo key={p.chave} p={p} valor={texto[p.chave] ?? ''} erro={erros[p.chave]}
-                onChange={v => setTexto(t => ({ ...t, [p.chave]: v }))}
-                onAjuda={id => navigate(`/ajuda?id=${encodeURIComponent(id)}`)} />
-            ))}
-            <div className="sticky bottom-4 flex items-center justify-between gap-3 rounded-xl border border-line bg-surface p-3 shadow-lg">
-              <span role="status" className={`inline-flex items-center gap-1.5 text-xs ${alteradas.length ? 'font-medium text-amber-400' : msg ? 'text-emerald-400' : 'text-ink-3'}`}>
+            {[...GRUPOS, { titulo: 'Outras', sub: '', chaves: dados.premissas.map(p => p.chave).filter(k => !GRUPOS.some(g => g.chaves.includes(k))) }]
+              .map(g => ({ ...g, itens: g.chaves.map(k => dados.premissas.find(p => p.chave === k)).filter(Boolean) }))
+              .filter(g => g.itens.length)
+              .map(g => (
+                <section key={g.titulo} className="rounded-[22px] border border-line bg-surface px-6 py-[22px]">
+                  <h2 className="text-[17px] font-semibold text-ink">{g.titulo}</h2>
+                  {g.sub && <p className="mt-0.5 text-[13px] text-ink-2">{g.sub}</p>}
+                  <div className="mt-4 grid gap-x-5 gap-y-5 sm:grid-cols-2">
+                    {g.itens.map(p => (
+                      <Campo key={p.chave} p={p} valor={texto[p.chave] ?? ''} erro={erros[p.chave]}
+                        onChange={v => setTexto(t => ({ ...t, [p.chave]: v }))}
+                        onAjuda={id => navigate(`/ajuda?id=${encodeURIComponent(id)}`)} />
+                    ))}
+                  </div>
+                </section>
+              ))}
+            {/* Salvar no fim do conteúdo (canvas), sem cobrir os campos. */}
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-line bg-surface px-5 py-3.5">
+              <span role="status" className={`inline-flex items-center gap-1.5 text-sm ${alteradas.length ? 'font-medium text-amber-400' : msg ? 'text-emerald-400' : 'text-ink-3'}`}>
                 {alteradas.length
                   ? <><AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" /> {alteradas.length === 1 ? '1 alteração não salva' : `${alteradas.length} alterações não salvas`}</>
                   : msg ? <><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" /> Tudo salvo</> : 'Nada alterado'}

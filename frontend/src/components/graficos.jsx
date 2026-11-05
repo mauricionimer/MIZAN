@@ -61,6 +61,11 @@ export function Regua({ esquerda, direita, antes = null, agora, cor = 'var(--roy
     <div ref={ref} className="w-full">
       <div className="relative h-5" role="img" aria-label={rotulo || `${esquerda} ${agora} de 100, ${direita}${antes != null ? `; antes ${antes}` : ''}`}>
         <div className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-raise-2" />
+        {/* o quanto mudou desde o primeiro contato: faixa entre o antes e o agora */}
+        {antes != null && (
+          <span className="absolute top-1/2 h-1.5 -translate-y-1/2 rounded-full" aria-hidden="true"
+            style={{ left: `${Math.min(antes, agora)}%`, width: `${Math.abs(agora - antes)}%`, background: 'var(--border-strong)' }} />
+        )}
         {antes != null && (
           <span className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 bg-surface"
             style={{ left: `${antes}%`, borderColor: 'var(--text-muted)' }} aria-hidden="true" />

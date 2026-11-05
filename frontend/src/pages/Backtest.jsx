@@ -91,55 +91,77 @@ export default function Backtest() {
 
   return (
     <AppShell>
-      <div className="w-full mx-auto max-w-5xl space-y-5">
-        <CabecalhoPagina rotulo="Modelo" icone={History} titulo="Simulação histórica" ajuda="backtest" className="!mb-0"
-          subtitulo="A fila do MIZAN teria cobrado melhor? Teste numa carteira em que o desfecho já é conhecido." />
-        {/* Entrada */}
-        <section className="card p-5">
-          <p className="text-sm leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-            Suba uma carteira em que a cobrança <strong>já aconteceu</strong> e o desfecho é
-            conhecido. O Mizan pontua como se fosse antes e compara a fila que teria formado
-            com a que a operação usa hoje. Nada é gravado: a carteira entra para ser analisada,
-            não para virar base.
-          </p>
-          <p className="text-sm leading-relaxed mt-2" style={{ color: 'var(--ink-2)' }}>
-            Em resumo: o teste compara o que <strong>realmente aconteceu</strong> com o que o Mizan
-            <strong> estimaria</strong> recuperar se tivesse priorizado a carteira. É uma medida do
-            passado, não uma garantia de recuperação futura.
-          </p>
-          <p className="text-xs mt-2" style={{ color: 'var(--ink-3)' }}>
-            Colunas obrigatórias: <code>cpf</code>, <code>valor_divida</code>,
-            {' '}<code>dias_em_atraso</code>, <code>pagou</code>. Melhoram a análise:
-            {' '}<code>valor_recuperado</code>, <code>renda_estimada</code>,
-            {' '}<code>produto</code>, <code>uf</code> e <code>ordem_atual</code> — a ordem em que
-            a equipe cobrou de verdade (1 = primeiro). Com ela, a comparação é contra a fila do
-            próprio banco.
-          </p>
-          <div className="mt-4 flex items-center gap-3 flex-wrap">
-            <input ref={inputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden"
-              onChange={e => enviar(e.target.files?.[0])} />
-            <button className="btn-primary" disabled={rodando}
-              onClick={() => inputRef.current?.click()}>
-              {rodando
-                ? <><Loader2 className="h-4 w-4 animate-spin mr-2 inline" />Analisando…</>
-                : <><UploadIcon className="h-4 w-4 mr-2 inline" />Escolher planilha</>}
+      <div className="w-full mx-auto max-w-6xl space-y-4">
+        <CabecalhoPagina rotulo="Configurações" icone={History} titulo="Simulação histórica" ajuda="backtest" className="!mb-0"
+          subtitulo="Teste a MIZAN numa carteira antiga, em que você já sabe quem pagou." />
+        {/* Entrada (canvas): os três passos e a área de soltar à esquerda, o que a
+            planilha precisa ter à direita. Com resultado, vira uma barra com o arquivo. */}
+        <input ref={inputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden"
+          onChange={e => { enviar(e.target.files?.[0]); e.target.value = '' }} />
+        {r && !rodando ? (
+          <section className="flex flex-wrap items-center gap-3 rounded-[18px] border border-line bg-surface px-5 py-3.5">
+            <b className="text-sm text-ink">{arquivo?.name}</b>
+            <span className="text-[13px] text-ink-3">{fmtNum(r.n_devedores)} devedores analisados · nada foi gravado</span>
+            <button type="button" className="btn-secondary btn-sm ml-auto" onClick={() => inputRef.current?.click()}>Trocar planilha</button>
+          </section>
+        ) : (
+        <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+          <section className="rounded-[22px] border border-line bg-surface px-6 py-[22px]">
+            <ol className="grid gap-3 sm:grid-cols-3">
+              {[['1 · Você manda', 'uma carteira que já foi cobrada, com quem pagou.'],
+                ['2 · A MIZAN ordena', 'como teria feito, sem olhar o resultado.'],
+                ['3 · Comparamos', 'a fila dela com a fila que sua equipe usou.']].map(([t, d]) => (
+                <li key={t} className="rounded-[14px] border border-line bg-[var(--sunken)] px-4 py-3 text-[13px] leading-relaxed text-ink-2">
+                  <b className="block text-ink">{t}</b>{d}
+                </li>
+              ))}
+            </ol>
+            <button type="button" disabled={rodando} onClick={() => inputRef.current?.click()}
+              onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); enviar(e.dataTransfer.files?.[0]) }}
+              className="mt-4 flex w-full flex-col items-center gap-2 rounded-[18px] border border-dashed border-[color-mix(in_srgb,var(--royal)_45%,transparent)] bg-[color-mix(in_srgb,var(--royal-soft)_45%,transparent)] px-6 py-8 text-center transition-colors hover:bg-[var(--royal-soft)] disabled:opacity-60">
+              <span className="flex h-11 w-11 items-center justify-center rounded-[12px] bg-[var(--raised)] text-accent-text">
+                {rodando ? <Loader2 className="h-5 w-5 animate-spin" /> : <UploadIcon className="h-5 w-5" />}
+              </span>
+              <b className="text-[15px] text-ink">{rodando ? `Analisando ${arquivo?.name || 'a planilha'}…` : 'Arraste a planilha ou clique para escolher'}</b>
+              <span className="text-xs text-ink-3">CSV ou Excel · nada é gravado, a carteira só é analisada</span>
             </button>
-            {arquivo && <span className="text-sm" style={{ color: 'var(--ink-3)' }}>{arquivo.name}</span>}
-          </div>
+            <p className="mt-3 text-xs text-ink-3">É uma medida do passado, não uma promessa de recuperação futura.</p>
+          </section>
+          <section className="rounded-[22px] border border-line bg-surface px-6 py-[22px]" aria-labelledby="bt-cols">
+            <h2 id="bt-cols" className="text-[15px] font-semibold text-ink">O que a planilha precisa ter</h2>
+            {[['Obrigatório', [['cpf', 'CPF', '000.000.000-00'], ['valor_divida', 'Dívida', 'R$ 1.250,00'], ['dias_em_atraso', 'Dias em atraso', '90'], ['pagou', 'Pagou?', 'sim / não']]],
+              ['Melhora a comparação', [['valor_recuperado', 'Valor recuperado', 'R$ 800,00'], ['ordem_atual', 'Ordem em que foi cobrado', '1 = primeiro'], ['renda_estimada', 'Renda estimada', 'R$ 3.400'], ['uf', 'Estado (UF)', 'SP'], ['produto', 'Produto', 'cartão']]]].map(([g, cols]) => (
+              <div key={g} className="mt-3">
+                <p className="section-label">{g}</p>
+                <ul className="mt-1.5 flex flex-col gap-1.5">
+                  {cols.map(([k, n, ex]) => (
+                    <li key={k} className="flex items-center gap-2.5 text-[13px]">
+                      <span className="h-3.5 w-3.5 shrink-0 rounded-full border border-[var(--border-strong)]" aria-hidden="true" />
+                      <span className="text-ink">{n}</span> <code className="text-[11px] text-ink-3">{k}</code>
+                      <span className="ml-auto text-ink-3">{ex}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+            <p className="mt-3 text-xs leading-relaxed text-ink-3">Com <code>ordem_atual</code>, a comparação é contra a fila do próprio banco; sem ela, contra “maior dívida primeiro”.</p>
+          </section>
+        </div>
+        )}
           {erro && (
-            <div className="mt-4 flex items-start gap-2.5 rounded-xl p-3"
+            <div className="mt-4 flex items-start gap-2.5 rounded-[14px] px-4 py-3"
               style={{ background: 'rgb(var(--c-danger) / 0.08)', border: '1px solid rgb(var(--c-danger) / 0.20)' }}>
               <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" style={{ color: 'var(--danger)' }} />
               <p className="text-sm" style={{ color: 'var(--ink-2)' }}>{erro}</p>
             </div>
           )}
           {rodando && <IACalculando etapas={ETAPAS_BACKTEST} titulo="A IA está testando a carteira histórica" compacto />}
-        </section>
+        
 
         {r && (
           <>
             {/* A manchete: ganho sobre a prática atual */}
-            <section className="card p-5">
+            <section className="rounded-[22px] border border-line bg-surface px-6 py-[22px]">
               <p className="section-label mb-2">
                 {temFila
                   ? 'Trabalhando 20% da carteira, contra a fila que o banco usou'
@@ -194,7 +216,7 @@ export default function Backtest() {
             )}
 
             {/* Curva de captura */}
-            <section className="card p-5">
+            <section className="rounded-[22px] border border-line bg-surface px-6 py-[22px]">
               <h2 className="text-sm font-semibold mb-1" style={{ color: 'var(--ink)' }}>
                 Quanto se recupera trabalhando só o topo da fila
               </h2>
@@ -283,7 +305,7 @@ export default function Backtest() {
             </section>
 
             {/* Decis */}
-            <section className="card p-5">
+            <section className="rounded-[22px] border border-line bg-surface px-6 py-[22px]">
               <h2 className="text-sm font-semibold mb-1" style={{ color: 'var(--ink)' }}>
                 Taxa de pagamento por decil de score
               </h2>
@@ -307,7 +329,7 @@ export default function Backtest() {
 
             {/* O custo da escolha, quantificado */}
             {r.politicas?.custo_pct != null && (
-              <section className="card p-5">
+              <section className="rounded-[22px] border border-line bg-surface px-6 py-[22px]">
                 <h2 className="text-sm font-semibold mb-1" style={{ color: 'var(--ink)' }}>
                   O custo da equidade
                 </h2>
@@ -355,7 +377,7 @@ export default function Backtest() {
 
             {/* Equidade — a pergunta que a área de compliance do banco faz */}
             {r.equidade?.ok && (
-              <section className="card p-5">
+              <section className="rounded-[22px] border border-line bg-surface px-6 py-[22px]">
                 <h2 className="text-sm font-semibold mb-1" style={{ color: 'var(--ink)' }}>
                   Equidade entre regiões<DicaAjuda id="equidade" />
                 </h2>
@@ -441,7 +463,7 @@ export default function Backtest() {
             )}
 
             {r.avisos?.length > 0 && (
-              <section className="card p-5">
+              <section className="rounded-[22px] border border-line bg-surface px-6 py-[22px]">
                 <h2 className="text-sm font-semibold mb-3" style={{ color: 'var(--ink)' }}>Ressalvas</h2>
                 <div className="space-y-2.5">
                   {r.avisos.map((a, i) => (

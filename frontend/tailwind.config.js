@@ -18,18 +18,18 @@ export default {
         sans: ['var(--font-sans)'],
         display: ['var(--font-display)'],
       },
-      // Raio levemente arredondado em tudo (brief, seção 3). Redefinir a
-      // escala aqui evita reescrever os ~300 usos de rounded-* nas telas.
-      // rounded-full continua redondo: é usado em pontinhos e avatares.
+      // Raio do canvas aprovado ("Cantos"): cartão 22 px, campo/botão 12 px,
+      // painel interno 14–18 px. Redefinir a escala aqui leva o raio novo
+      // para os ~300 usos de rounded-* sem reescrever as telas.
       borderRadius: {
         none: '0',
-        sm: 'var(--radius)',
-        DEFAULT: 'var(--radius)',
-        md: 'var(--radius)',
-        lg: 'var(--radius)',
-        xl: 'var(--radius-lg)',
-        '2xl': 'var(--radius-lg)',
-        '3xl': 'var(--radius-lg)',
+        sm: '8px',
+        DEFAULT: '10px',
+        md: '12px',
+        lg: '12px',
+        xl: '16px',
+        '2xl': '22px',
+        '3xl': '26px',
         full: '9999px',
       },
       // Cores semânticas ligadas às variáveis de tema do index.css.

@@ -95,7 +95,10 @@ test('regressão U14: o menu dizia "Política de cobrança" e a página "Premiss
   // O título vem do cabeçalho padrão (CabecalhoPagina) e tem que ser o mesmo nome do menu.
   assert.match(fonte('pages/Premissas.jsx'), /<CabecalhoPagina[^>]*titulo="Política de cobrança"/)
   assert.match(fonte('pages/Backtest.jsx'), /<CabecalhoPagina[^>]*titulo="Simulação histórica"/)
-  assert.match(fonte('pages/Agenda.jsx'), /<CabecalhoPagina rotulo="Hoje"/)
+  // Na entrada da Agenda o título é o nome do menu; dentro de uma área, o nome da área.
+  const agenda = fonte('pages/Agenda.jsx')
+  assert.match(agenda, /rotulo=\{areaEquipe \? 'Agenda · Hoje' : 'Hoje'\}/)
+  assert.match(agenda, /: 'Agenda'\}/)
 })
 
 test('regressão U15/U16: botão da Agenda só apagava, e o erro da ação aparecia longe do devedor', () => {
@@ -128,7 +131,7 @@ test('regressão U19: Auditoria mostrava códigos como oferta_desfeita', () => {
 
 test('guarda: telas redesenhadas usam o cabeçalho padrão (com voltar) e não têm <h1> próprio', () => {
   for (const p of ['Dashboard', 'Ajuda', 'Agente', 'PastasDevedores', 'PastaCliente', 'Acordos', 'Agenda', 'Auditoria',
-                   'Backtest', 'Ofertas', 'PerformanceIA', 'Premissas', 'Resultados']) {
+                   'Backtest', 'Ofertas', 'PerformanceIA', 'Premissas', 'Resultados', 'AdminUsuarios', 'AlterarSenha']) {
     const s = fonte(`pages/${p}.jsx`)
     assert.match(s, /<CabecalhoPagina/, `${p} sem CabecalhoPagina`)
     assert.doesNotMatch(s, /<h1[\s>]/, `${p} com <h1> próprio`)
@@ -140,4 +143,12 @@ test('regressão: excluir a conta apagava com um clique depois da senha', () => 
   assert.match(s, /if \(!entendo\)/, 'falta a marcação "Entendo"')
   assert.match(s, /if \(!armado\) \{ setArmado\(true\)/, 'falta o segundo clique')
   assert.match(s, /onClick=\{cancelar\} className="btn-primary"/, 'o botão seguro tem que ser o principal')
+})
+
+test('regressão: Performance da IA lia KS/AUC no topo da resposta e mostrava "—" com medição real', () => {
+  // backend/model/diagnostico.py devolve a separação em `separacao` e as métricas em `medicao`.
+  const s = fonte('pages/PerformanceIA.jsx')
+  assert.match(s, /sep\.ks \?\?/, 'KS tem que vir de separacao.ks')
+  assert.match(s, /med\.auc_roc \?\?/, 'AUC tem que vir de medicao.auc_roc')
+  assert.match(s, /sep\.n_pagou \?\?/, 'pagaram tem que vir de separacao.n_pagou')
 })

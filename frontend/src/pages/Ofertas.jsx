@@ -27,11 +27,11 @@ function Campo({ rotulo, sufixo, value, onChange, min, max, step = 'any', inteir
   return (
     <label className="block text-xs font-semibold text-ink-2">
       {rotulo}
-      <div className="mt-1 flex items-center gap-2">
+      <div className="relative mt-1.5">
         <input type="number" inputMode={inteiro ? 'numeric' : 'decimal'} min={min} max={max} step={inteiro ? 1 : step}
           value={value} disabled={disabled} onChange={e => onChange(e.target.value)}
-          className="h-10 w-full rounded-lg border border-line bg-surface-2 px-3 text-right text-sm font-normal tabular-nums text-ink disabled:opacity-50" />
-        {sufixo && <span className="w-12 shrink-0 whitespace-nowrap text-xs font-normal text-ink-2">{sufixo}</span>}
+          className="input-base h-[46px] rounded-[12px] pl-3.5 pr-16 text-[15px] font-normal tabular-nums disabled:opacity-50" />
+        {sufixo && <span className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center whitespace-nowrap text-sm font-normal text-ink-3">{sufixo === 'x' ? 'vezes' : sufixo}</span>}
       </div>
       {nota && <span className="mt-1 block text-xs font-normal text-ink-2">{nota}</span>}
     </label>
@@ -151,12 +151,12 @@ export default function Ofertas() {
   return (
     <AppShell>
       <div className="mx-auto w-full max-w-6xl space-y-5">
-        <CabecalhoPagina rotulo="Configuração" icone={Tags} titulo="Ofertas" ajuda="catalogo-de-ofertas" className="!mb-0"
+        <CabecalhoPagina rotulo="Configurações" icone={Tags} titulo="Ofertas" ajuda="catalogo-de-ofertas" className="!mb-0"
           subtitulo="As ofertas que a equipe pode fazer e os limites do operador no simulador.">
           <div className="flex flex-wrap items-center gap-2">
             {isComando && (
               <select value={alvo} onChange={e => { const v = e.target.value; if (sujo) setTrocaEmpresa(v); else setAlvo(v) }} aria-label="Empresa"
-                className="rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-sm text-ink focus:outline-none [color-scheme:dark]">
+                className="h-11 rounded-[12px] border border-line bg-surface px-3 text-sm text-ink focus:outline-none [color-scheme:dark]">
                 <option value="">Escolha a empresa…</option>
                 {empresas.map(e => <option key={e.empresa_id} value={e.empresa_id}>{e.nome_exibicao || e.empresa_id}</option>)}
               </select>
@@ -164,7 +164,7 @@ export default function Ofertas() {
           </div>
         </CabecalhoPagina>
 
-        {isComando && !alvo && <div className="rounded-xl border border-line bg-surface p-6 text-sm text-ink-2">Escolha a empresa para editar as ofertas dela.</div>}
+        {isComando && !alvo && <div className="rounded-[22px] border border-line bg-surface p-6 text-sm text-ink-2">Escolha a empresa para editar as ofertas dela.</div>}
         <ErroCarga erro={erroCarga} onTentar={carregar} />
         <ErroCarga erro={msg?.tipo === 'erro' ? msg.erro : null} compacto />
         <AnimatePresence>
@@ -187,7 +187,7 @@ export default function Ofertas() {
           </div>
         )}
         {dados?.padrao && !sujo && (
-          <p className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-xs text-ink-2">
+          <p className="rounded-[14px] border border-[color-mix(in_srgb,var(--royal)_35%,transparent)] bg-[var(--royal-soft)] px-4 py-3 text-sm text-ink">
             A empresa usa as 4 ofertas padrão do Mizan. Edite à vontade: ao salvar, este passa a ser o catálogo da empresa.
           </p>
         )}
@@ -195,12 +195,12 @@ export default function Ofertas() {
         {dados && (
           <>
             <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
-              <aside className="space-y-2 rounded-xl border border-line bg-surface p-3">
+              <aside className="space-y-1.5 rounded-[22px] border border-line bg-surface p-3">
                 <ul className="space-y-1.5">
                   {catalogo.map((o, i) => (
                     <li key={i}>
                       <button onClick={() => setSel(i)}
-                        className={`w-full rounded-lg border px-3 py-2.5 text-left transition-colors ${sel === i ? 'border-blue-500/40 bg-blue-500/10' : 'border-transparent hover:bg-raise-1'} ${o.ativa ? '' : 'opacity-55'}`}>
+                        className={`w-full rounded-[14px] border px-3.5 py-3 text-left transition-colors ${sel === i ? 'border-[color-mix(in_srgb,var(--royal)_45%,transparent)] bg-[var(--royal-soft)]' : 'border-transparent hover:bg-raise-1'} ${o.ativa ? '' : 'opacity-55'}`}>
                         <div className="flex items-center justify-between gap-2">
                           <p className="truncate text-sm font-medium text-ink">{o.nome || 'Sem nome'}</p>
                           {!o.ativa && <span className="shrink-0 rounded bg-raise-2 px-1.5 py-px text-xs text-ink-2">inativa</span>}
@@ -211,36 +211,36 @@ export default function Ofertas() {
                   ))}
                 </ul>
                 <button onClick={nova} disabled={catalogo.length >= dados.max_ofertas}
-                  className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-blue-500/40 px-3 py-2 text-sm font-medium text-blue-400 hover:bg-blue-500/10 disabled:opacity-40">
+                  className="flex w-full items-center justify-center gap-1.5 rounded-[14px] border border-dashed border-[color-mix(in_srgb,var(--royal)_45%,transparent)] px-3 py-3 text-sm font-semibold text-accent-text hover:bg-[var(--royal-soft)] disabled:opacity-40">
                   <Plus className="h-4 w-4" /> Nova oferta
                 </button>
                 <p className="px-1 text-xs text-ink-2">{catalogo.length} de {dados.max_ofertas} ofertas</p>
               </aside>
 
               {atual && (
-                <section className="space-y-5 rounded-xl border border-line bg-surface p-5">
+                <section className="space-y-5 rounded-[22px] border border-line bg-surface px-6 py-[22px]">
                   <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
                     <label className="text-xs font-semibold text-ink-2">Nome
                       <input value={atual.nome} maxLength={60} onChange={e => mudar('nome', e.target.value)}
-                        className="mt-1 h-10 w-full rounded-lg border border-line bg-surface-2 px-3 text-sm font-normal text-ink" />
+                        className="input-base mt-1.5 h-[46px] rounded-[12px] px-3.5 text-[15px] font-normal" />
                     </label>
-                    <label className="flex cursor-pointer items-center gap-2 self-end rounded-lg border border-line px-3 py-2.5 text-sm text-ink">
+                    <label className="flex h-[46px] cursor-pointer items-center gap-2 self-end rounded-[12px] border border-line px-3.5 text-sm text-ink">
                       <input type="checkbox" checked={atual.ativa} onChange={e => mudar('ativa', e.target.checked)} className="h-4 w-4 accent-blue-500" /> Ativa
                     </label>
                   </div>
                   <label className="block text-xs font-semibold text-ink-2">Descrição (opcional)
                     <input value={atual.descricao || ''} maxLength={160} onChange={e => mudar('descricao', e.target.value)}
                       placeholder="Ex.: campanha de fim de ano"
-                      className="mt-1 h-10 w-full rounded-lg border border-line bg-surface-2 px-3 text-sm font-normal text-ink" />
+                      className="input-base mt-1.5 h-[46px] rounded-[12px] px-3.5 text-[15px] font-normal" />
                   </label>
 
-                  <div className="flex gap-1.5 rounded-lg border border-line bg-surface-2 p-1" role="tablist" aria-label="Forma">
+                  <div className="flex gap-1 rounded-[14px] border border-line bg-[var(--sunken)] p-1" role="tablist" aria-label="Forma">
                     {[[1, 'À vista'], [6, 'Parcelado']].map(([v, l]) => {
                       const on = v === 1 ? modo === 'avista' : modo === 'parcelado'
                       return (
                         <button key={l} role="tab" aria-selected={on}
                           onClick={() => { mudar('_modo', v === 1 ? 'avista' : 'parcelado'); if (v !== 1 && (parseInt(atual.n_parcelas, 10) || 1) < 2) mudar('n_parcelas', 6) }}
-                          className={`flex-1 rounded-md py-1.5 text-sm font-medium ${on ? 'bg-surface text-ink shadow-sm' : 'text-ink-2 hover:text-ink'}`}>{l}</button>
+                          className={`h-10 flex-1 rounded-[10px] text-sm ${on ? 'bg-[var(--raised)] font-semibold text-ink' : 'text-ink-2 hover:text-ink'}`}>{l}</button>
                       )
                     })}
                   </div>
@@ -252,12 +252,12 @@ export default function Ofertas() {
                     {modo === 'parcelado' && <Campo rotulo="Juros ao mês" sufixo="% a.m." min={0} max={20} step="0.01" value={atual.juros_mensal_pct} onChange={v => mudar('juros_mensal_pct', v)} nota="tabela Price; 0 = sem juros" />}
                   </div>
 
-                  <div className="rounded-xl border border-line bg-surface-2 p-4">
+                  <div className="rounded-[18px] border border-line bg-[var(--sunken)] px-5 py-4">
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                       <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-2">Prévia numa dívida de</p>
                       <div className="flex items-center gap-1.5 text-sm text-ink-2">R$
                         <input type="number" min={0} value={exemplo} onChange={e => setExemplo(e.target.value)} aria-label="Dívida de exemplo"
-                          className="h-8 w-28 rounded-md border border-line bg-surface px-2 text-right text-sm tabular-nums text-ink" />
+                          className="input-base h-9 w-28 rounded-[10px] px-2.5 text-right tabular-nums" />
                       </div>
                     </div>
                     <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -290,7 +290,7 @@ export default function Ofertas() {
               )}
             </div>
 
-            <section className="rounded-xl border border-line bg-surface p-5">
+            <section className="rounded-[22px] border border-line bg-surface px-6 py-[22px]">
               <h2 className="section-label flex items-center gap-2">
                 <ShieldAlert className="h-4 w-4 text-amber-400" /> Alçada do operador<DicaAjuda id="alcada-do-operador" />
               </h2>
@@ -303,9 +303,9 @@ export default function Ofertas() {
               </div>
             </section>
 
-            {/* Salvar no rodapé: a barra acompanha a rolagem, então o botão está
-                sempre à mão, seja qual for a parte do catálogo que se edita. */}
-            <div className="sticky bottom-3 z-20 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface px-4 py-3 shadow-lg">
+            {/* Salvar no fim do conteúdo (canvas): a barra não fica por cima da
+                lista nem da prévia. Sair com alteração pendente pede confirmação. */}
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-line bg-surface px-5 py-3.5">
               <p className="flex items-center gap-2 text-sm" style={{ color: sujo ? 'var(--warning)' : 'var(--ink-2)' }} aria-live="polite">
                 {sujo ? <><AlertTriangle className="h-4 w-4" /> Alterações não salvas</> : <><Check className="h-4 w-4" style={{ color: 'var(--success)' }} /> Tudo salvo</>}
               </p>
