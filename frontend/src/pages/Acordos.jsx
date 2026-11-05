@@ -40,13 +40,13 @@ function Selo({ s }) {
 function Numero({ icone: Icone, rotulo, valor, nota, cor, i, ativo, onClick }) {
   return (
     <motion.button type="button" onClick={onClick} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
-      className={`rounded-xl border bg-surface p-4 text-left transition-colors sm:p-5 ${ativo ? 'border-blue-500/50 ring-1 ring-blue-500/30' : 'border-line hover:border-line-2'}`}>
+      className={`rounded-[22px] border bg-surface px-5 py-[18px] text-left transition-colors ${ativo ? 'border-[color-mix(in_srgb,var(--royal)_55%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--royal)_30%,transparent)]' : 'border-line hover:border-[var(--border-strong)]'}`}>
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-2">{rotulo}</p>
-        <Icone className="h-4 w-4" style={{ color: cor }} />
+        <p className="section-label">{rotulo}</p>
+        <Icone className="h-4 w-4 text-ink-3" aria-hidden="true" />
       </div>
-      <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-ink sm:text-3xl">{valor}</p>
-      <p className="mt-1 text-xs text-ink-2">{nota}</p>
+      <p className="mt-2 text-[28px] font-bold leading-none tabular-nums tracking-tight" style={{ color: cor === 'var(--ink-2)' || cor === 'var(--success)' ? 'var(--text)' : cor }}>{valor}</p>
+      <p className="mt-2 text-xs text-ink-2">{nota}</p>
     </motion.button>
   )
 }
@@ -78,9 +78,9 @@ function Acordo({ a, hoje, podeBaixar, onParcela, destaque }) {
     try { await onParcela(a, p, acao) } finally { setOcupado(null) }
   }
   return (
-    <li className="rounded-xl border border-line bg-surface" style={{ borderLeft: `3px solid ${SIT[a.situacao].cor}` }}>
+    <li>
       <button onClick={() => setAberto(o => !o)} aria-expanded={aberto}
-        className="grid w-full grid-cols-[1fr_auto] items-center gap-x-4 gap-y-2 p-4 text-left sm:grid-cols-[minmax(0,1.4fr)_auto_minmax(0,1fr)_auto_auto]">
+        className={`grid w-full grid-cols-[1fr_auto] items-center gap-x-4 gap-y-2 px-6 py-4 text-left transition-colors hover:bg-raise-1 sm:grid-cols-[minmax(0,1.3fr)_auto_minmax(0,1.2fr)_auto_auto] ${aberto ? 'bg-raise-1' : ''}`}>
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-ink">{a.nome || a.cpf}</p>
           <p className="truncate text-xs text-ink-2">{a.cpf}{a.responsavel_nome ? ` · ${a.responsavel_nome}` : ''}</p>
@@ -102,8 +102,8 @@ function Acordo({ a, hoje, podeBaixar, onParcela, destaque }) {
       <AnimatePresence initial={false}>
         {aberto && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden border-t border-line">
-            <ul className="divide-y divide-line px-4 py-1">
+            className="overflow-hidden">
+            <ul className="mx-6 mb-4 divide-y divide-line rounded-[14px] border border-line bg-[var(--sunken)] px-4 py-1">
               {a.parcelas.map(p => {
                 const vencida = p.situacao !== 'paga' && String(p.vencimento).slice(0, 10) < hoje
                 const cor = p.situacao === 'paga' ? 'var(--success)' : vencida ? 'var(--danger)' : 'var(--ink-2)'
@@ -121,13 +121,13 @@ function Acordo({ a, hoje, podeBaixar, onParcela, destaque }) {
                     <span className="ml-auto">
                       {podeBaixar && p.situacao !== 'paga' && (
                         <button disabled={ocupado === p.id} onClick={() => agir(p, 'pagar')}
-                          className="min-h-[40px] md:min-h-[32px] inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-40">
+                          className="min-h-[40px] md:min-h-[32px] inline-flex items-center gap-1 rounded-[10px] border border-[color-mix(in_srgb,var(--success)_35%,transparent)] bg-[var(--success-soft)] px-3 py-1 text-xs font-semibold text-[var(--success)] hover:brightness-110 disabled:opacity-40">
                           {ocupado === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />} Marcar paga
                         </button>
                       )}
                       {podeBaixar && p.situacao === 'paga' && p.numero > 1 && (
                         <button disabled={ocupado === p.id} onClick={() => agir(p, 'desfazer')}
-                          className="min-h-[40px] md:min-h-[32px] inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-ink-2 hover:text-ink disabled:opacity-40">
+                          className="min-h-[40px] md:min-h-[32px] inline-flex items-center gap-1 rounded-[10px] px-2 py-1 text-xs text-ink-2 hover:text-ink disabled:opacity-40">
                           <Undo2 className="h-3 w-3" /> Desfazer
                         </button>
                       )}
@@ -201,24 +201,24 @@ export default function Acordos({ embutido = false }) {
   return (
     <Casca embutido={embutido}>
       <div className="mx-auto w-full max-w-6xl space-y-5">
-        <CabecalhoPagina rotulo="Cobrança" icone={Handshake} titulo="Acordos" ajuda="acordos-em-andamento" className="!mb-0"
+        <CabecalhoPagina rotulo="Resultados" icone={Handshake} titulo="Acordos" ajuda="acordos-em-andamento" className="!mb-0"
           subtitulo={isOperador ? 'Acordos parcelados dos devedores da sua fila: o que vence nos próximos dias e quem parou de pagar. A baixa de parcela é do administrador.'
                 : 'Acordos parcelados: o que vence nos próximos dias e quem parou de pagar.'}>
           {isComando && (
             <select value={alvo} onChange={e => setAlvo(e.target.value)} aria-label="Empresa"
-              className="rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-sm text-ink focus:outline-none [color-scheme:dark]">
+              className="h-11 rounded-[12px] border border-line bg-surface px-3 text-sm text-ink focus:outline-none [color-scheme:dark]">
               <option value="">Escolha a empresa…</option>
               {empresas.map(e => <option key={e.empresa_id} value={e.empresa_id}>{e.nome_exibicao || e.empresa_id}</option>)}
             </select>
           )}
         </CabecalhoPagina>
 
-        {isComando && !alvo && <div className="rounded-xl border border-line bg-surface p-6 text-sm text-ink-2">Escolha a empresa para ver os acordos.</div>}
+        {isComando && !alvo && <div className="rounded-[22px] border border-line bg-surface p-6 text-sm text-ink-2">Escolha a empresa para ver os acordos.</div>}
         {aviso && <p className="flex items-center gap-1.5 text-sm text-emerald-400"><Check className="h-4 w-4" /> {aviso}</p>}
         <ErroCarga erro={erro} ocupado={carregando} onTentar={carregar} />
         {carregando && !dados && <div className="flex items-center gap-2 py-10 text-sm text-ink-2"><Loader2 className="h-4 w-4 animate-spin" /> Carregando…</div>}
         {dados && dados.ativo === false && (
-          <p className="flex items-start gap-2 rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm text-ink-2"><Info className="mt-0.5 h-4 w-4 shrink-0" /> {dados.mensagem}</p>
+          <p className="flex items-start gap-2 rounded-[14px] border border-line bg-surface px-4 py-3 text-sm text-ink-2"><Info className="mt-0.5 h-4 w-4 shrink-0" /> {dados.mensagem}</p>
         )}
 
         {dados?.ativo && (
@@ -234,35 +234,35 @@ export default function Acordos({ embutido = false }) {
                 nota={`${plural(r.quebrado, 'acordo', 'acordos')} · mais de ${dados.dias_quebra} dias`} ativo={filtro === 'quebrado'} onClick={() => setFiltro('quebrado')} />
             </div>
 
-            <div className="flex flex-wrap items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-2">
               {FILTROS.map(([k, l]) => {
                 const n = k ? r[k] : r.acordos
                 return (
                   <button key={k || 'todos'} onClick={() => setFiltro(k)}
-                    className={`min-h-[40px] md:min-h-[32px] rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${filtro === k ? 'border-blue-500/30 bg-blue-500/15 text-blue-300' : 'border-line bg-raise-1 text-ink-2 hover:text-ink'}`}>
+                    className={`h-9 rounded-full border px-3.5 text-[13px] transition-colors ${filtro === k ? 'border-[color-mix(in_srgb,var(--royal)_50%,transparent)] bg-[var(--royal-soft)] font-semibold text-ink' : 'border-line text-ink-2 hover:text-ink'}`}>
                     {l} · {fmtNum(n)}
                   </button>
                 )
               })}
               <span className="ml-auto flex items-center gap-3 text-xs text-ink-2">
-                <span className="flex items-center gap-1"><span className="h-2.5 w-4 rounded-sm" style={{ background: 'var(--success)' }} /> paga</span>
-                <span className="flex items-center gap-1"><span className="h-2.5 w-4 rounded-sm" style={{ background: 'var(--danger)' }} /> vencida</span>
-                <span className="flex items-center gap-1"><span className="h-2.5 w-4 rounded-sm border border-line" /> a vencer</span>
+                <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: 'var(--success)' }} /> paga</span>
+                <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: 'var(--danger)' }} /> vencida</span>
+                <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full border border-[var(--border-strong)]" /> a vencer</span>
               </span>
             </div>
 
             {r.acordos === 0 ? (
-              <div className="rounded-xl border border-line bg-surface px-6 py-12 text-center">
-                <Handshake className="mx-auto h-8 w-8 text-ink-2 opacity-50" />
-                <p className="mt-3 text-sm font-medium text-ink">Nenhum acordo parcelado ainda</p>
-                <p className="mt-1 text-xs text-ink-2">{isOperador
+              <div className="flex flex-col items-center gap-3 rounded-[22px] border border-line bg-surface px-6 py-12 text-center">
+                <span className="flex h-12 w-12 items-center justify-center rounded-[14px] bg-[var(--raised)] text-accent-text"><Handshake className="h-5 w-5" aria-hidden="true" /></span>
+                <b className="text-[17px] text-ink">Nenhum acordo parcelado ainda</b>
+                <p className="max-w-md text-sm leading-relaxed text-ink-2">{isOperador
                   ? 'Quando um devedor da sua fila fechar um acordo parcelado, ele aparece aqui com todas as parcelas.'
                   : 'Ao registrar em Pagamentos um pagamento “Parcelado”, o acordo aparece aqui com todas as parcelas.'}</p>
               </div>
             ) : lista.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm text-ink-2">Nenhum acordo nesta situação.</p>
+              <p className="rounded-[22px] border border-dashed border-line px-4 py-8 text-center text-sm text-ink-2">Nenhum acordo nesta situação.</p>
             ) : (
-              <ul className="space-y-2.5">
+              <ul className="divide-y divide-line overflow-hidden rounded-[22px] border border-line bg-surface">
                 {lista.map(a => <Acordo key={a.id} a={a} hoje={dados.hoje} podeBaixar={isAdmin} onParcela={onParcela} destaque={destaque} />)}
               </ul>
             )}
