@@ -130,6 +130,9 @@ ROTEIRO[:] = [tri("duvida"), Resposta(texto="Combinado, vamos no seu tempo. Quan
 n1 = len(chamadas_do_negociador())
 receber(22, "Tá bom, depois eu vejo")
 checar(len(chamadas_do_negociador()) - n1 == 1, "resposta diferente passa de primeira")
+sistema = chamadas_do_negociador()[-1]["sistema"]
+checar("Enquanto a identidade não estiver confirmada" in sistema and "uma conversa atenciosa e útil, não um formulário" in sistema,
+       "o prompt manda conversar com utilidade antes da confirmação do CPF (sem falar de valor)")
 
 print()
 print("tudo certo" if not falhas else f"{falhas} falha(s)")
