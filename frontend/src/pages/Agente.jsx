@@ -6,6 +6,7 @@ import { useAoMudarNoServidor } from '../components/useMudancasDoServidor'
 import { Bot, Send, Search, Loader2, Activity, ShieldCheck, AlertTriangle, Power, UserRound, Coins, ListChecks, Landmark, Clock, Shuffle, CalendarDays, Scale, Hand, Undo2, CalendarClock, Users, BookOpen, FlaskConical, Headset, Unlink } from 'lucide-react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import AppShell from '../components/AppShell'
+import CabecalhoPagina from '../components/CabecalhoPagina'
 import ErroCarga from '../components/ErroCarga'
 import AprendizadoCientista from '../components/AprendizadoCientista'
 import StatCard from '../components/StatCard'
@@ -1027,8 +1028,8 @@ export default function Agente() {
   return (
     <AppShell>
       <div className="mx-auto w-full max-w-7xl space-y-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight text-ink"><Bot className="h-5 w-5 text-accent-text" /> Agentes</h1>
+        <CabecalhoPagina rotulo="Operação" icone={Bot} titulo="Agentes" className="!mb-0"
+          subtitulo="O que cada agente está fazendo agora, o que precisa de você e as regras que eles seguem.">
           {isComando && (
             <select value={alvo} onChange={e => setAlvo(e.target.value)} aria-label="Empresa"
               className="rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-sm text-ink focus:outline-none [color-scheme:dark]">
@@ -1036,7 +1037,7 @@ export default function Agente() {
               {empresas.map(e => <option key={e.empresa_id} value={e.empresa_id}>{e.nome_exibicao || e.empresa_id}</option>)}
             </select>
           )}
-        </div>
+        </CabecalhoPagina>
         <div className="flex flex-wrap gap-1 border-b border-line" role="tablist">
           {[['aovivo', 'Ao vivo'], ['conversas', 'Conversas'], ['agenda', 'Agenda'], ['regras', 'Regras']].map(([k, l]) => (
             <button key={k} role="tab" aria-selected={aba === k} onClick={() => setAba(k)}
