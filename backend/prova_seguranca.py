@@ -24,7 +24,8 @@ PROVAS = ["test_seguranca_estatico.py", "test_seguranca_plano.py", "test_dois_fa
 ANTIGOS = ["test_api_key.py", "test_autorizacao.py", "test_segredos.py", "test_destino_conexao.py",
            "test_conexoes_escopo.py", "test_conexao_sheets.py", "test_erros_internos.py", "test_limite.py",
            "test_escopo_carteira.py", "test_auditoria_acesso.py", "test_varredura_contas.py",
-           "test_agente_manipulacao.py", "test_agente_telegram.py", "test_agente_audio.py", "test_excluir_cliente.py", "test_revisao_api.py"]
+           "test_agente_manipulacao.py", "test_agente_telegram.py", "test_agente_audio.py", "test_excluir_cliente.py", "test_revisao_api.py",
+           "test_notificacoes.py"]
 
 
 def rodar(cmd, cwd, timeout=900):

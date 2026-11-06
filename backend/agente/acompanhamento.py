@@ -503,8 +503,10 @@ def grafo_pagamento(fonte) -> Grafo:
         if silencio:
             pass                                             # pessoa cuida, ou pediu para não ser contatado
         elif falta:
-            fonte.criar_agenda(ctx.caso["empresa_id"], dev, "retorno", _hoje(ctx.agora).isoformat(),
-                               observacao=f"Pagamento parcial de {_brl(valor)}: faltam {_brl(falta)}. Conferir a baixa.")
+            item = fonte.criar_agenda(ctx.caso["empresa_id"], dev, "retorno", _hoje(ctx.agora).isoformat(),
+                                      observacao=f"Pagamento parcial de {_brl(valor)}: faltam {_brl(falta)}. Conferir a baixa.")
+            import notificacoes
+            notificacoes.pagamento_parcial(ctx, dev, item or {})
             if s == "pagamento_em_conferencia":
                 ctx.mudar_situacao("acordo_ativo" if acordo else "em_contato")
         elif acordo and int(acordo["condicoes"]["n_parcelas"]) == 1:

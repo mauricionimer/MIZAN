@@ -910,9 +910,34 @@ export async function agenteTelegramDesligar(predicaoId, empresaId) {
   return pedir(`/agente/casos/${_id(predicaoId)}/telegram-desligar`, { metodo: 'POST', corpo: { empresa_id: empresaId || null } })
 }
 
-// Telas ao vivo: versão de cada assunto (agenda, casos). Leve, sem banco; a tela recarrega quando muda.
+// Telas ao vivo: versão de cada assunto (agenda, casos e as notificações da pessoa). Leve, sem banco;
+// a tela recarrega quando muda.
 export async function consultarMudancas(empresaId) {
   return pedir('/mudancas', { query: { empresa_id: empresaId } })
+}
+
+// ── Notificações (docs/NOTIFICACOES.md) ──────────────────────────────────────
+// { ativo, itens: [{id, tipo, categoria, prioridade, titulo, texto, link, acao, externo, toca, lida, ...}],
+//   nao_lidas, urgentes, mais, preferencias }
+export function listarNotificacoes({ filtro = 'pendentes', limite = 30, antes } = {}) {
+  return pedir('/notificacoes', { query: { filtro, limite, antes } })
+}
+
+export function marcarNotificacaoLida(id) {
+  return pedir(`/notificacoes/${_id(id)}/lida`, { metodo: 'POST' })
+}
+
+// Sem `ids`: todas as da pessoa.
+export function marcarNotificacoesLidas(ids) {
+  return pedir('/notificacoes/lidas', { metodo: 'POST', corpo: ids ? { ids } : {} })
+}
+
+export function preferenciasNotificacoes() {
+  return pedir('/notificacoes/preferencias')
+}
+
+export function salvarPreferenciasNotificacoes(prefs) {
+  return pedir('/notificacoes/preferencias', { metodo: 'PUT', corpo: prefs })
 }
 
 // Casos com a equipe; quem está esperando resposta vem primeiro.

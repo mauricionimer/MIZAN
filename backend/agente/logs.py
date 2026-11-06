@@ -66,4 +66,10 @@ def registrar(repo, *, empresa_id: str, nivel: str, categoria: str, agente: str 
     except Exception as erro:
         # Não registre o erro remoto em detalhe: respostas de provedores podem conter texto externo.
         LOGGER.error("agente_log_persistencia_falhou tipo=%s", type(erro).__name__)
+    try:
+        # Teto do dia, IA parada há 15 min ou evento que falhou de vez: o administrador fica sabendo.
+        import notificacoes
+        notificacoes.agente_parado(empresa_id, categoria)
+    except Exception as erro:
+        LOGGER.error("agente_log_aviso_falhou tipo=%s", type(erro).__name__)
     return linha

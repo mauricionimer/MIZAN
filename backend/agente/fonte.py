@@ -31,6 +31,13 @@ def _agora_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _avisos_do_compromisso_resolvido(empresa_id: str, item_id: str, campos: dict) -> None:
+    """Compromisso cumprido, cancelado ou quebrado pelo agente: os avisos dele saem das pendências."""
+    if campos.get("situacao") in ("cumprida", "cancelada", "quebrada"):
+        import notificacoes
+        notificacoes.resolver(empresa_id, "agenda", item_id)
+
+
 class FonteMemoria:
     def __init__(self, devedores=None, catalogo=None, nome_empresa="Banco Demonstração"):
         self._nome_empresa = nome_empresa
@@ -106,6 +113,7 @@ class FonteMemoria:
                     and a["situacao"] == "pendente":
                 a.update(campos)
                 mudancas.marcar(empresa_id, "agenda")
+                _avisos_do_compromisso_resolvido(empresa_id, item_id, campos)
                 return True
         return False
 
@@ -278,6 +286,7 @@ class FonteSupabase:
                .eq("predicao_id", predicao_id).eq("situacao", "pendente").execute())
         if res.data:
             mudancas.marcar(empresa_id, "agenda")
+            _avisos_do_compromisso_resolvido(empresa_id, item_id, campos)
         return bool(res.data)
 
     def registrar_oferta(self, empresa_id: str, devedor: dict, linha: dict) -> dict:

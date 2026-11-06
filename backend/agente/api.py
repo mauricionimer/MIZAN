@@ -609,6 +609,8 @@ def atribuir(empresa_id: str, item_id: str, operador_id: str) -> dict:
     novo = fonte.atribuir_agenda(empresa_id, item_id, op["id"], op["nome"])
     if not novo:
         raise LookupError("Compromisso não encontrado, já atribuído ou já resolvido.")
+    import notificacoes
+    notificacoes.reuniao_atribuida(empresa_id, {**item, **(novo if isinstance(novo, dict) else {})}, op["id"])
     return {"ok": True, "item_id": item_id, "operador": op}
 
 
@@ -903,16 +905,25 @@ def controle_do_gestor(empresa_id: str, predicao_id: str, acao: str, quem: str |
     dono = f"gestor:{quem or ''}"
     if not repo.travar_caso(caso["id"], dono, agora + orq.DURACAO_TRAVA, agora):
         raise CasoOcupado("O agente está processando este caso agora. Tente de novo em instantes.")
+    anterior = str((caso.get("dados") or {}).get("assumido_por") or "") or None
     try:
         situacao = caso["situacao"] if caso["situacao"] == nova else estado.mudar(caso["situacao"], nova, por="pessoa")
         estado.anotar(caso, "equipe", "assumiu" if acao == "assumir" else "devolveu ao agente",
                       "o agente para neste caso" if acao == "assumir" else "o agente volta a responder", quando=agora)
+        # Quem assumiu recebe as mensagens novas do caso no sino (notificacoes.mensagem_em_caso_da_equipe).
+        caso["dados"] = dict(caso.get("dados") or {})
+        if acao == "assumir" and quem:
+            caso["dados"]["assumido_por"] = str(quem)
+        else:
+            caso["dados"].pop("assumido_por", None)
         repo.salvar_caso(caso["id"], {"situacao": situacao, "dados": caso["dados"]}, dono=dono)
         rt = Rastreio(empresa_id, repo.gravar_passo, caso_id=caso["id"])
         with rt.span("controle_do_gestor", "pessoa") as p:
             p["detalhe"] = {"acao": acao, "de": caso["situacao"], "para": situacao}
     finally:
         repo.soltar_caso(caso["id"], dono)
+    import notificacoes
+    notificacoes.caso_mudou_de_maos(empresa_id, predicao_id, acao, quem, anterior, agora)
     entrega = None
     if situacao != caso["situacao"] and repo.ultimas_mensagens(empresa_id, caso["id"], 1):
         # Só avisa quem já conversou: o devedor sabe quando passa a falar com uma pessoa e quando volta ao assistente.

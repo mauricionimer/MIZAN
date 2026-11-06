@@ -37,7 +37,8 @@ v = lambda h, q="": c.get("/mudancas" + q, headers=h).json()
 print("— quem pode perguntar —")
 checar(c.get("/mudancas").status_code in (401, 403), "sem login: recusado")
 a0, b0, cmd0 = v(GOIAS), v(BETA), v(CMD)
-checar(set(a0) == {"agenda", "casos"}, "devolve a versão da agenda e dos casos", str(a0))
+checar(set(a0) == {"agenda", "casos", "notificacoes"},
+       "devolve a versão da agenda, dos casos e das notificações da pessoa", str(a0))
 checar(v(GOIAS) == a0, "sem mudança, a versão é a mesma (a tela não recarrega à toa)")
 
 print("— o agente marca na agenda —")

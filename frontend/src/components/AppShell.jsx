@@ -11,6 +11,8 @@ import ThemeToggle from './ThemeToggle'
 import useAvisosDeDuvida from './useAvisosDeDuvida'
 import useAvisoAgenda from './useAvisoAgenda'
 import useMudancasDoServidor from './useMudancasDoServidor'
+import { NotificacoesProvider } from './useNotificacoes'
+import { AvisoUrgente, PainelNotificacoes, SinoNotificacoes } from './Notificacoes'
 import ConfirmarModal from './ConfirmarModal'
 import useModal from './useModal'
 import { saidaTravada, liberarSaida, confirmarVoltar } from './protecaoSaida'
@@ -308,6 +310,8 @@ export function ShellLayout() {
   const variantes = reduzir ? SEM_MOVIMENTO : pagina
 
   return (
+    // O clique numa notificação passa pela mesma trava de "alterações não salvas" do menu.
+    <NotificacoesProvider irPara={rota => acionar({ id: 'notificacao', rota })}>
     <ShellCtx.Provider value={{ slotAcoes, registrarCabecalho, abas: <AbasDaArea item={areaAtual} ativoExato={ativoExato} acionar={acionar} /> }}>
       <div className="relative isolate flex min-h-screen bg-canvas font-sans text-ink">
         <FundoOndas />
@@ -357,6 +361,7 @@ export function ShellLayout() {
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <span ref={setSlotAcoes} className="flex items-center gap-2 max-[420px]:gap-1.5" />
+              <SinoNotificacoes />
               <ThemeToggle />
               <div className="ml-1 flex items-center gap-2.5 border-l border-line pl-3">
                 <div className="hidden text-right lg:block">
@@ -387,6 +392,9 @@ export function ShellLayout() {
         cancelar="Continuar editando" confirmar="Sair sem salvar" perigo
         onCancelar={() => setSaidaPendente(null)}
         onConfirmar={() => { const ir = saidaPendente.ir; if (!saidaPendente.voltar) liberarSaida(); setSaidaPendente(null); ir() }} />
+      <PainelNotificacoes />
+      <AvisoUrgente />
     </ShellCtx.Provider>
+    </NotificacoesProvider>
   )
 }

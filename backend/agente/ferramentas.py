@@ -818,4 +818,8 @@ def executar(ctx, fonte, nome: str, args) -> dict:
     if r.get("ok") and nome in ("transferir_para_humano", "marcar_atendimento_humano"):
         negociacao.registrar(ctx, "transferencia_humana", f"transferencia:{ctx.evento['id']}:{nome}",
                              motivo=args.get("motivo"), compromisso_id=r.get("compromisso_id"))
+    if r.get("ok"):
+        # Avisa a equipe (sino). Volta na hora: a gravação vai para a fila das notificações.
+        import notificacoes
+        notificacoes.apos_ferramenta(ctx, dev, nome, args, r)
     return r

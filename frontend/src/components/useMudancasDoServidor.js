@@ -9,7 +9,7 @@ import { consultarMudancas } from '../api'
  * mesmos eventos que elas já escutam (`mizan:agenda`, `mizan:casos`), com
  * `detail.origem = 'servidor'`. Cada tela recarrega só o que é dela, sem piscar.
  */
-const EVENTOS = { agenda: 'mizan:agenda', casos: 'mizan:casos' }
+const EVENTOS = { agenda: 'mizan:agenda', casos: 'mizan:casos', notificacoes: 'mizan:notificacoes' }
 const INTERVALO_MS = 2000
 
 export default function useMudancasDoServidor() {

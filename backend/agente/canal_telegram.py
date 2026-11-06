@@ -412,6 +412,8 @@ def vincular(repo, codigo: str, chat_id, agora: datetime | None = None) -> tuple
             tg["tentativa_outro_chat_em"] = agora.isoformat()
             tg["tentativas_outro_chat"] = int(tg.get("tentativas_outro_chat") or 0) + 1
             _gravar_tg(repo, caso, tg)
+            import notificacoes
+            notificacoes.link_telegram_em_outro_aparelho(caso.get("empresa_id"), caso.get("predicao_id"), agora)
             return None, "usado"
         return None, "substituido" if _bate(tg.get("substituidos"), h) else "invalido"
     expira = _quando(tg.get("convite_expira"))

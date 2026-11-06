@@ -321,14 +321,16 @@ r_sem2fa = reset_2fa("sem@x.com", cod_agora(sg))
 checar(r_inexistente.status_code == 400 and r_inexistente.json() == r.json() == r_sem2fa.json(),
        "e-mail que não existe, conta sem 2FA e código errado dão a MESMA resposta (não revela quem tem conta)")
 hash_antes = u_banco("adm")["senha_hash"]
-r = reset_2fa("adm@x.com", cod_agora(sg))
+# O mesmo código nas duas chamadas: recalcular podia cair na janela seguinte de 30 s e gerar outro.
+codigo_usado = cod_agora(sg)
+r = reset_2fa("adm@x.com", codigo_usado)
 checar(r.status_code == 200 and r.json() == {"ok": True}, "código certo: senha trocada")
 checar(u_banco("adm")["senha_hash"] != hash_antes and entrar("adm@x.com").status_code == 401, "a senha antiga deixa de valer")
 checar(entrar("adm@x.com", NOVA).status_code == 200, "a nova senha entra (sem pedir o código)")
 checar(c.get(ROTA, headers=H(antiga)).status_code == 401, "as sessões abertas antes caem")
 checar("senha_redefinida_2fa" in AUDIT, "a troca fica na auditoria")
 checar(not ENVIADOS, "nenhum e-mail foi enviado")
-r = reset_2fa("adm@x.com", cod_agora(sg), nova="Terceira-Senha-789")
+r = reset_2fa("adm@x.com", codigo_usado, nova="Terceira-Senha-789")
 checar(r.status_code == 400 and entrar("adm@x.com", NOVA).status_code == 200, "o mesmo código não troca a senha duas vezes")
 r = reset_2fa("adm@x.com", RECS[0], nova="Quarta-Senha-1011")
 checar(r.status_code == 200 and entrar("adm@x.com", "Quarta-Senha-1011").status_code == 200 and len(u_banco("adm")["totp_recuperacao"]) == 2,

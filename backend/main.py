@@ -112,6 +112,16 @@ def _limpar_tentativas(chave: str) -> None:
     if db is not None:
         _limite_login.limpar(db, chave)
 
+
+def _avisar_seguranca(empresa_id, variante: str, usuario: dict) -> None:
+    """Aviso de segurança no sino (notificacoes.seguranca). Nunca atrapalha a rota."""
+    try:
+        import notificacoes
+        notificacoes.seguranca(empresa_id or "", variante, (usuario or {}).get("id"),
+                               (usuario or {}).get("nome") or (usuario or {}).get("email") or "")
+    except Exception as e:
+        print(f"[Notificações] aviso de segurança não registrado: {type(e).__name__}")
+
 # ---------------------------------------------------------------------------
 # Cache TTL simples em memória
 # ---------------------------------------------------------------------------
@@ -249,6 +259,17 @@ async def lifespan(app: FastAPI):
         IntervalTrigger(minutes=int(os.getenv("MIZAN_AGENTE_CICLO_MIN", 1))),
         id="agente_ciclo",
         replace_existing=True,
+    )
+    # Notificações (docs/NOTIFICACOES.md): lembretes de horário, agenda do dia, prazos,
+    # escalonamento do urgente e limpeza. Liga com ou sem o agente; só lê a agenda.
+    import notificacoes as _notificacoes
+    _scheduler.add_job(
+        _notificacoes.relogio,
+        IntervalTrigger(minutes=1),
+        id="notificacoes_relogio",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
     )
     # Em produção (Supabase real configurado), recusa subir com segredo ausente,
     # padrão ou fraco — antes de agendar tarefas e de criar o primeiro admin.
@@ -445,7 +466,7 @@ def _falha_interna(rota: str, metodo: str, e: BaseException, status: int, mensag
 # Telas ao vivo: o que alguém salva pelo sistema (agenda, acordo, contato...) sobe o
 # contador de mudanças da empresa, e as telas abertas de quem vê os mesmos dados
 # recarregam sozinhas (GET /mudancas). O agente sobe o contador por conta própria.
-_SEM_AVISO_DE_MUDANCA = ("/auth/", "/canal/", "/mudancas")
+_SEM_AVISO_DE_MUDANCA = ("/auth/", "/canal/", "/mudancas", "/notificacoes")   # o sino avisa a própria pessoa
 
 
 @app.middleware("http")
@@ -1623,6 +1644,8 @@ def auth_login(body: LoginIn, request: Request):
     if not conferir_login(usuario, body.senha):
         _registrar_tentativa(chave_email)
         _registrar_tentativa(chave_ip, _RATE_MAX_IP)
+        if usuario and len(_tentativas(chave_email)) >= _RATE_MAX:
+            _avisar_seguranca(usuario.get("empresa_id"), "bloqueio", usuario)   # o administrador fica sabendo
         raise HTTPException(status_code=401, detail="E-mail ou senha incorretos.")
     _limpar_tentativas(chave_email)
     if precisa_regravar(usuario.get("senha_hash", "")):
@@ -1973,6 +1996,8 @@ def auth_2fa_redefinir(usuario_id: str, credentials: HTTPAuthorizationCredential
     _registrar_auditoria(acao="2fa_redefinido", entidade="usuario", entidade_id=usuario_id,
                          usuario_email=payload.get("email"), empresa_id=alvo.get("empresa_id", ""),
                          usuario_id=payload.get("sub"), detalhes={"alvo": alvo.get("email")})
+    _avisar_seguranca(alvo.get("empresa_id"), "2fa_pessoa", alvo)
+    _avisar_seguranca(alvo.get("empresa_id"), "2fa_admin", alvo)
     return {"ok": True}
 
 
@@ -2177,6 +2202,7 @@ def auth_esqueci_senha_2fa(body: EsqueciSenha2faIn, request: Request):
     _registrar_auditoria(acao="senha_redefinida_2fa", entidade="usuario", entidade_id=usuario["id"],
                          usuario_email=email, empresa_id=usuario.get("empresa_id", ""), usuario_id=usuario["id"],
                          detalhes={"codigo_de_recuperacao": "totp_recuperacao" in mudanca})
+    _avisar_seguranca(usuario.get("empresa_id"), "senha_2fa", usuario)
     return {"ok": True}
 
 @app.get("/conexoes")
@@ -2517,7 +2543,7 @@ def _criar_item_agenda(db, payload: dict, cpf: str, dados: "AgendaBase", contato
 
 
 def _cumprir_promessas(db, empresa_id: "str | None", cpf: str, quem: str = "pagamento confirmado",
-                       valor: "float | None" = None) -> None:
+                       valor: "float | None" = None, ator_id: "str | None" = None) -> None:
     """Pagamento confirmado cumpre as promessas pendentes do devedor sozinho.
 
     Nunca derruba a baixa do pagamento: sem a tabela, ou com erro, só avisa no log.
@@ -2536,13 +2562,25 @@ def _cumprir_promessas(db, empresa_id: "str | None", cpf: str, quem: str = "paga
     except Exception as e:
         print(f"[Agente] promessas não lidas para o aviso: {type(e).__name__}")
     try:
-        (db.table("agenda").update({"situacao": "cumprida", "resolvido_em": datetime.utcnow().isoformat(),
-                                    "resolvido_por": quem})
-         .eq("empresa_id", empresa_id).eq("cpf", str(cpf)).eq("tipo", "promessa")
-         .eq("situacao", "pendente").execute())
+        cumpridas = (db.table("agenda").update({"situacao": "cumprida", "resolvido_em": datetime.utcnow().isoformat(),
+                                                "resolvido_por": quem})
+                     .eq("empresa_id", empresa_id).eq("cpf", str(cpf)).eq("tipo", "promessa")
+                     .eq("situacao", "pendente").execute()).data or []
+        _avisar_pagamento_confirmado(empresa_id, cumpridas, ator_id)
     except Exception as e:
         print(f"[Agenda] promessas de {str(cpf)[:3]}*** não marcadas: {type(e).__name__}")
     _avisar_agente_pagamento(db, empresa_id, cpf, valor, pendentes)
+
+
+def _avisar_pagamento_confirmado(empresa_id: str, cumpridas: list, ator_id) -> None:
+    """O dono da promessa fica sabendo no sino (notificacoes.pagamento_confirmado). Sem o CPF."""
+    try:
+        import notificacoes
+        notificacoes.pagamento_confirmado(empresa_id, [
+            {k: l.get(k) for k in ("id", "predicao_id", "nome", "operador_id", "observacao")} for l in cumpridas
+            if isinstance(l, dict)], ator_id=ator_id)
+    except Exception as e:
+        print(f"[Notificações] pagamento confirmado não avisado: {type(e).__name__}")
 
 
 def _avisar_agente_pagamento(db, empresa_id: str, cpf: str, valor, pendentes: list) -> None:
@@ -2783,6 +2821,8 @@ def mudar_tarefa_administrativa(item_id: str, body: TarefaAdministrativaPatch,
         item = tarefas.mudar(get_db(), empresa, item_id, body.concluir, payload.get('email', ''))
     except LookupError as e:
         raise HTTPException(status_code=409, detail=str(e))
+    if body.concluir:
+        _avisos_da_agenda(empresa, {'id': item_id}, 'cumprir')
     _registrar_auditoria(acao='tarefa_administrativa_concluida' if body.concluir else 'tarefa_administrativa_reaberta',
                          entidade='agenda', entidade_id=item_id, empresa_id=empresa,
                          usuario_email=payload.get('email'), usuario_id=payload['sub'])
@@ -2815,6 +2855,18 @@ def _minutos_desde(iso) -> "float | None":
     if t.tzinfo is not None:
         t = t.astimezone(__import__("datetime").timezone.utc).replace(tzinfo=None)
     return (datetime.utcnow() - t).total_seconds() / 60
+
+
+def _avisos_da_agenda(empresa_id: str, item: dict, acao: str) -> None:
+    """Compromisso resolvido ou remarcado por uma pessoa: os avisos que perderam o sentido saem do sino."""
+    try:
+        import notificacoes
+        if acao in ("cumprir", "cancelar", "quebrar"):
+            notificacoes.compromisso_resolvido(empresa_id, item)
+        elif acao == "remarcar":
+            notificacoes.resolver(empresa_id, "agenda", item.get("id"), ("N10", "N11", "N12", "N14", "N16"))
+    except Exception as e:
+        print(f"[Notificações] avisos da agenda não atualizados: {type(e).__name__}")
 
 
 @app.patch("/agenda/{item_id}")
@@ -2879,6 +2931,7 @@ def mudar_agenda(item_id: str, body: AgendaPatch, credentials: HTTPAuthorization
     if not res.data:
         raise HTTPException(status_code=409, detail="Outra pessoa mudou este compromisso. Atualize a Agenda.")
     novo = dict(res.data[0])
+    _avisos_da_agenda(emp, item, body.acao)
     if body.acao == "reabrir":
         _registrar_auditoria(acao="agenda_reaberta", entidade="agenda", entidade_id=item_id,
                              usuario_email=payload.get("email", ""), empresa_id=emp, usuario_id=payload.get("sub", ""),
@@ -4299,6 +4352,11 @@ def _auto_sync_todas_conexoes() -> None:
         except Exception as e:
             print(f"[AutoSync] Erro na conexão {cid}: {e}")
             resultados.append({"conexao_id": cid, "ok": False, "erro": str(e)})
+            try:
+                import notificacoes
+                notificacoes.sincronizacao_falhou(row.get("empresa_id") or "", cid)   # um aviso por conexão por dia
+            except Exception as _ne:
+                print(f"[Notificações] falha de sincronização não avisada: {type(_ne).__name__}")
 
     _auto_sync_estado["ultimo_resultado"] = {
         "executado_em": agora,
@@ -4871,9 +4929,11 @@ def distribuir_fila(carteira_id: str, body: DistribuirIn,
     if body.somente_sem_responsavel:
         linhas = [l for l in linhas if not l.get("responsavel_id")]
     partes = serpentina([l["id"] for l in linhas], ops)
+    empresa_da_fila = _empresa_da_carteira(db, carteira_id)
     for op, ids in partes.items():
         if ids:
             _gravar_responsavel(db, carteira_id, ids, op, nomes[op])
+            _avisar_devedores_recebidos(empresa_da_fila, op, len(ids), payload.get("sub"))
     _registrar_auditoria(acao="fila_distribuida", entidade="carteira", entidade_id=carteira_id,
                          usuario_email=payload.get("email", ""), empresa_id=_empresa_da_carteira(db, carteira_id),
                          usuario_id=payload.get("sub", ""),
@@ -4882,6 +4942,14 @@ def distribuir_fila(carteira_id: str, body: DistribuirIn,
     return {"distribuidos": len(linhas),
             "por_operador": [{"operador_id": op, "nome": nomes[op], "devedores": len(ids)}
                              for op, ids in partes.items()]}
+
+
+def _avisar_devedores_recebidos(empresa_id: str, operador_id: str, quantidade: int, ator_id) -> None:
+    try:
+        import notificacoes
+        notificacoes.devedores_recebidos(empresa_id, operador_id, quantidade, ator_id=ator_id)
+    except Exception as e:
+        print(f"[Notificações] devedores recebidos não avisados: {type(e).__name__}")
 
 
 class ResponsavelIn(BaseModel):
@@ -4912,6 +4980,9 @@ def atribuir_responsavel(carteira_id: str, body: ResponsavelIn,
                          usuario_email=payload.get("email", ""), empresa_id=_empresa_da_carteira(db, carteira_id),
                          usuario_id=payload.get("sub", ""),
                          detalhes={"devedores": len(cpfs), "para": nome or "sem responsável"})
+    if body.operador_id:
+        _avisar_devedores_recebidos(_empresa_da_carteira(db, carteira_id), body.operador_id, len(cpfs),
+                                    payload.get("sub"))
     return {"ok": True, "devedores": len(cpfs), "responsavel_nome": nome}
 
 
@@ -6637,7 +6708,8 @@ def receber_feedback(
         empresa_nome, feedback_id=feedback_id,
     )
     if payload.pagou:
-        _cumprir_promessas(db, empresa_nome, payload.cpf, "pagamento confirmado", payload.valor_recuperado)
+        _cumprir_promessas(db, empresa_nome, payload.cpf, "pagamento confirmado", payload.valor_recuperado,
+                           ator_id=jwt_check.get("sub"))
         if (payload.parcelas or 1) > 1:
             _abrir_acordo(db, empresa_nome, payload.cpf, feedback_id, pred_dict, payload.parcelas,
                           float(payload.valor_recuperado or 0), payload.data_pagamento, usuario_nome)
@@ -6775,7 +6847,8 @@ def confirmar_pagamento(
             )
         except Exception as _be:
             print(f"[Confirmar] Aviso — _fechar_loop_bandit falhou (não crítico): {_be}")
-        _cumprir_promessas(db, empresa_fb, cpf, "pagamento confirmado", body.valor_recuperado)
+        _cumprir_promessas(db, empresa_fb, cpf, "pagamento confirmado", body.valor_recuperado,
+                           ator_id=payload.get("sub"))
 
         # Write-back para banco externo da empresa (non-blocking, 8s timeout)
         writeback_info = None
@@ -8047,8 +8120,14 @@ def ajuda_duvidas_novidades(credentials: HTTPAuthorizationCredentials = Security
 def ajuda_duvidas_vistas(credentials: HTTPAuthorizationCredentials = Security(bearer)):
     """Quem perguntou abriu as respostas: apaga o aviso."""
     payload = _usuario_autenticado(credentials)
-    (get_db().table("duvidas").update({"visto_em": datetime.utcnow().isoformat()})
-     .eq("autor_id", payload["sub"]).eq("estado", "respondida").is_("visto_em", "null").execute())
+    vistas = (get_db().table("duvidas").update({"visto_em": datetime.utcnow().isoformat()})
+              .eq("autor_id", payload["sub"]).eq("estado", "respondida").is_("visto_em", "null").execute()).data or []
+    try:
+        import notificacoes
+        for d in vistas:
+            notificacoes.resolver(d.get("empresa_id") or payload.get("empresa_id") or "", "duvida", d.get("id"), ("N29",))
+    except Exception as e:
+        print(f"[Notificações] respostas vistas não atualizadas: {type(e).__name__}")
     return {"ok": True}
 
 
@@ -8126,6 +8205,11 @@ def comando_responder_duvida(duvida_id: str, body: RespostaIn,
     _registrar_auditoria(acao="duvida_respondida", entidade="duvida", entidade_id=d["id"],
                          usuario_email=payload.get("email", ""), empresa_id=d.get("empresa_id", ""),
                          usuario_id=payload.get("sub", ""), detalhes={"reresposta": d["estado"] == "respondida"})
+    try:
+        import notificacoes
+        notificacoes.duvida_respondida(d.get("empresa_id", ""), d.get("autor_id"), d["id"], agora)
+    except Exception as e:
+        print(f"[Notificações] resposta da dúvida não avisada: {type(e).__name__}")
     return {"ok": True}
 
 
@@ -9534,12 +9618,159 @@ def _usuario_recente(credentials: HTTPAuthorizationCredentials) -> dict:
 @app.get("/mudancas")
 def mudancas_da_empresa(empresa_id: Optional[str] = None,
                         credentials: HTTPAuthorizationCredentials = Security(bearer)):
-    """Versão de cada tópico (agenda, casos). A tela recarrega só quando muda. Sem banco."""
+    """Versão de cada tópico (agenda, casos e as notificações da pessoa). A tela recarrega só quando muda. Sem banco."""
     from agente import mudancas
     payload = _usuario_recente(credentials)
     if payload.get("role") == "comando":
-        return mudancas.versoes((empresa_id or "").strip() or None)
-    return mudancas.versoes(payload.get("empresa_id") or None)
+        return mudancas.versoes((empresa_id or "").strip() or None, usuario_id=payload.get("sub"))
+    return mudancas.versoes(payload.get("empresa_id") or None, usuario_id=payload.get("sub"))
+
+
+# ── Notificações (docs/NOTIFICACOES.md) ──────────────────────────────────────
+# Cada pessoa só vê e marca as próprias, dentro da empresa dela. O COMANDO não tem sino.
+_MSG_SEM_NOTIFICACOES = ("As notificações ainda não foram ligadas no banco: rode "
+                         "backend/sql/migracao_notificacoes.sql no Supabase.")
+_NOTIFICACOES_VAZIO = {"ativo": False, "itens": [], "mais": False, "nao_lidas": 0, "urgentes": 0}
+
+
+class PreferenciasNotificacaoIn(BaseModel):
+    navegador: bool = False
+    email_resumo: bool = False
+    silencio_ligado: bool = True
+    silencio_inicio: int = Field(20, ge=0, le=23)
+    silencio_fim: int = Field(8, ge=0, le=23)
+    desligadas: list[str] = Field(default_factory=list, max_length=6)
+
+    @field_validator("desligadas")
+    @classmethod
+    def _categorias_conhecidas(cls, v):
+        import notificacoes
+        if any(c not in notificacoes.CATEGORIAS for c in v):
+            raise ValueError("Categoria de notificação desconhecida.")
+        return list(dict.fromkeys(v))
+
+
+class NotificacoesLidasIn(BaseModel):
+    ids: Optional[list[str]] = Field(None, max_length=200)
+
+
+def _dono_das_notificacoes(credentials: HTTPAuthorizationCredentials) -> "tuple[dict, str]":
+    payload = _usuario_autenticado(credentials)
+    if payload.get("role") not in ("operador", "admin") or not payload.get("empresa_id"):
+        return payload, ""
+    return payload, payload["empresa_id"]
+
+
+def _id_da_notificacao(valor: str) -> str:
+    try:
+        return str(uuid.UUID(str(valor)))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Notificação não encontrada.")
+
+
+def _erro_notificacoes(rota: str, metodo: str, e: Exception):
+    import notificacoes
+    if notificacoes._sem_tabela(e):
+        return None
+    return _falha_interna(rota, metodo, e, 503, "Não foi possível carregar as notificações agora.")
+
+
+@app.get("/notificacoes")
+def listar_notificacoes(filtro: str = "pendentes", limite: int = Query(30, ge=1, le=100),
+                        antes: Optional[str] = Query(None, max_length=40),
+                        credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """O sino da pessoa: avisos dela, contagem de não lidas e de urgentes, e se cada um toca agora."""
+    import notificacoes
+    payload, emp = _dono_das_notificacoes(credentials)
+    if not emp or not notificacoes.ligado():
+        return dict(_NOTIFICACOES_VAZIO)
+    if filtro not in ("pendentes", "todas"):
+        raise HTTPException(status_code=422, detail="Filtro inválido: use pendentes ou todas.")
+    if antes:
+        try:
+            datetime.fromisoformat(antes.replace("Z", "+00:00"))
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Data inválida em antes.")
+    try:
+        return notificacoes.listar(payload["sub"], emp, filtro, limite, antes)
+    except Exception as e:
+        erro = _erro_notificacoes("/notificacoes", "GET", e)
+        if erro is None:
+            return {**_NOTIFICACOES_VAZIO, "mensagem": _MSG_SEM_NOTIFICACOES}
+        raise erro
+
+
+@app.post("/notificacoes/{notificacao_id}/lida")
+def marcar_notificacao_lida(notificacao_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Marca uma notificação como lida. Só a própria: a de outra pessoa não muda e a resposta é a mesma."""
+    import notificacoes
+    payload, emp = _dono_das_notificacoes(credentials)
+    if not emp:
+        raise HTTPException(status_code=403, detail="O sino é de quem trabalha numa empresa.")
+    try:
+        notificacoes.marcar_lidas(payload["sub"], emp, [_id_da_notificacao(notificacao_id)])
+    except HTTPException:
+        raise
+    except Exception as e:
+        erro = _erro_notificacoes("/notificacoes/{id}/lida", "POST", e)
+        if erro is None:
+            raise HTTPException(status_code=409, detail=_MSG_SEM_NOTIFICACOES)
+        raise erro
+    return {"ok": True}
+
+
+@app.post("/notificacoes/lidas")
+def marcar_notificacoes_lidas(body: NotificacoesLidasIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Marca como lidas as notificações indicadas (ou todas as da pessoa, sem `ids`)."""
+    import notificacoes
+    payload, emp = _dono_das_notificacoes(credentials)
+    if not emp:
+        raise HTTPException(status_code=403, detail="O sino é de quem trabalha numa empresa.")
+    ids = None if body.ids is None else [_id_da_notificacao(i) for i in body.ids]
+    try:
+        n = notificacoes.marcar_lidas(payload["sub"], emp, ids)
+    except Exception as e:
+        erro = _erro_notificacoes("/notificacoes/lidas", "POST", e)
+        if erro is None:
+            raise HTTPException(status_code=409, detail=_MSG_SEM_NOTIFICACOES)
+        raise erro
+    return {"ok": True, "lidas": n}
+
+
+@app.get("/notificacoes/preferencias")
+def ler_preferencias_notificacoes(credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    import notificacoes
+    payload, emp = _dono_das_notificacoes(credentials)
+    if not emp:
+        return {**notificacoes.PADRAO_PREFERENCIAS, "ativo": False}
+    try:
+        return {**notificacoes.preferencias(payload["sub"]), "ativo": True}
+    except Exception as e:
+        erro = _erro_notificacoes("/notificacoes/preferencias", "GET", e)
+        if erro is None:
+            return {**notificacoes.PADRAO_PREFERENCIAS, "ativo": False, "mensagem": _MSG_SEM_NOTIFICACOES}
+        raise erro
+
+
+@app.put("/notificacoes/preferencias")
+def salvar_preferencias_notificacoes(body: PreferenciasNotificacaoIn,
+                                     credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    import notificacoes
+    payload, emp = _dono_das_notificacoes(credentials)
+    if not emp:
+        raise HTTPException(status_code=403, detail="O sino é de quem trabalha numa empresa.")
+    try:
+        p = notificacoes.salvar_preferencias(payload["sub"], emp, body.model_dump())
+    except Exception as e:
+        erro = _erro_notificacoes("/notificacoes/preferencias", "PUT", e)
+        if erro is None:
+            raise HTTPException(status_code=409, detail=_MSG_SEM_NOTIFICACOES)
+        raise erro
+    _registrar_auditoria(acao="notificacoes_preferencias", entidade="usuario", entidade_id=payload["sub"],
+                         usuario_email=payload.get("email"), empresa_id=emp, usuario_id=payload["sub"],
+                         detalhes={"navegador": p["navegador"], "email_resumo": p["email_resumo"],
+                                   "silencio": p["silencio_ligado"], "desligadas": p["desligadas"]})
+    return {**p, "ativo": True}
 
 
 @app.get("/agente/devedores")
@@ -10107,6 +10338,11 @@ def agente_laboratorio_analisar(empresa_id: Optional[str] = None,
     _registrar_auditoria(acao="recomendacao_gerada", entidade="agente_recomendacoes", entidade_id=str(r.get("id")),
                          usuario_email=payload.get("email"), empresa_id=emp, usuario_id=payload.get("sub"),
                          detalhes={"selo": r.get("selo"), "origem": r.get("origem")})
+    try:
+        import notificacoes
+        notificacoes.recomendacao_do_cientista(emp, r.get("id"), exceto=payload.get("sub"))   # os outros administradores
+    except Exception as e:
+        print(f"[Notificações] recomendação não avisada: {type(e).__name__}")
     return r
 
 

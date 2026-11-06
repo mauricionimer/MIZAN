@@ -1,6 +1,7 @@
 # Notificações do Mizan: mapa e plano
 
-**Data:** 06/11/2026 · **Status:** aprovado em 06/11/2026; fases 1 e 2 em execução (plano de execução na seção 11)
+**Data:** 06/11/2026 · **Status:** aprovado e com as fases 1 e 2 entregues em 06/11/2026. Para ligar, rode
+`backend/sql/migracao_notificacoes.sql` no Supabase. Uso e operação: `docs/NOTIFICACOES.md`.
 **Perfis:** administrador e operador. O COMANDO segue com os avisos que já tem (Dúvidas e telas da plataforma).
 
 ---

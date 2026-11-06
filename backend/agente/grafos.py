@@ -192,6 +192,8 @@ def grafo_mensagem(fonte) -> Grafo:
         if not any(aviso == (a.get("observacao") or "") for a in pendentes):
             hoje = ctx.agora.astimezone(negociador.auditor.BRASILIA).date().isoformat()
             fonte.criar_agenda(ctx.caso["empresa_id"], dev, "retorno", hoje, observacao=aviso)
+        import notificacoes
+        notificacoes.mensagem_em_caso_da_equipe(ctx, dev)       # sino de quem está com o caso
         texto = AVISO_RECEBIDO.get(ctx.caso["situacao"])
         limite = ctx.agora - JANELA_AVISO_RECEBIDO
         recentes = [m for m in ctx.repo.ultimas_mensagens(ctx.caso["empresa_id"], ctx.caso["id"], 20)

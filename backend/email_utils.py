@@ -61,7 +61,8 @@ def enviar_email(destinatario: str, assunto: str, corpo_html: str) -> bool:
             method="POST",
         )
         with urllib.request.urlopen(req, timeout=30) as resp:
-            print(f"[Email] Enviado para {destinatario} (status {resp.status})")
+            # Sem o destinatário no log (design/GUIA_DE_DESIGN.md, seção 10).
+            print(f"[Email] Enviado (status {resp.status})")
         return _anotar(True)
     except Exception as e:
         print(f"[Email] Erro: {e}")

@@ -119,6 +119,9 @@ def monitorar(empresa, repo=None):
         if r['dados'].get('monitoramento') != rel or status != r['status']:
             repo.transicao(empresa, r['id'], r['status'], status, {'monitoramento': rel}, 'cientista:monitor',
                            'Intervenção encerrada; relatório inclui desfechos maduros recebidos depois do encerramento' if status == 'encerrada' else 'Resultados e composição atualizados')
+            if status == 'encerrada' and r['status'] != 'encerrada' and rel['parar_por_dano']:
+                import notificacoes
+                notificacoes.experimento_parado(empresa, r['id'])      # o administrador revisa antes de continuar
         saida.append({'id': r['id'], 'relatorio': rel})
     return saida
 
