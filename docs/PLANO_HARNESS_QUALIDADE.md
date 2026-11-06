@@ -16,7 +16,8 @@
     IA simulada; as 13 rodadas guardadas são todas simuladas, e as versões v11 a v17 do prompt nem
     tiveram rodada guardada.
   - **Não há CI** (checagem automática a cada envio). Os 136 arquivos de teste só rodam quando alguém
-    lembra. Hoje 3 estão quebrados sem ninguém ter visto, um deles por mudanças de tela de 04 e 05/11.
+    lembra. Hoje 4 falham sem ninguém ter visto (um deles por mudanças de tela de 04 e 05/11), e 4
+    passam de 15 minutos quando a suíte roda em paralelo.
   - **Não há portão de entrega.** Foram 155 envios diretos na `master` e 6 PRs em 60 dias. Cada envio vira
     deploy em produção (Render e Vercel) na hora.
   - **Em produção, ninguém avalia a qualidade das conversas.** Não há amostragem, nota, painel por versão
@@ -72,9 +73,13 @@
 
 ### 1.3 Saúde medida hoje (06/11/2026)
 
-- **Backend:** 124 de 136 arquivos de teste passam.
-  - Quebrados: `test_ajuda_catalogo.py`, `test_ajuda_cobertura.py`, `test_otimizacao_paginas.py`.
-  - Estouram o tempo quando a suíte roda em paralelo (15 min por arquivo): nenhum. Ainda rodando quando esta versão foi gravada (9, os mais pesados): `test_diagnostico_ativo.py`, `test_peso_variaveis.py`, `test_revisao_modelos.py`, `test_score_em_lotes.py`, `test_seguranca_plano.py`, `test_treino_api.py`, `test_treino_empresa.py`, `test_treino_feedbacks.py`, `test_varredura_contas.py`.
+- **Backend:** 128 de 136 arquivos de teste passam. A suíte completa levou 25 min, com 6 arquivos por vez.
+  - Falham: `test_ajuda_catalogo.py`, `test_ajuda_cobertura.py`, `test_otimizacao_paginas.py` e
+    `test_treino_api.py`. No último, o treino não terminou no tempo que o teste espera; falta conferir se
+    ele passa rodando sozinho.
+  - Cortados no limite de 15 min por arquivo, sem nenhuma falha até ali: `test_diagnostico_ativo.py`,
+    `test_peso_variaveis.py`, `test_revisao_modelos.py`, `test_treino_empresa.py`.
+  - Os mais lentos que passam: `test_score_em_lotes.py` e `test_treino_feedbacks.py`, com 14 min cada.
 - **Frontend:** o build passa e os 36 testes `node --test` passam. Os 5 testes de tela existem, mas
   precisam de alguém para subir o servidor e rodar.
 - **Bateria com IA simulada:** 100/100 (91/91 cenários, 268 conferências).
@@ -360,7 +365,7 @@ Objetivo: a suíte vira confiável e automática, e o agente ganha uma nota real
 
 1. **Executor único de testes** (`backend/scripts/testes.py`): roda scripts e pytest juntos, em
    paralelo, com tempo por arquivo, grupos "rápido" e "lento", e relatório JUnit.
-2. **Zerar a dívida:** consertar os 3 testes quebrados e acelerar os lentos (por exemplo, com
+2. **Zerar a dívida:** consertar os 4 testes que falham e acelerar os lentos (por exemplo, com
    dados de treino menores dentro do teste). Nenhum teste é pulado nem silenciado.
 3. **CI no GitHub Actions:**
    - a cada PR e envio: testes rápidos, bateria simulada, prova estática, build e testes do frontend;
@@ -517,7 +522,11 @@ e cada passo fica registrado.
 - CI: `.github/workflows` só tem `keepalive.yml`. Esse despertador rodou a cada 3 a 10 horas na prática,
   não a cada 8 minutos (o GitHub atrasa tarefas agendadas).
 - Entrega: `git log --first-parent master` dos últimos 60 dias: 6 merges de PR e 155 envios diretos.
-- Suíte: 124 passam, 3 falham (`test_ajuda_catalogo.py`, `test_ajuda_cobertura.py`, `test_otimizacao_paginas.py`) e 9 ainda estavam rodando (os de treino e os mais pesados) quando esta versão foi gravada.
+- Suíte (6 arquivos por vez, 15 min de limite por arquivo, 25 min no total):
+  - 128 passam;
+  - 4 falham: `test_ajuda_catalogo.py`, `test_ajuda_cobertura.py`, `test_otimizacao_paginas.py` e `test_treino_api.py`;
+  - 4 cortados no limite, sem falha até ali: `test_diagnostico_ativo.py`, `test_peso_variaveis.py`,
+    `test_revisao_modelos.py` e `test_treino_empresa.py`.
 - Frontend: build ok; `node --test tests/*.test.mjs` → 36/36; 5 testes de tela (`*.ui.mjs`) manuais.
 - Sem ruff ou ESLint; 13 arquivos do frontend têm `eslint-disable`.
 - Retenção: `/retencao/executar` é manual; `agente_mensagens` grava `apagar_em` nulo.
