@@ -529,3 +529,36 @@ Um passo novo no agendador, a cada minuto, independente do agente estar ligado. 
 | Aviso duplicado | Chave única por pessoa, também no banco |
 | Dado pessoal vazando | Só primeiro nome no Mizan; nada pessoal fora dele; sem CPF em lugar nenhum |
 | Banco fora ou SQL não rodado | Disjuntor, sino escondido, nada quebra |
+
+---
+
+## 12. Página "Notificações" no menu (pedida em 06/11/2026)
+
+O sino guarda os avisos, mas não havia uma página própria. Agora há uma, para o administrador e o
+operador.
+
+| Peça | Como fica |
+|---|---|
+| **Menu** | Item "Notificações", logo abaixo de "Hoje", com o número de não lidas (vermelho quando há urgente). O COMANDO não vê o item |
+| **Rota** | `/notificacoes`. O COMANDO que abrir o endereço vê a explicação de que o sino é da operação de cada empresa |
+| **Cabeçalho** | O padrão (`CabecalhoPagina`), com voltar, a frase de para que serve e o "?" da Central de Ajuda |
+| **Resumo** | "3 não lidas · 1 urgente", em texto |
+| **Filtros** | "Pendentes" ou "Todas"; assunto (Conversas, Reuniões, Retornos e pagamentos, Pedidos e LGPD, Equipe e, para o administrador, Sistema), com a contagem de não lidas em cada um; "Só urgentes" |
+| **Lista** | Agrupada por dia ("Hoje", "Ontem", "Terça-feira, 03/11"), com o mesmo cartão do sino: texto, tempo, o botão da ação e "Marcar como lida". "Carregar as mais antigas" no fim |
+| **Ações** | "Marcar todas como lidas" e "Preferências" (abre as preferências do sino) |
+| **Estados** | Carregando, vazio (diz por quê e oferece limpar os filtros), erro com "Tentar de novo", sem permissão (COMANDO), não ligado (sem a tabela) e o conteúdo |
+| **Ao vivo** | A página e o sino se atualizam juntos: marcar como lida num muda o outro na hora |
+| **Sino** | O painel ganha o link "Ver todas as notificações" |
+
+**Backend, só por acréscimo:** `GET /notificacoes` aceita `categoria` e `prioridade` (valores
+conferidos; desconhecido dá 422) e devolve `por_categoria`, a contagem de não lidas por assunto.
+
+**Central de Ajuda:** entrada `notificacoes` ("por que recebi esse aviso?", "como desligo?") e a tela
+"Notificações" na tabela de telas.
+
+**Testes:**
+- rotas com os filtros e as contagens;
+- a conta de agrupar por dia;
+- navegador real: menu, filtros, marcar como lida (o sino acompanha), vazio, COMANDO, 390 px e
+  1280 px, claro e escuro;
+- os testes da Central de Ajuda não ganham falha nova.

@@ -33,7 +33,7 @@ ARQ = {f.relative_to(SRC).as_posix(): f.read_text(encoding="utf-8") for f in SRC
 TODOS = {"operador", "admin", "comando"}
 PAGINAS = {
     "pages/Dashboard.jsx": TODOS, "components/PainelCarteira.jsx": TODOS, "pages/DebtorDetail.jsx": TODOS, "pages/Upload.jsx": TODOS,
-    "pages/Feedback.jsx": TODOS, "pages/AlterarSenha.jsx": TODOS,
+    "pages/Feedback.jsx": TODOS, "pages/AlterarSenha.jsx": TODOS, "pages/Notificacoes.jsx": TODOS,
     "pages/Retencao.jsx": {"comando"}, "pages/Auditoria.jsx": {"admin", "comando"},
     "pages/AdminUsuarios.jsx": {"admin", "comando"}, "pages/Backtest.jsx": {"admin", "comando"},
     "pages/Premissas.jsx": {"admin", "comando"}, "pages/Ajuda.jsx": TODOS,

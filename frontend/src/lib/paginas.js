@@ -34,6 +34,7 @@ export const paginas = {
   Agente: () => import('../pages/Agente'),
   AgentePerfil: () => import('../pages/AgentePerfil'),
   LaboratorioPagina: () => import('../pages/LaboratorioPagina'),
+  Notificacoes: () => import('../pages/Notificacoes'),
 }
 
 const rotas = {
@@ -64,6 +65,7 @@ const rotas = {
   '/comando/duvidas': paginas.DuvidasComando,
   '/agente': paginas.Agente,
   '/laboratorio': paginas.LaboratorioPagina,
+  '/notificacoes': paginas.Notificacoes,
 }
 
 export function prepararPagina(rota) {

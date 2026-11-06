@@ -524,6 +524,28 @@ checar(r.status_code == 200 and r.json()["navegador"] and c.get("/notificacoes/p
        "salvar e ler as preferências")
 checar(c.get("/notificacoes/preferencias", headers=ANA).json()["silencio_inicio"] == 20, "cada pessoa tem as suas")
 checar(c.put("/notificacoes/preferencias", json={}, headers=CMD).status_code == 403, "o COMANDO não salva preferências de sino")
+print("— página de notificações: filtros e contagem por assunto —")
+a = novo()
+N.notificar("N03", "emp", usuarios=["op1"], ou_admins=False, contexto={"nome": "Maria", "predicao_id": "p1"}, chave="pg1")
+N.notificar("N22", "emp", usuarios=["op1"], ou_admins=False, contexto={"nome": "Maria", "predicao_id": "p1"}, chave="pg2")
+N.notificar("N06", "emp", usuarios=["op1"], ou_admins=False, contexto={"nome": "João", "quando": "hoje às 15:00"}, chave="pg3")
+N.notificar("N07", "emp", usuarios=["op1"], ou_admins=False, contexto={"nome": "Ana", "quando": "hoje às 16:00"}, chave="pg4")
+a.marcar_lidas("op1", "emp", [de(a, "op1", "N07")[0]["id"]])
+r = c.get("/notificacoes", params={"categoria": "reunioes"}, headers=ANA).json()
+checar([i["tipo"] for i in r["itens"]] == ["N06"] and r["nao_lidas"] == 3,
+       "filtro por assunto (as contagens seguem sendo de tudo o que está aberto)", str([i["tipo"] for i in r["itens"]]))
+checar(r["por_categoria"] == {"conversas": 1, "reunioes": 1, "retornos": 0, "pedidos": 1, "equipe": 0, "sistema": 0},
+       "não lidas por assunto, para os filtros da página", str(r.get("por_categoria")))
+r = c.get("/notificacoes", params={"categoria": "reunioes", "filtro": "todas"}, headers=ANA).json()
+checar(sorted(i["tipo"] for i in r["itens"]) == ["N06", "N07"], "assunto com o histórico: também as já lidas")
+r = c.get("/notificacoes", params={"prioridade": "urgente"}, headers=ANA).json()
+checar([i["tipo"] for i in r["itens"]] == ["N03"], "só urgentes")
+checar(c.get("/notificacoes", params={"categoria": "xyz"}, headers=ANA).status_code == 422
+       and c.get("/notificacoes", params={"prioridade": "baixa"}, headers=ANA).status_code == 422,
+       "assunto ou prioridade desconhecidos: 422")
+checar(c.get("/notificacoes", params={"categoria": "reunioes"}, headers=CMD).json() == {**main._NOTIFICACOES_VAZIO},
+       "o COMANDO recebe a resposta vazia, também com filtro")
+
 class SemTabela(N.ArmazemMemoria):
     def listar(s, *a): raise RuntimeError('relation "public.notificacoes" does not exist')
 N.usar_armazem(SemTabela(usuarios=PESSOAS))

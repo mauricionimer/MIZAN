@@ -110,6 +110,7 @@ const DuvidasComando = lazy(paginas.DuvidasComando)
 const Agente = lazy(paginas.Agente)
 const AgentePerfil = lazy(paginas.AgentePerfil)
 const LaboratorioPagina = lazy(paginas.LaboratorioPagina)
+const NotificacoesPagina = lazy(paginas.Notificacoes)
 
 function RotaProtegida({ children, roles }) {
   const { autenticado, usuario, precisa2fa } = useAuth()
@@ -182,6 +183,7 @@ function RotasAnimadas() {
           <Route path="/resultados" element={P(['admin', 'comando'], <Resultados />)} />
           <Route path="/roteiros" element={P(['operador', 'admin', 'comando'], <Roteiros />)} />
           <Route path="/agenda" element={P(['operador', 'admin', 'comando'], <Agenda />)} />
+          <Route path="/notificacoes" element={P(['operador', 'admin', 'comando'], <NotificacoesPagina />)} />
           <Route path="/backtest" element={P(['admin', 'comando'], <Backtest />)} />
           <Route path="/premissas" element={P(['admin', 'comando'], <Premissas />)} />
           <Route path="/retencao" element={P(['comando'], <Retencao />)} />

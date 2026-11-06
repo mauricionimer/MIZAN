@@ -319,3 +319,24 @@ fontes:
 - backend/marca.py::dominio_do_email
 - backend/main.py::marca_por_email
 
+## notificacoes
+titulo: Notificações e o sino
+perfis: operador, admin, comando
+telas: Notificações
+perguntas:
+- por que recebi esse aviso
+- como desligo as notificações
+- o que é o sino no topo da tela
+- por que o aviso do navegador não aparece
+- onde vejo as notificações antigas
+- quem recebe o aviso quando o devedor não tem responsável
+- por que o aviso urgente apareceu sozinho na tela
+curta: O sino avisa o que precisa de você: mensagem nova num caso seu, reunião, lembrete de horário, pagamento para conferir. O urgente aparece sozinho no topo da tela. Tudo fica guardado em Notificações por 90 dias.
+calculo: Recebe o responsável pelo devedor; sem responsável, ou com o assistente, os administradores da empresa. Quem fez a ação não recebe. Urgente sem leitura em 15 minutos vai também para os administradores que ainda não o receberam. No horário silencioso (padrão das 20h às 8h), só o urgente toca; o resto fica guardado sem chamar a atenção.
+fazer: Toque no aviso para abrir o lugar certo. Na engrenagem do sino, escolha os assuntos, o horário silencioso, o aviso do navegador e o resumo por e-mail das 8h.
+cuidado: O urgente não pode ser desligado. O aviso do navegador só aparece com o Mizan aberto (em outra aba ou minimizado) e depois que você permite no navegador; com o Mizan fechado, nada aparece fora dele.
+fontes:
+- backend/notificacoes.py::destinatarios
+- backend/notificacoes.py::toca_agora
+- backend/notificacoes.py::escalar
+- backend/notificacoes.py::limpar

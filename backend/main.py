@@ -9630,7 +9630,7 @@ def mudancas_da_empresa(empresa_id: Optional[str] = None,
 # Cada pessoa só vê e marca as próprias, dentro da empresa dela. O COMANDO não tem sino.
 _MSG_SEM_NOTIFICACOES = ("As notificações ainda não foram ligadas no banco: rode "
                          "backend/sql/migracao_notificacoes.sql no Supabase.")
-_NOTIFICACOES_VAZIO = {"ativo": False, "itens": [], "mais": False, "nao_lidas": 0, "urgentes": 0}
+_NOTIFICACOES_VAZIO = {"ativo": False, "itens": [], "mais": False, "nao_lidas": 0, "urgentes": 0, "por_categoria": {}}
 
 
 class PreferenciasNotificacaoIn(BaseModel):
@@ -9678,21 +9678,29 @@ def _erro_notificacoes(rota: str, metodo: str, e: Exception):
 @app.get("/notificacoes")
 def listar_notificacoes(filtro: str = "pendentes", limite: int = Query(30, ge=1, le=100),
                         antes: Optional[str] = Query(None, max_length=40),
+                        categoria: Optional[str] = Query(None, max_length=20),
+                        prioridade: Optional[str] = Query(None, max_length=10),
                         credentials: HTTPAuthorizationCredentials = Security(bearer)):
-    """O sino da pessoa: avisos dela, contagem de não lidas e de urgentes, e se cada um toca agora."""
+    """O sino e a página de notificações: avisos da pessoa (filtrados por assunto e prioridade, se
+    pedido), contagem de não lidas, de urgentes e por assunto, e se cada um toca agora."""
     import notificacoes
     payload, emp = _dono_das_notificacoes(credentials)
     if not emp or not notificacoes.ligado():
         return dict(_NOTIFICACOES_VAZIO)
     if filtro not in ("pendentes", "todas"):
         raise HTTPException(status_code=422, detail="Filtro inválido: use pendentes ou todas.")
+    if categoria and categoria not in notificacoes.CATEGORIAS:
+        raise HTTPException(status_code=422, detail="Assunto de notificação desconhecido.")
+    if prioridade and prioridade not in notificacoes.PRIORIDADES:
+        raise HTTPException(status_code=422, detail="Prioridade inválida: use urgente, alta ou normal.")
     if antes:
         try:
             datetime.fromisoformat(antes.replace("Z", "+00:00"))
         except ValueError:
             raise HTTPException(status_code=422, detail="Data inválida em antes.")
     try:
-        return notificacoes.listar(payload["sub"], emp, filtro, limite, antes)
+        return notificacoes.listar(payload["sub"], emp, filtro, limite, antes, categoria=categoria,
+                                   prioridade=prioridade)
     except Exception as e:
         erro = _erro_notificacoes("/notificacoes", "GET", e)
         if erro is None:

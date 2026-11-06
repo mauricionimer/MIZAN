@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   tempoRelativo, secoes, linkInterno, tituloDaAba, rotuloDoSino, novasQueTocam, urgenteParaAvisar,
-  categoriasDoPapel, CATEGORIAS,
+  categoriasDoPapel, CATEGORIAS, porDia,
 } from '../src/lib/notificacoes.js'
 
 // 14:00 de Brasília (17:00 UTC) de sexta, 06/11/2026.
@@ -32,6 +32,20 @@ test('seções Agora, Hoje e Antes, mais novas primeiro e sem seção vazia', ()
   assert.deepEqual(s[1].itens.map(i => i.id), ['a'])
   assert.deepEqual(secoes([{ id: 'x', atualizado_em: iso(1) }], AGORA).map(x => x.id), ['agora'])
   assert.deepEqual(secoes([], AGORA), [])
+})
+
+test('página: agrupa por dia de Brasília, do mais novo para o mais antigo', () => {
+  const g = porDia([
+    { id: 'a', atualizado_em: '2026-11-03T15:00:00Z' },        // terça, 03/11
+    { id: 'b', atualizado_em: iso(10) },                        // hoje
+    { id: 'c', atualizado_em: '2026-11-05T20:00:00Z' },        // ontem
+    { id: 'd', atualizado_em: '2026-11-06T02:30:00Z' },        // 23:30 de 05/11 em Brasília: ontem
+    { id: 'e', atualizado_em: '2026-11-03T12:00:00Z' },
+  ], AGORA)
+  assert.deepEqual(g.map(x => x.titulo), ['Hoje', 'Ontem', 'Terça-feira, 03/11'])
+  assert.deepEqual(g[1].itens.map(i => i.id), ['d', 'c'])
+  assert.deepEqual(g[2].itens.map(i => i.id), ['a', 'e'])
+  assert.deepEqual(porDia([], AGORA), [])
 })
 
 test('link só para telas internas', () => {

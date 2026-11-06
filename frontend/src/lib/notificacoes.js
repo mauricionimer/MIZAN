@@ -56,6 +56,35 @@ export function secoes(itens, agora = new Date()) {
   ].filter(s => s.itens.length)
 }
 
+const DIAS = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado']
+
+function chaveDoDia(d) {
+  // AAAA-MM-DD no horário de Brasília (en-CA já sai nesse formato).
+  return new Intl.DateTimeFormat('en-CA', { ...fuso, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d)
+}
+
+/**
+ * A página de notificações agrupa por dia: "Hoje", "Ontem" e, antes disso,
+ * "Terça-feira, 03/11". Os dias vêm do mais novo para o mais antigo.
+ */
+export function porDia(itens, agora = new Date()) {
+  const hoje = chaveDoDia(agora)
+  const ontem = chaveDoDia(new Date(agora.getTime() - 24 * 60 * MIN))
+  const grupos = new Map()
+  for (const it of [...(itens || [])].sort((a, b) => quandoDe(b) - quandoDe(a))) {
+    const d = quandoDe(it)
+    const chave = chaveDoDia(d)
+    if (!grupos.has(chave)) {
+      const [a, m, dia] = chave.split('-').map(Number)
+      const semana = DIAS[new Date(Date.UTC(a, m - 1, dia, 12)).getUTCDay()]
+      const titulo = chave === hoje ? 'Hoje' : chave === ontem ? 'Ontem' : `${semana}, ${String(dia).padStart(2, '0')}/${String(m).padStart(2, '0')}`
+      grupos.set(chave, { id: chave, titulo, itens: [] })
+    }
+    grupos.get(chave).itens.push(it)
+  }
+  return [...grupos.values()]
+}
+
 /** Só telas internas do Mizan: qualquer outra coisa vira o Início. */
 export function linkInterno(link) {
   const l = String(link || '')

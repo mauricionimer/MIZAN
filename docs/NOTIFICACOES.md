@@ -58,6 +58,16 @@ minuto no máximo ("rode backend/sql/migracao_notificacoes.sql").
 - **Número na aba:** "(3) Mizan".
 - **Resumo por e-mail às 8h:** só para quem liga nas preferências. Leva só contagens por assunto.
 
+## Onde fica guardado
+
+- **No sino**, no topo de todas as telas: as mais recentes, com as abas "Não lidas" e "Todas".
+- **Na página Notificações** (menu, logo abaixo de "Hoje"), com o número de não lidas no menu:
+  - o histórico dos últimos 90 dias, agrupado por dia;
+  - filtro por assunto, com quantas não lidas há em cada um, e "Só urgentes";
+  - "Marcar todas como lidas" e "Preferências".
+  - O sino e a página andam juntos: marcar como lida num muda o outro na hora.
+- Cada pessoa vê só as suas. O COMANDO não tem o item no menu; se abrir o endereço, vê a explicação.
+
 ## Preferências (engrenagem no painel)
 
 - **Aviso do navegador:** liga só depois que a pessoa autoriza no navegador. O texto é genérico
@@ -100,13 +110,13 @@ minuto no máximo ("rode backend/sql/migracao_notificacoes.sql").
 - **Tempo real:** `/mudancas` traz a versão das notificações de cada pessoa. O sino atualiza em até 2 s
   com a aba aberta e em até 20 s com ela escondida (para o aviso do navegador).
 - **Rotas:**
-  - `GET /notificacoes`;
+  - `GET /notificacoes` (filtros: `filtro`, `categoria`, `prioridade`; devolve também `por_categoria`);
   - `POST /notificacoes/{id}/lida`;
   - `POST /notificacoes/lidas`;
   - `GET` e `PUT /notificacoes/preferencias`.
   - Cada pessoa só vê e marca as próprias, dentro da empresa dela.
-- **Tela:** `frontend/src/components/Notificacoes.jsx` e `useNotificacoes.jsx`, com as contas puras em
-  `frontend/src/lib/notificacoes.js`.
+- **Tela:** `frontend/src/components/Notificacoes.jsx` e `useNotificacoes.jsx` (sino, painel e aviso) e
+  `frontend/src/pages/Notificacoes.jsx` (a página), com as contas puras em `frontend/src/lib/notificacoes.js`.
 
 ## Testes
 

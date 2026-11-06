@@ -24,7 +24,7 @@ export function SinoNotificacoes() {
   if (!n?.ligado || !n.ativo) return null
   const Icone = n.urgentes ? BellRing : Bell
   return (
-    <button type="button" onClick={n.abrirPainel} aria-label={rotuloDoSino(n.naoLidas, n.urgentes)}
+    <button type="button" onClick={() => n.abrirPainel()} aria-label={rotuloDoSino(n.naoLidas, n.urgentes)}
       aria-haspopup="dialog" aria-expanded={n.aberto} title="Notificações"
       className="relative inline-flex h-10 w-10 items-center justify-center rounded-lg text-ink-2 hover:bg-raise-2 hover:text-ink">
       <Icone className="h-5 w-5" aria-hidden="true" />
@@ -39,7 +39,7 @@ export function SinoNotificacoes() {
   )
 }
 
-function Esqueleto() {
+export function EsqueletoNotificacoes() {
   return (
     <ul className="space-y-2" aria-hidden="true">
       {[0, 1, 2].map(i => (
@@ -55,7 +55,7 @@ function Esqueleto() {
   )
 }
 
-function Item({ item, agora, onAbrir, onLida }) {
+export function ItemNotificacao({ item, agora, onAbrir, onLida }) {
   const Icone = ICONE[item.categoria] || Bell
   const urgente = item.prioridade === 'urgente'
   const cor = urgente ? 'var(--danger)' : 'var(--royal)'
@@ -101,14 +101,14 @@ function Lista() {
   const agora = useMemo(() => new Date(), [n.itens])            // eslint-disable-line react-hooks/exhaustive-deps
   const grupos = useMemo(() => secoes(n.itens, agora), [n.itens, agora])
   const [maisCarregando, setMaisCarregando] = useState(false)
-  if (!n.carregou && n.carregando) return <Esqueleto />
+  if (!n.carregou && n.carregando) return <EsqueletoNotificacoes />
   if (n.erro && !n.itens.length) return <ErroCarga erro={n.erro} onTentar={n.recarregar} />
   if (!n.itens.length) {
     return (
       <div className="rounded-xl border border-dashed border-line px-4 py-8 text-center">
         <CheckCheck className="mx-auto h-6 w-6 text-ink-3" aria-hidden="true" />
         <p className="mt-2 text-sm font-semibold text-ink">
-          {n.filtro === 'pendentes' ? 'Nada pendente por aqui' : 'Ainda não há notificações'}
+          {n.filtro === 'pendentes' ? 'Tudo lido por aqui' : 'Ainda não há notificações'}
         </p>
         <p className="mt-1 text-[13px] text-ink-2">
           {n.filtro === 'pendentes'
@@ -116,7 +116,7 @@ function Lista() {
             : 'Os avisos dos últimos 90 dias ficam guardados aqui.'}
         </p>
         {n.filtro === 'pendentes' && (
-          <button type="button" onClick={() => n.setFiltro('todas')} className="btn-ghost btn-sm mt-3">Ver as anteriores</button>
+          <button type="button" onClick={() => n.setFiltro('todas')} className="btn-ghost btn-sm mt-3">Ver todas</button>
         )}
       </div>
     )
@@ -128,7 +128,7 @@ function Lista() {
         <section key={g.id} aria-labelledby={`notificacoes-${g.id}`}>
           <h3 id={`notificacoes-${g.id}`} className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">{g.titulo}</h3>
           <ul className="space-y-2">
-            {g.itens.map(i => <Item key={i.id} item={i} agora={agora} onAbrir={n.abrir} onLida={n.marcarLida} />)}
+            {g.itens.map(i => <ItemNotificacao key={i.id} item={i} agora={agora} onAbrir={n.abrir} onLida={n.marcarLida} />)}
           </ul>
         </section>
       ))}
@@ -251,7 +251,7 @@ export function PainelNotificacoes() {
   const aberto = !!n?.aberto
   const caixa = useModal(aberto, () => n?.fecharPainel())
   const [vista, setVista] = useState('lista')
-  useEffect(() => { if (!aberto) setVista('lista') }, [aberto])
+  useEffect(() => { if (aberto) setVista(n?.vistaInicial || 'lista') }, [aberto])   // eslint-disable-line react-hooks/exhaustive-deps
   if (!n?.ligado) return null
   return createPortal(
     <AnimatePresence>
@@ -282,7 +282,7 @@ export function PainelNotificacoes() {
             {vista === 'lista' && (
               <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2">
                 <div role="tablist" aria-label="Quais notificações" className="flex gap-1">
-                  {[['pendentes', `Pendentes${n.naoLidas ? ` (${n.naoLidas > 99 ? '99+' : n.naoLidas})` : ''}`], ['todas', 'Todas']].map(([id, rotulo]) => (
+                  {[['pendentes', `Não lidas${n.naoLidas ? ` (${n.naoLidas > 99 ? '99+' : n.naoLidas})` : ''}`], ['todas', 'Todas']].map(([id, rotulo]) => (
                     <button key={id} type="button" role="tab" aria-selected={n.filtro === id} onClick={() => n.setFiltro(id)}
                       className={`-mb-px min-h-[40px] border-b-2 px-3 text-sm ${n.filtro === id
                         ? 'border-[var(--royal)] font-semibold text-ink' : 'border-transparent text-ink-2 hover:text-ink'}`}>
@@ -300,6 +300,13 @@ export function PainelNotificacoes() {
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
               {vista === 'preferencias' ? <Preferencias onVoltar={() => setVista('lista')} /> : <Lista />}
             </div>
+            {vista === 'lista' && (
+              <div className="border-t border-line px-4 py-3">
+                <button type="button" onClick={() => n.irPara('/notificacoes')} className="btn-secondary btn-sm w-full">
+                  Ver todas as notificações
+                </button>
+              </div>
+            )}
           </motion.aside>
         </>
       )}

@@ -69,6 +69,7 @@ TELAS = {
     "Acordos":                 ("operador", "admin", "comando"),
     "Ofertas":                 ("admin", "comando"),
     "Ajuda":                   ("operador", "admin", "comando"),
+    "Notificações":            ("operador", "admin", "comando"),   # o COMANDO vê a explicação; o sino é da operação
     "Dúvidas":                 ("comando",),
     "Painel COMANDO":          ("comando",),
     "Aprendizado":             ("comando",),

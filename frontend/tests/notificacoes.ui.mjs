@@ -34,11 +34,12 @@ const base = () => ([
     criado_em: iso(200), atualizado_em: iso(200) },
 ])
 
-async function cenario({ largura, tema, papel = 'operador', foto }) {
+async function cenario({ largura, tema, papel = 'operador', foto, inicio = '/alterar-senha' }) {
   const page = await browser.newPage({ viewport: { width: largura, height: 900 }, reducedMotion: 'reduce' })
   const erros = []; page.on('pageerror', e => erros.push(e.message))
   const usuario = { id: 'op1', role: papel, empresa_id: papel === 'comando' ? '' : 'emp', nome: 'Ana Lima', email: 'ana@x' }
   let itens = base(), lidas = [], todas = 0, prefsSalvas = null, versao = 1
+  const pedidos = []
   await page.route('**/*', async route => {
     const url = new URL(route.request().url()); if (url.origin === address) return route.continue()
     if (url.origin !== 'http://127.0.0.1:8001') return route.abort()
@@ -50,9 +51,14 @@ async function cenario({ largura, tema, papel = 'operador', foto }) {
     else if (url.pathname === '/mudancas') json = { agenda: 'a:1', casos: 'a:1', notificacoes: `a:${versao}` }
     else if (url.pathname === '/notificacoes' && papel === 'comando') json = { ativo: false, itens: [], nao_lidas: 0, urgentes: 0 }
     else if (url.pathname === '/notificacoes') {
+      pedidos.push(Object.fromEntries(url.searchParams))
       const pend = url.searchParams.get('filtro') !== 'todas'
-      const lista = pend ? itens.filter(i => !i.lida) : itens
-      json = { ativo: true, itens: lista, mais: false, nao_lidas: itens.filter(i => !i.lida).length,
+      const cat = url.searchParams.get('categoria'), pri = url.searchParams.get('prioridade')
+      const lista = (pend ? itens.filter(i => !i.lida) : itens)
+        .filter(i => (!cat || i.categoria === cat) && (!pri || i.prioridade === pri))
+      const por_categoria = { conversas: 0, reunioes: 0, retornos: 0, pedidos: 0, equipe: 0, sistema: 0 }
+      itens.filter(i => !i.lida).forEach(i => { por_categoria[i.categoria]++ })
+      json = { ativo: true, itens: lista, mais: false, nao_lidas: itens.filter(i => !i.lida).length, por_categoria,
         urgentes: itens.filter(i => !i.lida && i.prioridade === 'urgente').length,
         preferencias: prefsSalvas || { navegador: false, email_resumo: false, silencio_ligado: true, silencio_inicio: 20,
           silencio_fim: 8, desligadas: [] } }
@@ -69,8 +75,8 @@ async function cenario({ largura, tema, papel = 'operador', foto }) {
     sessionStorage.setItem('mizan_token', 'qa'); sessionStorage.setItem('mizan_user', JSON.stringify(u))
     localStorage.setItem('mizan_tema', t)
   }, [usuario, tema])
-  await page.goto(address + '/alterar-senha', { waitUntil: 'domcontentloaded' })
-  return { page, erros, estado: () => ({ lidas, todas, prefsSalvas }), mudar: () => { versao++ } }
+  await page.goto(address + inicio, { waitUntil: 'domcontentloaded' })
+  return { page, erros, estado: () => ({ lidas, todas, prefsSalvas, pedidos }), mudar: () => { versao++ } }
 }
 
 const semRolagemLateral = (page) => page.evaluate(() => document.scrollingElement.scrollWidth <= window.innerWidth + 1)
@@ -139,7 +145,7 @@ try {
     assert.equal(salvas.email_resumo, true); assert.equal(salvas.silencio_inicio, 21); assert.deepEqual(salvas.desligadas, ['equipe'])
     await prefs.getByRole('button', { name: 'Voltar aos avisos' }).click()
     await page.getByRole('dialog', { name: 'Notificações' }).getByRole('button', { name: 'Marcar todas como lidas' }).click()
-    await page.getByText('Nada pendente por aqui').waitFor()
+    await page.getByText('Tudo lido por aqui').waitFor()
     assert.equal(estado().todas, 1, 'marcar todas: um pedido só')
     await page.keyboard.press('Escape')
     await page.getByRole('dialog', { name: 'Notificações' }).waitFor({ state: 'detached' })
@@ -159,6 +165,72 @@ try {
     assert.deepEqual(erros, [])
     await page.close()
   }
+  // ── a página Notificações: menu, filtros, marcar como lida (o sino acompanha) ──
+  {
+    const { page, erros, estado } = await cenario({ largura: 1280, tema: 'light' })
+    await page.getByRole('alert').filter({ hasText: 'sofrimento grave' }).getByRole('button', { name: 'Fechar aviso urgente' }).click()
+    await page.getByRole('button', { name: 'Abrir menu' }).click()
+    const item = page.getByRole('dialog', { name: 'Menu' }).getByRole('button', { name: /^Notificações/ })
+    assert.match(await item.innerText(), /3/, 'o menu mostra quantas não lidas')
+    await item.click()
+    await page.waitForURL(u => new URL(u).pathname === '/notificacoes')
+    await page.getByRole('heading', { level: 1, name: 'Notificações' }).waitFor()
+    // Perto da meia-noite de Brasília, um aviso de minutos atrás já é de "Ontem": o grupo depende da hora.
+    await page.getByRole('heading', { level: 2, name: /^(Hoje|Ontem)$/ }).first().waitFor()
+    const resumo = page.getByText('3 não lidas', { exact: true })
+    await resumo.waitFor()
+    await page.getByRole('button', { name: /^Reuniões/ }).click()
+    await page.getByRole('listitem').filter({ hasText: 'sofrimento grave' }).waitFor({ state: 'detached' })
+    await page.getByRole('listitem').filter({ hasText: 'Reunião com João' }).waitFor()
+    assert.equal(estado().pedidos.at(-1).categoria, 'reunioes', 'o filtro vai para o servidor')
+    await page.getByRole('button', { name: /^Reuniões/ }).click()
+    await page.getByLabel('Só urgentes').check()
+    await page.getByRole('listitem').filter({ hasText: 'Reunião com João' }).waitFor({ state: 'detached' })
+    await page.getByRole('listitem').filter({ hasText: 'sofrimento grave' }).waitFor()
+    await page.getByLabel('Só urgentes').uncheck()
+    if (fotos) await page.screenshot({ path: `${fotos}/pagina-1280-claro.png`, fullPage: true })
+    await page.getByRole('listitem').filter({ hasText: 'Reunião com João' }).getByRole('button', { name: 'Marcar como lida' }).click()
+    await page.getByText('2 não lidas', { exact: true }).waitFor()
+    assert.equal(await page.getByRole('listitem').filter({ hasText: 'Reunião com João' }).count(), 0, 'lida sai de "Não lidas"')
+    assert.equal(await page.getByRole('button', { name: /^Notificações:/ }).getAttribute('aria-label'), 'Notificações: 2 novas, 1 urgente',
+      'o sino acompanha a página na hora')
+    await page.getByRole('tab', { name: 'Todas' }).click()
+    await page.getByRole('listitem').filter({ hasText: 'Reunião com João' }).getByText('· Lida').waitFor()
+    await page.getByRole('button', { name: 'Marcar todas como lidas' }).click()
+    await page.getByText('Tudo lido', { exact: true }).waitFor()
+    assert.equal(estado().todas, 1)
+    await page.getByRole('tab', { name: /^Não lidas/ }).click()
+    await page.getByText('Tudo lido por aqui').waitFor()
+    await page.getByRole('button', { name: 'Ver todas' }).click()
+    await page.getByRole('tab', { name: 'Todas', selected: true }).waitFor()
+    assert.deepEqual(erros, [], 'sem erro de página')
+    await page.close()
+  }
+  {
+    const { page, erros } = await cenario({ largura: 390, tema: 'dark', inicio: '/notificacoes' })
+    await page.getByRole('heading', { level: 1, name: 'Notificações' }).waitFor()
+    await page.getByRole('alert').filter({ hasText: 'sofrimento grave' }).getByRole('button', { name: 'Fechar aviso urgente' }).click()
+    await page.getByRole('listitem').filter({ hasText: 'Devedores novos' }).waitFor()
+    assert.ok(await semRolagemLateral(page), 'página: nada rola na horizontal em 390 px')
+    if (fotos) await page.screenshot({ path: `${fotos}/pagina-390-escuro.png`, fullPage: true })
+    await page.getByRole('button', { name: 'Preferências', exact: true }).click()
+    await page.getByRole('dialog', { name: 'Preferências de notificação' }).waitFor()
+    await page.keyboard.press('Escape')
+    // o painel do sino leva à página
+    await page.getByRole('button', { name: /^Notificações:/ }).click()
+    await page.getByRole('dialog', { name: 'Notificações' }).getByRole('button', { name: 'Ver todas as notificações' }).waitFor()
+    assert.deepEqual(erros, [])
+    await page.close()
+  }
+  {
+    const { page, erros } = await cenario({ largura: 1280, tema: 'light', papel: 'comando', inicio: '/notificacoes' })
+    await page.getByText('O COMANDO não tem sino').waitFor()
+    await page.getByRole('button', { name: 'Abrir menu' }).click()
+    assert.equal(await page.getByRole('dialog', { name: 'Menu' }).getByRole('button', { name: /^Notificações/ }).count(), 0,
+      'o COMANDO não tem o item no menu')
+    assert.deepEqual(erros, [])
+    await page.close()
+  }
   {
     const { page, erros } = await cenario({ largura: 1280, tema: 'light', papel: 'comando' })
     await page.getByRole('button', { name: 'Abrir menu' }).waitFor()
@@ -167,5 +239,6 @@ try {
     assert.deepEqual(erros, [])
     await page.close()
   }
-  console.log(JSON.stringify({ ok: true, cenarios: ['operador 1280 claro', 'operador 390 escuro', 'admin 1280 escuro', 'comando sem sino'] }))
+  console.log(JSON.stringify({ ok: true, cenarios: ['operador 1280 claro', 'operador 390 escuro', 'admin 1280 escuro',
+    'página: menu, filtros e marcar', 'página 390 escuro', 'página do COMANDO', 'comando sem sino'] }))
 } finally { await browser.close(); await server.close() }

@@ -19,7 +19,7 @@ const Ctx = createContext(null)
 const VISTAS = 'mizan_notificacoes_vistas'          // apagada no logout (limparSessaoLocal)
 const FUNDO_MS = 20_000
 const RESERVA_MS = 60_000
-const VAZIO = { ativo: false, itens: [], naoLidas: 0, urgentes: 0, mais: false, preferencias: null, mensagem: null }
+const VAZIO = { ativo: false, itens: [], naoLidas: 0, urgentes: 0, por_categoria: {}, mais: false, preferencias: null, mensagem: null }
 
 function lerVistas() {
   try { return new Set(JSON.parse(sessionStorage.getItem(VISTAS) || '[]')) } catch { return new Set() }
@@ -28,6 +28,12 @@ function gravarVistas(s) {
   try { sessionStorage.setItem(VISTAS, JSON.stringify([...s].slice(-300))) } catch { /* sem armazenamento */ }
 }
 const temNotificacaoDoNavegador = () => typeof window !== 'undefined' && 'Notification' in window
+
+// A página de notificações escuta este evento para refletir na hora o que o sino marcou como lido.
+export const EVENTO_LIDAS = 'mizan:notificacoes-lidas'
+function avisarLidas(detalhe) {
+  try { window.dispatchEvent(new CustomEvent(EVENTO_LIDAS, { detail: detalhe })) } catch { /* sem janela */ }
+}
 
 export function NotificacoesProvider({ irPara, children }) {
   const { token, isComando } = useAuth()
@@ -38,6 +44,7 @@ export function NotificacoesProvider({ irPara, children }) {
   const [erro, setErro] = useState(null)
   const [filtro, setFiltroEstado] = useState('pendentes')
   const [aberto, setAberto] = useState(false)
+  const [vistaInicial, setVistaInicial] = useState('lista')       // o painel abre na lista ou nas preferências
   const [urgente, setUrgente] = useState(null)
   const vistas = useRef(lerVistas())
   const filtroRef = useRef(filtro)
@@ -57,8 +64,14 @@ export function NotificacoesProvider({ irPara, children }) {
         urgentes: Math.max(0, s.urgentes - (item.prioridade === 'urgente' ? 1 : 0)),
       }))
       marcarNotificacaoLida(item.id).catch(() => {})
+      avisarLidas({ ids: [item.id] })
     }
     ;(irParaRef.current || ((rota) => { window.location.assign(rota) }))(linkInterno(item.link))
+  }, [])
+
+  const irParaRota = useCallback((rota) => {
+    setAberto(false)
+    ;(irParaRef.current || ((r) => { window.location.assign(r) }))(linkInterno(rota))
   }, [])
 
   const avisar = useCallback((r) => {
@@ -90,7 +103,8 @@ export function NotificacoesProvider({ irPara, children }) {
       const r = await listarNotificacoes({ filtro: qual })
       if (qual !== filtroRef.current) return            // a pessoa trocou de aba enquanto carregava
       setEstado({ ativo: !!r?.ativo, itens: r?.itens || [], naoLidas: r?.nao_lidas || 0, urgentes: r?.urgentes || 0,
-        mais: !!r?.mais, preferencias: r?.preferencias || null, mensagem: r?.mensagem || null })
+        por_categoria: r?.por_categoria || {}, mais: !!r?.mais, preferencias: r?.preferencias || null,
+        mensagem: r?.mensagem || null })
       setErro(null)
       avisar(r)
     } catch (e) {
@@ -124,16 +138,21 @@ export function NotificacoesProvider({ irPara, children }) {
       return { ...s,
         itens: s.itens.map(i => (i.id === id ? { ...i, lida: true } : i)).filter(i => filtroRef.current === 'todas' || i.id !== id),
         naoLidas: Math.max(0, s.naoLidas - 1),
-        urgentes: Math.max(0, s.urgentes - (alvo.prioridade === 'urgente' ? 1 : 0)) }
+        urgentes: Math.max(0, s.urgentes - (alvo.prioridade === 'urgente' ? 1 : 0)),
+        por_categoria: { ...s.por_categoria,
+          [alvo.categoria]: Math.max(0, ((s.por_categoria || {})[alvo.categoria] || 0) - 1) } }
     })
     setUrgente(u => (u && u.id === id ? null : u))
+    avisarLidas({ ids: [id] })
     try { await marcarNotificacaoLida(id) } catch (e) { setErro(e); carregar() }
   }, [carregar])
 
   const marcarTodas = useCallback(async () => {
     setEstado(s => ({ ...s, naoLidas: 0, urgentes: 0,
+      por_categoria: Object.fromEntries(Object.keys(s.por_categoria || {}).map(c => [c, 0])),
       itens: filtroRef.current === 'todas' ? s.itens.map(i => ({ ...i, lida: true })) : [] }))
     setUrgente(null)
+    avisarLidas({ todas: true })
     try { await marcarNotificacoesLidas() } catch (e) { setErro(e) } finally { carregar() }
   }, [carregar])
 
@@ -188,12 +207,14 @@ export function NotificacoesProvider({ irPara, children }) {
   useEffect(() => () => { if (typeof document !== 'undefined') document.title = base.current }, [])
 
   const valor = useMemo(() => ({
-    ligado, ...estado, carregando, carregou, erro, filtro, setFiltro, aberto, urgente,
-    abrirPainel: () => { setAberto(true); carregar() }, fecharPainel: () => setAberto(false),
-    fecharUrgente: () => setUrgente(null), abrir, marcarLida, marcarTodas, carregarMais, salvarPreferencias,
+    ligado, ...estado, carregando, carregou, erro, filtro, setFiltro, aberto, urgente, vistaInicial,
+    // Só 'preferencias' muda a vista: chamado direto pelo onClick, o argumento é o evento do clique.
+    abrirPainel: (vista) => { setVistaInicial(vista === 'preferencias' ? 'preferencias' : 'lista'); setAberto(true); carregar() },
+    fecharPainel: () => setAberto(false),
+    fecharUrgente: () => setUrgente(null), abrir, irPara: irParaRota, marcarLida, marcarTodas, carregarMais, salvarPreferencias,
     pedirPermissao, recarregar: () => carregar(),
-  }), [ligado, estado, carregando, carregou, erro, filtro, setFiltro, aberto, urgente, carregar, abrir, marcarLida,
-    marcarTodas, carregarMais, salvarPreferencias, pedirPermissao])
+  }), [ligado, estado, carregando, carregou, erro, filtro, setFiltro, aberto, urgente, vistaInicial, carregar, abrir,
+    irParaRota, marcarLida, marcarTodas, carregarMais, salvarPreferencias, pedirPermissao])
 
   return <Ctx.Provider value={valor}>{children}</Ctx.Provider>
 }

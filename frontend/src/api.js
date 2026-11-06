@@ -919,8 +919,10 @@ export async function consultarMudancas(empresaId) {
 // ── Notificações (docs/NOTIFICACOES.md) ──────────────────────────────────────
 // { ativo, itens: [{id, tipo, categoria, prioridade, titulo, texto, link, acao, externo, toca, lida, ...}],
 //   nao_lidas, urgentes, mais, preferencias }
-export function listarNotificacoes({ filtro = 'pendentes', limite = 30, antes } = {}) {
-  return pedir('/notificacoes', { query: { filtro, limite, antes } })
+// `categoria` (conversas, reunioes, retornos, pedidos, equipe, sistema) e `prioridade` filtram a lista;
+// as contagens (nao_lidas, urgentes, por_categoria) são sempre de tudo o que está aberto.
+export function listarNotificacoes({ filtro = 'pendentes', limite = 30, antes, categoria, prioridade } = {}) {
+  return pedir('/notificacoes', { query: { filtro, limite, antes, categoria, prioridade } })
 }
 
 export function marcarNotificacaoLida(id) {

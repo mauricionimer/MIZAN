@@ -416,10 +416,13 @@ class ArmazemMemoria:
         return [dict(l) for l in self.linhas if l["empresa_id"] == empresa_id and l.get("entidade") == entidade
                 and l.get("entidade_id") == entidade_id and (not tipos or l["tipo"] in tipos)]
 
-    def listar(self, usuario_id: str, empresa_id: str, pendentes: bool, limite: int, antes: str | None) -> list:
+    def listar(self, usuario_id: str, empresa_id: str, pendentes: bool, limite: int, antes: str | None,
+               categoria: str | None = None, prioridade: str | None = None) -> list:
         ls = [l for l in self.linhas if l["usuario_id"] == usuario_id and l["empresa_id"] == empresa_id
               and (not pendentes or (not l.get("lida_em") and not l.get("resolvida_em")))
-              and (not antes or str(l["atualizado_em"]) < antes)]
+              and (not antes or str(l["atualizado_em"]) < antes)
+              and (not categoria or l.get("categoria") == categoria)
+              and (not prioridade or l.get("prioridade") == prioridade)]
         ls.sort(key=lambda l: str(l["atualizado_em"]), reverse=True)
         return [dict(l) for l in ls[:limite]]
 
@@ -534,12 +537,17 @@ class ArmazemSupabase:
             q = q.in_("tipo", list(tipos))
         return q.order("criado_em", desc=True).limit(50).execute().data or []
 
-    def listar(self, usuario_id: str, empresa_id: str, pendentes: bool, limite: int, antes: str | None) -> list:
+    def listar(self, usuario_id: str, empresa_id: str, pendentes: bool, limite: int, antes: str | None,
+               categoria: str | None = None, prioridade: str | None = None) -> list:
         q = self._t().select(self._COLUNAS).eq("usuario_id", usuario_id).eq("empresa_id", empresa_id)
         if pendentes:
             q = q.is_("lida_em", "null").is_("resolvida_em", "null")
         if antes:
             q = q.lt("atualizado_em", antes)
+        if categoria:
+            q = q.eq("categoria", categoria)
+        if prioridade:
+            q = q.eq("prioridade", prioridade)
         return q.order("atualizado_em", desc=True).limit(limite).execute().data or []
 
     def abertas(self, usuario_id: str, empresa_id: str) -> list:
@@ -841,18 +849,26 @@ def para_tela(linha: dict, prefs: dict, agora: datetime) -> dict:
 
 
 def listar(usuario_id: str, empresa_id: str, filtro: str = "pendentes", limite: int = 30,
-           antes: str | None = None, agora: datetime | None = None) -> dict:
-    """O que a tela do sino mostra. Levanta erro do banco (a rota decide o que dizer)."""
+           antes: str | None = None, agora: datetime | None = None, categoria: str | None = None,
+           prioridade: str | None = None) -> dict:
+    """O que o sino e a página de notificações mostram. Levanta erro do banco (a rota decide o que dizer).
+    `categoria` e `prioridade` filtram a lista; as contagens são sempre de tudo o que está aberto."""
     agora = agora or datetime.now(timezone.utc)
     limite = max(1, min(int(limite or 30), 100))
     arm = armazem()
-    linhas = arm.listar(usuario_id, empresa_id, filtro != "todas", limite + 1, antes)
+    linhas = arm.listar(usuario_id, empresa_id, filtro != "todas", limite + 1, antes,
+                        categoria if categoria in CATEGORIAS else None,
+                        prioridade if prioridade in PRIORIDADES else None)
     abertas = arm.abertas(usuario_id, empresa_id)
     prefs = _prefs_de([usuario_id])[usuario_id]
     itens = [para_tela(l, prefs, agora) for l in linhas[:limite]]
+    por_categoria = {c: 0 for c in CATEGORIAS}
+    for a in abertas:
+        if a.get("categoria") in por_categoria:
+            por_categoria[a["categoria"]] += 1
     return {"ativo": True, "itens": itens, "mais": len(linhas) > limite,
             "nao_lidas": len(abertas), "urgentes": sum(1 for a in abertas if a.get("prioridade") == "urgente"),
-            "agora": agora.isoformat(), "preferencias": prefs}
+            "por_categoria": por_categoria, "agora": agora.isoformat(), "preferencias": prefs}
 
 
 def marcar_lidas(usuario_id: str, empresa_id: str, ids=None) -> int:

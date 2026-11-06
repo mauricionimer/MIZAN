@@ -1,4 +1,4 @@
-import { Component, createContext, useCallback, useContext, useEffect, useLayoutEffect, useState, Suspense } from 'react'
+import { Component, createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, Suspense } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useLocation, useOutlet } from 'react-router-dom'
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'framer-motion'
@@ -6,12 +6,13 @@ import {
   UploadCloud, KeyRound, LogOut, Loader2, Menu, X,
   Zap, Brain, Command, Lock, HelpCircle, SlidersHorizontal,
   MessageCircleQuestion, GraduationCap, KeySquare, CalendarClock, Gauge, TrendingUp, Handshake, Bot, LayoutGrid, FolderOpen, ShieldCheck,
+  Bell,
 } from 'lucide-react'
 import ThemeToggle from './ThemeToggle'
 import useAvisosDeDuvida from './useAvisosDeDuvida'
 import useAvisoAgenda from './useAvisoAgenda'
 import useMudancasDoServidor from './useMudancasDoServidor'
-import { NotificacoesProvider } from './useNotificacoes'
+import useNotificacoes, { NotificacoesProvider } from './useNotificacoes'
 import { AvisoUrgente, PainelNotificacoes, SinoNotificacoes } from './Notificacoes'
 import ConfirmarModal from './ConfirmarModal'
 import useModal from './useModal'
@@ -67,6 +68,7 @@ function useItens() {
   const { result } = useAnalysis()
   const avisos = useAvisosDeDuvida()
   const agenda = useAvisoAgenda()
+  const sino = useNotificacoes()
   useMudancasDoServidor()                 // o que o agente ou outra pessoa muda aparece sem F5
   const gestor = isAdmin || isComando
   const avisoAgenda = { aviso: isComando ? 0 : agenda.alto + agenda.medio, corAviso: agenda.alto > 0 ? 'bg-red-600 text-white' : 'bg-amber-400 text-black',
@@ -79,10 +81,16 @@ function useItens() {
   const inicio = { id: 'inicio', label: 'Início', icon: LayoutGrid, rota: '/inicio' }
   const pastas = { id: 'pastas', label: 'Pastas', icon: FolderOpen, rota: '/pastas' }
   const hoje = { id: 'hoje', label: 'Hoje', icon: CalendarClock, rota: '/agenda', ...avisoAgenda }
+  // O sino guarda os avisos; a página mostra o histórico. O COMANDO não tem sino.
+  const urgentes = sino?.ativo ? sino.urgentes : 0
+  const notificacoes = isComando ? [] : [{ id: 'notificacoes', label: 'Notificações', icon: Bell, rota: '/notificacoes',
+    aviso: sino?.ativo ? sino.naoLidas : 0, corAviso: urgentes ? 'bg-red-600 text-white' : undefined,
+    tituloAviso: urgentes ? `notificações não lidas (${urgentes} ${urgentes === 1 ? 'urgente' : 'urgentes'})` : 'notificações não lidas' }]
 
   const principais = gestor ? [
     inicio,
     hoje,
+    ...notificacoes,
     carteira,
     pastas,
     { id: 'agente', label: 'Agentes', icon: Bot, rota: '/agente', prefixo: '/agente' },
@@ -104,6 +112,7 @@ function useItens() {
   ] : [
     inicio,
     hoje,
+    ...notificacoes,
     carteira,
     pastas,
     { id: 'acordos', label: 'Meus acordos', icon: Handshake, rota: '/acordos' },
@@ -232,7 +241,22 @@ function Carregando() {
   )
 }
 
+// O estado do sino envolve a casca inteira: o menu mostra o número de não lidas, e o clique
+// num aviso passa pela mesma trava de "alterações não salvas" do menu (navegar).
 export function ShellLayout() {
+  const navegar = useRef(null)
+  const irPara = useCallback((rota) => {
+    if (navegar.current) navegar.current(rota)
+    else window.location.assign(rota)
+  }, [])
+  return (
+    <NotificacoesProvider irPara={irPara}>
+      <ShellConteudo navegar={navegar} />
+    </NotificacoesProvider>
+  )
+}
+
+function ShellConteudo({ navegar }) {
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const outlet = useOutlet()
@@ -309,9 +333,9 @@ export function ShellLayout() {
   const chave = pathname
   const variantes = reduzir ? SEM_MOVIMENTO : pagina
 
+  useEffect(() => { navegar.current = rota => acionar({ id: 'notificacao', rota }) })
+
   return (
-    // O clique numa notificação passa pela mesma trava de "alterações não salvas" do menu.
-    <NotificacoesProvider irPara={rota => acionar({ id: 'notificacao', rota })}>
     <ShellCtx.Provider value={{ slotAcoes, registrarCabecalho, abas: <AbasDaArea item={areaAtual} ativoExato={ativoExato} acionar={acionar} /> }}>
       <div className="relative isolate flex min-h-screen bg-canvas font-sans text-ink">
         <FundoOndas />
@@ -395,6 +419,5 @@ export function ShellLayout() {
       <PainelNotificacoes />
       <AvisoUrgente />
     </ShellCtx.Provider>
-    </NotificacoesProvider>
   )
 }
