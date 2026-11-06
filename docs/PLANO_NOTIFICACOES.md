@@ -295,5 +295,5 @@ silencioso.
 4. **Antecedência dos lembretes:** reunião 30 e 5 minutos antes, retorno 15 minutos antes, agenda do
    dia às 8h. *Recomendo:* esses valores, configuráveis por empresa depois.
 5. **Resumo diário por e-mail:** desligado por padrão, cada pessoa liga se quiser. *Recomendo:* sim.
-6. **Execução:** depois de aprovado, a fase 1 sai num PR com testes. Para funcionar, é preciso rodar
-   um SQL no Supabase, que eu mando junto.
+6. **Execução:** depois de aprovado, a fase 1 sobe com testes. Para funcionar, é preciso rodar um SQL
+   no Supabase, que eu mando junto.
