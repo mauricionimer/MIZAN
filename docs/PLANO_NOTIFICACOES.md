@@ -218,8 +218,8 @@ servidor estava fora no minuto certo, o lembrete sai assim que ele voltar, até 
 | `lida_em`, `resolvida_em` | Fim da notificação |
 | `escalada_em` | Quando o urgente sem leitura foi levado ao administrador |
 
-A tabela tem RLS ligada, como as outras: só o servidor lê e escreve. As notificações lidas são apagadas
-depois de 90 dias. As **preferências** de cada pessoa (canais, horário silencioso e categorias) ficam
+A tabela tem RLS ligada, como as outras: só o servidor lê e escreve. A limpeza apaga as resolvidas
+depois de 7 dias, as lidas depois de 30 e qualquer uma depois de 90 (seção 13). As **preferências** de cada pessoa (canais, horário silencioso e categorias) ficam
 numa segunda tabela, `notificacao_preferencias` (detalhes em 11.3).
 
 **Servidor:**
@@ -431,7 +431,8 @@ Um passo novo no agendador, a cada minuto, independente do agente estar ligado. 
 | N28 | A cada 5 minutos | Até 26 h depois da mensagem |
 | N15, N27 e resumo por e-mail | 8h | Até 12h |
 | N16, N17, N25 | 9h | Até 18h |
-| Limpeza (lidas com mais de 90 dias, todas com mais de 180) | 3h | Até 6h |
+| Virada do dia (resolve os avisos que valiam só para o dia anterior) | 0h | Até 24h |
+| Limpeza (resolvidas com mais de 7 dias, lidas com mais de 30, todas com mais de 90) | 3h | Até 6h |
 
 ### 11.7 Rotas
 
@@ -562,3 +563,30 @@ conferidos; desconhecido dá 422) e devolve `por_categoria`, a contagem de não 
 - navegador real: menu, filtros, marcar como lida (o sino acompanha), vazio, COMANDO, 390 px e
   1280 px, claro e escuro;
 - os testes da Central de Ajuda não ganham falha nova.
+
+## 13. Lixeira e o que já passou (pedida em 06/11/2026)
+
+O pedido: "tem que ter um lixinho para excluir as notificações" e o que já passou não pode acumular.
+
+| Peça | Como fica |
+|---|---|
+| **Lixeira** | Em cada aviso, no sino e na página. Some na hora; "Desfazer" por 8 s; só então o servidor apaga (guia de design, seção 9: ação reversível ganha "Desfazer"). Outra exclusão, fechar o aviso, sair da conta ou fechar a aba confirmam antes (`keepalive`) |
+| **Excluir as lidas** | Na aba "Todas", com "Desfazer". Na página, respeita o assunto e "Só urgentes" escolhidos. Marcar outra como lida enquanto espera confirma a exclusão antes, e o pedido de leitura só sai depois |
+| **Resolvidas** | Saem da lista na hora, também de "Todas" |
+| **Lembretes** (N10, N11, N14 e o escalonamento) | Resolvidos meia hora depois do horário. O N12 (reunião sem atendente) fica: ainda pede ação |
+| **Avisos do dia** (N15, N16, N17, N27, N30, N31) | Resolvidos na virada do dia (horário de Brasília) |
+| **Limpeza às 3h** | Resolvidas com mais de 7 dias, lidas com mais de 30, todas com mais de 90 |
+| **Falha ao apagar** | O aviso volta à lista e a tela diz "Não deu para excluir…" |
+
+**Backend, só por acréscimo:** `DELETE /notificacoes/{id}` e `POST /notificacoes/excluir` (`ids` até
+200, ou `lidas` com `categoria` e `prioridade` opcionais; valor desconhecido dá 422). Só apagam as da
+própria pessoa; o COMANDO recebe 403. Nada de SQL novo.
+
+**Testes:**
+- rotas: apagar a própria, não apagar a de outra pessoa, 404, 403 do COMANDO, 422, "Excluir as lidas"
+  com e sem filtro, lista vazia de ids;
+- relógio: lembrete sai depois de meia hora, o N12 fica, a virada resolve só os avisos do dia anterior,
+  a limpeza respeita 7, 30 e 90 dias;
+- navegador real: excluir e desfazer (nada vai ao servidor), fechar o aviso confirma, outra exclusão
+  confirma a anterior, "Excluir as lidas" com leitura no meio (a exclusão chega antes), falha do
+  servidor, a página com filtro, 390 px e 1280 px, claro e escuro.

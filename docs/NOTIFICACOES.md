@@ -62,11 +62,30 @@ minuto no máximo ("rode backend/sql/migracao_notificacoes.sql").
 
 - **No sino**, no topo de todas as telas: as mais recentes, com as abas "Não lidas" e "Todas".
 - **Na página Notificações** (menu, logo abaixo de "Hoje"), com o número de não lidas no menu:
-  - o histórico dos últimos 90 dias, agrupado por dia;
+  - o que falta ver e o que foi lido nos últimos 30 dias, agrupado por dia;
   - filtro por assunto, com quantas não lidas há em cada um, e "Só urgentes";
   - "Marcar todas como lidas" e "Preferências".
-  - O sino e a página andam juntos: marcar como lida num muda o outro na hora.
+  - O sino e a página andam juntos: marcar como lida ou excluir num muda o outro na hora.
 - Cada pessoa vê só as suas. O COMANDO não tem o item no menu; se abrir o endereço, vê a explicação.
+
+## Lixeira e o que sai sozinho
+
+- **Lixeira** em cada aviso, no sino e na página.
+  - O aviso some na hora e aparece "Notificação excluída · Desfazer" por 8 segundos.
+  - Só depois disso o servidor apaga. Outra exclusão, fechar o aviso, sair da conta ou fechar a aba
+    confirmam antes.
+  - Se o servidor recusar, o aviso volta à lista e a tela diz isso.
+- **Excluir as lidas**, na aba "Todas": apaga de uma vez as já lidas, também com "Desfazer".
+  - Na página, com um assunto ou "Só urgentes" escolhido, apaga só as lidas daquele filtro.
+  - Marcar outra como lida enquanto o "Desfazer" corre confirma a exclusão antes, para a recém-lida
+    não ir junto.
+- **Sai sozinho da lista** (fica no banco, sem aparecer, até a limpeza):
+  - o que já se resolveu: o caso foi respondido, a reunião foi aprovada, o pagamento foi confirmado;
+  - lembrete de horário, meia hora depois do horário;
+  - o que vale só para o dia, na virada do dia: agenda e tarefa do dia, promessa que venceu ontem,
+    atrasados da equipe, agente parado e conexão que falhou (se o problema continuar, chega o aviso
+    do dia novo). O prazo de pedido de dados pessoais não sai: fica até ser atendido.
+- **Limpeza às 3h:** resolvidas com mais de 7 dias, lidas com mais de 30 e qualquer uma com mais de 90.
 
 ## Preferências (engrenagem no painel)
 
@@ -84,7 +103,8 @@ minuto no máximo ("rode backend/sql/migracao_notificacoes.sql").
 - **Fora do Mizan** (navegador, e-mail): nem o nome.
 - **Links:** só para telas internas. O banco recusa outro endereço, e a tela troca qualquer outro pelo
   Início.
-- **Retenção:** as lidas ou resolvidas são apagadas depois de 90 dias; qualquer uma, depois de 180.
+- **Retenção:** resolvidas são apagadas depois de 7 dias, lidas depois de 30 e qualquer uma depois de 90.
+  A pessoa também apaga as dela na lixeira.
 - **Exclusões:** apagar um usuário, ou excluir o cliente inteiro, apaga as notificações e as
   preferências dele no mesmo passo.
 - **Logs:** guardam só o tipo do erro, sem destinatário nem texto.
@@ -106,6 +126,8 @@ minuto no máximo ("rode backend/sql/migracao_notificacoes.sql").
   - mensagens sem resposta a cada 5 minutos;
   - agenda do dia e e-mail às 8h;
   - promessas, atrasados e prazos LGPD às 9h;
+  - lembretes que passaram (meia hora depois do horário) e, na virada do dia, os avisos que valiam só
+    para o dia anterior;
   - limpeza às 3h.
 - **Tempo real:** `/mudancas` traz a versão das notificações de cada pessoa. O sino atualiza em até 2 s
   com a aba aberta e em até 20 s com ela escondida (para o aviso do navegador).
@@ -113,8 +135,11 @@ minuto no máximo ("rode backend/sql/migracao_notificacoes.sql").
   - `GET /notificacoes` (filtros: `filtro`, `categoria`, `prioridade`; devolve também `por_categoria`);
   - `POST /notificacoes/{id}/lida`;
   - `POST /notificacoes/lidas`;
+  - `DELETE /notificacoes/{id}` e `POST /notificacoes/excluir` (`ids`, ou `lidas` com `categoria` e
+    `prioridade` opcionais);
   - `GET` e `PUT /notificacoes/preferencias`.
-  - Cada pessoa só vê e marca as próprias, dentro da empresa dela.
+  - Cada pessoa só vê, marca e apaga as próprias, dentro da empresa dela. O que já se resolveu não vem
+    na lista.
 - **Tela:** `frontend/src/components/Notificacoes.jsx` e `useNotificacoes.jsx` (sino, painel e aviso) e
   `frontend/src/pages/Notificacoes.jsx` (a página), com as contas puras em `frontend/src/lib/notificacoes.js`.
 

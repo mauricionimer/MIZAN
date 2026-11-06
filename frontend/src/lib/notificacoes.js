@@ -128,4 +128,23 @@ export function categoriasDoPapel(ehAdmin) {
 }
 
 /** Lista de horas para o horário silencioso ("20h"). */
+// ── Lixeira ──────────────────────────────────────────────────────────────────
+/** A notificação entra em "Excluir as lidas" com este filtro ({ categoria, prioridade }; vazio = todas)? */
+export function naFaixa(item, faixa) {
+  return !!item?.lida && (!faixa?.categoria || item.categoria === faixa.categoria)
+    && (!faixa?.prioridade || item.prioridade === faixa.prioridade)
+}
+
+/** Tira das contagens do sino as não lidas que saíram da lista (excluídas ou esperando o "Desfazer"). */
+export function descontar(estado, saem) {
+  const naoLidas = (saem || []).filter(i => i && !i.lida)
+  const porCategoria = { ...(estado?.por_categoria || {}) }
+  naoLidas.forEach(i => { if (porCategoria[i.categoria] > 0) porCategoria[i.categoria] -= 1 })
+  return {
+    naoLidas: Math.max(0, (estado?.naoLidas || 0) - naoLidas.length),
+    urgentes: Math.max(0, (estado?.urgentes || 0) - naoLidas.filter(i => i.prioridade === 'urgente').length),
+    por_categoria: porCategoria,
+  }
+}
+
 export const HORAS = Array.from({ length: 24 }, (_, h) => ({ valor: h, rotulo: `${h}h` }))

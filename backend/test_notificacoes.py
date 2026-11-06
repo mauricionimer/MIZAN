@@ -382,6 +382,33 @@ N.relogio(br(8, 2))
 checar(cai.vezes == 2, "depois de dar certo, não roda de novo no mesmo dia")
 N._DISJUNTOR.update(seguidas=0, ate=0.0)
 
+print("— o que já passou sai da lista —")
+a = novo([compromisso("p1r", "14:30", "op2"), compromisso("p2r", "10:00", "op1", obs="Ligar de volta")])
+N.lembretes(br(9, 50)); N.lembretes(br(14, 25))          # o tempo só anda para a frente
+checar(len(de(a, "op2", "N10")) == 1 and len(de(a, "op1", "N14")) == 1, "(lembretes criados)")
+N.lembretes(br(14, 50))
+checar(not de(a, "op2", "N10")[0]["resolvida_em"], "20 minutos depois do horário o lembrete ainda vale")
+N.lembretes(br(15, 1))
+checar(de(a, "op2", "N10")[0]["resolvida_em"] and de(a, "op1", "N14")[0]["resolvida_em"],
+       "meia hora depois do horário, o lembrete da reunião e o do retorno saem da lista")
+checar(de(a, "op2", "N12") and not de(a, "op2", "N12")[0]["resolvida_em"],
+       "mas o 'reunião não registrada' fica, porque ainda pede ação")
+a = novo()
+ontem_10h = br(10, 0, d=5).isoformat()
+N.notificar("N15", "emp", usuarios=["op1"], ou_admins=False, contexto={"resumo": "Hoje: 2 compromissos."},
+            chave="N15:ontem:op1", agora=br(10, 0, d=5))
+N.notificar("N10", "emp", usuarios=["op1"], contexto={"nome": "Maria", "hora": "00:20", "minutos": 30},
+            chave="N10:meianoite", entidade=("agenda", "mn"), agora=br(23, 55, d=5))
+N.notificar("N15", "emp", usuarios=["op2"], ou_admins=False, contexto={"resumo": "Hoje: 1 compromisso."},
+            chave="N15:hoje:op2", agora=br(8, 0))
+N.virada_do_dia(br(0, 5))
+checar(de(a, "op1", "N15")[0]["resolvida_em"] and not de(a, "op2", "N15")[0]["resolvida_em"],
+       "na virada do dia, a agenda de ontem sai da lista e a de hoje fica")
+checar(not de(a, "op1", "N10")[0]["resolvida_em"], "lembrete criado ontem para uma reunião depois da meia-noite não sai na virada")
+N._RODOU.clear()
+N.relogio(br(0, 6)); N.relogio(br(0, 7))
+checar(("virada", "2026-11-06") in N._RODOU, "a virada roda no primeiro minuto do dia, uma vez")
+
 print("— relógio: 8h, 9h, mensagens sem resposta e escalonamento —")
 ag = [compromisso("h1", None, "op1", obs="Ligar"), compromisso("h2", "15:00", "op1", obs="Ligar"),
       compromisso("h3", None, "op1", obs="Ligar", data="2026-11-02"),
@@ -450,15 +477,16 @@ checar(len([l for l in esc if "Maria mostrou" in l["titulo"]]) == 0, "o risco gr
 
 print("— relógio: limpeza, e-mail e o passo do agendador —")
 a = novo()
-velho = (SEXTA_14H - timedelta(days=100)).isoformat()
-a.linhas += [{"id": "v1", "empresa_id": "emp", "usuario_id": "op1", "tipo": "N01", "prioridade": "alta", "chave": "a",
-              "criado_em": velho, "atualizado_em": velho, "lida_em": velho, "resolvida_em": None},
-             {"id": "v2", "empresa_id": "emp", "usuario_id": "op1", "tipo": "N01", "prioridade": "alta", "chave": "b",
-              "criado_em": velho, "atualizado_em": velho, "lida_em": None, "resolvida_em": None},
-             {"id": "v3", "empresa_id": "emp", "usuario_id": "op1", "tipo": "N01", "prioridade": "alta", "chave": "c",
-              "criado_em": (SEXTA_14H - timedelta(days=200)).isoformat(), "atualizado_em": velho, "lida_em": None, "resolvida_em": None}]
+dias = lambda n: (SEXTA_14H - timedelta(days=n)).isoformat()
+def linha(id_, criado, lida=None, resolvida=None):
+    return {"id": id_, "empresa_id": "emp", "usuario_id": "op1", "tipo": "N01", "prioridade": "alta", "chave": id_,
+            "criado_em": criado, "atualizado_em": criado, "lida_em": lida, "resolvida_em": resolvida}
+a.linhas += [linha("resolvida-ha-10", dias(12), resolvida=dias(10)), linha("resolvida-ha-3", dias(4), resolvida=dias(3)),
+             linha("lida-ha-40", dias(40), lida=dias(40)), linha("lida-ha-10", dias(10), lida=dias(10)),
+             linha("aberta-ha-100", dias(100)), linha("aberta-ha-60", dias(60))]
 N.limpar(SEXTA_14H)
-checar(sorted(l["id"] for l in a.linhas) == ["v2"], "lidas com mais de 90 dias e qualquer uma com mais de 180 saem; a aberta recente fica")
+checar(sorted(l["id"] for l in a.linhas) == ["aberta-ha-60", "lida-ha-10", "resolvida-ha-3"],
+       "limpeza: resolvidas saem em 7 dias, lidas em 30, qualquer uma em 90", str(sorted(l["id"] for l in a.linhas)))
 a = novo()
 a.salvar_preferencias("op1", "emp", {"email_resumo": True})
 N.notificar("N18", "emp", devedor=DEV, contexto={"nome": "Maria", "predicao_id": "p1"}, chave="N18:x")
@@ -524,6 +552,48 @@ checar(r.status_code == 200 and r.json()["navegador"] and c.get("/notificacoes/p
        "salvar e ler as preferências")
 checar(c.get("/notificacoes/preferencias", headers=ANA).json()["silencio_inicio"] == 20, "cada pessoa tem as suas")
 checar(c.put("/notificacoes/preferencias", json={}, headers=CMD).status_code == 403, "o COMANDO não salva preferências de sino")
+print("— lixeira e resolvidas fora da lista —")
+a = novo()
+N.notificar("N22", "emp", usuarios=["op1"], ou_admins=False, contexto={"nome": "Maria"}, chave="lx1", entidade=("devedor", "p1"))
+N.notificar("N18", "emp", usuarios=["op1"], ou_admins=False, contexto={"nome": "Maria"}, chave="lx2")
+N.notificar("N19", "emp", usuarios=["op1"], ou_admins=False, contexto={"nome": "Maria"}, chave="lx3")
+N.notificar("N26", "emp", usuarios=["op2"], ou_admins=False, quantidade=3, chave="lx4")
+N.resolver("emp", "devedor", "p1", ("N22",))
+r = c.get("/notificacoes", params={"filtro": "todas"}, headers=ANA).json()
+checar(sorted(i["tipo"] for i in r["itens"]) == ["N18", "N19"], "o que já se resolveu não aparece nem em 'Todas'",
+       str([i["tipo"] for i in r["itens"]]))
+id18 = next(i["id"] for i in r["itens"] if i["tipo"] == "N18")
+id_beto = de(a, "op2")[0]["id"]
+r = c.delete(f"/notificacoes/{id18}", headers=ANA)
+checar(r.status_code == 200 and r.json()["excluidas"] == 1 and not de(a, "op1", "N18"), "a lixeira apaga a notificação")
+r = c.delete(f"/notificacoes/{id_beto}", headers=ANA)
+checar(r.status_code == 200 and r.json()["excluidas"] == 0 and de(a, "op2"), "a de outra pessoa não é apagada")
+checar(c.delete("/notificacoes/nao-e-id", headers=ANA).status_code == 404, "id inválido: 404")
+checar(c.delete(f"/notificacoes/{id_beto}", headers=CMD).status_code == 403, "o COMANDO não apaga nada")
+a.marcar_lidas("op1", "emp")
+N.notificar("N20", "emp", usuarios=["op1"], ou_admins=False, contexto={"nome": "Maria"}, chave="lx5")
+checar(c.post("/notificacoes/excluir", json={}, headers=ANA).status_code == 422, "excluir sem dizer quais: 422")
+r = c.post("/notificacoes/excluir", json={"lidas": True}, headers=ANA)
+restam = sorted(l["tipo"] for l in a.linhas if l["usuario_id"] == "op1")
+checar(r.status_code == 200 and restam == ["N20"] and de(a, "op2"),
+       "'Excluir as lidas' apaga só as lidas da pessoa", str(restam))
+r = c.post("/notificacoes/excluir", json={"ids": [de(a, "op1", "N20")[0]["id"]]}, headers=ANA)
+checar(r.status_code == 200 and r.json()["excluidas"] == 1 and not de(a, "op1"), "excluir por ids")
+N.notificar("N06", "emp", usuarios=["op1"], ou_admins=False, contexto={"nome": "João", "quando": "hoje às 15:00"}, chave="lx6")
+N.notificar("N18", "emp", usuarios=["op1"], ou_admins=False, contexto={"nome": "Maria"}, chave="lx7")
+N.notificar("N19", "emp", usuarios=["op1"], ou_admins=False, contexto={"nome": "Maria"}, chave="lx8")
+a.marcar_lidas("op1", "emp", [de(a, "op1", "N06")[0]["id"], de(a, "op1", "N18")[0]["id"]])
+cat18 = de(a, "op1", "N18")[0]["categoria"]
+r = c.post("/notificacoes/excluir", json={"lidas": True, "categoria": cat18}, headers=ANA)
+restam = sorted(l["tipo"] for l in a.linhas if l["usuario_id"] == "op1")
+checar(r.status_code == 200 and r.json()["excluidas"] == 1 and restam == ["N06", "N19"],
+       "'Excluir as lidas' com a página filtrada: só as lidas daquele assunto", str(restam))
+checar(c.post("/notificacoes/excluir", json={"lidas": True, "categoria": "xyz"}, headers=ANA).status_code == 422
+       and c.post("/notificacoes/excluir", json={"lidas": True, "prioridade": "baixa"}, headers=ANA).status_code == 422,
+       "excluir com assunto ou prioridade desconhecidos: 422")
+r = c.post("/notificacoes/excluir", json={"ids": []}, headers=ANA)
+checar(r.status_code == 200 and r.json()["excluidas"] == 0 and len(de(a, "op1")) == 2, "lista vazia de ids não apaga nada")
+
 print("— página de notificações: filtros e contagem por assunto —")
 a = novo()
 N.notificar("N03", "emp", usuarios=["op1"], ou_admins=False, contexto={"nome": "Maria", "predicao_id": "p1"}, chave="pg1")

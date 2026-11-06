@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   tempoRelativo, secoes, linkInterno, tituloDaAba, rotuloDoSino, novasQueTocam, urgenteParaAvisar,
-  categoriasDoPapel, CATEGORIAS, porDia,
+  categoriasDoPapel, CATEGORIAS, porDia, naFaixa, descontar,
 } from '../src/lib/notificacoes.js'
 
 // 14:00 de Brasília (17:00 UTC) de sexta, 06/11/2026.
@@ -84,4 +84,23 @@ test('o que toca: só o que o servidor marcou, não lido, e uma vez por aba', ()
 test('categorias de cada papel nas preferências', () => {
   assert.equal(categoriasDoPapel(true).length, CATEGORIAS.length)
   assert.ok(!categoriasDoPapel(false).some(c => c.id === 'sistema'))
+})
+
+test('lixeira: "Excluir as lidas" pega só as lidas do filtro da tela', () => {
+  const lida = { id: '1', lida: true, categoria: 'reunioes', prioridade: 'alta' }
+  assert.equal(naFaixa(lida, {}), true)
+  assert.equal(naFaixa(lida, { categoria: 'reunioes' }), true)
+  assert.equal(naFaixa(lida, { categoria: 'conversas' }), false)
+  assert.equal(naFaixa(lida, { prioridade: 'urgente' }), false)
+  assert.equal(naFaixa({ ...lida, lida: false }, {}), false, 'a não lida nunca vai junto')
+})
+
+test('lixeira: as não lidas que saem descontam do sino, sem passar de zero', () => {
+  const estado = { naoLidas: 3, urgentes: 1, por_categoria: { conversas: 2, reunioes: 1 } }
+  const saem = [{ id: 'a', lida: false, prioridade: 'urgente', categoria: 'conversas' },
+    { id: 'b', lida: true, prioridade: 'normal', categoria: 'reunioes' }]
+  assert.deepEqual(descontar(estado, saem), { naoLidas: 2, urgentes: 0, por_categoria: { conversas: 1, reunioes: 1 } })
+  assert.deepEqual(descontar({ naoLidas: 0, urgentes: 0, por_categoria: { conversas: 0 } }, saem),
+    { naoLidas: 0, urgentes: 0, por_categoria: { conversas: 0 } })
+  assert.deepEqual(estado.por_categoria, { conversas: 2, reunioes: 1 }, 'não muda o estado de entrada')
 })

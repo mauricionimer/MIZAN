@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Undo2, Loader2, Check, X } from 'lucide-react'
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
+import { Undo2, Loader2, Check, TriangleAlert, X } from 'lucide-react'
 import { classificarErro } from '../api'
 
 const DURACAO_MS = 8000
@@ -12,7 +12,8 @@ const DURACAO_MS = 8000
  * página rolada e no celular. Some sozinho em 8 s; "Desfazer" chama
  * `aviso.desfazer()` (que deve reverter no servidor) e não dispara duas vezes.
  *
- * `aviso`: { id, texto, desfeito?, desfazer?: async () => void, acao?: { rotulo, onClick } } | null
+ * `aviso`: { id, texto, desfeito?, desfazer?: async () => void, acao?: { rotulo, onClick }, erro? } | null
+ * `erro`: o aviso conta que algo não deu certo (ícone de alerta em vez do visto).
  * Sem `desfazer`, é só a confirmação do que foi feito. `acao` é o próximo passo
  * natural ("Registrar pagamento") e fecha o aviso ao ser usada.
  */
@@ -20,6 +21,7 @@ export default function AvisoDesfazer({ aviso, onFechar }) {
   const [estado, setEstado] = useState('aberto')    // aberto | desfazendo | desfeito | erro
   const [erro, setErro] = useState('')
   const timer = useRef(null)
+  const reduzir = useReducedMotion()          // movimento reduzido: o aviso nasce e some pronto (guia, seção 6)
 
   useEffect(() => {
     if (!aviso) return
@@ -46,12 +48,14 @@ export default function AvisoDesfazer({ aviso, onFechar }) {
   return createPortal(
     <AnimatePresence>
       {aviso && (
-        <motion.div key={aviso.id} role="status" aria-live="polite"
-          initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 24 }}
+        <motion.div key={aviso.id} role={aviso.erro ? 'alert' : 'status'} aria-live={aviso.erro ? 'assertive' : 'polite'}
+          initial={reduzir ? false : { opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 24 }}
+          transition={reduzir ? { duration: 0 } : undefined}
           className={`fixed inset-x-3 bottom-4 z-[60] mx-auto ${aviso.acao ? 'max-w-xl' : 'max-w-lg'} overflow-hidden rounded-xl shadow-2xl`}
           style={{ background: 'var(--ink)', color: 'var(--surface)' }}>
           <div className="flex items-center gap-3 px-4 py-3">
-            {estado === 'desfeito' || !aviso.desfazer ? <Check className="h-4 w-4 shrink-0" /> : null}
+            {aviso.erro ? <TriangleAlert className="h-4 w-4 shrink-0" aria-hidden="true" />
+              : estado === 'desfeito' || !aviso.desfazer ? <Check className="h-4 w-4 shrink-0" /> : null}
             <p className="min-w-0 flex-1 text-sm">
               {estado === 'desfeito' ? (aviso.desfeito || 'Desfeito.') : estado === 'erro' ? erro : aviso.texto}
             </p>

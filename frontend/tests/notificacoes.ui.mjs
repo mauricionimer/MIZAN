@@ -34,12 +34,12 @@ const base = () => ([
     criado_em: iso(200), atualizado_em: iso(200) },
 ])
 
-async function cenario({ largura, tema, papel = 'operador', foto, inicio = '/alterar-senha' }) {
+async function cenario({ largura, tema, papel = 'operador', foto, inicio = '/alterar-senha', falharExclusao = false }) {
   const page = await browser.newPage({ viewport: { width: largura, height: 900 }, reducedMotion: 'reduce' })
   const erros = []; page.on('pageerror', e => erros.push(e.message))
   const usuario = { id: 'op1', role: papel, empresa_id: papel === 'comando' ? '' : 'emp', nome: 'Ana Lima', email: 'ana@x' }
   let itens = base(), lidas = [], todas = 0, prefsSalvas = null, versao = 1
-  const pedidos = []
+  const pedidos = [], excluidas = [], ordem = []
   await page.route('**/*', async route => {
     const url = new URL(route.request().url()); if (url.origin === address) return route.continue()
     if (url.origin !== 'http://127.0.0.1:8001') return route.abort()
@@ -62,8 +62,18 @@ async function cenario({ largura, tema, papel = 'operador', foto, inicio = '/alt
         urgentes: itens.filter(i => !i.lida && i.prioridade === 'urgente').length,
         preferencias: prefsSalvas || { navegador: false, email_resumo: false, silencio_ligado: true, silencio_inicio: 20,
           silencio_fim: 8, desligadas: [] } }
+    } else if (url.pathname === '/notificacoes/excluir' && metodo === 'POST') {
+      const corpo = JSON.parse(route.request().postData() || '{}')
+      excluidas.push(corpo); ordem.push('excluir')
+      if (falharExclusao) return route.fulfill({ status: 500, json: { detail: 'Erro interno.' } })
+      const sai = corpo.ids ? (i => corpo.ids.includes(i.id))
+        : (i => i.lida && (!corpo.categoria || i.categoria === corpo.categoria) && (!corpo.prioridade || i.prioridade === corpo.prioridade))
+      const antes = itens.length
+      itens = itens.filter(i => !sai(i)); versao++
+      json = { ok: true, excluidas: antes - itens.length }
     } else if (/^\/notificacoes\/[^/]+\/lida$/.test(url.pathname)) {
-      const id = url.pathname.split('/')[2]; lidas.push(id); itens = itens.map(i => i.id === id ? { ...i, lida: true } : i)
+      const id = url.pathname.split('/')[2]; lidas.push(id); ordem.push(`lida:${id}`)
+      itens = itens.map(i => i.id === id ? { ...i, lida: true } : i)
       json = { ok: true }
     } else if (url.pathname === '/notificacoes/lidas') { todas++; itens = itens.map(i => ({ ...i, lida: true })); json = { ok: true } }
     else if (url.pathname === '/notificacoes/preferencias' && metodo === 'PUT') {
@@ -76,7 +86,13 @@ async function cenario({ largura, tema, papel = 'operador', foto, inicio = '/alt
     localStorage.setItem('mizan_tema', t)
   }, [usuario, tema])
   await page.goto(address + inicio, { waitUntil: 'domcontentloaded' })
-  return { page, erros, estado: () => ({ lidas, todas, prefsSalvas, pedidos }), mudar: () => { versao++ } }
+  return { page, erros, estado: () => ({ lidas, todas, prefsSalvas, pedidos, excluidas, ordem, itens }), mudar: () => { versao++ } }
+}
+
+// Espera o servidor simulado receber o que a tela mandou (o pedido sai logo depois da mudança na tela).
+async function ate(condicao, descricao, ms = 4000) {
+  for (const fim = Date.now() + ms; Date.now() < fim;) { if (condicao()) return; await new Promise(r => setTimeout(r, 40)) }
+  assert.fail(`esperei e não aconteceu: ${descricao}`)
 }
 
 const semRolagemLateral = (page) => page.evaluate(() => document.scrollingElement.scrollWidth <= window.innerWidth + 1)
@@ -222,6 +238,139 @@ try {
     assert.deepEqual(erros, [])
     await page.close()
   }
+  // ── lixeira no sino: some na hora, "Desfazer" traz de volta sem ir ao servidor ──
+  {
+    const { page, erros, estado } = await cenario({ largura: 1280, tema: 'light' })
+    const sino = page.getByRole('button', { name: /^Notificações:/ })
+    await page.getByRole('alert').filter({ hasText: 'sofrimento grave' }).getByRole('button', { name: 'Fechar aviso urgente' }).click()
+    await sino.click()
+    const painel = page.getByRole('dialog', { name: 'Notificações' })
+    const devedores = painel.getByRole('listitem').filter({ hasText: 'Devedores novos' })
+    await devedores.getByRole('button', { name: /^Excluir a notificação/ }).click()
+    await devedores.waitFor({ state: 'detached' })
+    const toast = page.getByRole('status').filter({ hasText: 'Notificação excluída.' })
+    await toast.waitFor()
+    assert.equal(await sino.getAttribute('aria-label'), 'Notificações: 2 novas, 1 urgente', 'a excluída sai da contagem na hora')
+    // o foco vai para a lixeira vizinha (logo depois de a excluída sair da tela)
+    await page.waitForFunction(() => /^Excluir a notificação/.test(document.activeElement?.getAttribute('aria-label') || ''),
+      null, { timeout: 3000 })
+    if (fotos) await page.screenshot({ path: `${fotos}/lixeira-1280-claro.png` })
+    await toast.getByRole('button', { name: 'Desfazer' }).click()
+    await page.getByText('A notificação voltou.').waitFor()
+    await devedores.waitFor()
+    assert.equal(await sino.getAttribute('aria-label'), 'Notificações: 3 novas, 1 urgente')
+    await page.waitForTimeout(400)
+    assert.equal(estado().excluidas.length, 0, 'desfeita: nada foi ao servidor')
+    // exclui e fecha o aviso: aí vale
+    await devedores.getByRole('button', { name: /^Excluir a notificação/ }).click()
+    await page.getByRole('status').filter({ hasText: 'Notificação excluída.' }).getByRole('button', { name: 'Fechar aviso' }).click()
+    await ate(() => estado().excluidas.length === 1, 'a exclusão chegar ao servidor')
+    assert.deepEqual(estado().excluidas, [{ ids: ['00000000-0000-0000-0000-000000000003'] }], 'fechar o aviso confirma a exclusão')
+    assert.equal(estado().itens.length, 2)
+    // exclusões seguidas se juntam num "Desfazer" só, que traz as duas de volta
+    await painel.getByRole('listitem').filter({ hasText: 'Reunião com João' }).getByRole('button', { name: /^Excluir a notificação/ }).click()
+    await painel.getByRole('listitem').filter({ hasText: 'sofrimento grave' }).getByRole('button', { name: /^Excluir a notificação/ }).click()
+    await painel.getByText('Tudo lido por aqui').waitFor()
+    const duas = page.getByRole('status').filter({ hasText: '2 notificações excluídas.' })
+    await duas.waitFor()
+    assert.equal(estado().excluidas.length, 1, 'nada mais foi ao servidor enquanto o "Desfazer" corre')
+    await duas.getByRole('button', { name: 'Desfazer' }).click()
+    await page.getByText('As notificações voltaram.').waitFor()
+    await painel.getByRole('listitem').filter({ hasText: 'sofrimento grave' }).waitFor()
+    await painel.getByRole('listitem').filter({ hasText: 'Reunião com João' }).waitFor()
+    assert.equal(await sino.getAttribute('aria-label'), 'Notificações: 2 novas, 1 urgente')
+    // de novo as duas, e agora o aviso fecha: um pedido só, com as duas
+    await painel.getByRole('listitem').filter({ hasText: 'Reunião com João' }).getByRole('button', { name: /^Excluir a notificação/ }).click()
+    await painel.getByRole('listitem').filter({ hasText: 'sofrimento grave' }).getByRole('button', { name: /^Excluir a notificação/ }).click()
+    await page.getByRole('status').filter({ hasText: '2 notificações excluídas.' }).getByRole('button', { name: 'Fechar aviso' }).click()
+    await ate(() => estado().excluidas.length === 2, 'as duas chegarem ao servidor num pedido só')
+    assert.deepEqual(estado().excluidas.at(-1), { ids: ['00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001'] })
+    assert.equal(estado().itens.length, 0)
+    assert.deepEqual(erros, [], 'sem erro de página')
+    await page.close()
+  }
+  // ── "Excluir as lidas" no sino; ler outra com ela esperando confirma a exclusão antes ──
+  {
+    const { page, erros, estado } = await cenario({ largura: 390, tema: 'dark' })
+    const sino = page.getByRole('button', { name: /^Notificações:/ })
+    await page.getByRole('alert').filter({ hasText: 'sofrimento grave' }).getByRole('button', { name: 'Fechar aviso urgente' }).click()
+    await sino.click()
+    const painel = page.getByRole('dialog', { name: 'Notificações' })
+    await painel.getByRole('listitem').filter({ hasText: 'Reunião com João' }).getByRole('button', { name: 'Marcar como lida' }).click()
+    await painel.getByRole('listitem').filter({ hasText: 'Reunião com João' }).waitFor({ state: 'detached' })
+    assert.equal(await painel.getByRole('button', { name: 'Excluir as lidas' }).count(), 0, 'em "Não lidas" não há o que excluir de uma vez')
+    await painel.getByRole('tab', { name: 'Todas' }).click()
+    await painel.getByRole('listitem').filter({ hasText: 'Reunião com João' }).getByText('· Lida').waitFor()
+    assert.ok(await semRolagemLateral(page), 'nada rola na horizontal em 390 px (lixeira e "Excluir as lidas")')
+    if (fotos) await page.screenshot({ path: `${fotos}/lixeira-390-escuro.png` })
+    await painel.getByRole('button', { name: 'Excluir as lidas' }).click()
+    await painel.getByRole('listitem').filter({ hasText: 'Reunião com João' }).waitFor({ state: 'detached' })
+    await page.getByRole('status').filter({ hasText: 'Notificações lidas excluídas.' }).waitFor()
+    assert.equal(await painel.getByRole('listitem').count(), 2, 'as não lidas ficam')
+    // com a exclusão esperando, marcar outra como lida: a exclusão vai antes, e a recém-lida fica
+    await painel.getByRole('listitem').filter({ hasText: 'Devedores novos' }).getByRole('button', { name: 'Marcar como lida' }).click()
+    await painel.getByRole('listitem').filter({ hasText: 'Devedores novos' }).getByText('· Lida').waitFor()
+    await ate(() => estado().ordem.includes('lida:00000000-0000-0000-0000-000000000003'), 'a leitura chegar ao servidor')
+    const { ordem, excluidas, itens } = estado()
+    assert.deepEqual(excluidas, [{ lidas: true }], '"Excluir as lidas": um pedido só, sem filtro')
+    assert.ok(ordem.indexOf('excluir') < ordem.indexOf('lida:00000000-0000-0000-0000-000000000003'),
+      `a exclusão chega ao servidor antes da nova leitura (${ordem.join(', ')})`)
+    assert.ok(itens.some(i => i.id === '00000000-0000-0000-0000-000000000003'), 'a recém-lida não foi junto')
+    assert.equal(await page.getByRole('status').filter({ hasText: 'Notificações lidas excluídas.' }).count(), 0,
+      'o aviso some: não há mais o que desfazer')
+    assert.deepEqual(erros, [], 'sem erro de página')
+    await page.close()
+  }
+  // ── servidor recusa: a notificação volta e o aviso diz isso ──
+  {
+    const { page, erros, estado } = await cenario({ largura: 1280, tema: 'dark', falharExclusao: true })
+    await page.getByRole('alert').filter({ hasText: 'sofrimento grave' }).getByRole('button', { name: 'Fechar aviso urgente' }).click()
+    await page.getByRole('button', { name: /^Notificações:/ }).click()
+    const painel = page.getByRole('dialog', { name: 'Notificações' })
+    const devedores = painel.getByRole('listitem').filter({ hasText: 'Devedores novos' })
+    await devedores.getByRole('button', { name: /^Excluir a notificação/ }).click()
+    await devedores.waitFor({ state: 'detached' })
+    await page.getByRole('status').filter({ hasText: 'Notificação excluída.' }).getByRole('button', { name: 'Fechar aviso' }).click()
+    await page.getByRole('alert').filter({ hasText: 'Não deu para excluir a notificação' }).waitFor({ timeout: 8000 })
+    await devedores.waitFor()
+    assert.equal(estado().excluidas.length, 1)
+    if (fotos) await page.screenshot({ path: `${fotos}/lixeira-falhou-1280-escuro.png` })
+    assert.deepEqual(erros, [], 'sem erro de página')
+    await page.close()
+  }
+  // ── a página: lixeira em cada aviso e "Excluir as lidas deste filtro" ──
+  {
+    const { page, erros, estado } = await cenario({ largura: 1280, tema: 'light', inicio: '/notificacoes' })
+    await page.getByRole('heading', { level: 1, name: 'Notificações' }).waitFor()
+    await page.getByRole('alert').filter({ hasText: 'sofrimento grave' }).getByRole('button', { name: 'Fechar aviso urgente' }).click()
+    await page.getByRole('listitem').filter({ hasText: 'Reunião com João' }).getByRole('button', { name: 'Marcar como lida' }).click()
+    await page.getByText('2 não lidas', { exact: true }).waitFor()
+    await page.getByRole('tab', { name: 'Todas' }).click()
+    await page.getByRole('listitem').filter({ hasText: 'Reunião com João' }).getByText('· Lida').waitFor()
+    await page.getByRole('button', { name: /^Reuniões/ }).click()
+    await page.getByRole('listitem').filter({ hasText: 'Devedores novos' }).waitFor({ state: 'detached' })
+    if (fotos) await page.screenshot({ path: `${fotos}/pagina-excluir-lidas-1280-claro.png` })
+    await page.getByRole('button', { name: 'Excluir as lidas deste filtro' }).click()
+    await page.getByRole('listitem').filter({ hasText: 'Reunião com João' }).waitFor({ state: 'detached' })
+    await page.getByText('Nenhuma notificação de Reuniões').waitFor()
+    if (fotos) await page.screenshot({ path: `${fotos}/pagina-lixeira-1280-claro.png`, fullPage: true })
+    await page.getByRole('status').filter({ hasText: 'Notificações lidas excluídas.' }).getByRole('button', { name: 'Fechar aviso' }).click()
+    await ate(() => estado().excluidas.length === 1, '"Excluir as lidas" chegar ao servidor')
+    await page.getByRole('button', { name: 'Limpar filtros' }).click()
+    await page.getByRole('listitem').filter({ hasText: 'Devedores novos' }).waitFor()
+    assert.deepEqual(estado().excluidas, [{ lidas: true, categoria: 'reunioes' }], 'só as lidas do filtro da página')
+    // a lixeira da página é a mesma do sino: some nos dois
+    await page.getByRole('listitem').filter({ hasText: 'Devedores novos' }).getByRole('button', { name: /^Excluir a notificação/ }).click()
+    await page.getByRole('listitem').filter({ hasText: 'Devedores novos' }).waitFor({ state: 'detached' })
+    assert.equal(await page.getByRole('button', { name: /^Notificações:/ }).getAttribute('aria-label'), 'Notificações: 1 nova, 1 urgente')
+    await page.getByRole('status').filter({ hasText: 'Notificação excluída.' }).getByRole('button', { name: 'Fechar aviso' }).click()
+    await ate(() => estado().excluidas.length === 2, 'a exclusão da página chegar ao servidor')
+    await page.getByRole('listitem').filter({ hasText: 'sofrimento grave' }).waitFor()
+    assert.equal(await page.getByRole('listitem').count(), 1)
+    assert.deepEqual(estado().excluidas.at(-1), { ids: ['00000000-0000-0000-0000-000000000003'] })
+    assert.deepEqual(erros, [], 'sem erro de página')
+    await page.close()
+  }
   {
     const { page, erros } = await cenario({ largura: 1280, tema: 'light', papel: 'comando', inicio: '/notificacoes' })
     await page.getByText('O COMANDO não tem sino').waitFor()
@@ -240,5 +389,6 @@ try {
     await page.close()
   }
   console.log(JSON.stringify({ ok: true, cenarios: ['operador 1280 claro', 'operador 390 escuro', 'admin 1280 escuro',
-    'página: menu, filtros e marcar', 'página 390 escuro', 'página do COMANDO', 'comando sem sino'] }))
+    'página: menu, filtros e marcar', 'página 390 escuro', 'lixeira e desfazer', 'excluir as lidas (390 escuro)',
+    'exclusão recusada', 'página: lixeira e filtro', 'página do COMANDO', 'comando sem sino'] }))
 } finally { await browser.close(); await server.close() }

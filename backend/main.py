@@ -9745,6 +9745,57 @@ def marcar_notificacoes_lidas(body: NotificacoesLidasIn, credentials: HTTPAuthor
     return {"ok": True, "lidas": n}
 
 
+class NotificacoesExcluirIn(BaseModel):
+    ids: Optional[list[str]] = Field(None, max_length=200)
+    lidas: bool = False                    # sem ids: apaga as já lidas da pessoa
+    categoria: Optional[str] = None        # com `lidas`: só as desse assunto (o filtro da tela)
+    prioridade: Optional[str] = None       # com `lidas`: só as dessa prioridade
+
+
+@app.delete("/notificacoes/{notificacao_id}")
+def excluir_notificacao(notificacao_id: str, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Apaga uma notificação da pessoa. A de outra pessoa não muda, e a resposta é a mesma."""
+    import notificacoes
+    payload, emp = _dono_das_notificacoes(credentials)
+    if not emp:
+        raise HTTPException(status_code=403, detail="O sino é de quem trabalha numa empresa.")
+    alvo = [_id_da_notificacao(notificacao_id)]
+    try:
+        n = notificacoes.excluir(payload["sub"], emp, alvo)
+    except Exception as e:
+        erro = _erro_notificacoes("/notificacoes/{id}", "DELETE", e)
+        if erro is None:
+            raise HTTPException(status_code=409, detail=_MSG_SEM_NOTIFICACOES)
+        raise erro
+    return {"ok": True, "excluidas": n}
+
+
+@app.post("/notificacoes/excluir")
+def excluir_notificacoes(body: NotificacoesExcluirIn, credentials: HTTPAuthorizationCredentials = Security(bearer)):
+    """Apaga as notificações indicadas (`ids`) ou, sem `ids`, as já lidas (`lidas`), só do assunto e da
+    prioridade pedidos, se vierem. Só as da pessoa."""
+    import notificacoes
+    payload, emp = _dono_das_notificacoes(credentials)
+    if not emp:
+        raise HTTPException(status_code=403, detail="O sino é de quem trabalha numa empresa.")
+    if body.ids is None and not body.lidas:
+        raise HTTPException(status_code=422, detail="Diga quais excluir: os ids ou as já lidas.")
+    if body.categoria and body.categoria not in notificacoes.CATEGORIAS:
+        raise HTTPException(status_code=422, detail="Assunto de notificação desconhecido.")
+    if body.prioridade and body.prioridade not in notificacoes.PRIORIDADES:
+        raise HTTPException(status_code=422, detail="Prioridade inválida: use urgente, alta ou normal.")
+    ids = None if body.ids is None else [_id_da_notificacao(i) for i in body.ids]
+    try:
+        n = notificacoes.excluir(payload["sub"], emp, ids, so_lidas=ids is None,
+                                 categoria=body.categoria, prioridade=body.prioridade)
+    except Exception as e:
+        erro = _erro_notificacoes("/notificacoes/excluir", "POST", e)
+        if erro is None:
+            raise HTTPException(status_code=409, detail=_MSG_SEM_NOTIFICACOES)
+        raise erro
+    return {"ok": True, "excluidas": n}
+
+
 @app.get("/notificacoes/preferencias")
 def ler_preferencias_notificacoes(credentials: HTTPAuthorizationCredentials = Security(bearer)):
     import notificacoes

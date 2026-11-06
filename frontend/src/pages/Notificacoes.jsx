@@ -1,21 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Bell, CheckCheck, Inbox, Loader2, Settings2, TriangleAlert } from 'lucide-react'
+import { Bell, CheckCheck, Inbox, Loader2, Settings2, Trash2, TriangleAlert } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import CabecalhoPagina from '../components/CabecalhoPagina'
 import ErroCarga from '../components/ErroCarga'
-import useNotificacoes, { EVENTO_LIDAS } from '../components/useNotificacoes'
+import useNotificacoes, { EVENTO_EXCLUIDAS, EVENTO_LIDAS } from '../components/useNotificacoes'
 import { EsqueletoNotificacoes, ItemNotificacao } from '../components/Notificacoes'
 import { useAuth } from '../context/AuthContext'
 import { listarNotificacoes } from '../api'
-import { categoriasDoPapel, porDia } from '../lib/notificacoes'
+import { categoriasDoPapel, naFaixa, porDia } from '../lib/notificacoes'
 
 /**
  * Notificações (docs/PLANO_NOTIFICACOES.md, seção 12): tudo o que o sino avisou para
- * a pessoa, com o histórico dos últimos 90 dias e filtros por assunto. O sino e esta
- * página andam juntos: marcar como lida num muda o outro na hora.
+ * a pessoa, com o que já foi lido nos últimos 30 dias e filtros por assunto. O sino e esta
+ * página andam juntos: marcar como lida ou excluir num muda o outro na hora. A lixeira
+ * e o "Desfazer" são do sino (useNotificacoes); a página só esconde o que ele esconde.
  */
 const TITULO = 'Notificações'
-const SUBTITULO = 'Tudo o que o Mizan avisou para você: o que falta ver e o histórico dos últimos 90 dias.'
+const SUBTITULO = 'Tudo o que o Mizan avisou para você: o que falta ver e o que você leu nos últimos 30 dias.'
 const POR_PAGINA = 50
 
 function Chip({ ativo, onClick, children }) {
@@ -61,7 +62,7 @@ export default function Notificacoes() {
 
   useEffect(() => { carregar() }, [carregar])
 
-  // Ao vivo: o servidor avisou que mudou, ou o sino marcou algo como lido nesta aba.
+  // Ao vivo: o servidor avisou que mudou, ou o sino marcou como lida ou apagou algo nesta aba.
   useEffect(() => {
     const doServidor = () => carregar()
     const lidas = (e) => {
@@ -73,11 +74,17 @@ export default function Notificacoes() {
         return { ...d, itens }
       })
     }
+    const excluidas = (e) => {
+      const { ids, lidas: faixa } = e.detail || {}
+      setDados(d => (d ? { ...d, itens: d.itens.filter(i => !(faixa ? naFaixa(i, faixa) : (ids || []).includes(i.id))) } : d))
+    }
     window.addEventListener('mizan:notificacoes', doServidor)
     window.addEventListener(EVENTO_LIDAS, lidas)
+    window.addEventListener(EVENTO_EXCLUIDAS, excluidas)
     return () => {
       window.removeEventListener('mizan:notificacoes', doServidor)
       window.removeEventListener(EVENTO_LIDAS, lidas)
+      window.removeEventListener(EVENTO_EXCLUIDAS, excluidas)
     }
   }, [carregar])
 
@@ -102,11 +109,15 @@ export default function Notificacoes() {
   const naoLidas = doSino ? sino.naoLidas : (dados?.nao_lidas || 0)
   const urgentes = doSino ? sino.urgentes : (dados?.urgentes || 0)
   const porCategoria = (doSino && Object.keys(sino.por_categoria || {}).length ? sino.por_categoria : dados?.por_categoria) || {}
+  // O que a lixeira do sino escondeu (esperando o "Desfazer") some daqui também.
+  const visivel = sino?.visivel
+  const itens = useMemo(() => (dados?.itens || []).filter(i => (visivel ? visivel(i) : !i.resolvida)), [dados, visivel])
   const agora = useMemo(() => new Date(), [dados])          // eslint-disable-line react-hooks/exhaustive-deps
-  const grupos = useMemo(() => porDia(dados?.itens || [], agora), [dados, agora])
+  const grupos = useMemo(() => porDia(itens, agora), [itens, agora])
   const categorias = categoriasDoPapel(isAdmin)
   const rotuloCategoria = categorias.find(c => c.id === categoria)?.rotulo
   const comFiltro = !!categoria || soUrgentes
+  const podeExcluirLidas = !!sino?.excluirLidas && filtro === 'todas' && itens.some(i => i.lida)
 
   if (isComando) {
     return (
@@ -138,7 +149,7 @@ export default function Notificacoes() {
       return { titulo: 'Tudo lido por aqui', texto: 'Quando algo precisar de você (uma mensagem, uma reunião, um pagamento para conferir), aparece aqui e no sino.',
         acao: { rotulo: 'Ver todas', onClick: () => setFiltro('todas') } }
     }
-    return { titulo: 'Ainda não há notificações', texto: 'Os avisos dos últimos 90 dias ficam guardados aqui.' }
+    return { titulo: 'Ainda não há notificações', texto: 'O que você já leu fica aqui por 30 dias. O que já passou ou foi resolvido sai sozinho.' }
   }
 
   return (
@@ -169,14 +180,22 @@ export default function Notificacoes() {
         </p>
 
         <div className="space-y-3 rounded-[22px] border border-line bg-surface px-4 py-4 sm:px-5">
-          <div role="tablist" aria-label="Quais notificações" className="flex gap-1 border-b border-line">
-            {[['pendentes', `Não lidas${naoLidas ? ` (${naoLidas > 99 ? '99+' : naoLidas})` : ''}`], ['todas', 'Todas']].map(([id, rotulo]) => (
-              <button key={id} type="button" role="tab" aria-selected={filtro === id} onClick={() => setFiltro(id)}
-                className={`-mb-px min-h-[40px] border-b-2 px-3 text-sm ${filtro === id
-                  ? 'border-[var(--royal)] font-semibold text-ink' : 'border-transparent text-ink-2 hover:text-ink'}`}>
-                {rotulo}
+          <div className="flex flex-wrap items-end gap-2 border-b border-line">
+            <div role="tablist" aria-label="Quais notificações" className="flex gap-1">
+              {[['pendentes', `Não lidas${naoLidas ? ` (${naoLidas > 99 ? '99+' : naoLidas})` : ''}`], ['todas', 'Todas']].map(([id, rotulo]) => (
+                <button key={id} type="button" role="tab" aria-selected={filtro === id} onClick={() => setFiltro(id)}
+                  className={`-mb-px min-h-[40px] border-b-2 px-3 text-sm ${filtro === id
+                    ? 'border-[var(--royal)] font-semibold text-ink' : 'border-transparent text-ink-2 hover:text-ink'}`}>
+                  {rotulo}
+                </button>
+              ))}
+            </div>
+            {podeExcluirLidas && (
+              <button type="button" className="btn-ghost-danger btn-sm mb-1 ml-auto"
+                onClick={() => sino.excluirLidas({ categoria: categoria || undefined, prioridade: soUrgentes ? 'urgente' : undefined })}>
+                <Trash2 className="h-4 w-4" aria-hidden="true" /> {comFiltro ? 'Excluir as lidas deste filtro' : 'Excluir as lidas'}
               </button>
-            ))}
+            )}
           </div>
           <div className="flex flex-wrap gap-2" role="group" aria-label="Assunto">
             <Chip ativo={!categoria} onClick={() => setCategoria('')}>Todos os assuntos</Chip>
@@ -195,8 +214,8 @@ export default function Notificacoes() {
         </div>
 
         {carregando && !dados ? <EsqueletoNotificacoes />
-          : erro && !dados?.itens?.length ? <ErroCarga erro={erro} onTentar={carregar} />
-          : !dados?.itens?.length ? (() => {
+          : erro && !itens.length ? <ErroCarga erro={erro} onTentar={carregar} />
+          : !itens.length && !dados?.mais ? (() => {
             const v = vazio()
             return (
               <div className="rounded-[22px] border border-dashed border-line px-6 py-10 text-center">
@@ -207,14 +226,15 @@ export default function Notificacoes() {
               </div>
             )
           })() : (
-            <div className="space-y-6" aria-busy={carregando}>
+            <div className="space-y-6" aria-busy={carregando} data-lista-notificacoes>
               {erro && <ErroCarga erro={erro} onTentar={carregar} compacto />}
               {grupos.map(g => (
                 <section key={g.id} aria-labelledby={`dia-${g.id}`}>
                   <h2 id={`dia-${g.id}`} className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">{g.titulo}</h2>
                   <ul className="space-y-2">
                     {g.itens.map(i => (
-                      <ItemNotificacao key={i.id} item={i} agora={agora} onAbrir={sino?.abrir} onLida={sino?.marcarLida} />
+                      <ItemNotificacao key={i.id} item={i} agora={agora} onAbrir={sino?.abrir} onLida={sino?.marcarLida}
+                        onExcluir={sino?.excluir} />
                     ))}
                   </ul>
                 </section>

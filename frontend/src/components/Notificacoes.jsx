@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
   Bell, BellRing, CalendarClock, CheckCheck, ChevronLeft, Loader2, MessageSquare, Settings2, ShieldAlert,
-  TriangleAlert, Users, Wallet, Wrench, X,
+  Trash2, TriangleAlert, Users, Wallet, Wrench, X,
 } from 'lucide-react'
 import useModal from './useModal'
 import useNotificacoes from './useNotificacoes'
@@ -55,12 +55,20 @@ export function EsqueletoNotificacoes() {
   )
 }
 
-export function ItemNotificacao({ item, agora, onAbrir, onLida }) {
+// Depois da lixeira, o foco vai para a lixeira vizinha (a próxima ou a anterior), para quem usa o teclado.
+function focarVizinha(botao) {
+  const todas = [...(botao.closest('[data-lista-notificacoes]')?.querySelectorAll('[data-lixeira]') || [])]
+  const i = todas.indexOf(botao)
+  const alvo = todas[i + 1] || todas[i - 1]
+  if (alvo) setTimeout(() => alvo.focus(), 0)
+}
+
+export function ItemNotificacao({ item, agora, onAbrir, onLida, onExcluir }) {
   const Icone = ICONE[item.categoria] || Bell
   const urgente = item.prioridade === 'urgente'
   const cor = urgente ? 'var(--danger)' : 'var(--royal)'
   return (
-    <li className={`flex gap-3 rounded-xl border px-3 py-3 ${item.lida || item.resolvida ? 'border-line/60' : 'border-line bg-raise-1'}`}>
+    <li className={`flex gap-3 rounded-xl border px-3 py-3 ${item.lida ? 'border-line/60' : 'border-line bg-raise-1'}`}>
       <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
         style={{ background: urgente ? 'rgb(var(--c-danger) / 0.12)' : 'rgb(var(--c-royal) / 0.10)', color: cor }}>
         <Icone className="h-4 w-4" aria-hidden="true" />
@@ -70,7 +78,7 @@ export function ItemNotificacao({ item, agora, onAbrir, onLida }) {
           <p className={`min-w-0 flex-1 break-words text-sm ${item.lida ? 'text-ink-2' : 'font-semibold text-ink'}`}>
             {item.titulo}
           </p>
-          {!item.lida && !item.resolvida && (
+          {!item.lida && (
             <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full" style={{ background: cor }} aria-hidden="true" />
           )}
         </div>
@@ -83,12 +91,20 @@ export function ItemNotificacao({ item, agora, onAbrir, onLida }) {
           )}
           <span className="tabular-nums">{tempoRelativo(item.atualizado_em || item.criado_em, agora)}</span>
           {item.lida && <span>· Lida</span>}
-          {item.resolvida && <span>· Já resolvida</span>}
         </p>
-        <div className="mt-2 flex flex-wrap gap-2">
-          <button type="button" onClick={() => onAbrir(item)} className="btn-secondary btn-sm">{item.acao || 'Abrir'}</button>
-          {!item.lida && (
-            <button type="button" onClick={() => onLida(item.id)} className="btn-ghost btn-sm">Marcar como lida</button>
+        <div className="mt-2 flex items-start gap-2">
+          <div className="flex min-w-0 flex-1 flex-wrap gap-2">
+            <button type="button" onClick={() => onAbrir(item)} className="btn-secondary btn-sm">{item.acao || 'Abrir'}</button>
+            {!item.lida && (
+              <button type="button" onClick={() => onLida(item.id)} className="btn-ghost btn-sm">Marcar como lida</button>
+            )}
+          </div>
+          {onExcluir && (
+            <button type="button" data-lixeira onClick={(e) => { focarVizinha(e.currentTarget); onExcluir(item) }}
+              aria-label={`Excluir a notificação: ${item.titulo}`} title="Excluir"
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-ink-3 transition-colors hover:bg-[rgb(var(--c-danger)/0.10)] hover:text-[var(--danger)]">
+              <Trash2 className="h-4 w-4" aria-hidden="true" />
+            </button>
           )}
         </div>
       </div>
@@ -113,7 +129,7 @@ function Lista() {
         <p className="mt-1 text-[13px] text-ink-2">
           {n.filtro === 'pendentes'
             ? 'Quando algo precisar de você (uma mensagem, uma reunião, um pagamento para conferir), aparece aqui.'
-            : 'Os avisos dos últimos 90 dias ficam guardados aqui.'}
+            : 'O que você já leu fica aqui por 30 dias. O que já passou ou foi resolvido sai sozinho.'}
         </p>
         {n.filtro === 'pendentes' && (
           <button type="button" onClick={() => n.setFiltro('todas')} className="btn-ghost btn-sm mt-3">Ver todas</button>
@@ -122,13 +138,15 @@ function Lista() {
     )
   }
   return (
-    <div className="space-y-5">
+    <div className="space-y-5" data-lista-notificacoes>
       {n.erro && <ErroCarga erro={n.erro} onTentar={n.recarregar} compacto />}
       {grupos.map(g => (
         <section key={g.id} aria-labelledby={`notificacoes-${g.id}`}>
           <h3 id={`notificacoes-${g.id}`} className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">{g.titulo}</h3>
           <ul className="space-y-2">
-            {g.itens.map(i => <ItemNotificacao key={i.id} item={i} agora={agora} onAbrir={n.abrir} onLida={n.marcarLida} />)}
+            {g.itens.map(i => (
+              <ItemNotificacao key={i.id} item={i} agora={agora} onAbrir={n.abrir} onLida={n.marcarLida} onExcluir={n.excluir} />
+            ))}
           </ul>
         </section>
       ))}
@@ -290,11 +308,18 @@ export function PainelNotificacoes() {
                     </button>
                   ))}
                 </div>
-                {n.naoLidas > 0 && (
-                  <button type="button" onClick={n.marcarTodas} className="btn-ghost btn-sm ml-auto">
-                    <CheckCheck className="h-4 w-4" aria-hidden="true" /> Marcar todas como lidas
-                  </button>
-                )}
+                <div className="ml-auto flex flex-wrap justify-end gap-1">
+                  {n.naoLidas > 0 && (
+                    <button type="button" onClick={n.marcarTodas} className="btn-ghost btn-sm">
+                      <CheckCheck className="h-4 w-4" aria-hidden="true" /> Marcar todas como lidas
+                    </button>
+                  )}
+                  {n.filtro === 'todas' && n.itens.some(i => i.lida) && (
+                    <button type="button" onClick={() => n.excluirLidas()} className="btn-ghost-danger btn-sm">
+                      <Trash2 className="h-4 w-4" aria-hidden="true" /> Excluir as lidas
+                    </button>
+                  )}
+                </div>
               </div>
             )}
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">

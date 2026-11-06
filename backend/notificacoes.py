@@ -419,7 +419,7 @@ class ArmazemMemoria:
     def listar(self, usuario_id: str, empresa_id: str, pendentes: bool, limite: int, antes: str | None,
                categoria: str | None = None, prioridade: str | None = None) -> list:
         ls = [l for l in self.linhas if l["usuario_id"] == usuario_id and l["empresa_id"] == empresa_id
-              and (not pendentes or (not l.get("lida_em") and not l.get("resolvida_em")))
+              and not l.get("resolvida_em") and (not pendentes or not l.get("lida_em"))
               and (not antes or str(l["atualizado_em"]) < antes)
               and (not categoria or l.get("categoria") == categoria)
               and (not prioridade or l.get("prioridade") == prioridade)]
@@ -443,11 +443,32 @@ class ArmazemMemoria:
         return [dict(l) for l in self.linhas if l["prioridade"] == "urgente" and not l.get("lida_em")
                 and not l.get("resolvida_em") and not l.get("escalada_em") and desde < str(l["criado_em"]) < ate]
 
-    def limpar(self, lidas_antes: str, todas_antes: str) -> int:
+    def excluir(self, usuario_id: str, empresa_id: str, ids=None, so_lidas: bool = False,
+                categoria: str | None = None, prioridade: str | None = None) -> int:
+        if ids is None and not so_lidas:
+            raise ValueError("excluir sem dizer quais")
+        antes = len(self.linhas)
+        self.linhas = [l for l in self.linhas if not (
+            l["usuario_id"] == usuario_id and l["empresa_id"] == empresa_id
+            and (ids is None or l["id"] in ids) and (not so_lidas or l.get("lida_em"))
+            and (not categoria or l.get("categoria") == categoria)
+            and (not prioridade or l.get("prioridade") == prioridade))]
+        return antes - len(self.linhas)
+
+    def resolver_antigas(self, tipos, antes: str, quando: str | None = None) -> list:
+        saida = []
+        for l in self.linhas:
+            if l["tipo"] in tipos and str(l["criado_em"]) < antes and not l.get("resolvida_em"):
+                l["resolvida_em"] = quando or _agora_iso()
+                saida.append(dict(l))
+        return saida
+
+    def limpar(self, resolvidas_antes: str, lidas_antes: str, todas_antes: str) -> int:
         antes = len(self.linhas)
         self.linhas = [l for l in self.linhas if not (
             str(l["criado_em"]) < todas_antes
-            or ((l.get("lida_em") or l.get("resolvida_em")) and str(l["atualizado_em"]) < lidas_antes))]
+            or (l.get("resolvida_em") and str(l["resolvida_em"]) < resolvidas_antes)
+            or (l.get("lida_em") and str(l["atualizado_em"]) < lidas_antes))]
         return antes - len(self.linhas)
 
     # agenda (só leitura, para o relógio)
@@ -539,9 +560,10 @@ class ArmazemSupabase:
 
     def listar(self, usuario_id: str, empresa_id: str, pendentes: bool, limite: int, antes: str | None,
                categoria: str | None = None, prioridade: str | None = None) -> list:
-        q = self._t().select(self._COLUNAS).eq("usuario_id", usuario_id).eq("empresa_id", empresa_id)
+        q = (self._t().select(self._COLUNAS).eq("usuario_id", usuario_id).eq("empresa_id", empresa_id)
+             .is_("resolvida_em", "null"))                  # o que já se resolveu não fica na lista
         if pendentes:
-            q = q.is_("lida_em", "null").is_("resolvida_em", "null")
+            q = q.is_("lida_em", "null")
         if antes:
             q = q.lt("atualizado_em", antes)
         if categoria:
@@ -567,10 +589,29 @@ class ArmazemSupabase:
                 .is_("resolvida_em", "null").is_("escalada_em", "null").gt("criado_em", desde).lt("criado_em", ate)
                 .limit(200).execute().data or [])
 
-    def limpar(self, lidas_antes: str, todas_antes: str) -> int:
+    def excluir(self, usuario_id: str, empresa_id: str, ids=None, so_lidas: bool = False,
+                categoria: str | None = None, prioridade: str | None = None) -> int:
+        if ids is None and not so_lidas:
+            raise ValueError("excluir sem dizer quais")
+        q = self._t().delete().eq("usuario_id", usuario_id).eq("empresa_id", empresa_id)
+        if ids is not None:
+            q = q.in_("id", list(ids))
+        if so_lidas:
+            q = q.not_.is_("lida_em", "null")
+        if categoria:
+            q = q.eq("categoria", categoria)
+        if prioridade:
+            q = q.eq("prioridade", prioridade)
+        return len(q.execute().data or [])
+
+    def resolver_antigas(self, tipos, antes: str, quando: str | None = None) -> list:
+        return (self._t().update({"resolvida_em": quando or _agora_iso()}).in_("tipo", list(tipos))
+                .lt("criado_em", antes).is_("resolvida_em", "null").execute().data or [])
+
+    def limpar(self, resolvidas_antes: str, lidas_antes: str, todas_antes: str) -> int:
         n = len(self._t().delete().lt("criado_em", todas_antes).execute().data or [])
-        for coluna in ("lida_em", "resolvida_em"):
-            n += len(self._t().delete().lt("atualizado_em", lidas_antes).not_.is_(coluna, "null").execute().data or [])
+        n += len(self._t().delete().lt("resolvida_em", resolvidas_antes).execute().data or [])
+        n += len(self._t().delete().lt("atualizado_em", lidas_antes).not_.is_("lida_em", "null").execute().data or [])
         return n
 
     def _paginas(self, montar_consulta, maximo: int = 20000) -> list:
@@ -869,6 +910,19 @@ def listar(usuario_id: str, empresa_id: str, filtro: str = "pendentes", limite: 
     return {"ativo": True, "itens": itens, "mais": len(linhas) > limite,
             "nao_lidas": len(abertas), "urgentes": sum(1 for a in abertas if a.get("prioridade") == "urgente"),
             "por_categoria": por_categoria, "agora": agora.isoformat(), "preferencias": prefs}
+
+
+def excluir(usuario_id: str, empresa_id: str, ids=None, so_lidas: bool = False,
+            categoria: str | None = None, prioridade: str | None = None) -> int:
+    """A pessoa apagou avisos dela: os indicados, ou os já lidos (só do assunto e da prioridade que a
+    tela filtrava, se filtrava). Nunca os de outra pessoa."""
+    if ids is not None and not ids:
+        return 0
+    n = armazem().excluir(usuario_id, empresa_id, ids, so_lidas,
+                          categoria if so_lidas and categoria in CATEGORIAS else None,
+                          prioridade if so_lidas and prioridade in PRIORIDADES else None)
+    mudancas.marcar_usuario(usuario_id)
+    return n
 
 
 def marcar_lidas(usuario_id: str, empresa_id: str, ids=None) -> int:
@@ -1192,6 +1246,29 @@ def _pessoa(empresa_id: str, uid) -> bool:
     return str(uid or "") in pessoas(empresa_id)
 
 
+LEMBRETE_VALE_ATE = timedelta(minutes=30)      # meia hora depois do horário, o lembrete sai da lista
+TIPOS_DO_DIA = ("N15", "N16", "N17", "N27", "N30", "N31")   # resumos e alertas que valem só para o dia
+
+
+def _lembretes_que_passaram(empresa_id: str, item_id: str, marca: str) -> None:
+    """O horário passou: "reunião em 5 minutos", "sem atendente" e "retorno às 10:00" saem da lista.
+    Uma vez por compromisso e horário neste servidor (o relógio passa por ele a cada minuto)."""
+    chave = (empresa_id, f"passou:{item_id}:{marca}")
+    if chave in _GRAVADAS:
+        return
+    _GRAVADAS.add(chave)
+    resolver(empresa_id, "agenda", item_id, ("N10", "N11", "N14", "ESC"))
+
+
+def virada_do_dia(agora: datetime) -> int:
+    """Resumos e alertas de dias anteriores (agenda do dia, atrasados, agente parado...) saem da lista."""
+    inicio = datetime.combine(_dia(agora), dtime(0, 0), BRASILIA).astimezone(timezone.utc).isoformat()
+    linhas = armazem().resolver_antigas(TIPOS_DO_DIA, inicio)
+    for uid in {l.get("usuario_id") for l in linhas if l.get("usuario_id")}:
+        mudancas.marcar_usuario(uid)
+    return len(linhas)
+
+
 def lembretes(agora: datetime) -> int:
     """N10, N11, N12 e N14: compromissos com hora marcada de ontem a amanhã."""
     hoje = _dia(agora)
@@ -1205,6 +1282,8 @@ def lembretes(agora: datetime) -> int:
         marca = f"{str(a.get('data'))[:10]}:{_hora(a.get('hora'))}"
         ctx = {"nome": a.get("nome"), "predicao_id": a.get("predicao_id"), "hora": _hora(a.get("hora"))}
         ent = ("agenda", item)
+        if falta <= -LEMBRETE_VALE_ATE:
+            _lembretes_que_passaram(emp, item, marca)
         if t == "atendimento" and a.get("operador_id") == A_DEFINIR:
             if timedelta(0) < falta <= timedelta(hours=2):
                 notificar("N11", emp, admins=True, contexto=ctx, chave=f"N11:{item}:{marca}", entidade=ent, agora=agora)
@@ -1452,8 +1531,15 @@ def _email_resumo(nome: str, total: int, linhas: str) -> str:
     </div>"""
 
 
+GUARDAR_RESOLVIDAS = timedelta(days=7)
+GUARDAR_LIDAS = timedelta(days=30)
+GUARDAR_TODAS = timedelta(days=90)
+
+
 def limpar(agora: datetime) -> int:
-    return armazem().limpar((agora - timedelta(days=90)).isoformat(), (agora - timedelta(days=180)).isoformat())
+    """Apaga o que não serve mais: resolvidas há 7 dias, lidas há 30, qualquer uma com mais de 90."""
+    return armazem().limpar((agora - GUARDAR_RESOLVIDAS).isoformat(), (agora - GUARDAR_LIDAS).isoformat(),
+                            (agora - GUARDAR_TODAS).isoformat())
 
 
 def _na_janela_e_pendente(nome: str, agora: datetime, de: int, ate: int) -> bool:
@@ -1487,6 +1573,7 @@ def relogio(agora: datetime | None = None) -> dict:
     # 8h tenta de novo no minuto seguinte (as chaves dos avisos não deixam repetir).
     for rodada, de, ate, fns in (("manha", 8, 12, (("manha", manha), ("emails", resumos_por_email))),
                                  ("nove", 9, 18, (("nove", nove_horas),)),
+                                 ("virada", 0, 24, (("virada", virada_do_dia),)),
                                  ("limpeza", 3, 6, (("limpeza", limpar),))):
         if not _na_janela_e_pendente(rodada, agora, de, ate):
             continue

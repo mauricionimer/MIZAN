@@ -331,12 +331,16 @@ perguntas:
 - onde vejo as notificações antigas
 - quem recebe o aviso quando o devedor não tem responsável
 - por que o aviso urgente apareceu sozinho na tela
-curta: O sino avisa o que precisa de você: mensagem nova num caso seu, reunião, lembrete de horário, pagamento para conferir. O urgente aparece sozinho no topo da tela. Tudo fica guardado em Notificações por 90 dias.
-calculo: Recebe o responsável pelo devedor; sem responsável, ou com o assistente, os administradores da empresa. Quem fez a ação não recebe. Urgente sem leitura em 15 minutos vai também para os administradores que ainda não o receberam. No horário silencioso (padrão das 20h às 8h), só o urgente toca; o resto fica guardado sem chamar a atenção.
-fazer: Toque no aviso para abrir o lugar certo. Na engrenagem do sino, escolha os assuntos, o horário silencioso, o aviso do navegador e o resumo por e-mail das 8h.
+- como apago uma notificação
+- por que uma notificação sumiu sozinha
+curta: O sino avisa o que precisa de você: mensagem nova num caso seu, reunião, lembrete de horário, pagamento para conferir. O urgente aparece sozinho no topo da tela. O que já passou ou já foi resolvido sai sozinho da lista; o resto você apaga na lixeira.
+calculo: Recebe o responsável pelo devedor; sem responsável, ou com o assistente, os administradores da empresa. Quem fez a ação não recebe. Urgente sem leitura em 15 minutos vai também para os administradores que ainda não o receberam. No horário silencioso (padrão das 20h às 8h), só o urgente toca; o resto fica guardado sem chamar a atenção. Sai sozinho da lista: o que já se resolveu (você respondeu, o pagamento foi confirmado), o lembrete meia hora depois do horário e o resumo do dia na virada do dia. O Mizan apaga as resolvidas depois de 7 dias, as lidas depois de 30 e qualquer uma depois de 90.
+fazer: Toque no aviso para abrir o lugar certo. A lixeira apaga um aviso; dá para desfazer por alguns segundos. Na aba Todas, Excluir as lidas limpa de uma vez (com um assunto escolhido na página, só as daquele assunto). Na engrenagem do sino, escolha os assuntos, o horário silencioso, o aviso do navegador e o resumo por e-mail das 8h.
 cuidado: O urgente não pode ser desligado. O aviso do navegador só aparece com o Mizan aberto (em outra aba ou minimizado) e depois que você permite no navegador; com o Mizan fechado, nada aparece fora dele.
 fontes:
 - backend/notificacoes.py::destinatarios
 - backend/notificacoes.py::toca_agora
 - backend/notificacoes.py::escalar
 - backend/notificacoes.py::limpar
+- backend/notificacoes.py::excluir
+- backend/notificacoes.py::virada_do_dia

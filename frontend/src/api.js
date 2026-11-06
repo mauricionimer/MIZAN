@@ -133,7 +133,7 @@ export function pedir(caminho, opcoes = {}) {
   return leituraEmCurso(chave, () => executarPedido(caminho, { ...opcoes, token }))
 }
 
-async function executarPedido(caminho, { metodo = 'GET', corpo, form, token, query, sinal, publico = false, sessao = true } = {}) {
+async function executarPedido(caminho, { metodo = 'GET', corpo, form, token, query, sinal, publico = false, sessao = true, keepalive = false } = {}) {
   const tok = publico ? '' : (token ?? _getToken())
   const headers = {}
   if (tok) headers.Authorization = `Bearer ${tok}`
@@ -145,7 +145,8 @@ async function executarPedido(caminho, { metodo = 'GET', corpo, form, token, que
   const { sinal: sinalComPrazo, limpar } = _sinalComPrazo(sinal)
   let res
   try {
-    res = await fetch(url, { method: metodo, headers, body, signal: sinalComPrazo, cache: 'no-store' })
+    // `keepalive`: o pedido termina mesmo se a aba fechar logo depois (ex.: exclusão esperando o "Desfazer").
+    res = await fetch(url, { method: metodo, headers, body, signal: sinalComPrazo, cache: 'no-store', ...(keepalive ? { keepalive: true } : {}) })
   } finally {
     limpar()
   }
@@ -932,6 +933,14 @@ export function marcarNotificacaoLida(id) {
 // Sem `ids`: todas as da pessoa.
 export function marcarNotificacoesLidas(ids) {
   return pedir('/notificacoes/lidas', { metodo: 'POST', corpo: ids ? { ids } : {} })
+}
+
+// Lixeira: { ids } apaga essas; { lidas: true } apaga as já lidas (só do assunto e da prioridade, se vierem).
+// Só as da própria pessoa. `saindo`: a aba está fechando ou a conta mudou; vai com o token de quem excluiu e
+// um 401 não encerra a sessão de ninguém.
+export function excluirNotificacoes({ ids, lidas, categoria, prioridade } = {}, { saindo = false, token } = {}) {
+  const corpo = ids ? { ids } : { lidas: !!lidas, ...(categoria ? { categoria } : {}), ...(prioridade ? { prioridade } : {}) }
+  return pedir('/notificacoes/excluir', { metodo: 'POST', corpo, ...(saindo ? { token, sessao: false, keepalive: true } : {}) })
 }
 
 export function preferenciasNotificacoes() {
